@@ -17,7 +17,7 @@
 
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
-| T-01 | Repo, uv, `pyproject`, ruff, pytest y estructura de carpetas de la SPEC-00 | P | — | RNF-17, RNF-26 | ⬜ |
+| T-01 | Repo, uv, `pyproject`, ruff, pytest y estructura de carpetas de la SPEC-00 | P | — | RNF-17, RNF-26 | ✅ |
 | T-02 | Pre-commit con gitleaks y CI (ruff, pytest sin integración, gitleaks) | P | T-01 | RNF-01, CA-00-05 | ⬜ |
 | T-03 | `core/config.py` (pydantic-settings, SecretStr) y structlog con enmascarado | P | T-01 | RNF-01, RNF-02, RNF-23 | ⬜ |
 | T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | ⬜ |

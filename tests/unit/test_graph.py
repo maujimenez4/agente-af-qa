@@ -908,3 +908,11 @@ def test_published_version_cannot_be_approved_again(tmp_path: Path) -> None:
         graph.invoke(_approve(graph, config), config)
     creates = [w for w in _tracker(container).writes if w[0] == "create_story"]
     assert len(creates) == 1
+
+
+@pytest.mark.parametrize("key", ["DEMO-3\n", "DEMO-3\n../x"])
+def test_load_origin_rejects_keys_with_trailing_newline(tmp_path: Path, key: str) -> None:
+    """PA-18: `fullmatch` impide que un salto de línea final pase la validación."""
+    state = initial_state(AF_USER, "functional", {"kind": "story", "key": key})
+    with pytest.raises(ValueError, match="Clave de Jira no válida"):
+        GraphNodes(fake_container(tmp_path)).load_origin(state)

@@ -286,3 +286,5 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | `documents.category` | Texto libre sin CHECK hasta definir las 7 categorías (T-09/T-12) | `migrations/versions/0001_initial.py` |
 | Embeddings | Solo `OllamaEmbeddings` (API compatible con OpenAI); `OpenAIEmbeddings` se descarta por D-14 (sin servicios de pago) | `adapters/embeddings/ollama.py` |
 | `VectorStore` sobre Postgres | Ids de texto del protocolo → UUID (`uuid5`), originales en `metadata` (`_chunk_id`, `_document_id` reservadas); `upsert` crea/actualiza `documents` desde la `metadata` del fragmento (`category` obligatoria) y registra `embedding_model`; la búsqueda solo considera el modelo de la colección | `adapters/vectorstore/pgvector.py` |
+| Composición real | `core/factories.py` traduce `AppConfig` a los adaptadores reales (`build_llm_provider`, `model_router`, `build_issue_tracker`); `core/container.py` lo usará al sustituir los fakes | `core/factories.py` |
+| Jira y scopes | Token con scopes vía `https://api.atlassian.com/ex/jira/<cloudId>`; `test_connection` usa `/rest/api/3/project/search` (basta `read:jira-work`) | `adapters/jira/tracker.py` |

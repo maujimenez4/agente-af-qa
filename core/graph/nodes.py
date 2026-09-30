@@ -273,7 +273,7 @@ class GraphNodes:
         markdown = memory.to_markdown()
         self.c.memory_dir.mkdir(parents=True, exist_ok=True)
         target = (self.c.memory_dir / f"{memory.jira_key}.md").resolve()
-        if not JIRA_KEY.match(memory.jira_key) or not target.is_relative_to(
+        if not JIRA_KEY.fullmatch(memory.jira_key) or not target.is_relative_to(
             self.c.memory_dir.resolve()
         ):
             raise ValueError(f"Clave de Jira no válida para la memoria: {memory.jira_key!r}.")
@@ -312,7 +312,7 @@ def validate_origin(state: AgentState) -> None:
         raise ValueError(f"Tipo de origen no válido: {kind!r}.")
     if kind in ("epic", "story") and not key:
         raise ValueError(f"El origen '{kind}' necesita una clave de Jira.")
-    if key is not None and not JIRA_KEY.match(key):
+    if key is not None and not JIRA_KEY.fullmatch(key):
         raise ValueError(f"Clave de Jira no válida: {key!r} (formato esperado: PROYECTO-123).")
     if kind == "need" and not (text and text.strip()):
         raise ValueError("Una necesidad nueva necesita un texto descriptivo.")

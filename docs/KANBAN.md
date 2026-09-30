@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-19 … T-21, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-18, T-22 | T-37, T-38 (R-01) |
+| T-08, T-21, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-20, T-22 | T-37, T-38 (R-01) |
 
 ---
 
@@ -56,8 +56,8 @@
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
 | T-18 | Servicio de contexto (nodo `retrieve_context`): Jira + RAG con presupuesto de tokens | A | T-14, T-16 | RF-11, RF-14 | ✅ |
-| T-19 | Versionado de HU (`artifact_versions`) y cálculo del diff por campo (`StoryDiff`) | A | T-05 | RF-05, RF-19, RNF-16 | ⬜ |
-| T-20 | Prompts de HU nueva, de evolución y de revisión: salida estructurada, IDs de CA y RN, y citas | B | T-10, T-16 | RF-15, RF-16, RF-17, RF-18, RF-21 | ⬜ |
+| T-19 | Versionado de HU (`artifact_versions`) y cálculo del diff por campo (`StoryDiff`) | A | T-05 | RF-05, RF-19, RNF-16 | ✅ |
+| T-20 | Prompts de HU nueva, de evolución y de revisión: salida estructurada, IDs de CA y RN, y citas | B | T-10, T-16 | RF-15, RF-16, RF-17, RF-18, RF-21 | ✅ |
 
 **🔗 Sincronización:** **generar la primera HU real** del piloto (por script o CLI) a partir de una necesidad y de una HU sembrada.
 
@@ -155,6 +155,7 @@
 | Fecha | Decisión |
 |---|---|
 | 2026-09-30 | Nueva rama de integración **`PreProduccion`** (desde `main` en `143cc4e`). Todo el trabajo se fusiona en ella por PR; `main` queda como referencia estable hasta nueva decisión |
+| 2026-09-30 | Rama `Dia4` (T-19, T-20) fusionada en `PreProduccion`: PA del compañero renumeradas a PA-30…PA-34 (PA-32 ya resuelta en T-18); anexo §11 admite persistencia del núcleo en sus propias tablas (`core/impact/versions.py`); prompts de evolución y revisión v2 con la regla anti-instrucciones; verificado en real (LLM + RAG) |
 | 2026-09-30 | **SPEC-00 v1.3**: `IssueTracker.list_projects()` y `ProjectSummary` (RF-02, navegación §6.1), aprobado por el usuario |
 | 2026-09-30 | Reparto del día 4: el compañero hace **T-20** y **T-19** en la rama `Dia4` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-04-dia4-companero.md`); la sesión principal hace **T-14 → T-18 → T-22** en `PreProduccion`. Las nuevas propuestas adicionales se numeran desde PA-23 |
 
@@ -190,6 +191,11 @@
 | PA-27 | Auditar logins correctos y fallidos en `audit_log` (sin contraseña ni hash) | T-22 (security-reviewer) | Pendiente · T-25 |
 | PA-28 | `AuthorizationError` (403) en `adapters/errors.py` para `require`, distinto de `AuthenticationError` | T-22 (security-reviewer) | Pendiente (P) |
 | PA-29 | Impedir `core.seed_users` fuera de `APP_ENV=development` (reinicia las contraseñas demo) | T-22 (security-reviewer) | Pendiente |
+| PA-30 | Conectar `core/functional/writer.StoryWriter` (con `StoryContext` construido desde el estado) al nodo `generate` de `core/graph/nodes.py`, sustituyendo `_context_json`, y guardar `prompt_version` en el `Artifact` | T-20 | Pendiente (A) · T-18/T-25 |
+| PA-31 | RGPD: minimizar lo que se envía al LLM desde Jira (hoy `_jira_source` incluye descripción y todos los comentarios); filtrar o seudonimizar comentarios cuando haya datos reales | T-20 (security-reviewer) | Pendiente · antes de usar datos reales (T-24/v2.0) |
+| PA-32 | Hallazgo de T-17: cuando un acta cambia una regla, asegurar en la recuperación que llegan ambos documentos (p. ej. ampliar con los `related` del fragmento) para que el prompt pueda aplicar la regla de la fecha más reciente | T-20 (spec-checker) | ✅ Resuelta en T-18 (`ContextService` añade la norma ↔ acta por `metadata[\"related\"]`) |
+| PA-33 | Usar `core/impact/diff.diff_stories` para rellenar `ImpactAnalysis.diffs` en el nodo `generate` (hoy los genera el LLM) y guardar cada versión con `StoryVersionStore.save` | T-19 | Pendiente (A) · T-21/T-25 |
+| PA-34 | `StoryVersionStore.save`: rechazar que un id existente cambie de `type` (hoy la fila se actualiza y las versiones anteriores se leerían con otro modelo); y una excepción específica para «diff no disponible» (hoy `NotFoundError`), que requiere tocar `adapters/errors.py` | T-19 (spec-checker) | Pendiente (P) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -203,4 +209,6 @@
 | 3 | 2026-09-30 | **T-16 ✅ y T-17 ✅** (desde P por decisión del usuario): `core/rag/indexing.py` (`CorpusIndexer` + CLI `uv run python -m core.rag.indexing`) une T-12/T-13 con `OllamaEmbeddings` y `PgVectorStore`; completa la metadata (`source_path` y `source` relativos, `content_hash`, `doc_id`, `classified_by`, `ingested_at`; `date` es la de la cabecera) y vectoriza título · sección + contenido. Indexación real: **22 documentos, 248 fragmentos**, 7 categorías (≈3 min con bge-m3 en CPU, Ollama en Docker, perfil `local-llm`). Evaluación real (`uv run python -m eval.retrieval_eval`, k=6): **Recall@6 0,90, MRR 0,95, latencia máx. ≈0,5 s** (RNF-09 ✅). Fallos: preguntas cuya regla cambió un acta (Q-01 no recupera DOC-19; Q-02 no recupera DOC-03) → tenerlo en cuenta en T-18. Fábricas `build_embeddings`/`build_vector_store` en `core/factories.py` | Día 3 cerrado salvo T-14 | — | T-14 (JQL), luego día 4 (T-18, T-19, T-20) |
 | 4 | 2026-09-30 | **T-14 ✅** (P, rama `PreProduccion`): `JiraCloudTracker.search` paginado con `nextPageToken`/`isLast` por `/rest/api/3/search/jql` (páginas de 100, tope 1000), `list_epics` con `hierarchyLevel = 1` (no depende del idioma: en el sitio de pruebas las HU son «Historia»), `list_children` con `parent = CLAVE`; `core/context/jql.py` con `text_search_jql` (escapado Lucene + JQL) y `linked_issues_jql` para T-18. Verificado en Jira real (4 épicas, 4 HU de préstamo digital, 17 incidencias en varias páginas). Nota para T-18: el índice de búsqueda de Jira tarda en reflejar vínculos recién creados (`get_issue` los ve antes que `linkedIssues`). RF-02 «listar proyectos» queda en PA-23 | — | — | T-18 |
 | 4 | 2026-09-30 | **T-18 ✅** (P): `core/context/service.py` (`ContextService`) + `core/context/budget.py`; `retrieve_context` delega en él sin cambiar `AgentState` ni `Container`. HU → HU + épica + vínculos (máx. 5) + hermanas como resumen; épica → épica + hijas; necesidad → palabras clave con `OR` reordenadas por título (máx. 3). RAG: memorias primero y **norma ↔ acta** vía `metadata["related"]` (decisión del usuario). Presupuesto 6000 tokens (PA-07 resuelta) con margen por serialización y reserva del texto de la necesidad. Real: Q-01 trae DOC-02 + DOC-19; necesidades reales ponen HU-02, HU-13 y HU-08 primero; HU-01 ≈2,8k/6k tokens. **Para T-20:** el contexto de Jira/RAG es no confiable (delimitarlo en los prompts) y `previous`/`feedback` de las iteraciones no están en el presupuesto de T-18 | — | — | T-22 |
+| 4 | 2026-09-30 | T-20 ✅ (B, rama `Dia4`, sesión del compañero): prompts `generate_story`, `evolve_story`, `review_story` y `citation_retry` (v1) en `prompts/`; `core/functional/` con `StoryContext`/`render_context` (fuentes citables delimitadas y escapadas, con fecha y categoría; fragmentos del mismo `DOC-NN` fusionados), validación de citas (solo claves de Jira o `DOC-NN` recibidos; extractos reales; un reintento y `CitationError`) y `StoryWriter.generate/evolve/review` (devuelve `StoryDraft` con `prompt_version`). La revisión (RF-18) devuelve una `UserStory` mejorada: ambigüedades y huecos en `open_questions`, mejoras en `changes_from_previous` | — | Prueba real (`tests/integration/test_functional_live.py`) ejecutadas en verde al integrar en `PreProduccion` (Docker, Jira, LLM y RAG reales). Falta conectar `StoryWriter` al grafo (PA-30) | T-19 |
+| 4 | 2026-09-30 | T-19 ✅ (A, rama `Dia4`, sesión del compañero): `core/impact/diff.py` (`diff_stories`, pura y determinista: campos en el orden de la plantilla, CA/RN por ID `acceptance_criteria[CA-02]`, añadidos con `before=None` y eliminados con `after=None`, fuentes por `kind:ref`, sin `changes_from_previous`) y `core/impact/versions.py` (`StoryVersionStore`: versiones inmutables en `artifact_versions`; `save` también inserta o actualiza `artifacts` por la clave foránea, sin retroceder de versión; `get`, `versions`, `latest`, `diff`) | — | Las 17 pruebas de integración (`tests/unit/test_impact_versions.py`, BD temporal `<db>_versions_test`) se ejecutaron en verde al integrar en `PreProduccion` (`uv run pytest -m integration tests/unit/test_impact_versions.py`) con `docker compose up -d db` antes de fusionar | PR de T-19 y T-20 contra `PreProduccion` |
 | 4 | 2026-09-30 | **T-22 ✅** (P): `adapters/auth/local.py` (`LocalAuthProvider`: argon2id, tiempo constante con hash ficticio aleatorio, inactivos rechazados, rehash tolerante a fallos, `save_user` upsert), `core/permissions.py` (matriz rol × permiso, `can`/`require`; admin configura pero no genera ni publica, D-01), `core/factories.build_auth`. **Usuarios de demo:** `uv run python -m core.seed_users` crea `af-demo`, `qa-demo`, `admin-demo` con contraseñas aleatorias que se muestran **una sola vez** (decisión del usuario; no se guardan en repo, `.env` ni logs). Propuestas PA-25…PA-29 | — | Ejecutar el seed (lo hace el usuario) | Fusionar `Dia4` (T-19, T-20) y seguir con T-21 |

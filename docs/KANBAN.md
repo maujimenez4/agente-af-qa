@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-10 … T-36, T-39 … T-46 | — | — | T-01, T-02, T-03, T-05, T-06, T-07, T-09 | T-04 (WSL pendiente de instalación por TI), T-37, T-38 (R-01) |
+| T-08, T-10 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 | T-37, T-38 (R-01) |
 
 ---
 
@@ -20,7 +20,7 @@
 | T-01 | Repo, uv, `pyproject`, ruff, pytest y estructura de carpetas de la SPEC-00 | P | — | RNF-17, RNF-26 | ✅ |
 | T-02 | Pre-commit con gitleaks y CI (ruff, pytest sin integración, gitleaks) | P | T-01 | RNF-01, CA-00-05 | ✅ |
 | T-03 | `core/config.py` (pydantic-settings, SecretStr) y structlog con enmascarado | P | T-01 | RNF-01, RNF-02, RNF-23 | ✅ |
-| T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | ⛔ |
+| T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | ✅ |
 | T-05 | `schemas/` y `core/state_machine.py` con pruebas | P | T-01 | SPEC-00 §3, RF-34, CA-00-07 | ✅ |
 | T-06 | `adapters/base.py`, `adapters/errors.py` y `tests/fakes/` para todos los protocolos | P | T-05 | SPEC-00 §4, CA-00-03 | ✅ |
 | T-07 | Esqueleto del grafo LangGraph con fakes, `interrupt()` y reanudación | P | T-06 | CA-00-04 | ✅ |
@@ -146,6 +146,8 @@
 | 2026-09-30 | Las 7 categorías del corpus (`documents.category`): `normativa`, `procesos`, `especificaciones`, `glosario`, `arquitectura`, `manuales`, `actas` (+ `memoria`, reservada al agente). Prompt de T-09 en `docs/prompts/PROMPT-02-corpus-area-b.md` |
 | 2026-09-30 | T-15 se entrega como CSV importable desde la interfaz de Jira Cloud (`data/seed/jira/seed-villaficticia.csv`); la importación la hace el usuario. Prompt en `docs/prompts/PROMPT-03-seed-jira-csv.md` |
 | 2026-09-30 | T-04 queda ⛔ hasta que TI instale WSL; se continúa con el resto del plan |
+| 2026-09-30 | T-04 ✅: `docker compose up -d db` + `alembic upgrade head` verificados (pgvector 0.8.6, 7 tablas, `vector(1024)`, índices HNSW y GIN); prueba de integración en verde |
+| 2026-09-30 | Skill `/tarea` (`.claude/skills/tarea/`) versionada para todas las sesiones |
 | 2026-09-30 | **SPEC-00 congelada** (v1.2, anexo §11) y creación de los worktrees `area-a` y `area-b` |
 
 ## Propuestas adicionales detectadas durante el desarrollo

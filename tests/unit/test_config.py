@@ -18,6 +18,10 @@ from core.config import (
     load_models_config,
 )
 
+TEST_MODELS = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "models.yaml"
+)  # modelos fijos de prueba
+
 # Valores claramente ficticios; no son credenciales reales.
 FAKE_GROQ_KEY = "fake-groq-key-0000000000"
 FAKE_JIRA_TOKEN = "fake-jira-token-0000000000"
@@ -45,7 +49,7 @@ def test_current_models_yaml_is_valid() -> None:
 
 
 def test_task_chain_keeps_yaml_order() -> None:
-    models = load_models_config()
+    models = load_models_config(TEST_MODELS)
     chain = models.tasks[TaskType.GENERATE_STORY]
     assert [ref.provider for ref in chain] == ["groq", "openrouter"]
 
@@ -142,7 +146,7 @@ def test_without_keys_only_local_provider_is_available(no_keys_settings: Setting
 
 
 def test_without_keys_chains_keep_only_local(no_keys_settings: Settings) -> None:
-    config = AppConfig(no_keys_settings, load_models_config())
+    config = AppConfig(no_keys_settings, load_models_config(TEST_MODELS))
     assert config.task_chain(TaskType.GENERATE_STORY) == []
     assert [r.provider for r in config.task_chain(TaskType.CLASSIFY_SOURCE)] == ["local"]
     assert len(config.task_chain(TaskType.GENERATE_STORY, only_available=False)) == 2
@@ -150,7 +154,7 @@ def test_without_keys_chains_keep_only_local(no_keys_settings: Settings) -> None
 
 def test_key_makes_provider_available(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("GROQ_API_KEY", FAKE_GROQ_KEY)
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(TEST_MODELS))
     assert config.provider_status("groq").available
     assert [r.provider for r in config.task_chain(TaskType.GENERATE_STORY)] == ["groq"]
     key = config.api_key_for("groq")
@@ -211,3 +215,11 @@ def test_yaml_syntax_error_does_not_echo_content(tmp_path: Path) -> None:
         load_models_config(path)
     assert leaked not in str(info.value)
     assert info.value.__cause__ is None
+
+
+def test_real_models_yaml_has_no_placeholders() -> None:
+    """R-07: sin modelos por definir y cada cadena con al menos un proveedor con clave."""
+    models = load_models_config()
+    for task, chain in models.tasks.items():
+        assert all("POR_DEFINIR" not in ref.model for ref in chain), task.value
+        assert any(models.providers[ref.provider].api_key_env for ref in chain), task.value

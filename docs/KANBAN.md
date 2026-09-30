@@ -163,6 +163,7 @@
 | Fecha | Decisión |
 |---|---|
 | 2026-09-30 | **Primera evolución de una HU de Jira (PA-30, opción 2):** la incidencia de Jira se estructura primero como `UserStory` con el LLM, para tener diff por campo desde la primera versión (RF-05, RNF-16) |
+| 2026-09-30 | **R-07 cerrada** (decisión del usuario): cadenas de `config/models.yaml` con los modelos gratuitos disponibles — pesadas `groq gpt-oss-120b → groq qwen3.8-27b → openrouter qwen3.8-27b:free`; medias `groq gpt-oss-20b → groq qwen3.8-27b → openrouter gemma-4-31b-it:free`; ligeras `groq gpt-oss-20b → openrouter gemma-4-26b-a4b-it:free`; Ollama solo para embeddings (R-08). Posible cambio futuro a modelos corporativos (Foundry): solo se toca `models.yaml` y el `.env`. Las pruebas usan `tests/fixtures/models.yaml` y no dependen de los modelos reales |
 | 2026-09-30 | Reparto del día 5: el compañero hace **T-26** y **T-23** en la rama `Dia5` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-05-dia5-companero.md`); la sesión principal conecta T-20 al grafo (PA-30) y sigue con **T-21 → T-25**. Rangos de propuestas: principal PA-35…PA-59, compañero desde PA-60 |
 
 ## Propuestas adicionales detectadas durante el desarrollo

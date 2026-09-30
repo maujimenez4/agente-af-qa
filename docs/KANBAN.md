@@ -21,7 +21,7 @@
 | T-02 | Pre-commit con gitleaks y CI (ruff, pytest sin integración, gitleaks) | P | T-01 | RNF-01, CA-00-05 | ✅ |
 | T-03 | `core/config.py` (pydantic-settings, SecretStr) y structlog con enmascarado | P | T-01 | RNF-01, RNF-02, RNF-23 | ✅ |
 | T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | 👀 |
-| T-05 | `schemas/` y `core/state_machine.py` con pruebas | P | T-01 | SPEC-00 §3, RF-34, CA-00-07 | ⬜ |
+| T-05 | `schemas/` y `core/state_machine.py` con pruebas | P | T-01 | SPEC-00 §3, RF-34, CA-00-07 | ✅ |
 | T-06 | `adapters/base.py`, `adapters/errors.py` y `tests/fakes/` para todos los protocolos | P | T-05 | SPEC-00 §4, CA-00-03 | ⬜ |
 | T-07 | Esqueleto del grafo LangGraph con fakes, `interrupt()` y reanudación | P | T-06 | CA-00-04 | ⬜ |
 | T-08 | Crear sitio Jira Cloud y proyecto de pruebas, verificar el tipo subtarea, token con scopes; crear cuentas gratuitas en Groq y OpenRouter; instalar Ollama y descargar bge-m3 y un modelo pequeño; fijar `config/models.yaml` | Tú | — | D-03, D-14, RNF-04 | ⬜ |
@@ -149,4 +149,4 @@
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
 |---|---|---|---|---|---|
-| 1 | 2026-09-29 | T-01, T-02, T-03; T-04 en revisión (falta verificar con Docker) | — | Elección de proveedores y modelos concretos pendiente (R-07, ligada a T-08): `config/models.yaml` se deja con su contenido actual y solo se valida su estructura; la app y las pruebas funcionan sin ninguna API key (los placeholders `TU_*` cuentan como ausentes). Pendiente de configurar el remoto de git para el push. | T-04 a T-07 |
+| 1 | 2026-09-29 | T-01, T-02, T-03, T-05; T-04 en revisión (falta verificar con Docker: WSL no instalado). `adapters/errors.py` adelantado a T-05 por acuerdo (lo necesita la máquina de estados); T-06 cubre `base.py` y los fakes. Validaciones añadidas en `schemas/` (patrones CA/RN/CP, listas y textos mínimos, IDs únicos, `version` positiva, tipo de artefacto coherente) pendientes de ratificar | — | Elección de proveedores y modelos concretos pendiente (R-07, ligada a T-08): `config/models.yaml` se deja con su contenido actual y solo se valida su estructura; la app y las pruebas funcionan sin ninguna API key (los placeholders `TU_*` cuentan como ausentes). Pendiente de configurar el remoto de git para el push. | T-04 a T-07 |

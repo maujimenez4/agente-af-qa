@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08 … T-36, T-39 … T-46 | — | T-04 (falta verificar con Docker) | T-01, T-02, T-03, T-05, T-06, T-07 | T-37, T-38 (R-01) |
+| T-08 … T-36, T-39 … T-46 | — | — | T-01, T-02, T-03, T-05, T-06, T-07 | T-04 (WSL pendiente de instalación por TI), T-37, T-38 (R-01) |
 
 ---
 
@@ -20,7 +20,7 @@
 | T-01 | Repo, uv, `pyproject`, ruff, pytest y estructura de carpetas de la SPEC-00 | P | — | RNF-17, RNF-26 | ✅ |
 | T-02 | Pre-commit con gitleaks y CI (ruff, pytest sin integración, gitleaks) | P | T-01 | RNF-01, CA-00-05 | ✅ |
 | T-03 | `core/config.py` (pydantic-settings, SecretStr) y structlog con enmascarado | P | T-01 | RNF-01, RNF-02, RNF-23 | ✅ |
-| T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | 👀 |
+| T-04 | Docker Compose con pgvector, Alembic y migraciones de las tablas de la SPEC-00 §6 | P | T-01 | RNF-20, CA-00-06 | ⛔ |
 | T-05 | `schemas/` y `core/state_machine.py` con pruebas | P | T-01 | SPEC-00 §3, RF-34, CA-00-07 | ✅ |
 | T-06 | `adapters/base.py`, `adapters/errors.py` y `tests/fakes/` para todos los protocolos | P | T-05 | SPEC-00 §4, CA-00-03 | ✅ |
 | T-07 | Esqueleto del grafo LangGraph con fakes, `interrupt()` y reanudación | P | T-06 | CA-00-04 | ✅ |
@@ -143,6 +143,8 @@
 |---|---|
 | 2026-09-30 | Se ratifican las validaciones extra de `schemas/` (SPEC-00 §11) |
 | 2026-09-30 | `Artifact` sigue mutable (sin `frozen`): la garantía está en `core/approvals.py` y `frozen` no impide `model_copy` |
+| 2026-09-30 | Las 7 categorías del corpus (`documents.category`): `normativa`, `procesos`, `especificaciones`, `glosario`, `arquitectura`, `manuales`, `actas` (+ `memoria`, reservada al agente). Prompt de T-09 en `docs/prompts/PROMPT-02-corpus-area-b.md` |
+| 2026-09-30 | T-04 queda ⛔ hasta que TI instale WSL; se continúa con el resto del plan |
 | 2026-09-30 | **SPEC-00 congelada** (v1.2, anexo §11) y creación de los worktrees `area-a` y `area-b` |
 
 ## Propuestas adicionales detectadas durante el desarrollo
@@ -160,4 +162,4 @@
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
 |---|---|---|---|---|---|
-| 1 | 2026-09-29 / 30 | T-01, T-02, T-03, T-05, T-06, T-07 ✅; T-04 👀 (migración verificada en SQL offline; falta `docker compose up` + `alembic upgrade head`: WSL no instalado). `adapters/errors.py` adelantado a T-05 por acuerdo. Añadidos acordados en T-06: `IssueLink` y protocolos `@runtime_checkable`. T-07: registro de aprobaciones `core/approvals.py` (huella de versión + operación, un solo uso, destino fijo entre iteraciones) tras 5 pasadas de `security-reviewer`; la reanudación con `approve` debe devolver la `fingerprint` del `interrupt`. Alcance adelantado en el esqueleto del grafo, a tener en cuenta: `retrieve_context` ya recorre épica, hermanas y vínculos (T-18 añade presupuesto de tokens); `publish` ya escribe comentario de diff y vínculos (T-25 debe añadir modo simulación y auditoría); `memorize` ya escribe `data/memory/<CLAVE>.md` y reindexa (T-33 lo sustituye por el generador real). Validaciones extra de `schemas/` pendientes de ratificar | SPEC-00 congelada (v1.2) y worktrees `area-a` / `area-b` creados | Elección de proveedores y modelos concretos pendiente (R-07, ligada a T-08): `config/models.yaml` se deja con su contenido actual y solo se valida su estructura; la app y las pruebas funcionan sin ninguna API key (los placeholders `TU_*` cuentan como ausentes). Docker Desktop sin WSL (y revisar licencia en equipo corporativo) | Verificar T-04 con Docker; sincronización del día 1 |
+| 1 | 2026-09-29 / 30 | T-01, T-02, T-03, T-05, T-06, T-07 ✅; T-04 ⛔ (migración verificada en SQL offline; falta `docker compose up` + `alembic upgrade head`: WSL no instalado). `adapters/errors.py` adelantado a T-05 por acuerdo. Añadidos acordados en T-06: `IssueLink` y protocolos `@runtime_checkable`. T-07: registro de aprobaciones `core/approvals.py` (huella de versión + operación, un solo uso, destino fijo entre iteraciones) tras 5 pasadas de `security-reviewer`; la reanudación con `approve` debe devolver la `fingerprint` del `interrupt`. Alcance adelantado en el esqueleto del grafo, a tener en cuenta: `retrieve_context` ya recorre épica, hermanas y vínculos (T-18 añade presupuesto de tokens); `publish` ya escribe comentario de diff y vínculos (T-25 debe añadir modo simulación y auditoría); `memorize` ya escribe `data/memory/<CLAVE>.md` y reindexa (T-33 lo sustituye por el generador real). Validaciones extra de `schemas/` pendientes de ratificar | SPEC-00 congelada (v1.2) y worktrees `area-a` / `area-b` creados | Elección de proveedores y modelos concretos pendiente (R-07, ligada a T-08): `config/models.yaml` se deja con su contenido actual y solo se valida su estructura; la app y las pruebas funcionan sin ninguna API key (los placeholders `TU_*` cuentan como ausentes). Docker Desktop sin WSL (y revisar licencia en equipo corporativo) | Verificar T-04 con Docker; sincronización del día 1 |

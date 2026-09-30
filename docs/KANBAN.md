@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08 … T-36, T-39 … T-46 | — | — | T-01, T-02, T-03, T-05, T-06, T-07 | T-04 (WSL pendiente de instalación por TI), T-37, T-38 (R-01) |
+| T-08, T-10 … T-36, T-39 … T-46 | — | — | T-01, T-02, T-03, T-05, T-06, T-07, T-09 | T-04 (WSL pendiente de instalación por TI), T-37, T-38 (R-01) |
 
 ---
 
@@ -25,7 +25,7 @@
 | T-06 | `adapters/base.py`, `adapters/errors.py` y `tests/fakes/` para todos los protocolos | P | T-05 | SPEC-00 §4, CA-00-03 | ✅ |
 | T-07 | Esqueleto del grafo LangGraph con fakes, `interrupt()` y reanudación | P | T-06 | CA-00-04 | ✅ |
 | T-08 | Crear sitio Jira Cloud y proyecto de pruebas, verificar el tipo subtarea, token con scopes; crear cuentas gratuitas en Groq y OpenRouter; instalar Ollama y descargar bge-m3 y un modelo pequeño; fijar `config/models.yaml` | Tú | — | D-03, D-14, RNF-04 | ⬜ |
-| T-09 | Corpus piloto sintético: dominio ficticio, 15–25 documentos Markdown en las 7 categorías | B | T-01 | D-06 | ⬜ |
+| T-09 | Corpus piloto sintético: dominio ficticio, 15–25 documentos Markdown en las 7 categorías | B | T-01 | D-06 | ✅ |
 
 **🔗 Sincronización:** `CLAUDE.md`, contratos y fakes aprobados → **congelar la SPEC-00** → crear los worktrees `area-a` y `area-b`.
 
@@ -156,6 +156,7 @@
 | PA-05 | Publicación de QA idempotente: al reintentar tras un fallo parcial, `JiraNativeTests` (T-30) solo publica los CP fallidos y no duplica subtareas ya creadas (el fake actual republica la suite completa) | T-07 (revisión de seguridad) | Pendiente · T-30 |
 | PA-06 | Persistir el registro de aprobaciones (`core/approvals.py`) en `audit_log` y tomar la identidad del revisor de la sesión autenticada | T-07 (revisión de seguridad) | Pendiente · T-25, T-22/T-24 |
 | PA-04 | Política de conservación y seudonimización de nombres de usuario en `audit_log` (RGPD) | T-04 | Pendiente |
+| PA-09 | Enum de categorías de documento en `schemas/` con los 7 slugs del corpus + `memoria`, y CHECK en `documents.category` (hoy texto libre, SPEC-00 §11) | T-09 | Pendiente (P) · T-12 |
 | PA-07 | Groq gratuito limita a **8.000 tokens/min** por modelo (30 pet/min · 1.000 pet/día · 200.000 tokens/día con `gpt-oss-120b`): son 1–2 llamadas grandes por minuto. Fijar un presupuesto de contexto por tarea (fragmentos RAG + memoria) y hacer que el backoff ante 429 respete el límite por minuto. Estimación: 30–60k tokens por HU completa, unas 4–6 HU al día con el 120B. Fuente: console.groq.com/docs/rate-limits (sep-2026) | T-08 (investigación) | Pendiente · T-10 |
 | PA-08 | Las cuotas de Groq son por modelo y por organización (varias claves no suman cuota). Repartir tareas en `config/models.yaml` para sumar bolsas: alta calidad en `gpt-oss-120b`, tareas medias (memoria `.md`) en `gpt-oss-20b`, tareas ligeras y embeddings (bge-m3) en Ollama. Opción en estudio: alojar Ollama en una VM de Azure (acceso por túnel SSH, sin exponer el puerto 11434), como embeddings y último respaldo de la cadena; si la VM no es gratuita, afecta a la D-14 y RNF-07 | T-08 (investigación) | Pendiente · T-08, T-10 |
 
@@ -163,3 +164,4 @@
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
 |---|---|---|---|---|---|
 | 1 | 2026-09-29 / 30 | T-01, T-02, T-03, T-05, T-06, T-07 ✅; T-04 ⛔ (migración verificada en SQL offline; falta `docker compose up` + `alembic upgrade head`: WSL no instalado). `adapters/errors.py` adelantado a T-05 por acuerdo. Añadidos acordados en T-06: `IssueLink` y protocolos `@runtime_checkable`. T-07: registro de aprobaciones `core/approvals.py` (huella de versión + operación, un solo uso, destino fijo entre iteraciones) tras 5 pasadas de `security-reviewer`; la reanudación con `approve` debe devolver la `fingerprint` del `interrupt`. Alcance adelantado en el esqueleto del grafo, a tener en cuenta: `retrieve_context` ya recorre épica, hermanas y vínculos (T-18 añade presupuesto de tokens); `publish` ya escribe comentario de diff y vínculos (T-25 debe añadir modo simulación y auditoría); `memorize` ya escribe `data/memory/<CLAVE>.md` y reindexa (T-33 lo sustituye por el generador real). Validaciones extra de `schemas/` pendientes de ratificar | SPEC-00 congelada (v1.2) y worktrees `area-a` / `area-b` creados | Elección de proveedores y modelos concretos pendiente (R-07, ligada a T-08): `config/models.yaml` se deja con su contenido actual y solo se valida su estructura; la app y las pruebas funcionan sin ninguna API key (los placeholders `TU_*` cuentan como ausentes). Docker Desktop sin WSL (y revisar licencia en equipo corporativo) | Verificar T-04 con Docker; sincronización del día 1 |
+| 2 | 2026-09-30 | T-09 ✅ (B, rama `area-b`): corpus de Villaficticia con 22 documentos (normativa 4, procesos 3, especificaciones 3, glosario 2, arquitectura 3, manuales 3, actas 4), `README.md` con 4 épicas y 15 ideas de HU para T-15, y `tests/unit/test_corpus.py`. Coherente con `tests/fakes/dataset.py`: DEMO-1 épica de préstamo digital, DEMO-2 reservar, DEMO-3 renovar, DEMO-4 historial de 12 meses | — | — | T-12 (ingesta) y T-13 (fragmentación) |

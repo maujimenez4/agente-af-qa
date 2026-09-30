@@ -284,3 +284,5 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Composición | `core/container.build_container()` exige todas las dependencias hasta que existan los adaptadores reales; `bootstrap_logging()` cablea el enmascarado de secretos | `core/container.py` |
 | Checkpointer | Serializador con lista explícita de tipos (`checkpoint_serializer()`), sin pickle; reutilizarlo al conectar Postgres | `core/graph/builder.py` |
 | `documents.category` | Texto libre sin CHECK hasta definir las 7 categorías (T-09/T-12) | `migrations/versions/0001_initial.py` |
+| Embeddings | Solo `OllamaEmbeddings` (API compatible con OpenAI); `OpenAIEmbeddings` se descarta por D-14 (sin servicios de pago) | `adapters/embeddings/ollama.py` |
+| `VectorStore` sobre Postgres | Ids de texto del protocolo → UUID (`uuid5`), originales en `metadata` (`_chunk_id`, `_document_id` reservadas); `upsert` crea/actualiza `documents` desde la `metadata` del fragmento (`category` obligatoria) y registra `embedding_model`; la búsqueda solo considera el modelo de la colección | `adapters/vectorstore/pgvector.py` |

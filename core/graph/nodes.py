@@ -22,12 +22,12 @@ from core.context.service import ContextService
 from core.functional.context import StoryContext
 from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
-from core.impact.diff import diff_stories
+from core.impact.analysis import ImpactAnalyzer
 from core.logging import get_logger
 from core.state_machine import transition
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType
-from schemas.impact import ImpactAnalysis
+from schemas.impact import ImpactAnalysis, ImpactItem
 from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 
@@ -164,18 +164,24 @@ class GraphNodes:
             feedback=list(state["feedback"]),
         )
         current = previous.content if previous and isinstance(previous.content, UserStory) else None
+        analyzer = ImpactAnalyzer(self.c.llm)
+        jira = list(state["jira_context"])
         if origin["kind"] != "story":
-            if current is None:
-                return writer.generate(ctx), None
-            # Iterar una HU nueva es evolucionar el borrador anterior con el feedback (RF-20).
-            return writer.evolve(replace(ctx, previous=current)), None
+            # HU nueva; al iterar, se evoluciona el borrador anterior con el feedback (RF-20).
+            draft = (
+                writer.generate(ctx)
+                if current is None
+                else writer.evolve(replace(ctx, previous=current))
+            )
+            # §6.1: una HU nueva también puede afectar a las HU relacionadas (sin diff).
+            epic = origin.get("key") if origin["kind"] == "epic" else None
+            return draft, analyzer.analyze(draft.story, jira, parent_key=epic)
 
         baseline = self._baseline(writer, ctx, artifact_id)
         draft = writer.evolve(replace(ctx, previous=current or baseline))
-        # El diff es determinista (T-19) frente a la HU de Jira. Las HU afectadas, reglas y
-        # regresión (ImpactAnalysis.affected/regression_notes) las añade T-21 con su prompt.
-        impact = ImpactAnalysis(
-            diffs=diff_stories(baseline, draft.story), affected=[], regression_notes=[]
+        # T-21: diff determinista frente a Jira + HU afectadas y regresión validadas.
+        impact = analyzer.analyze(
+            draft.story, jira, baseline=baseline, origin_key=origin.get("key")
         )
         return draft, impact
 
@@ -303,11 +309,15 @@ class GraphNodes:
         if target.origin_kind == "story" and target.origin_key:
             key = target.origin_key
             self.c.issue_tracker.update_story(key, story, _diff_comment_md(impact))
-            for item in impact.affected if impact else []:
+            for item in _one_per_key(impact):
                 self.c.issue_tracker.link(key, item.jira_key, LINK_TYPE_IMPACT, item.reason)
         else:
             epic_key = target.origin_key if target.origin_kind == "epic" else None
             key = self.c.issue_tracker.create_story(story, epic_key)
+            # RF-06: la HU nueva también se vincula a las HU afectadas por el análisis (T-21).
+            for item in _one_per_key(impact):
+                if item.jira_key != epic_key:
+                    self.c.issue_tracker.link(key, item.jira_key, LINK_TYPE_IMPACT, item.reason)
         return story.model_copy(update={"jira_key": key}), [key], []
 
     # --- 8 · memorize ------------------------------------------------------------------------
@@ -356,6 +366,20 @@ class GraphNodes:
             artifact_id=str(artifact.id),
         )
         return {}
+
+
+def _one_per_key(impact: ImpactAnalysis | None) -> list[ImpactItem]:
+    """Un vínculo por HU afectada; su comentario reúne todos los motivos (§6.2)."""
+    merged: dict[str, ImpactItem] = {}
+    for item in impact.affected if impact else []:
+        first = merged.get(item.jira_key)
+        if first is None:
+            merged[item.jira_key] = item
+        elif item.reason not in first.reason:
+            merged[item.jira_key] = first.model_copy(
+                update={"reason": f"{first.reason} · {item.reason}"}
+            )
+    return list(merged.values())
 
 
 def validate_origin(state: AgentState) -> None:

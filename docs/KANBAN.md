@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-21, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-20, T-22 | T-37, T-38 (R-01) |
+| T-08, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-22 | T-37, T-38 (R-01) |
 
 ---
 
@@ -65,7 +65,7 @@
 
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
-| T-21 | Análisis de impacto: HU afectadas, reglas, dependencias y regresión (`ImpactAnalysis`) | A | T-18, T-19 | RF-19, RF-27 | ⬜ |
+| T-21 | Análisis de impacto: HU afectadas, reglas, dependencias y regresión (`ImpactAnalysis`) | A | T-18, T-19 | RF-19, RF-27 | ✅ |
 | T-22 | `LocalAuthProvider` (argon2), roles y 3 usuarios sintéticos de demo | A | T-04 | RF-45, RF-46, RNF-05 | ✅ |
 | T-23 | **Rediseño de la UI** (D-12): estructura de pestañas, flujo de navegación, estilo y estados vacíos/error, en `docs/specs/UI.md` | B | — | RNF-15 | ⬜ |
 | T-24 | UI: login, pestañas **Contexto** e **Historia**, chat, selector de origen y selector de modelo | B | T-23, T-22 | RF-14, RF-20, RF-42 | ⬜ |
@@ -204,8 +204,10 @@
 | PA-33 | Usar `core/impact/diff.diff_stories` para rellenar `ImpactAnalysis.diffs` en el nodo `generate` (hoy los genera el LLM) y guardar cada versión con `StoryVersionStore.save` | T-19 | Parcial: `diffs` ya salen de `diff_stories`; falta `StoryVersionStore.save` (T-25) |
 | PA-34 | `StoryVersionStore.save`: rechazar que un id existente cambie de `type` (hoy la fila se actualiza y las versiones anteriores se leerían con otro modelo); y una excepción específica para «diff no disponible» (hoy `NotFoundError`), que requiere tocar `adapters/errors.py` | T-19 (spec-checker) | Pendiente (P) |
 | PA-35 | `TaskType.STRUCTURE_STORY` en la próxima revisión del contrato (hoy `structure` reutiliza `EVOLVE_STORY`) | PA-30 (spec-checker) | Pendiente (P) |
-| PA-36 | Contrastar la versión estructurada de Jira con el `summary`/`description` reales y avisar en la UI de que el diff es frente a la «versión estructurada de Jira» (un texto malicioso en Jira podría disimular cambios) | PA-30 (security-reviewer) | Pendiente · T-21/T-31 |
+| PA-36 | Contrastar la versión estructurada de Jira con el `summary`/`description` reales y avisar en la UI de que el diff es frente a la «versión estructurada de Jira» (un texto malicioso en Jira podría disimular cambios) | PA-30 (security-reviewer) | Pendiente · T-31 (la parte de T-21 no aplica: el diff ya es determinista) |
 | PA-37 | Persistir la versión de partida (hoy en memoria en `GraphNodes`) junto con las versiones (`artifact_versions`) | PA-30 | Pendiente · T-25 |
+| PA-38 | En la publicación de una evolución, excluir también la épica de los vínculos de impacto (hoy solo se excluye de las candidatas si la HU de origen está en `jira_context`) | T-21 (security-reviewer) | Pendiente · T-25 |
+| PA-39 | Limitar la longitud de `ImpactItem.reason` (se publica como comentario del vínculo) | T-21 (security-reviewer) | Pendiente (P) · revisión del contrato |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -223,3 +225,4 @@
 | 4 | 2026-09-30 | T-19 ✅ (A, rama `Dia4`, sesión del compañero): `core/impact/diff.py` (`diff_stories`, pura y determinista: campos en el orden de la plantilla, CA/RN por ID `acceptance_criteria[CA-02]`, añadidos con `before=None` y eliminados con `after=None`, fuentes por `kind:ref`, sin `changes_from_previous`) y `core/impact/versions.py` (`StoryVersionStore`: versiones inmutables en `artifact_versions`; `save` también inserta o actualiza `artifacts` por la clave foránea, sin retroceder de versión; `get`, `versions`, `latest`, `diff`) | — | Las 17 pruebas de integración (`tests/unit/test_impact_versions.py`, BD temporal `<db>_versions_test`) se ejecutaron en verde al integrar en `PreProduccion` (`uv run pytest -m integration tests/unit/test_impact_versions.py`) con `docker compose up -d db` antes de fusionar | PR de T-19 y T-20 contra `PreProduccion` |
 | 4 | 2026-09-30 | **T-22 ✅** (P): `adapters/auth/local.py` (`LocalAuthProvider`: argon2id, tiempo constante con hash ficticio aleatorio, inactivos rechazados, rehash tolerante a fallos, `save_user` upsert), `core/permissions.py` (matriz rol × permiso, `can`/`require`; admin configura pero no genera ni publica, D-01), `core/factories.build_auth`. **Usuarios de demo:** `uv run python -m core.seed_users` crea `af-demo`, `qa-demo`, `admin-demo` con contraseñas aleatorias que se muestran **una sola vez** (decisión del usuario; no se guardan en repo, `.env` ni logs). Propuestas PA-25…PA-29 | — | Ejecutar el seed (lo hace el usuario) | Fusionar `Dia4` (T-19, T-20) y seguir con T-21 |
 | 5 | 2026-09-30 | **PA-30 ✅** (P): el nodo `generate` usa `StoryWriter` (prompts de T-20). Origen HU → `structure` (nuevo `prompts/structure_story.md`, v1) una vez por artefacto + `evolve`; necesidad/épica → `generate` y, al iterar, `evolve` sobre el borrador; `prompt_version` y `model_used` en el `Artifact`. Impacto = diff determinista (`diff_stories`) frente a la versión estructurada de Jira; **hasta T-21 no hay HU afectadas ni vínculos «relates to» al publicar**. Cruce con el área B: `core/functional/writer.py` y `tests/fakes/llm.py` (el fake cita la primera fuente del contexto) — revisar al fusionar `Dia5`. **Bloqueo real:** la cadena `evolve_story` falla en vivo por límite de Groq y respaldo de OpenRouter sin definir (`POR_DEFINIR:free`, R-07) | — | Elegir modelos (R-07) | T-21 → T-25 |
+| 5 | 2026-09-30 | **T-21 ✅** (P): `core/impact/analysis.py` (`ImpactAnalyzer`) + `prompts/analyze_impact.md` v1 (cruce con `prompts/` del área B, revisar al fusionar `Dia5`). `diffs` siempre deterministas; HU afectadas y regresión del LLM con un prompt pequeño (HU, cambios y resumen de candidatas: épica excluida, máx. 12); solo claves candidatas, un reintento y descarte anotado; sin llamada si no hay cambios o candidatas. También para HU nuevas (§6.1). `publish` vincula «relates to» al actualizar y al crear, un vínculo por clave con todos los motivos. **Sin consumo de cuota:** la prueba real (`tests/integration/test_impact_live.py`) está escrita y pendiente de ejecutar cuando el usuario lo autorice | — | Cuota de Groq (ejecución real pendiente) | T-25 |

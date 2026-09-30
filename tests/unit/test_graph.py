@@ -282,15 +282,19 @@ def test_approve_new_story_creates_it_in_jira(
     graph = build_graph(container)
     config = _config()
     payload = _payload(_start(graph, config, origin=origin))
-    assert payload["impact"] is None
+    # T-21: una HU nueva también lleva impacto (sin diff) sobre las HU relacionadas.
+    assert payload["impact"]["diffs"] == []
     assert payload["artifact"]["content"]["jira_key"] is None
 
     final = graph.invoke(_approve(graph, config), config)
 
     tracker = _tracker(container)
-    ((action, data),) = tracker.writes
+    (action, data), *links = tracker.writes
     assert action == "create_story"
     assert data["epic_key"] == expected_epic
+    # RF-06: la HU creada se vincula a las HU afectadas (el fake propone DEMO-2).
+    assert [w[0] for w in links] == ["link"] * len(links)
+    assert all(w[1]["from"] == data["key"] and w[1]["to"] != expected_epic for w in links)
     new_key = data["key"]
     assert final["published_keys"] == [new_key]
     assert final["artifact"].content.jira_key == new_key

@@ -14,8 +14,10 @@ from core.functional.citations import (
 )
 from core.functional.context import CitableSource
 from schemas.common import SourceRef
+from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
+from tests.fakes.llm import renewal_test_suite
 
 JIRA = CitableSource(
     kind="jira",
@@ -205,3 +207,59 @@ def test_with_real_excerpts_raises_citation_error_for_unknown_ref() -> None:
 
     with pytest.raises(CitationError, match="DOC-99"):
         with_real_excerpts(story, [])
+
+
+# --- TestSuite (T-26) ---------------------------------------------------------------------
+
+
+def suite_citing(*refs: tuple[str, str, str | None]) -> TestSuite:
+    """Suite sintética de renovación que cita las referencias (kind, ref, excerpt) indicadas."""
+    return renewal_test_suite().model_copy(
+        update={"sources": [SourceRef(kind=k, ref=r, excerpt=e) for k, r, e in refs]}
+    )
+
+
+def test_citation_errors_is_empty_for_suite_citing_received_sources() -> None:
+    """RF-21 · T-26: las citas de una TestSuite a fuentes del contexto son válidas."""
+    suite = suite_citing(("jira", "DEMO-2", None), ("rag", "uuid-ficticio-01", None))
+
+    assert citation_errors(suite, SOURCES) == []
+
+
+def test_citation_errors_reports_invented_ref_in_suite() -> None:
+    """RNF-14 · T-26: una cita inventada en la suite se rechaza."""
+    errors = citation_errors(suite_citing(("rag", "DOC-99", None)), SOURCES)
+
+    assert errors == ["«rag:DOC-99» no está entre las fuentes recibidas"]
+
+
+def test_citation_errors_reports_suite_without_citations_when_sources_exist() -> None:
+    """RNF-14 · T-26: si el contexto traía fuentes, la suite debe citar al menos una."""
+    errors = citation_errors(suite_citing(), SOURCES)
+
+    assert errors == ["la propuesta no cita ninguna fuente y el contexto sí traía fuentes"]
+
+
+def test_with_real_excerpts_returns_suite_with_real_canonical_excerpts() -> None:
+    """RF-21 · T-26: TestSuite con refs canónicas, extractos reales y sin duplicados."""
+    suite = suite_citing(
+        ("rag", "uuid-ficticio-01", "inventado"),
+        ("jira", "DEMO-2", None),
+        ("rag", "DOC-01", "otra vez"),
+    )
+
+    result = with_real_excerpts(suite, SOURCES)
+
+    assert isinstance(result, TestSuite)
+    assert result.sources == [
+        SourceRef(kind="rag", ref="DOC-01", excerpt=DOC.excerpt),
+        SourceRef(kind="jira", ref="DEMO-2", excerpt=JIRA.excerpt),
+    ]
+    assert result.model_dump(exclude={"sources"}) == suite.model_dump(exclude={"sources"})
+    assert suite.sources[0].excerpt == "inventado"  # no muta la original
+
+
+def test_with_real_excerpts_raises_citation_error_for_unknown_ref_in_suite() -> None:
+    """RNF-14 · T-26: una cita de la suite fuera del contexto lanza CitationError."""
+    with pytest.raises(CitationError, match="DOC-99"):
+        with_real_excerpts(suite_citing(("rag", "DOC-99", None)), SOURCES)

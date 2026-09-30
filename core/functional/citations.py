@@ -3,14 +3,18 @@
 from adapters.errors import AgentError
 from core.functional.context import CitableSource, escape_data
 from schemas.common import SourceRef
+from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
+
+# Artefactos con citas: HU (T-20) y suites de QA (T-26).
+type CitedArtifact = UserStory | TestSuite
 
 
 class CitationError(AgentError):
     """La propuesta cita fuentes que no estaban en el contexto; mensaje en español para la UI."""
 
 
-def citation_errors(story: UserStory, sources: list[CitableSource]) -> list[str]:
+def citation_errors(story: CitedArtifact, sources: list[CitableSource]) -> list[str]:
     """Problemas de las citas de `story`; lista vacía si son válidas."""
     index = _index(sources)
     # Las referencias las inventa el LLM: se escapan y recortan antes de reenviarlas.
@@ -24,7 +28,7 @@ def citation_errors(story: UserStory, sources: list[CitableSource]) -> list[str]
     return errors
 
 
-def with_real_excerpts(story: UserStory, sources: list[CitableSource]) -> UserStory:
+def with_real_excerpts[T: (UserStory, TestSuite)](story: T, sources: list[CitableSource]) -> T:
     """Sustituye cada cita por la referencia canónica y su extracto real, sin duplicados."""
     index = _index(sources)
     refs: list[SourceRef] = []

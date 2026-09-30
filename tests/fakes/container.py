@@ -43,4 +43,6 @@ def fake_container(memory_dir: Path, **overrides: object) -> Container:
         "auth": FakeAuthProvider(),
         **overrides,
     }
+    # El «Jira» de los fakes es de mentira: las pruebas publican en modo real para comprobarlo.
+    dependencies.setdefault("publish_mode", "live")
     return build_container(memory_dir=memory_dir, **dependencies)  # type: ignore[arg-type]

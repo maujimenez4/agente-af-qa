@@ -8,6 +8,8 @@ dependencias se inyectan explícitamente (en las pruebas, con los fakes de `test
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal, Protocol
+from uuid import UUID
 
 from adapters.base import (
     AuthProvider,
@@ -19,11 +21,24 @@ from adapters.base import (
     VectorStore,
 )
 from core.approvals import ApprovalLedger
+from core.artifact_state import ArtifactStateStore, InMemoryArtifactStateStore
+from core.audit import AuditTrail, InMemoryAuditTrail
 from core.config import ROOT_DIR, AppConfig, ConfigError
 from core.logging import configure_logging
+from schemas.artifact import Artifact
 
 DEFAULT_MEMORY_DIR = ROOT_DIR / "data" / "memory"
 DEFAULT_TOP_K = 6
+PublishMode = Literal["simulation", "live"]
+
+
+class VersionSink(Protocol):
+    """Guarda cada versión de un artefacto (`core/impact/versions.StoryVersionStore`, T-19)."""
+
+    def save(self, artifact: Artifact) -> None: ...
+    def update_status(
+        self, artifact_id: UUID, status: str, jira_key: str | None = None
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -38,6 +53,16 @@ class Container:
     config: AppConfig | None = None
     memory_dir: Path = DEFAULT_MEMORY_DIR
     approvals: ApprovalLedger = field(default_factory=ApprovalLedger)
+    # T-25: auditoría, versiones y estado persistente; en memoria si no se inyectan.
+    audit: AuditTrail = field(default_factory=InMemoryAuditTrail)
+    versions: VersionSink | None = None
+    state_store: ArtifactStateStore = field(default_factory=InMemoryArtifactStateStore)
+    publish_mode: PublishMode = "simulation"
+
+    def __post_init__(self) -> None:
+        # El registro de aprobaciones persiste en el mismo almacén de estado del contenedor.
+        if self.approvals.store is None:
+            self.approvals.store = self.state_store
 
     @property
     def top_k(self) -> int:
@@ -67,6 +92,10 @@ def build_container(
     memory_generator: MemoryGenerator | None = None,
     auth: AuthProvider | None = None,
     memory_dir: Path | None = None,
+    audit: AuditTrail | None = None,
+    versions: VersionSink | None = None,
+    state_store: ArtifactStateStore | None = None,
+    publish_mode: PublishMode | None = None,
 ) -> Container:
     """Compone el contenedor. Sin adaptadores reales todavía, cada dependencia es obligatoria."""
     if config is not None:
@@ -86,8 +115,16 @@ def build_container(
             "Adaptadores no disponibles todavía (se implementan a partir del día 2): "
             + ", ".join(missing)
         )
+    store = state_store or InMemoryArtifactStateStore()
+    # Por defecto, simulación: nada se escribe en Jira salvo que se pida `live` (T-25).
+    mode = publish_mode or (config.settings.jira_publish_mode if config else "simulation")
     return Container(
         **dependencies,  # type: ignore[arg-type]
         config=config,
         memory_dir=memory_dir or DEFAULT_MEMORY_DIR,
+        approvals=ApprovalLedger(store=store),
+        audit=audit or InMemoryAuditTrail(),
+        versions=versions,
+        state_store=store,
+        publish_mode=mode,
     )

@@ -22,7 +22,10 @@ from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredP
 from adapters.llm.router import ModelChoice, ModelRouter
 from adapters.llm.usage import UsageRecorder
 from adapters.vectorstore.pgvector import PgVectorStore
+from core.artifact_state import SqlArtifactStateStore
+from core.audit import SqlAuditTrail
 from core.config import AppConfig, Settings
+from core.impact.versions import StoryVersionStore
 from core.rag.prompts import load_prompt
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
@@ -78,6 +81,21 @@ def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
 def build_auth(config: AppConfig) -> LocalAuthProvider:
     """Usuarios locales (argon2) sobre la base de datos de `.env` (RF-45)."""
     return LocalAuthProvider.from_url(config.settings.sqlalchemy_url())
+
+
+def build_audit(config: AppConfig) -> SqlAuditTrail:
+    """Auditoría en `audit_log` (RF-35, T-25)."""
+    return SqlAuditTrail.from_url(config.settings.sqlalchemy_url())
+
+
+def build_versions(config: AppConfig) -> StoryVersionStore:
+    """Versiones de cada artefacto en `artifact_versions` (T-19)."""
+    return StoryVersionStore.from_url(config.settings.sqlalchemy_url())
+
+
+def build_state_store(config: AppConfig) -> SqlArtifactStateStore:
+    """Aprobaciones y versión de partida por artefacto en `artifact_state` (T-25)."""
+    return SqlArtifactStateStore.from_url(config.settings.sqlalchemy_url())
 
 
 def build_embeddings(config: AppConfig) -> OllamaEmbeddings:

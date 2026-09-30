@@ -15,8 +15,9 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
 from adapters.base import Chunk, Message, TaskType
-from adapters.errors import PublishError
+from adapters.errors import ExternalServiceError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
+from core.audit import AuditAction, AuditEntry
 from core.container import Container
 from core.context.service import ContextService
 from core.functional.context import StoryContext
@@ -43,9 +44,6 @@ log = get_logger("core.graph")
 class GraphNodes:
     def __init__(self, container: Container) -> None:
         self.c = container
-        # Versión de partida (Jira → plantilla) por artefacto, para el diff de cada iteración.
-        # En memoria como el registro de aprobaciones; se vuelve a estructurar si falta (T-25).
-        self._baselines: dict[str, UserStory] = {}
 
     # --- 1 · load_origin -------------------------------------------------------------------
 
@@ -139,6 +137,12 @@ class GraphNodes:
         artifact = transition(artifact, ArtifactStatus.IN_REVIEW)
         # Solo la versión ofrecida aquí podrá aprobarse en human_review.
         self.c.approvals.offer(artifact, _target(state, config))
+        self._record(
+            "create" if previous is None else "iterate",
+            state,
+            artifact,
+            detail={"prompt_version": artifact.prompt_version},
+        )
         log.info(
             "propuesta generada",
             user=state["user"],
@@ -186,12 +190,46 @@ class GraphNodes:
         return draft, impact
 
     def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
-        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30)."""
-        if artifact_id not in self._baselines:
-            origin_issue = [i for i in ctx.jira if i.key == ctx.origin_key][:1]
-            origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
-            self._baselines[artifact_id] = writer.structure(origin_only).story
-        return self._baselines[artifact_id]
+        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37)."""
+        state = self.c.state_store.load(artifact_id) or {}
+        if saved := state.get("baseline"):
+            return UserStory.model_validate(saved)
+        origin_issue = [i for i in ctx.jira if i.key == ctx.origin_key][:1]
+        origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
+        baseline = writer.structure(origin_only).story
+        state["baseline"] = baseline.model_dump(mode="json")
+        self.c.state_store.save(artifact_id, state)
+        return baseline
+
+    def _forget_baseline(self, artifact_id: str) -> None:
+        state = self.c.state_store.load(artifact_id)
+        if state and state.pop("baseline", None) is not None:
+            self.c.state_store.save(artifact_id, state)
+
+    def _record(
+        self,
+        action: AuditAction,
+        state: AgentState,
+        artifact: Artifact,
+        *,
+        jira_keys: list[str] | None = None,
+        detail: dict[str, Any] | None = None,
+        save_version: bool = True,
+    ) -> None:
+        """Guarda la versión (T-19) y audita la acción (RF-35). Nunca guarda prompts."""
+        if save_version and self.c.versions is not None:
+            self.c.versions.save(artifact)
+        self.c.audit.record(
+            AuditEntry(
+                artifact_id=artifact.id,
+                action=action,
+                user=state["user"],
+                jira_keys=jira_keys or [],
+                model=artifact.model_used,
+                detail={"version": artifact.version, "status": artifact.status.value}
+                | (detail or {}),
+            )
+        )
 
     # --- 5–6 · human_review ----------------------------------------------------------------
 
@@ -231,10 +269,12 @@ class GraphNodes:
         }[decision]
         reviewed = transition(artifact, status)
         if decision == "discard":
-            self._baselines.pop(str(artifact.id), None)
+            self._forget_baseline(str(artifact.id))
+            self._record("discard", state, reviewed)
         if decision == "approve":
             # Falla si no es la versión y la operación ofrecidas por generate (ApprovalError).
             self.c.approvals.record(reviewed, target)
+            self._record("approve", state, reviewed, detail={"operation": target.describe()})
         update: dict[str, Any] = {"artifact": reviewed, "decision": decision}
         if feedback:
             update["feedback"] = [*state["feedback"], feedback]
@@ -265,25 +305,59 @@ class GraphNodes:
                 "No consta una aprobación humana vigente para esta versión exacta del artefacto."
             )
 
+        epic_key = _parent_of(state, approval.target.origin_key)
+        plan = self._plan(approval, artifact, epic_key)
+        if self.c.publish_mode != "live":
+            # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría y la
+            # aprobación sigue vigente para publicar de verdad cuando se active `live`.
+            self._record(
+                "publish",
+                state,
+                artifact,
+                detail={"simulated": True, "plan": plan},
+                save_version=False,
+            )
+            log.info(
+                "publicación simulada",
+                user=state["user"],
+                action="publish",
+                artifact_id=str(artifact.id),
+                operations=len(plan),
+            )
+            return {}
+
         if isinstance(artifact.content, TestSuite):
-            target = approval.target
-            if (
-                target.mode != "qa"
-                or target.origin_kind != "story"
-                or artifact.content.story_jira_key != target.origin_key
-            ):
-                raise PublishError("La operación aprobada no corresponde a estos casos de prueba.")
             result = self.c.test_management.publish_suite(artifact.content)
             errors = [f"No se pudo publicar {case_id}." for case_id in result.failed]
+            failed_ids = list(result.failed)
             published = transition(artifact, ArtifactStatus.PUBLISHED) if not errors else artifact
             keys = result.created
         else:
-            story, keys, errors = self._publish_story(approval, artifact)
+            story, keys, errors = self._publish_story(approval, artifact, epic_key)
+            failed_ids = []
             artifact = artifact.model_copy(update={"content": story})
             published = transition(artifact, ArtifactStatus.PUBLISHED)
         if published.status is ArtifactStatus.PUBLISHED:
             self.c.approvals.consume(approval, published)  # un solo uso
-            self._baselines.pop(str(artifact.id), None)
+            self._forget_baseline(str(artifact.id))
+        # Primero la auditoría de lo que ya se escribió en Jira (RF-35, RNF-13).
+        self._record(
+            "publish",
+            state,
+            published,
+            jira_keys=keys,
+            detail={
+                "simulated": False,
+                "plan": plan,
+                "failed": len(errors),
+                "failed_ids": failed_ids,
+            },
+            save_version=False,
+        )
+        # La versión aprobada ya está guardada; aquí solo cambia el estado (y la clave de Jira).
+        if self.c.versions is not None:
+            jira_key = getattr(published.content, "jira_key", None)
+            self.c.versions.update_status(published.id, published.status.value, jira_key)
 
         log.info(
             "publicación en Jira",
@@ -299,8 +373,43 @@ class GraphNodes:
             "errors": [*state["errors"], *errors],
         }
 
+    def _plan(
+        self, approval: Approval, artifact: Artifact, parent_key: str | None = None
+    ) -> list[dict[str, str]]:
+        """Operaciones que la publicación haría en Jira, derivadas de la aprobación (RF-31)."""
+        target = approval.target
+        if isinstance(artifact.content, TestSuite):
+            if (
+                target.mode != "qa"
+                or target.origin_kind != "story"
+                or artifact.content.story_jira_key != target.origin_key
+            ):
+                raise PublishError("La operación aprobada no corresponde a estos casos de prueba.")
+            return [
+                {
+                    "op": "publish_suite",
+                    "story": target.origin_key or "",
+                    "cases": str(len(artifact.content.cases)),
+                }
+            ]
+        if not isinstance(artifact.content, UserStory) or target.mode != "functional":
+            raise PublishError("La operación aprobada no corresponde a una HU.")
+        if target.origin_kind == "story" and target.origin_key:
+            source, epic = target.origin_key, parent_key  # PA-38: nunca vincular a su épica
+            plan = [{"op": "update_story", "key": source}]
+        else:
+            source = "(HU nueva)"
+            epic = target.origin_key if target.origin_kind == "epic" else None
+            plan = [{"op": "create_story", "epic": epic or ""}]
+        plan += [
+            {"op": "link", "from": source, "to": item.jira_key, "type": LINK_TYPE_IMPACT}
+            for item in _one_per_key(artifact.impact)
+            if item.jira_key != epic
+        ]
+        return plan
+
     def _publish_story(
-        self, approval: Approval, artifact: Artifact
+        self, approval: Approval, artifact: Artifact, parent_key: str | None = None
     ) -> tuple[UserStory, list[str], list[str]]:
         story = artifact.content
         target, impact = approval.target, artifact.impact
@@ -308,17 +417,22 @@ class GraphNodes:
             raise PublishError("La operación aprobada no corresponde a una HU.")
         if target.origin_kind == "story" and target.origin_key:
             key = target.origin_key
+            epic_key = parent_key
             self.c.issue_tracker.update_story(key, story, _diff_comment_md(impact))
-            for item in _one_per_key(impact):
-                self.c.issue_tracker.link(key, item.jira_key, LINK_TYPE_IMPACT, item.reason)
         else:
             epic_key = target.origin_key if target.origin_kind == "epic" else None
             key = self.c.issue_tracker.create_story(story, epic_key)
-            # RF-06: la HU nueva también se vincula a las HU afectadas por el análisis (T-21).
-            for item in _one_per_key(impact):
-                if item.jira_key != epic_key:
-                    self.c.issue_tracker.link(key, item.jira_key, LINK_TYPE_IMPACT, item.reason)
-        return story.model_copy(update={"jira_key": key}), [key], []
+        # RF-06: vínculos a las HU afectadas (T-21), nunca a la épica (PA-38). Un vínculo que
+        # falla no pierde lo ya publicado: se informa como error y se audita (RNF-13).
+        errors: list[str] = []
+        for item in _one_per_key(impact):
+            if item.jira_key == epic_key:
+                continue
+            try:
+                self.c.issue_tracker.link(key, item.jira_key, LINK_TYPE_IMPACT, item.reason)
+            except ExternalServiceError:
+                errors.append(f"No se pudo vincular {key} con {item.jira_key}.")
+        return story.model_copy(update={"jira_key": key}), [key], errors
 
     # --- 8 · memorize ------------------------------------------------------------------------
 
@@ -366,6 +480,11 @@ class GraphNodes:
             artifact_id=str(artifact.id),
         )
         return {}
+
+
+def _parent_of(state: AgentState, key: str | None) -> str | None:
+    """Épica de la incidencia `key` según el contexto de Jira del estado."""
+    return next((i.parent_key for i in state["jira_context"] if i.key == key), None)
 
 
 def _one_per_key(impact: ImpactAnalysis | None) -> list[ImpactItem]:

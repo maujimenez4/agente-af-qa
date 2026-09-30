@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-22 | T-37, T-38 (R-01) |
+| T-08, T-23, T-24, T-26 … T-36, T-39 … T-46 | — | — | T-01 … T-22, T-25 | T-37, T-38 (R-01) |
 
 ---
 
@@ -76,7 +76,7 @@
 
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
-| T-25 | Máquina de estados integrada en el grafo, `audit_log` y nodo `publish` protegido (modo simulación, sin escribir aún) | A | T-07, T-05 | RF-33, RF-34, RF-35 | ⬜ |
+| T-25 | Máquina de estados integrada en el grafo, `audit_log` y nodo `publish` protegido (modo simulación, sin escribir aún) | A | T-07, T-05 | RF-33, RF-34, RF-35 | ✅ |
 | T-26 | Prompts de casos de prueba y escenarios Gherkin, matriz de cobertura, datos sintéticos y riesgos | B | T-20 | RF-22, RF-23, RF-24, RF-25, RF-27 | ⬜ |
 
 **🔗 Sincronización:** validación automática de que **cada CP referencia CA/RN existentes** y todo CA tiene al menos un CP.
@@ -173,7 +173,7 @@
 | PA-02 | Job de CI con un servicio `pgvector/pgvector:pg16` que ejecute las pruebas `integration` de migraciones | T-04 | Pendiente |
 | PA-03 | `audit_log` de solo inserción: trigger que rechace UPDATE/DELETE o `REVOKE` para el rol de la aplicación | T-04 | Pendiente |
 | PA-05 | Publicación de QA idempotente: al reintentar tras un fallo parcial, `JiraNativeTests` (T-30) solo publica los CP fallidos y no duplica subtareas ya creadas (el fake actual republica la suite completa) | T-07 (revisión de seguridad) | Pendiente · T-30 |
-| PA-06 | Persistir el registro de aprobaciones (`core/approvals.py`) en `audit_log` y tomar la identidad del revisor de la sesión autenticada | T-07 (revisión de seguridad) | Pendiente · T-25, T-22/T-24 |
+| PA-06 | Persistir el registro de aprobaciones (`core/approvals.py`) en `audit_log` y tomar la identidad del revisor de la sesión autenticada | T-07 (revisión de seguridad) | Parcial: persistido en `artifact_state` (T-25); falta la identidad del revisor desde la sesión (T-31) |
 | PA-04 | Política de conservación y seudonimización de nombres de usuario en `audit_log` (RGPD) | T-04 | Pendiente |
 | PA-09 | Enum de categorías de documento en `schemas/` con los 7 slugs del corpus + `memoria`, y CHECK en `documents.category` (hoy texto libre, SPEC-00 §11) | T-09 | Pendiente (P) · T-12 |
 | PA-07 | Groq gratuito limita a **8.000 tokens/min** por modelo (30 pet/min · 1.000 pet/día · 200.000 tokens/día con `gpt-oss-120b`): son 1–2 llamadas grandes por minuto. Fijar un presupuesto de contexto por tarea (fragmentos RAG + memoria) y hacer que el backoff ante 429 respete el límite por minuto. Estimación: 30–60k tokens por HU completa, unas 4–6 HU al día con el 120B. Fuente: console.groq.com/docs/rate-limits (sep-2026) | T-08 (investigación) | ✅ Resuelta en T-18 (`core/context/budget.py`, 6000 tokens por petición) |
@@ -193,21 +193,24 @@
 | PA-22 | RGPD: `adf_to_text` pasa al LLM el texto de las menciones `@Nombre`; sustituirlas por un marcador cuando haya datos reales | Integración día 2 (spec-checker) | Pendiente · v2.0 |
 | PA-23 | RF-02 «listar proyectos»: el protocolo congelado `IssueTracker` no tiene `list_projects`; el MVP trabaja con un único proyecto (`JIRA_PROJECT_KEY`). Decidir si se añade al contrato (navegación Proyecto → Épica → HU de §6.1) | T-14 | ✅ Hecha: `list_projects` añadido al contrato (SPEC-00 v1.3) |
 | PA-24 | Contexto: `list_children` pagina hasta 1000 hermanas/hijas antes de aplicar el presupuesto; acotar con una búsqueda limitada si los proyectos crecen | T-18 (security-reviewer) | Pendiente |
-| PA-25 | Que el nodo `publish` y la UI exijan también `require(user, PUBLISH_STORY/PUBLISH_TESTS)` además de la aprobación registrada (el permiso complementa la aprobación humana) | T-22 (security-reviewer) | Pendiente · T-25/T-31 |
+| PA-25 | Que el nodo `publish` y la UI exijan también `require(user, PUBLISH_STORY/PUBLISH_TESTS)` además de la aprobación registrada (el permiso complementa la aprobación humana) | T-22 (security-reviewer) | Pendiente · T-31 (el grafo no conoce el rol del usuario) |
 | PA-26 | Limitar los intentos de login por usuario/IP con backoff progresivo | T-22 (security-reviewer) | Pendiente · T-24 |
-| PA-27 | Auditar logins correctos y fallidos en `audit_log` (sin contraseña ni hash) | T-22 (security-reviewer) | Pendiente · T-25 |
+| PA-27 | Auditar logins correctos y fallidos en `audit_log` (sin contraseña ni hash) | T-22 (security-reviewer) | Pendiente · T-24/T-31 (requiere cambio de contrato: `audit_log.artifact_id` y `AuditAction`) |
 | PA-28 | `AuthorizationError` (403) en `adapters/errors.py` para `require`, distinto de `AuthenticationError` | T-22 (security-reviewer) | Pendiente (P) |
 | PA-29 | Impedir `core.seed_users` fuera de `APP_ENV=development` (reinicia las contraseñas demo) | T-22 (security-reviewer) | Pendiente |
 | PA-30 | Conectar `core/functional/writer.StoryWriter` (con `StoryContext` construido desde el estado) al nodo `generate` de `core/graph/nodes.py`, sustituyendo `_context_json`, y guardar `prompt_version` en el `Artifact` | T-20 | ✅ Hecha: `generate` usa `StoryWriter` (decisión del día 5, opción 2) |
 | PA-31 | RGPD: minimizar lo que se envía al LLM desde Jira (hoy `_jira_source` incluye descripción y todos los comentarios); filtrar o seudonimizar comentarios cuando haya datos reales | T-20 (security-reviewer) | Pendiente · antes de usar datos reales (T-24/v2.0) |
 | PA-32 | Hallazgo de T-17: cuando un acta cambia una regla, asegurar en la recuperación que llegan ambos documentos (p. ej. ampliar con los `related` del fragmento) para que el prompt pueda aplicar la regla de la fecha más reciente | T-20 (spec-checker) | ✅ Resuelta en T-18 (`ContextService` añade la norma ↔ acta por `metadata[\"related\"]`) |
-| PA-33 | Usar `core/impact/diff.diff_stories` para rellenar `ImpactAnalysis.diffs` en el nodo `generate` (hoy los genera el LLM) y guardar cada versión con `StoryVersionStore.save` | T-19 | Parcial: `diffs` ya salen de `diff_stories`; falta `StoryVersionStore.save` (T-25) |
+| PA-33 | Usar `core/impact/diff.diff_stories` para rellenar `ImpactAnalysis.diffs` en el nodo `generate` (hoy los genera el LLM) y guardar cada versión con `StoryVersionStore.save` | T-19 | ✅ Hecha: `diffs` de `diff_stories` y cada versión guardada con `versions.save` (T-25) |
 | PA-34 | `StoryVersionStore.save`: rechazar que un id existente cambie de `type` (hoy la fila se actualiza y las versiones anteriores se leerían con otro modelo); y una excepción específica para «diff no disponible» (hoy `NotFoundError`), que requiere tocar `adapters/errors.py` | T-19 (spec-checker) | Pendiente (P) |
 | PA-35 | `TaskType.STRUCTURE_STORY` en la próxima revisión del contrato (hoy `structure` reutiliza `EVOLVE_STORY`) | PA-30 (spec-checker) | Pendiente (P) |
 | PA-36 | Contrastar la versión estructurada de Jira con el `summary`/`description` reales y avisar en la UI de que el diff es frente a la «versión estructurada de Jira» (un texto malicioso en Jira podría disimular cambios) | PA-30 (security-reviewer) | Pendiente · T-31 (la parte de T-21 no aplica: el diff ya es determinista) |
-| PA-37 | Persistir la versión de partida (hoy en memoria en `GraphNodes`) junto con las versiones (`artifact_versions`) | PA-30 | Pendiente · T-25 |
-| PA-38 | En la publicación de una evolución, excluir también la épica de los vínculos de impacto (hoy solo se excluye de las candidatas si la HU de origen está en `jira_context`) | T-21 (security-reviewer) | Pendiente · T-25 |
+| PA-37 | Persistir la versión de partida (hoy en memoria en `GraphNodes`) junto con las versiones (`artifact_versions`) | PA-30 | ✅ Hecha en T-25: en `artifact_state.state["baseline"]` |
+| PA-38 | En la publicación de una evolución, excluir también la épica de los vínculos de impacto (hoy solo se excluye de las candidatas si la HU de origen está en `jira_context`) | T-21 (security-reviewer) | ✅ Hecha en T-25 |
 | PA-39 | Limitar la longitud de `ImpactItem.reason` (se publica como comentario del vínculo) | T-21 (security-reviewer) | Pendiente (P) · revisión del contrato |
+| PA-40 | Firmar (HMAC con clave del `.env`) el registro de aprobaciones de `artifact_state`: hoy quien pueda escribir en la tabla puede fabricar una aprobación | T-25 (security-reviewer) | Pendiente (P) |
+| PA-41 | Caducidad de la aprobación que queda vigente tras una publicación simulada (hoy no caduca al pasar a `live`) | T-25 (security-reviewer) | Pendiente (P) |
+| PA-42 | Que `tests/pg_temp.py` solo cree bases temporales en un host local (evitar un servidor compartido) | T-25 (security-reviewer) | Pendiente (P) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -226,3 +229,4 @@
 | 4 | 2026-09-30 | **T-22 ✅** (P): `adapters/auth/local.py` (`LocalAuthProvider`: argon2id, tiempo constante con hash ficticio aleatorio, inactivos rechazados, rehash tolerante a fallos, `save_user` upsert), `core/permissions.py` (matriz rol × permiso, `can`/`require`; admin configura pero no genera ni publica, D-01), `core/factories.build_auth`. **Usuarios de demo:** `uv run python -m core.seed_users` crea `af-demo`, `qa-demo`, `admin-demo` con contraseñas aleatorias que se muestran **una sola vez** (decisión del usuario; no se guardan en repo, `.env` ni logs). Propuestas PA-25…PA-29 | — | Ejecutar el seed (lo hace el usuario) | Fusionar `Dia4` (T-19, T-20) y seguir con T-21 |
 | 5 | 2026-09-30 | **PA-30 ✅** (P): el nodo `generate` usa `StoryWriter` (prompts de T-20). Origen HU → `structure` (nuevo `prompts/structure_story.md`, v1) una vez por artefacto + `evolve`; necesidad/épica → `generate` y, al iterar, `evolve` sobre el borrador; `prompt_version` y `model_used` en el `Artifact`. Impacto = diff determinista (`diff_stories`) frente a la versión estructurada de Jira; **hasta T-21 no hay HU afectadas ni vínculos «relates to» al publicar**. Cruce con el área B: `core/functional/writer.py` y `tests/fakes/llm.py` (el fake cita la primera fuente del contexto) — revisar al fusionar `Dia5`. **Bloqueo real:** la cadena `evolve_story` falla en vivo por límite de Groq y respaldo de OpenRouter sin definir (`POR_DEFINIR:free`, R-07) | — | Elegir modelos (R-07) | T-21 → T-25 |
 | 5 | 2026-09-30 | **T-21 ✅** (P): `core/impact/analysis.py` (`ImpactAnalyzer`) + `prompts/analyze_impact.md` v1 (cruce con `prompts/` del área B, revisar al fusionar `Dia5`). `diffs` siempre deterministas; HU afectadas y regresión del LLM con un prompt pequeño (HU, cambios y resumen de candidatas: épica excluida, máx. 12); solo claves candidatas, un reintento y descarte anotado; sin llamada si no hay cambios o candidatas. También para HU nuevas (§6.1). `publish` vincula «relates to» al actualizar y al crear, un vínculo por clave con todos los motivos. **Sin consumo de cuota:** la prueba real (`tests/integration/test_impact_live.py`) está escrita y pendiente de ejecutar cuando el usuario lo autorice | — | Cuota de Groq (ejecución real pendiente) | T-25 |
+| 5 | 2026-09-30 | **T-25 ✅** (P): `core/audit.py` (`SqlAuditTrail` sobre `audit_log`: create/iterate/approve/discard/publish, sin prompts ni contenido) y `core/artifact_state.py` (tabla `artifact_state`, migración `0002`: registro de aprobaciones persistente, que falla cerrado si está dañado, y versión de partida). `JIRA_PUBLISH_MODE=simulation` por defecto: `publish` audita el plan y no escribe en Jira; la aprobación sigue vigente. En `live`: auditoría antes de `update_status`, `failed_ids` y fallos de vínculo como errores, épica excluida (PA-38). PA-33 y PA-37 hechas; PA-06 parcial; PA-40…PA-42 nuevas. SPEC §6, §7 y anexo §11 actualizados. **Pendiente:** cablear `build_audit`/`build_versions`/`build_state_store` en el contenedor real (T-24/T-31), siempre los tres juntos (`audit_log` tiene FK a `artifacts`); `uv run alembic upgrade head` en cada entorno | — | Cuota de Groq (pruebas reales pendientes) | Fusión de `Dia5` |

@@ -144,6 +144,7 @@
 | 2026-09-30 | Se ratifican las validaciones extra de `schemas/` (SPEC-00 §11) |
 | 2026-09-30 | `Artifact` sigue mutable (sin `frozen`): la garantía está en `core/approvals.py` y `frozen` no impide `model_copy` |
 | 2026-09-30 | Las 7 categorías del corpus (`documents.category`): `normativa`, `procesos`, `especificaciones`, `glosario`, `arquitectura`, `manuales`, `actas` (+ `memoria`, reservada al agente). Prompt de T-09 en `docs/prompts/PROMPT-02-corpus-area-b.md` |
+| 2026-09-30 | T-15 se entrega como CSV importable desde la interfaz de Jira Cloud (`data/seed/jira/seed-villaficticia.csv`); la importación la hace el usuario. Prompt en `docs/prompts/PROMPT-03-seed-jira-csv.md` |
 | 2026-09-30 | T-04 queda ⛔ hasta que TI instale WSL; se continúa con el resto del plan |
 | 2026-09-30 | **SPEC-00 congelada** (v1.2, anexo §11) y creación de los worktrees `area-a` y `area-b` |
 

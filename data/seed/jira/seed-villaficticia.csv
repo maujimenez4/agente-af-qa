@@ -1,0 +1,393 @@
+Issue ID,Parent,Issue Type,Summary,Description,Priority,Labels,Labels,"Link ""Relates"""
+1,,Epic,Préstamo digital de libros,"Permitir a las personas socias de la Biblioteca Municipal de Villaficticia reservar, renovar y consultar sus préstamos desde la web.",High,seed-villaficticia,prestamo-digital,
+2,1,Story,[HU-01] Reservar un libro disponible,"h2. Historia de usuario
+*Como* persona socia, *quiero* reservar un libro disponible desde la web, *para* recogerlo en el mostrador sin que otra persona se lo lleve antes.
+
+h2. Objetivo de negocio
+Reducir los desplazamientos en balde a la biblioteca y ordenar la recogida en el mostrador.
+
+h2. Alcance
+*Incluye*
+* Reserva desde la ficha del libro en CatálogoVF.
+* Listado de reservas activas en el área personal.
+
+*Excluye*
+* Reserva de materiales audiovisuales.
+* Envío del libro a domicilio.
+
+h2. Criterios de aceptación
+h3. CA-01 · Reserva confirmada
+{code}
+Escenario: Reserva confirmada
+  Dado una persona socia con sesión iniciada y menos de 3 reservas activas
+  Y un ejemplar del libro en estado «Disponible»
+  Cuando pulsa «Reservar»
+  Entonces la reserva queda activa y el ejemplar se bloquea durante 48 horas
+  Y se muestra la fecha y la hora límite de recogida
+{code}
+
+h3. CA-02 · Límite de reservas alcanzado
+{code}
+Escenario: Límite de reservas alcanzado
+  Dado una persona socia con 3 reservas activas
+  Cuando pulsa «Reservar» en otro libro
+  Entonces no se crea la reserva
+  Y se muestra el aviso «Has alcanzado el máximo de 3 reservas activas»
+{code}
+
+h3. CA-03 · Reserva caducada
+{code}
+Escenario: Reserva caducada
+  Dado una reserva activa que no se ha recogido
+  Cuando pasan 48 horas desde que el ejemplar quedó bloqueado para recogida
+  Entonces la reserva caduca y el ejemplar vuelve a estado «Disponible»
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: Máximo 3 reservas activas por persona socia.
+* *RN-02*: Una reserva bloquea el ejemplar durante 48 horas; si no se recoge, caduca.
+* *RN-03*: Solo se reservan ejemplares en estado «Disponible» en CatálogoVF.
+
+h2. Dependencias
+* HU-09: disponibilidad de ejemplares en la ficha del libro.
+* CatálogoVF: estado de los ejemplares.",High,seed-villaficticia,prestamo-digital,
+3,1,Story,[HU-02] Renovar un préstamo,"h2. Historia de usuario
+*Como* persona socia de la biblioteca, *quiero* renovar un préstamo activo desde la web, *para* no tener que acudir al mostrador para ampliar el plazo.
+
+h2. Objetivo de negocio
+Reducir las visitas al mostrador por renovaciones.
+
+h2. Alcance
+*Incluye*
+* Renovación desde la ficha del préstamo.
+
+*Excluye*
+* Renovación de materiales audiovisuales.
+
+h2. Criterios de aceptación
+h3. CA-01 · Renovación permitida
+{code}
+Escenario: Renovación permitida
+  Dado un préstamo activo con menos de 2 renovaciones
+  Y sin reservas pendientes sobre el ejemplar
+  Cuando la persona socia pulsa «Renovar»
+  Entonces el vencimiento se amplía 21 días
+{code}
+
+h3. CA-02 · Renovación rechazada por reservas
+{code}
+Escenario: Renovación rechazada por reservas
+  Dado un préstamo activo con reservas pendientes
+  Cuando la persona socia pulsa «Renovar»
+  Entonces se muestra el aviso «El ejemplar tiene reservas pendientes»
+{code}
+
+h3. CA-03 · Límite de renovaciones alcanzado
+{code}
+Escenario: Límite de renovaciones alcanzado
+  Dado un préstamo activo que ya tiene 2 renovaciones
+  Cuando la persona socia pulsa «Renovar»
+  Entonces no se amplía el vencimiento
+  Y se muestra el aviso «Has usado las 2 renovaciones permitidas»
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: Máximo 2 renovaciones por préstamo.
+* *RN-02*: No se renueva si hay reservas pendientes.
+* *RN-03*: Un préstamo dura 21 días y cada renovación amplía el vencimiento 21 días.
+
+h2. Supuestos
+* La persona socia ha iniciado sesión.
+
+h2. Flujos alternos y excepciones
+* Renovación desde el aviso de vencimiento (HU-11).
+* Si CatálogoVF no responde, se muestra un aviso y no se renueva.
+
+h2. Dependencias
+* HU-01: las reservas pendientes impiden renovar.",High,seed-villaficticia,prestamo-digital,2
+4,1,Story,[HU-03] Consultar el historial de préstamos,"h2. Historia de usuario
+Como persona socia quiero consultar mis préstamos de los últimos 12 meses.",Medium,seed-villaficticia,prestamo-digital,
+5,1,Story,[HU-04] Cancelar una reserva,"h2. Historia de usuario
+Como persona socia quiero cancelar una reserva en cualquier momento para liberar el libro cuanto antes.
+
+h2. Criterios de aceptación
+* La cancelación debe ser rápida y sencilla.
+* El libro queda libre para otras personas.
+
+h2. Notas
+* Quizá habría que avisar a alguien.",Medium,seed-villaficticia,prestamo-digital,2
+6,,Epic,Alta y gestión de personas socias,"Gestionar el ciclo de vida de las personas socias en el servicio digital: alta en línea, carné y datos de contacto.",Medium,seed-villaficticia,socios,
+7,6,Story,[HU-05] Alta de persona socia en línea,"h2. Historia de usuario
+*Como* persona vecina de Villaficticia, *quiero* darme de alta como persona socia desde la web, *para* empezar a usar el servicio de préstamo sin pasar antes por el mostrador.
+
+h2. Objetivo de negocio
+Aumentar las altas y reducir el tiempo de atención en el mostrador.
+
+h2. Alcance
+*Incluye*
+* Formulario de alta con datos de identificación y de contacto.
+* Activación de la cuenta al verificar el documento en el mostrador.
+
+*Excluye*
+* Alta de entidades colectivas.
+* Cuotas o pagos: el servicio es gratuito.
+
+h2. Criterios de aceptación
+h3. CA-01 · Alta provisional
+{code}
+Escenario: Alta provisional
+  Dado una persona de 14 años o más que no es socia
+  Cuando completa los campos obligatorios y acepta la política de privacidad
+  Entonces se crea una cuenta en estado «Provisional»
+  Y se muestra el número de persona socia asignado
+{code}
+
+h3. CA-02 · Documento ya registrado
+{code}
+Escenario: Documento ya registrado
+  Dado un documento de identidad ya asociado a una cuenta
+  Cuando se envía el formulario con ese documento
+  Entonces no se crea la cuenta
+  Y se muestra el aviso «Ya existe una cuenta con este documento»
+{code}
+
+h3. CA-03 · Activación en el mostrador
+{code}
+Escenario: Activación en el mostrador
+  Dado una cuenta en estado «Provisional»
+  Cuando la persona responsable de sala verifica el documento
+  Entonces la cuenta pasa a estado «Activa»
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: Edad mínima de 14 años; por debajo, el alta requiere la autorización de la persona tutora en el mostrador.
+* *RN-02*: Un documento de identidad solo puede asociarse a una cuenta.
+* *RN-03*: Una cuenta «Provisional» no puede reservar ni tomar libros en préstamo.
+* *RN-04*: Una cuenta «Provisional» sin activar al cabo de un mes se elimina.
+
+h2. Dependencias
+* Política de privacidad del servicio (corpus, normativa).",High,seed-villaficticia,socios,
+8,6,Story,[HU-06] Renovar el carné de persona socia,"h2. Historia de usuario
+Como persona socia quiero renovar mi carné cuando caduque para seguir usando la biblioteca.
+
+h2. Notas
+* El carné caduca periódicamente.
+* Hay que aportar la documentación necesaria.
+
+h2. Criterios de aceptación
+* Si el carné está caducado, avisar.",Low,seed-villaficticia,socios,
+9,6,Story,[HU-07] Actualizar mis datos de contacto,"h2. Historia de usuario
+Como persona socia quiero actualizar mis datos de contacto.",Low,seed-villaficticia,socios,
+10,,Epic,Catálogo en línea CatálogoVF,"Consulta pública del catálogo CatálogoVF: búsqueda, ficha del libro y disponibilidad de ejemplares.",Medium,seed-villaficticia,catalogo,
+11,10,Story,[HU-08] Buscar libros en el catálogo,"h2. Historia de usuario
+*Como* persona usuaria del catálogo, sea socia o no, *quiero* buscar libros por título, autoría o materia, *para* saber si la biblioteca los tiene.
+
+h2. Objetivo de negocio
+Reducir las consultas de localización que atiende el personal de sala.
+
+h2. Alcance
+*Incluye*
+* Búsqueda simple con un único campo de texto.
+* Filtros por tipo de material y por idioma.
+* Resultados paginados.
+
+*Excluye*
+* Búsqueda avanzada con operadores.
+* Búsqueda en catálogos de otras bibliotecas.
+
+h2. Criterios de aceptación
+h3. CA-01 · Búsqueda con resultados
+{code}
+Escenario: Búsqueda con resultados
+  Dado un catálogo con obras que contienen el término buscado
+  Cuando la persona usuaria busca el término
+  Entonces se muestran los resultados ordenados por relevancia, 20 por página
+  Y cada resultado muestra título, autoría y disponibilidad
+{code}
+
+h3. CA-02 · Búsqueda sin resultados
+{code}
+Escenario: Búsqueda sin resultados
+  Dado un término que no aparece en el catálogo
+  Cuando la persona usuaria lo busca
+  Entonces se muestra el mensaje «No hay resultados para tu búsqueda»
+  Y se proponen términos parecidos
+{code}
+
+h3. CA-03 · Filtro por idioma
+{code}
+Escenario: Filtro por idioma
+  Dado una lista de resultados en varios idiomas
+  Cuando la persona usuaria filtra por un idioma
+  Entonces solo se muestran las obras en ese idioma
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: La búsqueda no distingue mayúsculas, minúsculas ni tildes.
+* *RN-02*: La búsqueda no requiere iniciar sesión.
+* *RN-03*: Las obras dadas de baja no aparecen en los resultados.
+
+h2. Dependencias
+* Índice de búsqueda de CatálogoVF.",High,seed-villaficticia,catalogo,
+12,10,Story,[HU-09] Ver la disponibilidad de ejemplares,"h2. Historia de usuario
+*Como* persona socia, *quiero* ver en la ficha de un libro qué ejemplares hay y en qué estado, *para* decidir si lo reservo o voy directamente a la sala.
+
+h2. Objetivo de negocio
+Evitar reservas y desplazamientos sobre libros que no están disponibles.
+
+h2. Alcance
+*Incluye*
+* Estado y sala de cada ejemplar en la ficha del libro.
+* Botón «Reservar» cuando hay algún ejemplar disponible.
+
+*Excluye*
+* Localización del ejemplar en la estantería.
+
+h2. Criterios de aceptación
+h3. CA-01 · Ficha con ejemplares disponibles
+{code}
+Escenario: Ficha con ejemplares disponibles
+  Dado un libro con al menos un ejemplar en estado «Disponible»
+  Cuando la persona socia abre su ficha
+  Entonces se muestra el estado y la sala de cada ejemplar
+  Y se muestra el botón «Reservar»
+{code}
+
+h3. CA-02 · Ficha sin ejemplares disponibles
+{code}
+Escenario: Ficha sin ejemplares disponibles
+  Dado un libro con todos sus ejemplares prestados
+  Cuando la persona socia abre su ficha
+  Entonces se muestra la fecha de vencimiento más próxima
+  Y no se muestra el botón «Reservar»
+{code}
+
+h3. CA-03 · Ejemplar reservado
+{code}
+Escenario: Ejemplar reservado
+  Dado un ejemplar con una reserva activa
+  Cuando la persona socia abre la ficha
+  Entonces el ejemplar aparece como «Reservado» hasta que se recoge o la reserva caduca a las 48 horas
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: Estados de un ejemplar: «Disponible», «Prestado», «Reservado» y «En reparación».
+* *RN-02*: Solo los ejemplares «Disponible» se pueden reservar (coherente con HU-01).
+* *RN-03*: La disponibilidad se consulta a CatálogoVF en el momento; si no responde, se muestra «Disponibilidad no disponible temporalmente».
+
+h2. Dependencias
+* HU-01 usa esta información para permitir la reserva.
+* CatálogoVF: estado de los ejemplares.",High,seed-villaficticia,catalogo,2
+13,10,Story,[HU-10] Recomendaciones de lectura,"h2. Historia de usuario
+Como persona socia quiero recibir recomendaciones de lectura personalizadas para descubrir libros nuevos.
+
+h2. Criterios de aceptación
+* Las recomendaciones deben ser buenas y aparecer rápido.
+* Deben tener en cuenta mis gustos.
+
+h2. Notas
+* ¿Usar el historial de préstamos?",Low,seed-villaficticia,catalogo,
+14,,Epic,Sanciones y avisos AvisosVF,Aplicar el reglamento de sanciones del servicio y comunicar los avisos a las personas socias mediante AvisosVF.,Medium,seed-villaficticia,sanciones-avisos,
+15,14,Story,[HU-11] Aviso de vencimiento del préstamo,"h2. Historia de usuario
+*Como* persona socia, *quiero* recibir un aviso antes de que venza un préstamo, *para* devolverlo o renovarlo a tiempo.
+
+h2. Objetivo de negocio
+Reducir las devoluciones tardías y, con ellas, las suspensiones.
+
+h2. Alcance
+*Incluye*
+* Aviso por correo y notificación en el área personal mediante AvisosVF.
+* Enlace directo a la renovación (HU-02).
+
+*Excluye*
+* Avisos por mensajería móvil.
+
+h2. Criterios de aceptación
+h3. CA-01 · Aviso previo al vencimiento
+{code}
+Escenario: Aviso previo al vencimiento
+  Dado un préstamo activo
+  Cuando faltan tres días naturales para su vencimiento
+  Entonces AvisosVF envía un aviso con el título del libro y la fecha de vencimiento
+  Y el aviso incluye el enlace «Renovar» si el préstamo se puede renovar
+{code}
+
+h3. CA-02 · Préstamo no renovable
+{code}
+Escenario: Préstamo no renovable
+  Dado un préstamo con 2 renovaciones ya usadas o con reservas pendientes
+  Cuando se envía el aviso previo
+  Entonces el aviso no incluye el enlace «Renovar» y explica el motivo
+{code}
+
+h3. CA-03 · Aviso único
+{code}
+Escenario: Aviso único
+  Dado un préstamo que ya ha recibido el aviso previo
+  Cuando se vuelve a ejecutar el proceso de avisos
+  Entonces no se envía un segundo aviso para el mismo vencimiento
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: El aviso previo se envía tres días naturales antes del vencimiento.
+* *RN-02*: El enlace «Renovar» solo aparece si se cumplen las reglas de HU-02 (máximo 2 renovaciones y sin reservas pendientes).
+* *RN-03*: La persona socia puede desactivar los avisos por correo, pero no las notificaciones del área personal.
+
+h2. Dependencias
+* HU-02: reglas de renovación.
+* AvisosVF: envío de avisos.",Medium,seed-villaficticia,sanciones-avisos,3
+16,14,Story,[HU-12] Suspensión por devolución tardía,"h2. Historia de usuario
+*Como* responsable de sala, *quiero* que el sistema suspenda de forma automática a la persona socia que devuelve un libro con retraso, *para* aplicar el reglamento de forma homogénea.
+
+h2. Objetivo de negocio
+Aplicar las sanciones sin cálculos manuales y reducir las reclamaciones.
+
+h2. Alcance
+*Incluye*
+* Cálculo automático de la suspensión al registrar la devolución.
+* Consulta de la suspensión vigente en el área personal.
+
+*Excluye*
+* Sanciones económicas.
+* Gestión de reclamaciones (proceso aparte).
+
+h2. Criterios de aceptación
+h3. CA-01 · Suspensión aplicada
+{code}
+Escenario: Suspensión aplicada
+  Dado un préstamo devuelto con N días naturales de retraso
+  Cuando la persona responsable de sala registra la devolución
+  Entonces la persona socia queda suspendida N días
+  Y AvisosVF le notifica la fecha de fin de la suspensión
+{code}
+
+h3. CA-02 · Bloqueo durante la suspensión
+{code}
+Escenario: Bloqueo durante la suspensión
+  Dado una persona socia suspendida
+  Cuando intenta reservar un libro o renovar un préstamo
+  Entonces la operación se rechaza
+  Y se muestra el aviso «Tu cuenta está suspendida» con la fecha de fin
+{code}
+
+h3. CA-03 · Devolución en plazo
+{code}
+Escenario: Devolución en plazo
+  Dado un préstamo devuelto antes de su vencimiento o el mismo día
+  Cuando se registra la devolución
+  Entonces no se aplica ninguna suspensión
+{code}
+
+h2. Reglas de negocio
+* *RN-01*: Un día de suspensión por cada día natural de retraso.
+* *RN-02*: Durante la suspensión no se puede reservar ni renovar; sí devolver.
+* *RN-03*: Los préstamos en curso mantienen su fecha de vencimiento.
+
+h2. Dependencias
+* HU-01 y HU-02: la suspensión bloquea la reserva y la renovación.
+* AvisosVF: notificación de la suspensión.",Medium,seed-villaficticia,sanciones-avisos,3
+17,14,Story,[HU-13] Aviso de reserva lista para recoger,"h2. Historia de usuario
+Como persona socia quiero recibir un aviso cuando mi reserva esté lista para recogerla.
+
+h2. Criterios de aceptación
+* Se envía un aviso cuando el ejemplar está preparado en el mostrador.",Medium,seed-villaficticia,sanciones-avisos,2

@@ -151,6 +151,12 @@
 | 2026-09-30 | Skill `/tarea` (`.claude/skills/tarea/`) versionada para todas las sesiones |
 | 2026-09-30 | **SPEC-00 congelada** (v1.2, anexo §11) y creación de los worktrees `area-a` y `area-b` |
 
+## Decisiones del día 4
+| Fecha | Decisión |
+|---|---|
+| 2026-09-30 | Nueva rama de integración **`PreProduccion`** (desde `main` en `143cc4e`). Todo el trabajo se fusiona en ella por PR; `main` queda como referencia estable hasta nueva decisión |
+| 2026-09-30 | Reparto del día 4: el compañero hace **T-20** y **T-19** en la rama `Dia4` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-04-dia4-companero.md`); la sesión principal hace **T-14 → T-18 → T-22** en `PreProduccion`. Las nuevas propuestas adicionales se numeran desde PA-23 |
+
 ## Propuestas adicionales detectadas durante el desarrollo
 | ID | Propuesta | Origen (tarea) | Decisión |
 |---|---|---|---|

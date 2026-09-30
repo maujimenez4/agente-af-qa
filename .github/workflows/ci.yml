@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, prototipo-v1]
+    branches: [main, prototipo-v1, PreProduccion]
   pull_request:
 
 permissions:

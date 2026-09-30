@@ -7,6 +7,7 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 import json
 import re
 import time
+from dataclasses import replace
 from typing import Any
 from uuid import uuid4
 
@@ -18,7 +19,10 @@ from adapters.errors import PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.container import Container
 from core.context.service import ContextService
+from core.functional.context import StoryContext
+from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
+from core.impact.diff import diff_stories
 from core.logging import get_logger
 from core.state_machine import transition
 from schemas.artifact import Artifact
@@ -39,6 +43,9 @@ log = get_logger("core.graph")
 class GraphNodes:
     def __init__(self, container: Container) -> None:
         self.c = container
+        # Versión de partida (Jira → plantilla) por artefacto, para el diff de cada iteración.
+        # En memoria como el registro de aprobaciones; se vuelve a estructurar si falta (T-25).
+        self._baselines: dict[str, UserStory] = {}
 
     # --- 1 · load_origin -------------------------------------------------------------------
 
@@ -86,33 +93,29 @@ class GraphNodes:
     def generate(self, state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
         started = time.perf_counter()
         validate_origin(state)  # el estado puede haber cambiado al iterar
-        messages = [Message(role="user", content=_context_json(state))]
         origin = state["origin"]
+        previous = state["artifact"]
+        artifact_id = previous.id if previous is not None else uuid4()
         impact: ImpactAnalysis | None = None
+        prompt_version: str | None = None
 
         if state["mode"] == "qa":
+            # T-26 sustituirá este camino por core/qa al fusionar la rama del día 5.
+            messages = [Message(role="user", content=_context_json(state))]
             result = self.c.llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
             content: UserStory | TestSuite = result.content.model_copy(
                 update={"story_jira_key": origin["key"]}
             )
             artifact_type = ArtifactType.TEST_SUITE
+            model_used = f"{result.provider}/{result.model}"
         else:
-            evolving = origin["kind"] == "story"
-            task = TaskType.EVOLVE_STORY if evolving else TaskType.GENERATE_STORY
-            result = self.c.llm.generate_structured(messages, UserStory, task)
-            content = result.content
-            if evolving:
-                content = content.model_copy(update={"jira_key": origin["key"]})
-                impact = self.c.llm.generate_structured(
-                    messages, ImpactAnalysis, TaskType.ANALYZE_IMPACT
-                ).content
-            artifact_type = ArtifactType.USER_STORY
+            draft, impact = self._write_story(state, str(artifact_id))
+            content, artifact_type = draft.story, ArtifactType.USER_STORY
+            model_used, prompt_version = f"{draft.provider}/{draft.model}", draft.prompt_version
 
-        model_used = f"{result.provider}/{result.model}"
-        previous = state["artifact"]
         if previous is None:
             artifact = Artifact(
-                id=uuid4(),
+                id=artifact_id,
                 type=artifact_type,
                 status=ArtifactStatus.DRAFT,
                 version=1,
@@ -121,6 +124,7 @@ class GraphNodes:
                 impact=impact,
                 created_by=state["user"],
                 model_used=model_used,
+                prompt_version=prompt_version,
             )
         else:  # iteración: misma identidad, nueva versión (RF-20)
             artifact = previous.model_copy(
@@ -129,6 +133,7 @@ class GraphNodes:
                     "content": content,
                     "impact": impact,
                     "model_used": model_used,
+                    "prompt_version": prompt_version,
                 }
             )
         artifact = transition(artifact, ArtifactStatus.IN_REVIEW)
@@ -143,6 +148,44 @@ class GraphNodes:
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
         return {"artifact": artifact, "decision": None}
+
+    def _write_story(
+        self, state: AgentState, artifact_id: str
+    ) -> tuple[StoryDraft, ImpactAnalysis | None]:
+        """HU con los prompts de T-20; en una evolución, diff frente a la versión de Jira."""
+        origin, previous = state["origin"], state["artifact"]
+        writer = StoryWriter(self.c.llm)
+        ctx = StoryContext(
+            origin_kind=origin["kind"],
+            origin_key=origin.get("key"),
+            need=origin.get("text") or "",
+            jira=list(state["jira_context"]),
+            rag=list(state["rag_context"]),
+            feedback=list(state["feedback"]),
+        )
+        current = previous.content if previous and isinstance(previous.content, UserStory) else None
+        if origin["kind"] != "story":
+            if current is None:
+                return writer.generate(ctx), None
+            # Iterar una HU nueva es evolucionar el borrador anterior con el feedback (RF-20).
+            return writer.evolve(replace(ctx, previous=current)), None
+
+        baseline = self._baseline(writer, ctx, artifact_id)
+        draft = writer.evolve(replace(ctx, previous=current or baseline))
+        # El diff es determinista (T-19) frente a la HU de Jira. Las HU afectadas, reglas y
+        # regresión (ImpactAnalysis.affected/regression_notes) las añade T-21 con su prompt.
+        impact = ImpactAnalysis(
+            diffs=diff_stories(baseline, draft.story), affected=[], regression_notes=[]
+        )
+        return draft, impact
+
+    def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
+        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30)."""
+        if artifact_id not in self._baselines:
+            origin_issue = [i for i in ctx.jira if i.key == ctx.origin_key][:1]
+            origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
+            self._baselines[artifact_id] = writer.structure(origin_only).story
+        return self._baselines[artifact_id]
 
     # --- 5–6 · human_review ----------------------------------------------------------------
 
@@ -181,6 +224,8 @@ class GraphNodes:
             "discard": ArtifactStatus.DISCARDED,
         }[decision]
         reviewed = transition(artifact, status)
+        if decision == "discard":
+            self._baselines.pop(str(artifact.id), None)
         if decision == "approve":
             # Falla si no es la versión y la operación ofrecidas por generate (ApprovalError).
             self.c.approvals.record(reviewed, target)
@@ -232,6 +277,7 @@ class GraphNodes:
             published = transition(artifact, ArtifactStatus.PUBLISHED)
         if published.status is ArtifactStatus.PUBLISHED:
             self.c.approvals.consume(approval, published)  # un solo uso
+            self._baselines.pop(str(artifact.id), None)
 
         log.info(
             "publicación en Jira",

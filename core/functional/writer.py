@@ -54,6 +54,20 @@ class StoryWriter:
         draft = self._run(ctx, "evolve_story", TaskType.EVOLVE_STORY)
         return _keep_identity(draft, previous, _story_key(ctx))
 
+    def structure(self, ctx: StoryContext) -> StoryDraft:
+        """Versión de partida: la incidencia de Jira pasada a la plantilla, sin cambios (PA-30).
+
+        Se compara con ella la evolución (diff por campo, RF-05, RNF-16). Usa la cadena de
+        modelos de `evolve_story`: es la misma HU y el mismo tipo de trabajo.
+        """
+        if ctx.origin_kind != "story" or not ctx.origin_key:
+            raise ValueError("Solo se estructura una HU que ya existe en Jira.")
+        draft = self._run(ctx, "structure_story", TaskType.EVOLVE_STORY)
+        story = draft.story.model_copy(
+            update={"jira_key": ctx.origin_key, "changes_from_previous": []}
+        )
+        return replace(draft, story=story)
+
     def review(self, ctx: StoryContext) -> StoryDraft:
         """HU mejorada con ambigüedades, huecos e INVEST señalados (RF-18)."""
         previous = _require_previous(ctx, "revisar")

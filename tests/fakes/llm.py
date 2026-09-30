@@ -1,5 +1,6 @@
 """Fake de LLMProvider: respuestas estructuradas deterministas a partir del dataset sintético."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -7,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from adapters.base import LLMResult, Message, StructuredResult, TaskType
-from schemas.common import Priority
+from schemas.common import Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.memory import Memory
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -47,9 +48,23 @@ def renewal_test_suite(story_key: str = "DEMO-3") -> TestSuite:
     )
 
 
+_SOURCE_TAG = re.compile(r'<fuente ref="([^"]+)" tipo="(jira|rag|memory)"')
+
+
+def _story_citing_context(messages: list[Message]) -> UserStory:
+    """HU del dataset que cita la primera fuente recibida (si el contexto trae fuentes)."""
+    story = dataset.renewal_story(jira_key=None)
+    for message in messages:
+        # Solo el contexto (mensajes de usuario); el prompt de sistema trae ejemplos de etiquetas.
+        if message.role == "user" and (match := _SOURCE_TAG.search(message.content)):
+            ref, kind = match.group(1), match.group(2)
+            return story.model_copy(update={"sources": [SourceRef(kind=kind, ref=ref)]})
+    return story
+
+
 def _default_builders() -> dict[type[BaseModel], Builder]:
     return {
-        UserStory: lambda _messages: dataset.renewal_story(jira_key=None),
+        UserStory: _story_citing_context,
         TestSuite: lambda _messages: renewal_test_suite(),
         ImpactAnalysis: lambda _messages: ImpactAnalysis(
             diffs=[StoryDiff(field="title", before="Renovar", after="Renovar un préstamo")],

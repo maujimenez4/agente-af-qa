@@ -12,7 +12,7 @@ import pytest
 
 from adapters.base import EmbeddingProvider, IssueTracker, RetrievedChunk, VectorStore
 from core.config import AppConfig, build_config
-from core.context.budget import estimate_tokens, issue_tokens
+from core.context.budget import chunk_tokens, issue_tokens
 from core.context.service import ContextService, GatheredContext
 from core.factories import build_embeddings, build_issue_tracker, build_vector_store
 
@@ -94,9 +94,7 @@ def _doc_ids(chunks: list[RetrievedChunk]) -> set[str]:
 
 
 def _used(context: GatheredContext) -> int:
-    return sum(issue_tokens(i) for i in context.jira) + sum(
-        estimate_tokens(c.chunk.content) for c in context.rag
-    )
+    return sum(issue_tokens(i) for i in context.jira) + sum(chunk_tokens(c) for c in context.rag)
 
 
 def test_need_about_reservation_hours_brings_norm_and_minutes(service: ContextService) -> None:

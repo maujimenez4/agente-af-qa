@@ -1,0 +1,15 @@
+# Configuración de gitleaks (CA-00-05): reglas por defecto + placeholders permitidos.
+title = "agente-af-qa"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Placeholders documentados (TU_*, POR_DEFINIR) y archivos generados sin secretos"
+regexes = [
+  '''^TU_[A-ZÑÁÉÍÓÚ0-9_]+$''',
+  '''^POR_DEFINIR(:free)?$''',
+]
+paths = [
+  '''(^|/)uv\.lock$''',
+]

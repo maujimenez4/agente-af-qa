@@ -19,6 +19,8 @@ dependencies = [
     "sqlalchemy>=2.1.1",
     "streamlit>=1.64.0",
     "structlog>=26.1.0",
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
 ]
 
 [dependency-groups]
@@ -56,3 +58,13 @@ ignore = ["RUF001", "RUF002", "RUF003"]  # textos en español con tildes y signo
 [tool.ruff.format]
 quote-style = "double"
 exclude = ["**/*.md"]
+
+# torch (dependencia de docling) solo CPU: sin librerías CUDA en CI ni en local (R-08).
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

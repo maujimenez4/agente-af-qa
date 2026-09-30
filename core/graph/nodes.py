@@ -13,10 +13,11 @@ from uuid import uuid4
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
-from adapters.base import Chunk, IssueDetail, Message, TaskType
+from adapters.base import Chunk, Message, TaskType
 from adapters.errors import PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.container import Container
+from core.context.service import ContextService
 from core.graph.state import AgentState, Decision
 from core.logging import get_logger
 from core.state_machine import transition
@@ -28,6 +29,7 @@ from schemas.user_story import UserStory
 
 DECISIONS: tuple[Decision, ...] = ("iterate", "approve", "discard")
 LINK_TYPE_IMPACT = "relates to"  # D-09
+DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
 # Clave de Jira: evita rutas o JQL inyectadas a través del origen (p. ej. "../x").
 JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
 
@@ -49,29 +51,35 @@ class GraphNodes:
     # --- 2–3 · retrieve_context ------------------------------------------------------------
 
     def retrieve_context(self, state: AgentState) -> dict[str, Any]:
-        issues: dict[str, IssueDetail] = {i.key: i for i in state["jira_context"]}
-        for issue in list(issues.values()):
-            related = [link.key for link in issue.links]
-            if issue.parent_key:
-                related.append(issue.parent_key)
-                related += [s.key for s in self.c.issue_tracker.list_children(issue.parent_key)]
-            if state["origin"]["kind"] == "epic":
-                # Las HU de la épica serán las hermanas de la HU nueva.
-                related += [s.key for s in self.c.issue_tracker.list_children(issue.key)]
-            for key in related:
-                if key not in issues:
-                    issues[key] = self.c.issue_tracker.get_issue(key)
-
-        query = state["origin"].get("text") or " ".join(
-            f"{i.summary} {i.description_text}" for i in state["jira_context"]
+        """Jira + RAG ajustados al presupuesto de tokens (T-18)."""
+        started = time.perf_counter()
+        origin_issue = state["jira_context"][0] if state["jira_context"] else None
+        gathered = self._context_service().gather(state["origin"], origin_issue)
+        log.info(
+            "contexto reunido",
+            user=state["user"],
+            action="retrieve_context",
+            jira=len(gathered.jira),
+            rag=len(gathered.rag),
+            tokens=gathered.budget.used,
+            dropped=gathered.budget.dropped_issues + gathered.budget.dropped_chunks,
+            duration_ms=round((time.perf_counter() - started) * 1000),
         )
-        rag_context = []
-        if query.strip():
-            (vector,) = self.c.embeddings.embed([query])
-            rag_context = self.c.vector_store.search(
-                vector, query, k=self.c.top_k, memory_boost=self.c.memory_boost
-            )
-        return {"jira_context": list(issues.values()), "rag_context": rag_context}
+        return {"jira_context": gathered.jira, "rag_context": gathered.rag}
+
+    def _context_service(self) -> ContextService:
+        config = self.c.config
+        return ContextService(
+            self.c.issue_tracker,
+            self.c.embeddings,
+            self.c.vector_store,
+            top_k=self.c.top_k,
+            memory_boost=self.c.memory_boost,
+            token_budget=(
+                config.models.limits.context_token_budget if config else DEFAULT_TOKEN_BUDGET
+            ),
+            project_key=config.settings.jira_project_key if config else None,
+        )
 
     # --- 4 · generate ----------------------------------------------------------------------
 

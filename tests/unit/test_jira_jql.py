@@ -7,7 +7,14 @@ texto libre y vínculos). Funciones puras: sin red. Claves y textos ficticios.
 import pytest
 
 from adapters.jira.jql import ISSUE_KEY_RE, PROJECT_KEY_RE, children_jql, epics_jql, quote
-from core.context.jql import MAX_TEXT_CHARS, linked_issues_jql, text_search_jql
+from core.context.jql import (
+    MAX_KEYWORDS,
+    MAX_TEXT_CHARS,
+    any_keyword_jql,
+    keywords,
+    linked_issues_jql,
+    text_search_jql,
+)
 
 LUCENE_SPECIAL = set('+-&|!(){}[]^~*?:\\/"')
 TEXT_PREFIX = 'project = "DEMO" AND text ~ '
@@ -257,3 +264,139 @@ def test_linked_issues_jql_raises_value_error_when_key_invalid(key: str) -> None
 def test_children_jql_rejects_invalid_keys(key: str) -> None:
     with pytest.raises(ValueError, match="no válida"):
         children_jql(key)
+
+
+# --- core/context/jql: keywords (T-18, RF-14) ------------------------------------------------
+
+KEYWORD_PREFIX = 'project = "DEMO" AND text ~ '
+
+
+def decode_keyword_literal(jql: str) -> str:
+    """Contenido Lucene del literal de `any_keyword_jql`; falla si sobra algo detrás."""
+    assert jql.startswith(KEYWORD_PREFIX)
+    content, end = read_jql_string(jql, len(KEYWORD_PREFIX))
+    assert jql[end:] == ""
+    return content
+
+
+def test_keywords_drops_stopwords_short_words_and_numbers() -> None:
+    """RF-14: sin palabras vacías, palabras de < 4 letras ni números; en minúsculas y en orden."""
+    text = "Como persona socia quiero RENOVAR un préstamo 21 días antes para 2026 evitar multas"
+    assert keywords(text) == ["renovar", "préstamo", "días", "antes", "evitar", "multas"]
+
+
+def test_keywords_removes_duplicates_keeping_first_occurrence() -> None:
+    """RF-14: cada palabra aparece una vez, en el orden de su primera aparición."""
+    assert keywords("reserva Reserva ejemplar reserva ejemplar aviso") == [
+        "reserva",
+        "ejemplar",
+        "aviso",
+    ]
+
+
+def test_keywords_respects_default_and_custom_limit() -> None:
+    """RF-14 (límite): como mucho MAX_KEYWORDS (8) o el límite indicado."""
+    words = [f"palabra{chr(97 + n)}" for n in range(12)]
+    assert MAX_KEYWORDS == 8
+    assert keywords(" ".join(words)) == words[:MAX_KEYWORDS]
+    assert keywords(" ".join(words), limit=2) == words[:2]
+
+
+def test_keywords_splits_on_punctuation_and_lucene_specials() -> None:
+    """RF-14: la puntuación y los especiales separan palabras y no llegan a la salida."""
+    assert keywords('¿renovar?(préstamo)+"ejemplar"||reserva/aviso') == [
+        "renovar",
+        "préstamo",
+        "ejemplar",
+        "reserva",
+        "aviso",
+    ]
+
+
+@pytest.mark.parametrize("text", ["", "   ", "como quiero para", "a de la 12 3456", "¿¡!?"])
+def test_keywords_returns_empty_when_no_meaningful_words(text: str) -> None:
+    """RF-14 (límite): sin palabras significativas → lista vacía."""
+    assert keywords(text) == []
+
+
+def test_keywords_keeps_four_letter_words_and_drops_three_letter_ones() -> None:
+    """RF-14 (límite): el mínimo es de 4 letras."""
+    assert keywords("sol mesa") == ["mesa"]
+
+
+# --- core/context/jql: any_keyword_jql (T-18, RF-14) -----------------------------------------
+
+
+def test_any_keyword_jql_joins_words_with_or_inside_text_literal() -> None:
+    """RF-14: `project = "KEY" AND text ~ "w1 OR w2"`."""
+    assert any_keyword_jql("DEMO", ["renovar", "préstamo"]) == (
+        'project = "DEMO" AND text ~ "renovar OR préstamo"'
+    )
+
+
+def test_any_keyword_jql_single_word_has_no_or() -> None:
+    """RF-14 (límite): una sola palabra no lleva operador."""
+    assert decode_keyword_literal(any_keyword_jql("DEMO", ["reserva"])) == "reserva"
+
+
+def test_any_keyword_jql_collapses_whitespace_and_drops_blank_words() -> None:
+    """RF-14: espacios internos colapsados; palabras vacías o en blanco se ignoran."""
+    jql = any_keyword_jql("DEMO", ["  renovar \t préstamo ", "", "   ", "aviso"])
+    assert decode_keyword_literal(jql) == "renovar préstamo OR aviso"
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        pytest.param(['a"b', "c\\d"], id="comilla-y-barra"),
+        pytest.param(["(x)", "y+z", "w?"], id="especiales"),
+        pytest.param(['+-&|!(){}[]^~*?:\\/"'], id="todos"),
+    ],
+)
+def test_any_keyword_jql_escapes_lucene_specials_and_quotes(words: list[str]) -> None:
+    """RF-14 (seguridad): cada especial queda escapado y el texto se reconstruye igual."""
+    lucene = decode_keyword_literal(any_keyword_jql("DEMO", words))
+    assert_all_special_escaped(lucene)
+    assert lucene_unescape(lucene) == " OR ".join(words)
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        'x" OR project = OTRO OR text ~ "y',
+        'x\\" OR project = OTRO',
+        '" ORDER BY key --',
+        'x") OR (project = OTRO',
+    ],
+)
+def test_any_keyword_jql_keeps_injection_inside_single_literal(word: str) -> None:
+    """RF-14 (seguridad): una palabra maliciosa no sale del literal ni cambia el proyecto."""
+    jql = any_keyword_jql("DEMO", ["renovar", word])
+    lucene = decode_keyword_literal(jql)
+    assert lucene_unescape(lucene) == f"renovar OR {word}"
+    assert jql.count('project = "DEMO"') == 1
+    assert_all_special_escaped(lucene)
+
+
+def test_any_keyword_jql_accepts_output_of_keywords() -> None:
+    """RF-14: `keywords` + `any_keyword_jql` producen una JQL válida para una necesidad."""
+    words = keywords("Como persona socia quiero renovar un préstamo desde la aplicación")
+    assert decode_keyword_literal(any_keyword_jql("DEMO", words)) == (
+        "renovar OR préstamo OR aplicación"
+    )
+
+
+@pytest.mark.parametrize("words", [[], [""], ["   ", "\t\n"]])
+def test_any_keyword_jql_raises_value_error_when_no_words(words: list[str]) -> None:
+    """RF-14 (error): lista vacía o solo con blancos → ValueError."""
+    with pytest.raises(ValueError):
+        any_keyword_jql("DEMO", words)
+
+
+@pytest.mark.parametrize(
+    "project", ["demo", "DE MO", 'DEMO"', "DEMO OR project = OTRO", "", "D", "DEMO\n"]
+)
+def test_any_keyword_jql_raises_value_error_when_project_invalid(project: str) -> None:
+    """RF-14, §11 (error): clave de proyecto no válida → ValueError."""
+    with pytest.raises(ValueError, match="no válida"):
+        any_keyword_jql(project, ["renovar"])

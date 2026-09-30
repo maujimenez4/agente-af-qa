@@ -1,0 +1,173 @@
+"""Servicio de contexto del nodo `retrieve_context` (T-18, RF-11, RF-14, RF-51).
+
+Reúne el contexto de Jira según el origen (HU, épica o necesidad nueva) y el del RAG, y lo
+ajusta al presupuesto de tokens. Solo depende de protocolos de `adapters/base.py`.
+"""
+
+from collections.abc import Iterable, Mapping
+
+from pydantic import BaseModel
+
+from adapters.base import (
+    EmbeddingProvider,
+    IssueDetail,
+    IssueSummary,
+    IssueTracker,
+    RetrievedChunk,
+    VectorStore,
+)
+from adapters.errors import NotFoundError
+from core.context.budget import BudgetReport, apply_budget, estimate_tokens
+from core.context.jql import any_keyword_jql, keywords
+
+MEMORY_CATEGORY = "memoria"
+# Una norma y el acta que la cambió deben llegar juntas al LLM (hallazgo de T-17).
+RELATED_PAIRS = {"normativa": "actas", "actas": "normativa"}
+MAX_LINKED = 5
+MAX_NEED_MATCHES = 3
+MAX_NEED_CANDIDATES = 20
+MAX_RELATED_DOCS = 4
+
+
+class GatheredContext(BaseModel):
+    jira: list[IssueDetail]
+    rag: list[RetrievedChunk]
+    budget: BudgetReport
+
+
+def _detail_from_summary(summary: IssueSummary, parent_key: str | None) -> IssueDetail:
+    """Hermanas sin petición extra: solo el resumen (el detalle se pide si hace falta)."""
+    return IssueDetail(**summary.model_dump(), parent_key=parent_key)
+
+
+def _related_ids(chunk: RetrievedChunk) -> list[str]:
+    raw = chunk.chunk.metadata.get("related", "")
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _doc_id(chunk: RetrievedChunk) -> str:
+    return chunk.chunk.metadata.get("doc_id") or chunk.chunk.document_id
+
+
+class ContextService:
+    def __init__(
+        self,
+        tracker: IssueTracker,
+        embeddings: EmbeddingProvider,
+        store: VectorStore,
+        *,
+        top_k: int,
+        memory_boost: float,
+        token_budget: int,
+        project_key: str | None = None,
+    ) -> None:
+        self._tracker = tracker
+        self._embeddings = embeddings
+        self._store = store
+        self._top_k = top_k
+        self._memory_boost = memory_boost
+        self._token_budget = token_budget
+        self._project_key = project_key
+
+    def gather(
+        self, origin: Mapping[str, str], origin_issue: IssueDetail | None
+    ) -> GatheredContext:
+        issues = self._jira_context(origin, origin_issue)
+        query = origin.get("text") or " ".join(
+            f"{i.summary} {i.description_text}" for i in issues[:1]
+        )
+        chunks = self._rag_context(query) if query.strip() else []
+        # El texto de la necesidad también viaja al LLM: se reserva su espacio.
+        reserved = estimate_tokens(origin.get("text") or "")
+        budget = max(self._token_budget - reserved, 0)
+        jira, rag, report = apply_budget(issues, chunks, budget)
+        return GatheredContext(jira=jira, rag=rag, budget=report)
+
+    # --- Jira -------------------------------------------------------------------------------
+
+    def _jira_context(
+        self, origin: Mapping[str, str], origin_issue: IssueDetail | None
+    ) -> list[IssueDetail]:
+        """Incidencias por prioridad: origen, épica, vínculos, hermanas o hijas, relacionadas."""
+        found: dict[str, IssueDetail] = {}
+
+        def add(issue: IssueDetail) -> None:
+            found.setdefault(issue.key, issue)
+
+        if origin_issue is not None:
+            add(origin_issue)
+            if origin_issue.parent_key and (parent := self._safe_get(origin_issue.parent_key)):
+                add(parent)
+            for link in origin_issue.links[:MAX_LINKED]:
+                if linked := self._safe_get(link.key):
+                    add(linked)
+            if origin["kind"] == "epic":
+                children = self._tracker.list_children(origin_issue.key)
+                for child in children:
+                    add(_detail_from_summary(child, origin_issue.key))
+            elif origin_issue.parent_key:
+                for sibling in self._tracker.list_children(origin_issue.parent_key):
+                    add(_detail_from_summary(sibling, origin_issue.parent_key))
+        elif origin["kind"] == "need" and self._project_key:
+            # §6.1: con una necesidad nueva se buscan HU que podría modificar.
+            for match in self._related_to_need(origin.get("text", "")):
+                add(self._safe_get(match.key) or _detail_from_summary(match, None))
+        return list(found.values())
+
+    def _related_to_need(self, text: str) -> list[IssueSummary]:
+        """Candidatas con alguna palabra clave, reordenadas por coincidencias en el título."""
+        words = keywords(text)
+        if not words or not self._project_key:
+            return []
+        try:
+            jql = any_keyword_jql(self._project_key, words)
+        except ValueError:  # JIRA_PROJECT_KEY no válida: sin búsqueda en Jira
+            return []
+        candidates = self._tracker.search(jql, limit=MAX_NEED_CANDIDATES)
+
+        def overlap(issue: IssueSummary) -> int:
+            title = issue.summary.lower()
+            return sum(word in title for word in words)
+
+        ranked = sorted(candidates, key=overlap, reverse=True)  # estable: conserva el orden de Jira
+        return ranked[:MAX_NEED_MATCHES]
+
+    def _safe_get(self, key: str) -> IssueDetail | None:
+        try:
+            return self._tracker.get_issue(key)
+        except NotFoundError:
+            return None
+
+    # --- RAG --------------------------------------------------------------------------------
+
+    def _rag_context(self, query: str) -> list[RetrievedChunk]:
+        (vector,) = self._embeddings.embed([query])
+        results = self._store.search(vector, query, k=self._top_k, memory_boost=self._memory_boost)
+        results += self._related_documents(vector, query, results)
+        # Memorias primero (RF-51); después, el resto por puntuación.
+        return sorted(
+            results,
+            key=lambda r: (r.chunk.metadata.get("category") != MEMORY_CATEGORY, -r.score),
+        )
+
+    def _related_documents(
+        self, vector: list[float], query: str, results: Iterable[RetrievedChunk]
+    ) -> list[RetrievedChunk]:
+        """Añade el acta citada por una norma recuperada (y viceversa) si aún no está."""
+        results = list(results)
+        present = {_doc_id(r) for r in results}
+        extra: list[RetrievedChunk] = []
+        for result in results:
+            wanted = RELATED_PAIRS.get(result.chunk.metadata.get("category", ""))
+            if not wanted:
+                continue
+            for doc_id in _related_ids(result):
+                if doc_id in present or len(extra) >= MAX_RELATED_DOCS:
+                    continue
+                best = self._store.search(
+                    vector, query, k=1, filters={"doc_id": doc_id, "category": wanted}
+                )
+                if best:
+                    extra.append(best[0])
+                    present.add(doc_id)
+        return extra

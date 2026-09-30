@@ -35,8 +35,8 @@
 |---|---|---|---|---|---|
 | T-10 | `OpenAICompatibleProvider`, `FallbackLLMProvider` (429 → backoff → siguiente), router por tarea desde `models.yaml`, validación y reintento de salidas estructuradas, y registro en `llm_usage` | A | T-06, T-08 | RF-40 a RF-44, RNF-27, RNF-28 | ⬜ |
 | T-11 | `JiraCloudTracker` de lectura: `test_connection`, `get_issue` con `adf_to_text` y relaciones | A | T-06, T-08 | RF-01, RF-03 | ⬜ |
-| T-12 | Ingesta: carga, extracción con Docling, normalización y clasificación por categoría | B | T-06, T-09 | RF-07, RF-08, RF-12 | ⬜ |
-| T-13 | Fragmentación por encabezados + recursiva, con metadatos | B | T-12 | RF-09 | ⬜ |
+| T-12 | Ingesta: carga, extracción con Docling, normalización y clasificación por categoría | B | T-06, T-09 | RF-07, RF-08, RF-12 | 👀 |
+| T-13 | Fragmentación por encabezados + recursiva, con metadatos | B | T-12 | RF-09 | 🔄 |
 
 **🔗 Sincronización:** la clasificación de fuentes de B llama al **LLM real** mediante el `LLMProvider` de A.
 
@@ -159,6 +159,8 @@
 | PA-09 | Enum de categorías de documento en `schemas/` con los 7 slugs del corpus + `memoria`, y CHECK en `documents.category` (hoy texto libre, SPEC-00 §11) | T-09 | Pendiente (P) · T-12 |
 | PA-07 | Groq gratuito limita a **8.000 tokens/min** por modelo (30 pet/min · 1.000 pet/día · 200.000 tokens/día con `gpt-oss-120b`): son 1–2 llamadas grandes por minuto. Fijar un presupuesto de contexto por tarea (fragmentos RAG + memoria) y hacer que el backoff ante 429 respete el límite por minuto. Estimación: 30–60k tokens por HU completa, unas 4–6 HU al día con el 120B. Fuente: console.groq.com/docs/rate-limits (sep-2026) | T-08 (investigación) | Pendiente · T-10 |
 | PA-08 | Las cuotas de Groq son por modelo y por organización (varias claves no suman cuota). Repartir tareas en `config/models.yaml` para sumar bolsas: alta calidad en `gpt-oss-120b`, tareas medias (memoria `.md`) en `gpt-oss-20b`, tareas ligeras y embeddings (bge-m3) en Ollama. Opción en estudio: alojar Ollama en una VM de Azure (acceso por túnel SSH, sin exponer el puerto 11434), como embeddings y último respaldo de la cadena; si la VM no es gratuita, afecta a la D-14 y RNF-07 | T-08 (investigación) | Pendiente · T-08, T-10 |
+| PA-10 | Mover a `schemas/` la salida estructurada `SourceClassification` y las 7 categorías (hoy provisionales en `core/rag/documents.py`), junto con el enum de PA-09 | T-12 | Pendiente (P) · sincronización |
+| PA-12 | Excluir `integration` por defecto en `addopts` de `pyproject.toml` (hoy `uv run pytest` sin `-m` ejecuta la prueba de PDF, que descarga modelos de Docling; ahora exige `RUN_DOCLING_MODELS=1`) | T-12 (revisión de seguridad) | Pendiente (P) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

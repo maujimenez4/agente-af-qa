@@ -1,0 +1,45 @@
+# Set de evaluación de la recuperación del RAG (T-17, RNF-14, RNF-09).
+# Cada pregunta indica los documentos del corpus piloto (data/seed/corpus) que contienen
+# la respuesta. `category` es la categoría del documento principal esperado.
+version: 1
+questions:
+  - id: Q-01
+    question: ¿Durante cuántas horas queda bloqueado un ejemplar reservado para la persona socia y qué acuerdo cambió ese plazo?
+    expected_docs: [DOC-02, DOC-19]
+    category: normativa
+  - id: Q-02
+    question: ¿Qué consecuencia tiene para una persona socia acumular reservas no recogidas y a partir de cuántas se aplica?
+    expected_docs: [DOC-03, DOC-20]
+    category: normativa
+  - id: Q-03
+    question: ¿Durante cuánto tiempo se conserva el historial de préstamos y puede consultarlo el personal de sala?
+    expected_docs: [DOC-04, DOC-21]
+    category: normativa
+  - id: Q-04
+    question: ¿Qué mensaje y qué código de error se devuelven cuando no se puede renovar un préstamo porque hay reservas pendientes sobre el título?
+    expected_docs: [DOC-08, DOC-14]
+    category: especificaciones
+  - id: Q-05
+    question: ¿Cuántos reintentos hace AvisosVF cuando falla el envío de un aviso y cuáles son las esperas entre intentos?
+    expected_docs: [DOC-15, DOC-22]
+    category: arquitectura
+  - id: Q-06
+    question: ¿Cuántos días tiene una persona solicitante para validar en una sede el alta del carné pedida en línea?
+    expected_docs: [DOC-05]
+    category: procesos
+  - id: Q-07
+    question: ¿Cuenta como reserva no recogida una reserva caducada si el aviso de disponibilidad no llegó a entregarse por un fallo del sistema?
+    expected_docs: [DOC-07]
+    category: procesos
+  - id: Q-08
+    question: ¿Qué significa el código de estado RS-DIS de una reserva y cuenta para el máximo de reservas activas?
+    expected_docs: [DOC-12]
+    category: glosario
+  - id: Q-09
+    question: ¿Qué criterios se pueden combinar en la búsqueda avanzada del catálogo en línea?
+    expected_docs: [DOC-09]
+    category: especificaciones
+  - id: Q-10
+    question: ¿Qué ocurre con los préstamos y las devoluciones en un punto de autopréstamo cuando pierde la conexión con PrestaVF?
+    expected_docs: [DOC-18]
+    category: manuales

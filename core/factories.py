@@ -13,12 +13,14 @@ from collections.abc import Callable
 from typing import Any
 
 from adapters.base import LLMProvider, TaskType
+from adapters.embeddings.ollama import OllamaEmbeddings
 from adapters.errors import AuthenticationError
 from adapters.jira.tracker import JiraCloudTracker
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
 from adapters.llm.router import ModelChoice, ModelRouter
 from adapters.llm.usage import UsageRecorder
+from adapters.vectorstore.pgvector import PgVectorStore
 from core.config import AppConfig, Settings
 from core.rag.prompts import load_prompt
 
@@ -70,6 +72,22 @@ def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
             service="jira",
         )
     return JiraCloudTracker(base_url, email, token, cloud_id=settings.jira_cloud_id, **kwargs)
+
+
+def build_embeddings(config: AppConfig) -> OllamaEmbeddings:
+    """Embeddings de `config/models.yaml` (bge-m3 en Ollama, D-14)."""
+    embeddings = config.models.embeddings
+    return OllamaEmbeddings(
+        embeddings.model, embeddings.dimensions, config.base_url_for(embeddings.provider)
+    )
+
+
+def build_vector_store(config: AppConfig) -> PgVectorStore:
+    """`PgVectorStore` sobre la base de datos de `.env`, ligado al modelo de embeddings."""
+    embeddings = config.models.embeddings
+    return PgVectorStore.from_url(
+        config.settings.sqlalchemy_url(), embeddings.model, embeddings.dimensions
+    )
 
 
 def structured_prompts() -> StructuredPrompts:

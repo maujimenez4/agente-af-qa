@@ -12,15 +12,19 @@ import pytest
 from pydantic import SecretStr
 
 from adapters.base import LLMProvider, Message, TaskType
+from adapters.embeddings.ollama import OllamaEmbeddings
 from adapters.errors import AuthenticationError, ExternalServiceError
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider
 from adapters.llm.router import ModelChoice, ModelRouter
 from adapters.llm.usage import InMemoryUsageRecorder
+from adapters.vectorstore.pgvector import PgVectorStore
 from core.config import AppConfig, Settings, load_models_config
 from core.factories import (
+    build_embeddings,
     build_issue_tracker,
     build_llm_provider,
+    build_vector_store,
     model_router,
     structured_prompts,
 )
@@ -345,3 +349,42 @@ def test_build_llm_provider_honours_router_override(groq_config: AppConfig) -> N
 
     assert (chosen.provider, chosen.model) == ("groq", "modelo-elegido-ficticio")
     assert (restored.provider, restored.model) == (default.provider, default.model)
+
+
+# --- Embeddings y VectorStore (T-16) ---------------------------------------------------------
+
+OLLAMA_FAKE_URL = "http://ollama.villaficticia.example:11434/v1"
+
+
+def test_build_embeddings_uses_models_yaml_when_no_env(no_keys_config: AppConfig) -> None:
+    """T-16 / D-14: OllamaEmbeddings con modelo, dimensiones y base_url de models.yaml."""
+    expected = no_keys_config.models.embeddings
+    embeddings = build_embeddings(no_keys_config)
+
+    assert isinstance(embeddings, OllamaEmbeddings)
+    assert embeddings.model_name == expected.model == "bge-m3"
+    assert embeddings.dimensions == expected.dimensions == 1024
+    base_url = no_keys_config.models.providers[expected.provider].base_url
+    assert str(embeddings._client.base_url).rstrip("/") == base_url.rstrip("/")
+
+
+def test_build_embeddings_uses_ollama_base_url_when_env_set(clean_env: pytest.MonkeyPatch) -> None:
+    """T-16: OLLAMA_BASE_URL tiene prioridad sobre la base_url de models.yaml."""
+    config = AppConfig(
+        Settings(_env_file=None, ollama_base_url=OLLAMA_FAKE_URL), load_models_config()
+    )
+    embeddings = build_embeddings(config)
+    assert str(embeddings._client.base_url).rstrip("/") == OLLAMA_FAKE_URL
+
+
+def test_build_vector_store_binds_embedding_model_when_built(no_keys_config: AppConfig) -> None:
+    """T-16 / DT-03: PgVectorStore ligado al modelo y dimensiones de embeddings, sin conectar."""
+    expected = no_keys_config.models.embeddings
+    store = build_vector_store(no_keys_config)
+
+    assert isinstance(store, PgVectorStore)
+    assert store.embedding_model == expected.model
+    assert store.dimensions == expected.dimensions
+    url = store._engine.url
+    assert url.drivername == no_keys_config.settings.sqlalchemy_url().drivername
+    assert url.database == no_keys_config.settings.sqlalchemy_url().database

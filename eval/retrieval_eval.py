@@ -1,8 +1,9 @@
 """Evaluación de la recuperación del RAG (T-17, RNF-14, RNF-09).
 
-API pura contra los protocolos `VectorStore` y `EmbeddingProvider` de `adapters/base.py`:
-no importa implementaciones concretas, no accede a la red ni lee `.env`. La ejecución real
-se conectará cuando existan la ingesta (T-12/T-13) y el contenedor real.
+La API (`evaluate`, métricas e informe) trabaja contra los protocolos `VectorStore` y
+`EmbeddingProvider` de `adapters/base.py`, sin implementaciones concretas ni red. Solo `main`
+compone los adaptadores reales (PostgreSQL + Ollama) para evaluar el corpus indexado:
+`uv run python -m eval.retrieval_eval [k]`.
 
 Métricas por pregunta:
 - recall@k: fracción de `expected_docs` presentes entre los documentos recuperados.
@@ -75,9 +76,8 @@ def load_questions(path: Path = DEFAULT_QUESTIONS_PATH) -> list[RetrievalQuestio
 def doc_id_of(result: RetrievedChunk) -> str:
     """Id de documento del corpus (`DOC-NN`) de un fragmento recuperado.
 
-    Usa `metadata["doc_id"]` y, si falta, `chunk.document_id`. La ingesta de T-12 aún no
-    existe, así que no está fijado si el id del corpus irá en los metadatos o como
-    `document_id`; esta función admite ambos casos.
+    Usa `metadata["doc_id"]` (lo añade `core/rag/indexing.py`) y, si falta, `chunk.document_id`,
+    que en la ingesta de T-12 es también el `id` de la cabecera del documento.
     """
     return result.chunk.metadata.get(DOC_ID_KEY) or result.chunk.document_id
 
@@ -190,3 +190,35 @@ def format_report(report: RetrievalReport) -> str:
             f"{r.recall:.2f} | {r.reciprocal_rank:.2f} | {r.latency_ms:.1f} |"
         )
     return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Evalúa la recuperación real: `uv run python -m eval.retrieval_eval [k]`.
+
+    Requiere el corpus indexado (`uv run python -m core.rag.indexing`), PostgreSQL y Ollama.
+    """
+    import sys
+
+    from core.config import build_config
+    from core.factories import build_embeddings, build_vector_store
+
+    args = sys.argv[1:] if argv is None else argv
+    if args and not (args[0].isdigit() and int(args[0]) >= 1):
+        sys.stderr.write("Uso: python -m eval.retrieval_eval [k], con k entero positivo.\n")
+        return 2
+    config = build_config()
+    k = int(args[0]) if args else config.models.rag.top_k
+    report = evaluate(
+        build_vector_store(config),
+        build_embeddings(config),
+        load_questions(),
+        k=k,
+        memory_boost=config.models.rag.memory_boost,
+    )
+    sys.stdout.reconfigure(encoding="utf-8")  # consolas de Windows en cp1252
+    sys.stdout.write(format_report(report))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

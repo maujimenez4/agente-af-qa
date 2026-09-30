@@ -159,6 +159,12 @@
 | 2026-09-30 | **SPEC-00 v1.3**: `IssueTracker.list_projects()` y `ProjectSummary` (RF-02, navegación §6.1), aprobado por el usuario |
 | 2026-09-30 | Reparto del día 4: el compañero hace **T-20** y **T-19** en la rama `Dia4` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-04-dia4-companero.md`); la sesión principal hace **T-14 → T-18 → T-22** en `PreProduccion`. Las nuevas propuestas adicionales se numeran desde PA-23 |
 
+## Decisiones del día 5
+| Fecha | Decisión |
+|---|---|
+| 2026-09-30 | **Primera evolución de una HU de Jira (PA-30, opción 2):** la incidencia de Jira se estructura primero como `UserStory` con el LLM, para tener diff por campo desde la primera versión (RF-05, RNF-16) |
+| 2026-09-30 | Reparto del día 5: el compañero hace **T-26** y **T-23** en la rama `Dia5` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-05-dia5-companero.md`); la sesión principal conecta T-20 al grafo (PA-30) y sigue con **T-21 → T-25**. Rangos de propuestas: principal PA-35…PA-59, compañero desde PA-60 |
+
 ## Propuestas adicionales detectadas durante el desarrollo
 | ID | Propuesta | Origen (tarea) | Decisión |
 |---|---|---|---|

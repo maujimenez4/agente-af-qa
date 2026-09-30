@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.1 (congelar al final del día 1) |
+| Versión | 1.2 · **CONGELADA** el 2026-09-30 (cierre del día 1) |
 | Propietario | Sesión principal |
 | Cubre | RNF-01, RNF-02, RNF-12, RNF-14, RNF-17, RNF-18, RNF-20, RNF-23, RNF-25, RNF-26 y la base de todos los RF |
 
@@ -263,3 +263,24 @@ Checkpointer: `langgraph-checkpoint-postgres`.
 ## 10. Pendiente
 - R-05: formato de los IDs internos (provisional: prefijo `[HU-XX]` / `[CP-XX]` en el título).
 - R-01: alcance de la ejecución → ampliación de `TestManagement` en la v1.1.
+
+## 11. Anexo de congelación (día 1)
+
+Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; la implementación de referencia está en el código indicado.
+
+| Tema | Contrato | Código |
+|---|---|---|
+| Enums | `StrEnum` (equivalente a `str, Enum`) | `schemas/common.py` |
+| Validaciones de `schemas/` (ratificadas) | IDs `^CA-\d+$`, `^RN-\d+$`, `^CP-\d+$`; textos obligatorios no vacíos; `version` ≥ 1; listas mínimas (`acceptance_criteria`, `given/when/then`, `criterion_ids`, `steps`, `cases`); IDs únicos; `Artifact.type` coherente con `content`. Un CP debe referenciar al menos un CA | `schemas/` |
+| `Artifact` | Mutable (sin `frozen`); la aprobación se garantiza en el registro de aprobaciones | `schemas/artifact.py` |
+| Tipos auxiliares (§4) | `IssueSummary(key, summary, issue_type, status)`; `IssueDetail(+description_text, parent_key, subtasks, links: list[IssueLink], comments, labels)`; `IssueLink(link_type, key)`; `Message(role, content)`; `LLMResult` / `StructuredResult[T]` (`content`, `provider`, `model`, `input_tokens`, `output_tokens`, `latency_ms`); `Chunk(id, document_id, ordinal, section, content, embedding, metadata)`; `RetrievedChunk(chunk, score, source: SourceRef)`; `PublishResult(created, failed)`; `User(username, role)` | `adapters/base.py` |
+| `TaskType` | Valores en minúscula, iguales a las claves de `config/models.yaml` | `adapters/base.py` |
+| Protocolos | `@runtime_checkable` | `adapters/base.py` |
+| Dependencias (§2) | `core/` puede importar también `adapters/errors.py` | — |
+| Errores (§8) | Base común `AgentError`; `RateLimitError.retry_after` | `adapters/errors.py` |
+| Reanudación de `human_review` (§5) | El payload del `interrupt` incluye `artifact`, `version`, `target` (operación descrita), `fingerprint`, `impact`, `decisions`. La reanudación es `{"decision": "iterate" \| "approve" \| "discard", "feedback"?: str, "fingerprint": str}`; `fingerprint` es **obligatoria** para `approve` y debe ser la recibida | `core/graph/nodes.py` |
+| Aprobación humana (§5) | `core/approvals.py`: la versión y su operación (`PublishTarget`: modo, tipo y clave de origen, usuario, hilo) se registran al generar; la operación no cambia entre iteraciones; `publish` toma la operación del registro, exige aprobación vigente y la consume (un solo uso); `memorize` exige publicación registrada. En memoria hasta T-25 (PA-06) | `core/approvals.py` |
+| Claves de Jira | `^[A-Z][A-Z0-9_]+-\d+$`, validadas al cargar, generar y publicar | `core/graph/nodes.py` |
+| Composición | `core/container.build_container()` exige todas las dependencias hasta que existan los adaptadores reales; `bootstrap_logging()` cablea el enmascarado de secretos | `core/container.py` |
+| Checkpointer | Serializador con lista explícita de tipos (`checkpoint_serializer()`), sin pickle; reutilizarlo al conectar Postgres | `core/graph/builder.py` |
+| `documents.category` | Texto libre sin CHECK hasta definir las 7 categorías (T-09/T-12) | `migrations/versions/0001_initial.py` |

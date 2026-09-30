@@ -1,10 +1,11 @@
-"""JiraCloudTracker de lectura (T-11: RF-01, RF-03, RNF-04; SPEC-00 §4, §8, §11).
+"""JiraCloudTracker de lectura (T-11: RF-01, RF-03, RNF-04; T-14: RF-02; SPEC-00 §4, §8, §11).
 
 Sin red: todo el HTTP pasa por `httpx.MockTransport`. Datos 100 % sintéticos del dominio
 ficticio de la Biblioteca de Villaficticia; credenciales obviamente de prueba.
 """
 
 import base64
+import inspect
 import json
 from collections.abc import Callable
 from typing import Any
@@ -20,7 +21,15 @@ from adapters.errors import (
     NotFoundError,
     RateLimitError,
 )
-from adapters.jira.tracker import ISSUE_FIELDS, JIRA_KEY_RE, JiraCloudTracker
+from adapters.jira import tracker as tracker_module
+from adapters.jira.tracker import (
+    ISSUE_FIELDS,
+    JIRA_KEY_RE,
+    MAX_RESULTS,
+    PAGE_SIZE,
+    SEARCH_FIELDS,
+    JiraCloudTracker,
+)
 from tests.fakes import dataset
 
 BASE_URL = "https://villaficticia.example"
@@ -204,9 +213,6 @@ def test_tracker_implements_issue_tracker_protocol() -> None:
 @pytest.mark.parametrize(
     "call",
     [
-        pytest.param(lambda t: t.search("project = DEMO"), id="search"),
-        pytest.param(lambda t: t.list_epics("DEMO"), id="list_epics"),
-        pytest.param(lambda t: t.list_children("DEMO-1"), id="list_children"),
         pytest.param(lambda t: t.create_story(dataset.renewal_story(None), "DEMO-1"), id="create"),
         pytest.param(
             lambda t: t.update_story("DEMO-3", dataset.renewal_story(), "Cambio ficticio"),
@@ -218,7 +224,7 @@ def test_tracker_implements_issue_tracker_protocol() -> None:
 def test_unimplemented_methods_raise_not_implemented_without_http(
     call: Callable[[JiraCloudTracker], object],
 ) -> None:
-    """T-11: search/list_* (T-14) y escrituras (T-27) aún no existen y no tocan la red."""
+    """T-27: las escrituras aún no existen y no tocan la red."""
     with pytest.raises(NotImplementedError):
         call(make_tracker(fail_if_called))
 
@@ -622,3 +628,427 @@ def test_invalid_key_message_is_truncated() -> None:
     with pytest.raises(NotFoundError) as info:
         _tracker_with(_never_called).get_issue("x" * 500)
     assert len(str(info.value)) < 120
+
+
+# --- Contrato del protocolo tras T-14 ---------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test_connection",
+        "search",
+        "get_issue",
+        "list_epics",
+        "list_children",
+        "create_story",
+        "update_story",
+        "link",
+    ],
+)
+def test_tracker_method_signature_matches_protocol(name: str) -> None:
+    """§4: cada método de JiraCloudTracker tiene la misma firma que IssueTracker."""
+    expected = inspect.signature(getattr(IssueTracker, name))
+    assert inspect.signature(getattr(JiraCloudTracker, name)) == expected
+
+
+# --- search (T-14, RF-02) --------------------------------------------------------------------
+
+SEARCH_PATH = "/rest/api/3/search/jql"
+JQL_MARKER = "MARCADOR-JQL-FICTICIA"
+
+
+def fake_issue(number: int) -> dict[str, Any]:
+    return {
+        "id": str(10000 + number),
+        "key": f"DEMO-{number}",
+        "fields": {
+            "summary": f"[HU-{number:02d}] Historia ficticia {number}",
+            "issuetype": {"name": "Story"},
+            "status": {"name": "Por hacer"},
+        },
+    }
+
+
+def issues_range(start: int, count: int) -> list[dict[str, Any]]:
+    return [fake_issue(n) for n in range(start, start + count)]
+
+
+def search_page(
+    issues: list[dict[str, Any]], token: str | None = None, is_last: bool | None = None
+) -> httpx.Response:
+    body: dict[str, Any] = {"issues": issues}
+    if token is not None:
+        body["nextPageToken"] = token
+    if is_last is not None:
+        body["isLast"] = is_last
+    return httpx.Response(200, json=body)
+
+
+def keys(results: list[IssueSummary]) -> list[str]:
+    return [issue.key for issue in results]
+
+
+def test_search_returns_single_page_when_is_last() -> None:
+    """RF-02: una página con isLast=true → una sola petición y todos los resultados."""
+    recorder = Recorder(search_page(issues_range(1, 3), is_last=True))
+    results = make_tracker(recorder).search("project = DEMO")
+    assert keys(results) == ["DEMO-1", "DEMO-2", "DEMO-3"]
+    assert len(recorder.requests) == 1
+
+
+def test_search_requests_search_jql_endpoint_with_params() -> None:
+    """RF-02: GET /rest/api/3/search/jql con jql, maxResults y fields=SEARCH_FIELDS."""
+    recorder = Recorder(search_page([], is_last=True))
+    make_tracker(recorder).search("project = DEMO ORDER BY key", limit=20)
+    request = recorder.requests[0]
+    assert request.method == "GET"
+    assert request.url.path == SEARCH_PATH
+    assert request.url.params["jql"] == "project = DEMO ORDER BY key"
+    assert request.url.params["maxResults"] == "20"
+    assert request.url.params["fields"] == SEARCH_FIELDS
+    assert "nextPageToken" not in request.url.params
+    assert request.headers["Authorization"] == f"Basic {BASIC_CREDENTIALS}"
+
+
+def test_search_fields_are_summary_type_and_status() -> None:
+    """RF-02: la búsqueda solo pide los campos de IssueSummary."""
+    assert SEARCH_FIELDS == "summary,issuetype,status"
+
+
+def test_search_uses_default_limit_of_50() -> None:
+    """RF-02, §4: sin `limit` explícito se piden 50 resultados."""
+    recorder = Recorder(search_page([], is_last=True))
+    make_tracker(recorder).search("project = DEMO")
+    assert recorder.requests[0].url.params["maxResults"] == "50"
+
+
+def test_search_follows_next_page_token_across_three_pages() -> None:
+    """RF-02: se encadena nextPageToken y maxResults se ajusta a lo que falta."""
+    assert PAGE_SIZE == 100
+    recorder = Recorder(
+        search_page(issues_range(1, 100), token="token-ficticio-1", is_last=False),
+        search_page(issues_range(101, 100), token="token-ficticio-2", is_last=False),
+        search_page(issues_range(201, 50), token="token-ficticio-3", is_last=False),
+    )
+    results = make_tracker(recorder).search("project = DEMO", limit=250)
+    assert keys(results) == [f"DEMO-{n}" for n in range(1, 251)]
+    assert len(recorder.requests) == 3
+    first, second, third = (r.url.params for r in recorder.requests)
+    assert "nextPageToken" not in first
+    assert second["nextPageToken"] == "token-ficticio-1"
+    assert third["nextPageToken"] == "token-ficticio-2"
+    assert [p["maxResults"] for p in (first, second, third)] == ["100", "100", "50"]
+    assert all(p["jql"] == "project = DEMO" for p in (first, second, third))
+    assert all(p["fields"] == SEARCH_FIELDS for p in (first, second, third))
+
+
+def test_search_follows_token_when_is_last_absent() -> None:
+    """RF-02: sin isLast, un nextPageToken presente significa que hay más páginas."""
+    recorder = Recorder(
+        search_page(issues_range(1, 2), token="token-ficticio-1"),
+        search_page(issues_range(3, 1)),
+    )
+    results = make_tracker(recorder).search("project = DEMO", limit=10)
+    assert keys(results) == ["DEMO-1", "DEMO-2", "DEMO-3"]
+    assert len(recorder.requests) == 2
+
+
+def test_search_truncates_when_page_exceeds_limit() -> None:
+    """RF-02 (límite): si Jira devuelve más de lo pedido, se corta en `limit` y no sigue."""
+    recorder = Recorder(search_page(issues_range(1, 5), token="token-ficticio-1"))
+    results = make_tracker(recorder).search("project = DEMO", limit=3)
+    assert keys(results) == ["DEMO-1", "DEMO-2", "DEMO-3"]
+    assert len(recorder.requests) == 1
+
+
+def test_search_truncates_mid_second_page_when_limit_reached() -> None:
+    """RF-02 (límite): limit=150 → 100 de la 1.ª página y 50 de la 2.ª, sin 3.ª petición."""
+    recorder = Recorder(
+        search_page(issues_range(1, 100), token="token-ficticio-1"),
+        search_page(issues_range(101, 100), token="token-ficticio-2"),
+    )
+    results = make_tracker(recorder).search("project = DEMO", limit=150)
+    assert keys(results) == [f"DEMO-{n}" for n in range(1, 151)]
+    assert len(recorder.requests) == 2
+    assert recorder.requests[1].url.params["maxResults"] == "50"
+
+
+def test_search_stops_when_limit_equals_page_size() -> None:
+    """RF-02 (límite): limit == PAGE_SIZE y página llena con token → no pide otra página."""
+    recorder = Recorder(search_page(issues_range(1, PAGE_SIZE), token="token-ficticio-1"))
+    results = make_tracker(recorder).search("project = DEMO", limit=PAGE_SIZE)
+    assert len(results) == PAGE_SIZE
+    assert len(recorder.requests) == 1
+
+
+def test_search_stops_when_is_last_true_even_with_token() -> None:
+    """RF-02: isLast=true detiene la paginación aunque venga un token."""
+    recorder = Recorder(search_page(issues_range(1, 2), token="token-ficticio-1", is_last=True))
+    results = make_tracker(recorder).search("project = DEMO", limit=10)
+    assert keys(results) == ["DEMO-1", "DEMO-2"]
+    assert len(recorder.requests) == 1
+
+
+def test_search_stops_when_no_token_even_if_is_last_false() -> None:
+    """RF-02: sin nextPageToken no hay forma de seguir → se detiene."""
+    recorder = Recorder(search_page(issues_range(1, 2), is_last=False))
+    results = make_tracker(recorder).search("project = DEMO", limit=10)
+    assert keys(results) == ["DEMO-1", "DEMO-2"]
+    assert len(recorder.requests) == 1
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param({"issues": [], "nextPageToken": "token-ficticio-1"}, id="vacia-con-token"),
+        pytest.param({"issues": [], "isLast": True}, id="vacia-ultima"),
+        pytest.param({"nextPageToken": "token-ficticio-1"}, id="sin-issues"),
+        pytest.param({"issues": None, "nextPageToken": "token-ficticio-1"}, id="issues-null"),
+        pytest.param({}, id="cuerpo-vacio"),
+    ],
+)
+def test_search_stops_and_returns_empty_when_page_empty(body: dict[str, Any]) -> None:
+    """RF-02: una página sin incidencias detiene la paginación (evita bucles)."""
+    recorder = Recorder(httpx.Response(200, json=body))
+    assert make_tracker(recorder).search("project = DEMO", limit=10) == []
+    assert len(recorder.requests) == 1
+
+
+def test_search_stops_when_later_page_empty() -> None:
+    """RF-02: una 2.ª página vacía con token no provoca una 3.ª petición."""
+    recorder = Recorder(
+        search_page(issues_range(1, 2), token="token-ficticio-1"),
+        search_page([], token="token-ficticio-2"),
+        search_page(issues_range(3, 2)),
+    )
+    results = make_tracker(recorder).search("project = DEMO", limit=10)
+    assert keys(results) == ["DEMO-1", "DEMO-2"]
+    assert len(recorder.requests) == 2
+
+
+@pytest.mark.parametrize("limit", [0, -1, -50])
+def test_search_returns_empty_without_request_when_limit_not_positive(limit: int) -> None:
+    """RF-02 (límite): limit <= 0 → [] sin llamar a Jira."""
+    assert make_tracker(fail_if_called).search("project = DEMO", limit=limit) == []
+
+
+def test_search_caps_results_at_max_results_when_limit_larger() -> None:
+    """RF-02 (límite): nunca se devuelven más de MAX_RESULTS aunque haya más páginas."""
+    assert MAX_RESULTS == 1000
+    requests: list[httpx.Request] = []
+
+    def endless(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        start = len(requests) * 1000
+        size = int(request.url.params["maxResults"])
+        return search_page(issues_range(start, size), token=f"token-ficticio-{len(requests)}")
+
+    results = make_tracker(endless).search("project = DEMO", limit=5000)
+    assert len(results) == MAX_RESULTS
+    assert len(requests) == MAX_RESULTS // PAGE_SIZE
+    assert all(r.url.params["maxResults"] == str(PAGE_SIZE) for r in requests)
+
+
+def test_search_honours_patched_page_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RF-02: PAGE_SIZE se lee en cada llamada (lo usa la prueba de integración)."""
+    monkeypatch.setattr(tracker_module, "PAGE_SIZE", 2)
+    recorder = Recorder(
+        search_page(issues_range(1, 2), token="token-ficticio-1"),
+        search_page(issues_range(3, 2), token="token-ficticio-2"),
+        search_page(issues_range(5, 1)),
+    )
+    results = make_tracker(recorder).search("project = DEMO", limit=5)
+    assert keys(results) == [f"DEMO-{n}" for n in range(1, 6)]
+    assert [r.url.params["maxResults"] for r in recorder.requests] == ["2", "2", "1"]
+
+
+@pytest.mark.parametrize("jql", ["", "   ", "\n\t"])
+def test_search_raises_value_error_without_request_when_jql_empty(jql: str) -> None:
+    """RF-02 (error): JQL vacía o solo espacios → ValueError sin llamar a Jira."""
+    with pytest.raises(ValueError):
+        make_tracker(fail_if_called).search(jql)
+
+
+def test_search_maps_issues_to_issue_summary() -> None:
+    """RF-02: cada incidencia se mapea a IssueSummary (key, summary, issue_type, status)."""
+    payload = {
+        "key": "DEMO-3",
+        "fields": {
+            "summary": "[HU-02] Renovar un préstamo",
+            "issuetype": {"name": "Historia"},
+            "status": {"name": "En curso"},
+        },
+    }
+    results = make_tracker(Recorder(search_page([payload]))).search("project = DEMO")
+    assert results == [
+        IssueSummary(
+            key="DEMO-3",
+            summary="[HU-02] Renovar un préstamo",
+            issue_type="Historia",
+            status="En curso",
+        )
+    ]
+
+
+def test_search_maps_missing_fields_to_empty_strings() -> None:
+    """RF-02: campos ausentes o nulos → cadenas vacías, sin excepción."""
+    payload = {"key": "DEMO-9", "fields": {"summary": None, "issuetype": None}}
+    results = make_tracker(Recorder(search_page([payload]))).search("project = DEMO")
+    assert results == [IssueSummary(key="DEMO-9", summary="", issue_type="", status="")]
+
+
+def test_search_raises_external_error_without_jql_when_400() -> None:
+    """RF-02 (error): 400 → ExternalServiceError «La consulta JQL no es válida», sin la JQL."""
+    recorder = Recorder(error_response(400))
+    sleep = RecordingSleep()
+    with pytest.raises(ExternalServiceError) as info:
+        make_tracker(recorder, sleep).search(f"summary ~ {JQL_MARKER} AND (")
+    assert type(info.value) is ExternalServiceError
+    assert info.value.service == "jira"
+    message = str(info.value)
+    assert "La consulta JQL no es válida" in message
+    assert JQL_MARKER not in message
+    assert_safe_message(info.value)
+    assert len(recorder.requests) == 1
+    assert sleep.waits == []
+
+
+def test_get_issue_keeps_generic_error_when_400() -> None:
+    """§8: el mensaje de JQL no válida solo aplica a la búsqueda; get_issue da el genérico."""
+    with pytest.raises(ExternalServiceError) as info:
+        make_tracker(Recorder(error_response(400))).get_issue("DEMO-3")
+    assert "JQL" not in str(info.value)
+    assert "HTTP 400" in str(info.value)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_search_raises_authentication_error_when_401_or_403(status: int) -> None:
+    """RF-01/RF-02 (error): credenciales rechazadas → AuthenticationError sin reintentos."""
+    recorder = Recorder(error_response(status))
+    with pytest.raises(AuthenticationError) as info:
+        make_tracker(recorder).search("project = DEMO")
+    assert info.value.service == "jira"
+    assert len(recorder.requests) == 1
+    assert_safe_message(info.value)
+
+
+def test_search_retries_page_with_same_token_when_429() -> None:
+    """§8: un 429 en la 2.ª página se reintenta tras Retry-After con el mismo token."""
+    recorder = Recorder(
+        search_page(issues_range(1, 2), token="token-ficticio-1"),
+        error_response(429, {"Retry-After": "1"}),
+        search_page(issues_range(3, 1)),
+    )
+    sleep = RecordingSleep()
+    results = make_tracker(recorder, sleep).search("project = DEMO", limit=10)
+    assert keys(results) == ["DEMO-1", "DEMO-2", "DEMO-3"]
+    assert sleep.waits == [1.0]
+    assert len(recorder.requests) == 3
+    assert recorder.requests[1].url.params == recorder.requests[2].url.params
+    assert recorder.requests[2].url.params["nextPageToken"] == "token-ficticio-1"
+
+
+def test_search_raises_rate_limit_when_429_persists() -> None:
+    """§8 (error): 429 persistente → RateLimitError tras max_retries."""
+    recorder = Recorder(error_response(429, {"Retry-After": "1"}))
+    with pytest.raises(RateLimitError) as info:
+        make_tracker(recorder, max_retries=1).search("project = DEMO")
+    assert info.value.service == "jira"
+    assert len(recorder.requests) == 2
+    assert_safe_message(info.value)
+
+
+# --- list_epics y list_children (T-14, RF-02) --------------------------------------------------
+
+
+def test_list_epics_sends_hierarchy_level_jql_with_quoted_project() -> None:
+    """RF-02: épicas con `project = "KEY" AND hierarchyLevel = 1 ORDER BY key`."""
+    recorder = Recorder(search_page([fake_issue(1)], is_last=True))
+    results = make_tracker(recorder).list_epics("DEMO")
+    assert keys(results) == ["DEMO-1"]
+    params = recorder.requests[0].url.params
+    assert recorder.requests[0].url.path == SEARCH_PATH
+    assert params["jql"] == 'project = "DEMO" AND hierarchyLevel = 1 ORDER BY key'
+    assert params["maxResults"] == str(PAGE_SIZE)
+    assert params["fields"] == SEARCH_FIELDS
+
+
+def test_list_epics_follows_pagination() -> None:
+    """RF-02: list_epics recorre todas las páginas."""
+    recorder = Recorder(
+        search_page([fake_issue(1)], token="token-ficticio-1"),
+        search_page([fake_issue(6)], is_last=True),
+    )
+    assert keys(make_tracker(recorder).list_epics("DEMO")) == ["DEMO-1", "DEMO-6"]
+    assert recorder.requests[1].url.params["nextPageToken"] == "token-ficticio-1"
+
+
+INVALID_PROJECT_KEYS = [
+    pytest.param("demo", id="minusculas"),
+    pytest.param("DE MO", id="espacio"),
+    pytest.param('DEMO"', id="comilla"),
+    pytest.param('DEMO" OR project = "OTRO', id="inyeccion-comillas"),
+    pytest.param("DEMO OR project = OTRO", id="inyeccion-or"),
+    pytest.param("", id="vacia"),
+    pytest.param("D", id="una-letra"),
+    pytest.param("DEMO\n", id="salto-final"),
+    pytest.param("DEMO-1", id="clave-de-incidencia"),
+]
+
+
+@pytest.mark.parametrize("project", INVALID_PROJECT_KEYS)
+def test_list_epics_raises_not_found_without_request_when_project_invalid(project: str) -> None:
+    """§11 (error): clave de proyecto no válida → NotFoundError sin llamar a Jira."""
+    with pytest.raises(NotFoundError) as info:
+        make_tracker(fail_if_called).list_epics(project)
+    assert info.value.service == "jira"
+    assert_safe_message(info.value)
+
+
+def test_list_epics_error_message_is_truncated() -> None:
+    """§11: el mensaje no repite entradas arbitrariamente largas."""
+    with pytest.raises(NotFoundError) as info:
+        make_tracker(fail_if_called).list_epics("x" * 500)
+    assert len(str(info.value)) < 120
+
+
+def test_list_children_sends_parent_jql() -> None:
+    """RF-02: HU hijas con `parent = KEY ORDER BY key`."""
+    recorder = Recorder(search_page(issues_range(2, 4), is_last=True))
+    results = make_tracker(recorder).list_children("DEMO-1")
+    assert keys(results) == ["DEMO-2", "DEMO-3", "DEMO-4", "DEMO-5"]
+    params = recorder.requests[0].url.params
+    assert params["jql"] == "parent = DEMO-1 ORDER BY key"
+    assert params["maxResults"] == str(PAGE_SIZE)
+    assert params["fields"] == SEARCH_FIELDS
+
+
+def test_list_children_returns_empty_when_epic_has_no_children() -> None:
+    """RF-02: épica sin hijas → lista vacía."""
+    assert make_tracker(Recorder(search_page([], is_last=True))).list_children("DEMO-1") == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        pytest.param("demo-1", id="minusculas"),
+        pytest.param("DEMO", id="sin-numero"),
+        pytest.param("DEMO-1 OR project = X", id="inyeccion-or"),
+        pytest.param("DEMO-1\n", id="salto-final"),
+        pytest.param("DEMO-1 ORDER BY key", id="order-by"),
+        pytest.param("", id="vacia"),
+    ],
+)
+def test_list_children_raises_not_found_without_request_when_key_invalid(key: str) -> None:
+    """§11 (error): clave de épica no válida → NotFoundError sin llamar a Jira."""
+    with pytest.raises(NotFoundError) as info:
+        make_tracker(fail_if_called).list_children(key)
+    assert info.value.service == "jira"
+    assert_safe_message(info.value)
+
+
+def test_list_children_raises_external_error_when_400() -> None:
+    """RF-02 (error): un 400 en list_children se traduce al mensaje de JQL no válida."""
+    with pytest.raises(ExternalServiceError, match="consulta JQL no es válida"):
+        make_tracker(Recorder(error_response(400))).list_children("DEMO-1")

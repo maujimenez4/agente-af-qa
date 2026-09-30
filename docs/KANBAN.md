@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-14, T-18 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-17 | T-37, T-38 (R-01) |
+| T-08, T-18 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-17 | T-37, T-38 (R-01) |
 
 ---
 
@@ -44,7 +44,7 @@
 
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
-| T-14 | Consultas JQL: épicas, HU hijas, vínculos y búsqueda por texto, con `/search/jql` y `nextPageToken` | A | T-11 | RF-02, RF-14 | ⬜ |
+| T-14 | Consultas JQL: épicas, HU hijas, vínculos y búsqueda por texto, con `/search/jql` y `nextPageToken` | A | T-11 | RF-02, RF-14 | ✅ |
 | T-15 | Seed de Jira como CSV importable desde la interfaz (decisión del día 1): 3–4 épicas y 10–15 HU sintéticas coherentes con el corpus | A | T-11, T-09 | D-06 | ✅ |
 | T-16 | Embeddings (bge-m3 u OpenAI), `PgVectorStore` híbrido con filtros e indexación del corpus | B | T-13, T-04 | RF-10, RF-11 | ✅ |
 | T-17 | Set de 10 preguntas con las fuentes esperadas y script de evaluación de la recuperación | B | T-16 | RNF-14, RNF-09 | ✅ |
@@ -182,6 +182,7 @@
 | PA-20 | Exigir `https://` en los proveedores LLM con clave (hoy solo Ollama local usa `http`) | Integración día 2 (security-reviewer) | Pendiente (P) |
 | PA-21 | Ingesta: `ingest(path)` sin raíz ni control de symlinks, delimitadores `<documento>`/`<titulo>` sin neutralizar, `source_path` absoluto (puede llevar el usuario del equipo) y sin límite de páginas/tiempo en Docling; revisar antes de la carga desde la UI | Integración día 2 (security-reviewer) | Pendiente · T-29 |
 | PA-22 | RGPD: `adf_to_text` pasa al LLM el texto de las menciones `@Nombre`; sustituirlas por un marcador cuando haya datos reales | Integración día 2 (spec-checker) | Pendiente · v2.0 |
+| PA-23 | RF-02 «listar proyectos»: el protocolo congelado `IssueTracker` no tiene `list_projects`; el MVP trabaja con un único proyecto (`JIRA_PROJECT_KEY`). Decidir si se añade al contrato (navegación Proyecto → Épica → HU de §6.1) | T-14 | Pendiente (P) · decisión del usuario |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -193,3 +194,4 @@
 | 3 (adelantado) | 2026-09-30 | T-15 ✅ (área A): `data/seed/jira/seed-villaficticia.csv` con 4 épicas y 13 HU (7 completas, 3 incompletas y 3 ambiguas a propósito) y 6 vínculos «relates to»; README con la importación y el mapeo; `tests/unit/test_seed_jira_csv.py`. Sin subtareas CP (D-09). Temas de épica y reglas añadidas (aviso 3 días antes, 1 día de suspensión por día de retraso, edad mínima de 14 años) verificados contra el corpus de T-09 al integrar en `main`; CA-03 de HU-01 alineado con RN-RES-05 (48 h desde que el ejemplar queda bloqueado). **La importación real en Jira la hace el usuario desde el navegador**; el agente no llama a la API | — | Importación pendiente de T-08 (sitio y proyecto de pruebas) | Importar el CSV en el sandbox cuando exista y verificar claves `DEMO-1`…`DEMO-4` |
 | 3 | 2026-09-30 | T-04 ✅ (Docker + migraciones verificados), T-09 y T-15 integrados en `main`. **T-16 🔄 (parcial, hecha desde P por decisión del usuario):** `adapters/embeddings/ollama.py` (`OllamaEmbeddings`, SDK openai contra Ollama; sin `OpenAIEmbeddings` por D-14) y `adapters/vectorstore/pgvector.py` (`PgVectorStore`: híbrida vector + `tsvector` con RRF k=60, filtros `metadata @>`, `memory_boost`, una colección por `embedding_model`). Contrato para la ingesta (T-12/T-13): cada `Chunk` lleva en `metadata` `category` (obligatoria), `title`, `source_path`, `related_key`, `content_hash`, `doc_id` (`DOC-NN`, lo usa T-17) y `date` (RF-10, pendiente de definir en T-13); los ids de texto se convierten a UUID con `uuid5` y `upsert` crea la fila de `documents`; claves `_chunk_id` y `_document_id` reservadas. Reindexar = `delete_by_document` + `upsert`. **T-17 🔄:** `eval/retrieval_questions.yaml` (10 preguntas, 7 categorías, 3 con acta que cambia una regla) y `eval/retrieval_eval.py` (recall@k, MRR, latencia máx. frente a RNF-09). Falta para cerrar ambas: indexar el corpus (T-13), ejecutar T-17 contra `PgVectorStore` y la prueba real de bge-m3 | — | Ollama no instalado (T-08) · rama del día 2 pendiente | Fusionar día 2; indexar corpus; cerrar T-16/T-17; T-14 |
 | 3 | 2026-09-30 | **T-16 ✅ y T-17 ✅** (desde P por decisión del usuario): `core/rag/indexing.py` (`CorpusIndexer` + CLI `uv run python -m core.rag.indexing`) une T-12/T-13 con `OllamaEmbeddings` y `PgVectorStore`; completa la metadata (`source_path` y `source` relativos, `content_hash`, `doc_id`, `classified_by`, `ingested_at`; `date` es la de la cabecera) y vectoriza título · sección + contenido. Indexación real: **22 documentos, 248 fragmentos**, 7 categorías (≈3 min con bge-m3 en CPU, Ollama en Docker, perfil `local-llm`). Evaluación real (`uv run python -m eval.retrieval_eval`, k=6): **Recall@6 0,90, MRR 0,95, latencia máx. ≈0,5 s** (RNF-09 ✅). Fallos: preguntas cuya regla cambió un acta (Q-01 no recupera DOC-19; Q-02 no recupera DOC-03) → tenerlo en cuenta en T-18. Fábricas `build_embeddings`/`build_vector_store` en `core/factories.py` | Día 3 cerrado salvo T-14 | — | T-14 (JQL), luego día 4 (T-18, T-19, T-20) |
+| 4 | 2026-09-30 | **T-14 ✅** (P, rama `PreProduccion`): `JiraCloudTracker.search` paginado con `nextPageToken`/`isLast` por `/rest/api/3/search/jql` (páginas de 100, tope 1000), `list_epics` con `hierarchyLevel = 1` (no depende del idioma: en el sitio de pruebas las HU son «Historia»), `list_children` con `parent = CLAVE`; `core/context/jql.py` con `text_search_jql` (escapado Lucene + JQL) y `linked_issues_jql` para T-18. Verificado en Jira real (4 épicas, 4 HU de préstamo digital, 17 incidencias en varias páginas). Nota para T-18: el índice de búsqueda de Jira tarda en reflejar vínculos recién creados (`get_issue` los ve antes que `linkedIssues`). RF-02 «listar proyectos» queda en PA-23 | — | — | T-18 |

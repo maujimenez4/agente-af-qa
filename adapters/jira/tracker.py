@@ -1,7 +1,8 @@
 """Adaptador de Jira Cloud con httpx sobre la API REST v3 (RF-01, RF-03, D-09).
 
-T-11 implementa la lectura: `test_connection` y `get_issue` (descripción ADF → texto y
-relaciones). La búsqueda JQL llega en T-14 y la escritura, solo desde el nodo `publish`, en T-27.
+T-11 implementa `test_connection` y `get_issue` (descripción ADF → texto y relaciones); T-14,
+la búsqueda JQL paginada con `nextPageToken` (`/search/jql`), las épicas y las HU hijas. La
+escritura, solo desde el nodo `publish`, llega en T-27.
 
 Con tokens con scopes (RNF-04), las peticiones van a `api.atlassian.com/ex/jira/{cloudId}`.
 Las lecturas se reintentan con backoff ante 429 y 5xx (SPEC-00 §8).
@@ -23,6 +24,7 @@ from adapters.errors import (
     RateLimitError,
 )
 from adapters.jira.adf import adf_to_text
+from adapters.jira.jql import PROJECT_KEY_RE, children_jql, epics_jql
 from schemas.user_story import UserStory
 
 JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
@@ -30,6 +32,9 @@ ISSUE_FIELDS = "summary,issuetype,status,description,parent,subtasks,issuelinks,
 _GATEWAY = "https://api.atlassian.com/ex/jira"
 _CLOUD_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 _MAX_KEY_IN_MESSAGE = 50
+SEARCH_FIELDS = "summary,issuetype,status"
+PAGE_SIZE = 100
+MAX_RESULTS = 1000  # tope por búsqueda: el MVP trabaja con un proyecto pequeño
 _SERVICE = "jira"
 
 
@@ -91,13 +96,42 @@ class JiraCloudTracker:
         return _to_issue_detail(data)
 
     def search(self, jql: str, limit: int = 50) -> list[IssueSummary]:
-        raise NotImplementedError("La búsqueda JQL se implementa en T-14.")
+        """JQL de solo lectura, paginada con `nextPageToken` hasta `limit` (RF-02)."""
+        if not jql.strip():
+            raise ValueError("La consulta JQL está vacía.")
+        remaining = min(limit, MAX_RESULTS)
+        results: list[IssueSummary] = []
+        token: str | None = None
+        while remaining > 0:
+            params = {
+                "jql": jql,
+                "maxResults": str(min(PAGE_SIZE, remaining)),
+                "fields": SEARCH_FIELDS,
+            }
+            if token:
+                params["nextPageToken"] = token
+            page = self._get("/rest/api/3/search/jql", params=params, invalid="La consulta JQL")
+            issues = page.get("issues") or []
+            results += [_to_summary(issue) for issue in issues[:remaining]]
+            remaining = min(limit, MAX_RESULTS) - len(results)
+            token = page.get("nextPageToken")
+            if not issues or not token or page.get("isLast", False):
+                break
+        return results
 
     def list_epics(self, project: str) -> list[IssueSummary]:
-        raise NotImplementedError("El listado de épicas se implementa en T-14.")
+        if not PROJECT_KEY_RE.fullmatch(project):
+            raise NotFoundError(
+                f"«{project[:_MAX_KEY_IN_MESSAGE]}» no es una clave de proyecto válida.",
+                service=_SERVICE,
+            )
+        return self.search(epics_jql(project), limit=MAX_RESULTS)
 
     def list_children(self, epic_key: str) -> list[IssueSummary]:
-        raise NotImplementedError("El listado de HU hijas se implementa en T-14.")
+        if not JIRA_KEY_RE.fullmatch(epic_key):
+            shown = epic_key[:_MAX_KEY_IN_MESSAGE]
+            raise NotFoundError(f"«{shown}» no es una clave de Jira válida.", service=_SERVICE)
+        return self.search(children_jql(epic_key), limit=MAX_RESULTS)
 
     # --- ESCRITURA: solo desde el nodo publish (T-27) ---------------------------------------
 
@@ -115,7 +149,11 @@ class JiraCloudTracker:
     # --- HTTP --------------------------------------------------------------------------------
 
     def _get(
-        self, path: str, params: dict[str, str] | None = None, key: str | None = None
+        self,
+        path: str,
+        params: dict[str, str] | None = None,
+        key: str | None = None,
+        invalid: str | None = None,
     ) -> dict[str, Any]:
         attempt = 0
         while True:
@@ -152,6 +190,10 @@ class JiraCloudTracker:
                     f"Jira ha rechazado las credenciales (HTTP {status}). Revisa el email, "
                     "el token y sus scopes.",
                     service=_SERVICE,
+                )
+            if status == 400 and invalid:
+                raise ExternalServiceError(
+                    f"{invalid} no es válida para Jira (HTTP 400).", service=_SERVICE
                 )
             if status == 404:
                 target = f"La incidencia {key}" if key else "El recurso solicitado"

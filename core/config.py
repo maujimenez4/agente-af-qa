@@ -25,6 +25,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL, make_url
 
 from adapters.base import TaskType
 
@@ -192,6 +193,20 @@ class Settings(BaseSettings):
         if isinstance(value, str) and (is_placeholder(value) or "TU_SITIO" in value):
             return None
         return value
+
+    def sqlalchemy_url(self) -> URL:
+        """URL de la base de datos: `DATABASE_URL` o, si falta, las variables `POSTGRES_*`."""
+        if self.database_url and self.database_url.get_secret_value():
+            return make_url(self.database_url.get_secret_value())
+        password = self.postgres_password.get_secret_value() if self.postgres_password else None
+        return URL.create(
+            "postgresql+psycopg",
+            username=self.postgres_user,
+            password=password,
+            host="localhost",
+            port=5432,
+            database=self.postgres_db,
+        )
 
     def secret_values(self) -> list[str]:
         """Valores de todos los secretos presentes, para el enmascarado de logs."""

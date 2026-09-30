@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 from pydantic import SecretStr
 
-from adapters.base import IssueDetail, IssueLink, IssueSummary
+from adapters.base import IssueDetail, IssueLink, IssueSummary, ProjectSummary
 from adapters.errors import (
     AuthenticationError,
     ExternalServiceError,
@@ -118,6 +118,24 @@ class JiraCloudTracker:
             if not issues or not token or page.get("isLast", False):
                 break
         return results
+
+    def list_projects(self) -> list[ProjectSummary]:
+        """Proyectos visibles con el token (RF-02), paginados con `startAt`/`isLast`."""
+        projects: list[ProjectSummary] = []
+        start = 0
+        while start < MAX_RESULTS and len(projects) < MAX_RESULTS:
+            params = {"startAt": str(start), "maxResults": str(PAGE_SIZE), "orderBy": "key"}
+            page = self._get("/rest/api/3/project/search", params=params)
+            values = page.get("values") or []
+            projects += [
+                ProjectSummary(key=str(v.get("key", "")), name=str(v.get("name") or ""))
+                for v in values
+                if v.get("key")
+            ]
+            start += len(values)
+            if not values or page.get("isLast", True):
+                break
+        return projects[:MAX_RESULTS]
 
     def list_epics(self, project: str) -> list[IssueSummary]:
         if not PROJECT_KEY_RE.fullmatch(project):

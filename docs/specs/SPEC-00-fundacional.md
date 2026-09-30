@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.2 · **CONGELADA** el 2026-09-30 (cierre del día 1) |
+| Versión | 1.3 · **CONGELADA** (1.2 y 1.3 el 2026-09-30; 1.3 añade `list_projects`, RF-02) |
 | Propietario | Sesión principal |
 | Cubre | RNF-01, RNF-02, RNF-12, RNF-14, RNF-17, RNF-18, RNF-20, RNF-23, RNF-25, RNF-26 y la base de todos los RF |
 
@@ -140,6 +140,7 @@ class IssueTracker(Protocol):                       # Área A · Jira
     def test_connection(self) -> None: ...
     def search(self, jql: str, limit: int = 50) -> list[IssueSummary]: ...
     def get_issue(self, key: str) -> IssueDetail: ...     # descripción ADF → texto (RF-03)
+    def list_projects(self) -> list[ProjectSummary]: ...  # navegación §6.1 (RF-02)
     def list_epics(self, project: str) -> list[IssueSummary]: ...
     def list_children(self, epic_key: str) -> list[IssueSummary]: ...
     # --- ESCRITURA: solo desde el nodo publish ---
@@ -273,7 +274,7 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Enums | `StrEnum` (equivalente a `str, Enum`) | `schemas/common.py` |
 | Validaciones de `schemas/` (ratificadas) | IDs `^CA-\d+$`, `^RN-\d+$`, `^CP-\d+$`; textos obligatorios no vacíos; `version` ≥ 1; listas mínimas (`acceptance_criteria`, `given/when/then`, `criterion_ids`, `steps`, `cases`); IDs únicos; `Artifact.type` coherente con `content`. Un CP debe referenciar al menos un CA | `schemas/` |
 | `Artifact` | Mutable (sin `frozen`); la aprobación se garantiza en el registro de aprobaciones | `schemas/artifact.py` |
-| Tipos auxiliares (§4) | `IssueSummary(key, summary, issue_type, status)`; `IssueDetail(+description_text, parent_key, subtasks, links: list[IssueLink], comments, labels)`; `IssueLink(link_type, key)`; `Message(role, content)`; `LLMResult` / `StructuredResult[T]` (`content`, `provider`, `model`, `input_tokens`, `output_tokens`, `latency_ms`); `Chunk(id, document_id, ordinal, section, content, embedding, metadata)`; `RetrievedChunk(chunk, score, source: SourceRef)`; `PublishResult(created, failed)`; `User(username, role)` | `adapters/base.py` |
+| Tipos auxiliares (§4) | `ProjectSummary(key, name)` (v1.3); `IssueSummary(key, summary, issue_type, status)`; `IssueDetail(+description_text, parent_key, subtasks, links: list[IssueLink], comments, labels)`; `IssueLink(link_type, key)`; `Message(role, content)`; `LLMResult` / `StructuredResult[T]` (`content`, `provider`, `model`, `input_tokens`, `output_tokens`, `latency_ms`); `Chunk(id, document_id, ordinal, section, content, embedding, metadata)`; `RetrievedChunk(chunk, score, source: SourceRef)`; `PublishResult(created, failed)`; `User(username, role)` | `adapters/base.py` |
 | `TaskType` | Valores en minúscula, iguales a las claves de `config/models.yaml` | `adapters/base.py` |
 | Protocolos | `@runtime_checkable` | `adapters/base.py` |
 | Dependencias (§2) | `core/` puede importar también `adapters/errors.py` | — |
@@ -288,3 +289,4 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | `VectorStore` sobre Postgres | Ids de texto del protocolo → UUID (`uuid5`), originales en `metadata` (`_chunk_id`, `_document_id` reservadas); `upsert` crea/actualiza `documents` desde la `metadata` del fragmento (`category` obligatoria) y registra `embedding_model`; la búsqueda solo considera el modelo de la colección | `adapters/vectorstore/pgvector.py` |
 | Composición real | `core/factories.py` traduce `AppConfig` a los adaptadores reales (`build_llm_provider`, `model_router`, `build_issue_tracker`, `build_embeddings`, `build_vector_store`); `core/container.py` lo usará al sustituir los fakes. Las CLI `core/rag/indexing.main` y `eval/retrieval_eval.main` son también puntos de composición | `core/factories.py` |
 | Jira y scopes | Token con scopes vía `https://api.atlassian.com/ex/jira/<cloudId>`; `test_connection` usa `/rest/api/3/project/search` (basta `read:jira-work`) | `adapters/jira/tracker.py` |
+| `list_projects` (v1.3) | `IssueTracker.list_projects() -> list[ProjectSummary]` (`ProjectSummary(key, name)`), para la navegación Proyecto → Épica → HU (§6.1, RF-02); en Jira, `/rest/api/3/project/search` (basta `read:jira-work`) | `adapters/base.py`, `adapters/jira/tracker.py` |

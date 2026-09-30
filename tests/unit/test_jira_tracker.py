@@ -1052,3 +1052,51 @@ def test_list_children_raises_external_error_when_400() -> None:
     """RF-02 (error): un 400 en list_children se traduce al mensaje de JQL no válida."""
     with pytest.raises(ExternalServiceError, match="consulta JQL no es válida"):
         make_tracker(Recorder(error_response(400))).list_children("DEMO-1")
+
+
+# --- list_projects (SPEC-00 v1.3, RF-02) ------------------------------------------------
+
+
+def project_page(keys: list[str], *, is_last: bool) -> httpx.Response:
+    values = [{"key": key, "name": f"Proyecto ficticio {key}"} for key in keys]
+    return httpx.Response(200, json={"values": values, "isLast": is_last})
+
+
+def test_list_projects_maps_key_and_name() -> None:
+    recorder = Recorder(project_page(["DEMO", "OTRO"], is_last=True))
+    projects = make_tracker(recorder).list_projects()
+    assert [(p.key, p.name) for p in projects] == [
+        ("DEMO", "Proyecto ficticio DEMO"),
+        ("OTRO", "Proyecto ficticio OTRO"),
+    ]
+    (request,) = recorder.requests
+    assert request.url.path == "/rest/api/3/project/search"
+    assert request.url.params["startAt"] == "0"
+
+
+def test_list_projects_follows_start_at_until_is_last() -> None:
+    recorder = Recorder(
+        project_page(["AAA", "BBB"], is_last=False), project_page(["CCC"], is_last=True)
+    )
+    projects = make_tracker(recorder).list_projects()
+    assert [p.key for p in projects] == ["AAA", "BBB", "CCC"]
+    assert [r.url.params["startAt"] for r in recorder.requests] == ["0", "2"]
+
+
+def test_list_projects_stops_on_empty_page_and_skips_entries_without_key() -> None:
+    recorder = Recorder(
+        httpx.Response(200, json={"values": [{"name": "sin clave"}, {"key": "DEMO"}]}),
+    )
+    assert [p.key for p in make_tracker(recorder).list_projects()] == ["DEMO"]
+
+
+def test_list_projects_raises_authentication_error_when_401() -> None:
+    with pytest.raises(AuthenticationError):
+        make_tracker(Recorder(error_response(401))).list_projects()
+
+
+def test_list_projects_is_bounded_when_pages_never_have_keys() -> None:
+    endless = httpx.Response(200, json={"values": [{"name": "x"}] * 100, "isLast": False})
+    recorder = Recorder(endless)
+    assert make_tracker(recorder).list_projects() == []
+    assert len(recorder.requests) == tracker_module.MAX_RESULTS // tracker_module.PAGE_SIZE

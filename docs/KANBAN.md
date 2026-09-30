@@ -155,6 +155,7 @@
 | Fecha | Decisión |
 |---|---|
 | 2026-09-30 | Nueva rama de integración **`PreProduccion`** (desde `main` en `143cc4e`). Todo el trabajo se fusiona en ella por PR; `main` queda como referencia estable hasta nueva decisión |
+| 2026-09-30 | **SPEC-00 v1.3**: `IssueTracker.list_projects()` y `ProjectSummary` (RF-02, navegación §6.1), aprobado por el usuario |
 | 2026-09-30 | Reparto del día 4: el compañero hace **T-20** y **T-19** en la rama `Dia4` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-04-dia4-companero.md`); la sesión principal hace **T-14 → T-18 → T-22** en `PreProduccion`. Las nuevas propuestas adicionales se numeran desde PA-23 |
 
 ## Propuestas adicionales detectadas durante el desarrollo
@@ -182,7 +183,7 @@
 | PA-20 | Exigir `https://` en los proveedores LLM con clave (hoy solo Ollama local usa `http`) | Integración día 2 (security-reviewer) | Pendiente (P) |
 | PA-21 | Ingesta: `ingest(path)` sin raíz ni control de symlinks, delimitadores `<documento>`/`<titulo>` sin neutralizar, `source_path` absoluto (puede llevar el usuario del equipo) y sin límite de páginas/tiempo en Docling; revisar antes de la carga desde la UI | Integración día 2 (security-reviewer) | Pendiente · T-29 |
 | PA-22 | RGPD: `adf_to_text` pasa al LLM el texto de las menciones `@Nombre`; sustituirlas por un marcador cuando haya datos reales | Integración día 2 (spec-checker) | Pendiente · v2.0 |
-| PA-23 | RF-02 «listar proyectos»: el protocolo congelado `IssueTracker` no tiene `list_projects`; el MVP trabaja con un único proyecto (`JIRA_PROJECT_KEY`). Decidir si se añade al contrato (navegación Proyecto → Épica → HU de §6.1) | T-14 | Pendiente (P) · decisión del usuario |
+| PA-23 | RF-02 «listar proyectos»: el protocolo congelado `IssueTracker` no tiene `list_projects`; el MVP trabaja con un único proyecto (`JIRA_PROJECT_KEY`). Decidir si se añade al contrato (navegación Proyecto → Épica → HU de §6.1) | T-14 | ✅ Hecha: `list_projects` añadido al contrato (SPEC-00 v1.3) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

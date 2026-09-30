@@ -34,6 +34,11 @@ class TaskType(StrEnum):
 # --- Tipos auxiliares ------------------------------------------------------------------
 
 
+class ProjectSummary(BaseModel):
+    key: str
+    name: str
+
+
 class IssueSummary(BaseModel):
     key: str
     summary: str
@@ -114,6 +119,7 @@ class IssueTracker(Protocol):  # Área A · Jira
     def test_connection(self) -> None: ...
     def search(self, jql: str, limit: int = 50) -> list[IssueSummary]: ...
     def get_issue(self, key: str) -> IssueDetail: ...  # descripción ADF → texto (RF-03)
+    def list_projects(self) -> list[ProjectSummary]: ...  # navegación §6.1 (RF-02)
     def list_epics(self, project: str) -> list[IssueSummary]: ...
     def list_children(self, epic_key: str) -> list[IssueSummary]: ...
     # --- ESCRITURA: solo desde el nodo publish ---

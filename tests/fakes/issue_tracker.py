@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from adapters.base import IssueDetail, IssueLink, IssueSummary
+from adapters.base import IssueDetail, IssueLink, IssueSummary, ProjectSummary
 from adapters.errors import AuthenticationError, NotFoundError
 from schemas.user_story import UserStory
 from tests.fakes import dataset
@@ -49,6 +49,9 @@ class FakeIssueTracker:
             return self.issues[key].model_copy(deep=True)
         except KeyError:
             raise NotFoundError(f"La incidencia {key} no existe.", service="jira") from None
+
+    def list_projects(self) -> list[ProjectSummary]:
+        return [ProjectSummary(key=dataset.PROJECT_KEY, name=dataset.PROJECT_NAME)]
 
     def list_epics(self, project: str) -> list[IssueSummary]:
         return [

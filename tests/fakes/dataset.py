@@ -9,6 +9,7 @@ from schemas.common import Priority
 from schemas.user_story import AcceptanceCriterion, BusinessRule, UserStory
 
 PROJECT_KEY = "DEMO"
+PROJECT_NAME = "Servicio digital de Villaficticia (ficticio)"
 EPIC_KEY = "DEMO-1"
 STORY_KEYS = ("DEMO-2", "DEMO-3", "DEMO-4")
 

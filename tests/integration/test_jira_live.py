@@ -121,3 +121,11 @@ def test_text_search_finds_renewal_story(live_settings: Settings, seed_project: 
         text_search_jql(seed_project, "renovar"), limit=20
     )
     assert any(issue.summary.startswith("[HU-") for issue in results)
+
+
+def test_list_projects_includes_configured_project(live_settings: Settings) -> None:
+    """RF-02: el proyecto de `JIRA_PROJECT_KEY` aparece entre los proyectos visibles."""
+    if not live_settings.jira_project_key:
+        pytest.skip("Falta JIRA_PROJECT_KEY.")
+    keys = [p.key for p in build_issue_tracker(live_settings).list_projects()]
+    assert live_settings.jira_project_key in keys

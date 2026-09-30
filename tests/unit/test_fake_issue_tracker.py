@@ -160,3 +160,8 @@ def test_writes_do_not_mutate_shared_dataset() -> None:
     FakeIssueTracker().update_story("DEMO-3", dataset.renewal_story(), "diff")
     assert dataset.STORIES["DEMO-3"].comments == []
     assert FakeIssueTracker().get_issue("DEMO-3").comments == []
+
+
+def test_list_projects_returns_synthetic_project() -> None:
+    (project,) = FakeIssueTracker().list_projects()
+    assert (project.key, project.name) == (dataset.PROJECT_KEY, dataset.PROJECT_NAME)

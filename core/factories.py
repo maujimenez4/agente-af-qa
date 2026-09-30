@@ -12,6 +12,7 @@ llamadas del proveedor compuesto.
 from collections.abc import Callable
 from typing import Any
 
+from adapters.auth.local import LocalAuthProvider
 from adapters.base import LLMProvider, TaskType
 from adapters.embeddings.ollama import OllamaEmbeddings
 from adapters.errors import AuthenticationError
@@ -72,6 +73,11 @@ def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
             service="jira",
         )
     return JiraCloudTracker(base_url, email, token, cloud_id=settings.jira_cloud_id, **kwargs)
+
+
+def build_auth(config: AppConfig) -> LocalAuthProvider:
+    """Usuarios locales (argon2) sobre la base de datos de `.env` (RF-45)."""
+    return LocalAuthProvider.from_url(config.settings.sqlalchemy_url())
 
 
 def build_embeddings(config: AppConfig) -> OllamaEmbeddings:

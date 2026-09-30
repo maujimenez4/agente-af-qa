@@ -388,3 +388,13 @@ def test_build_vector_store_binds_embedding_model_when_built(no_keys_config: App
     url = store._engine.url
     assert url.drivername == no_keys_config.settings.sqlalchemy_url().drivername
     assert url.database == no_keys_config.settings.sqlalchemy_url().database
+
+
+def test_build_auth_returns_local_auth_provider_without_connecting(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    from adapters.auth.local import LocalAuthProvider
+    from core.factories import build_auth
+
+    config = AppConfig(Settings(_env_file=None), load_models_config())
+    assert isinstance(build_auth(config), LocalAuthProvider)

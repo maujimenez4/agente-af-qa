@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-19 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-18 | T-37, T-38 (R-01) |
+| T-08, T-19 … T-21, T-23 … T-36, T-39 … T-46 | — | — | T-01 … T-07, T-09 … T-18, T-22 | T-37, T-38 (R-01) |
 
 ---
 
@@ -66,7 +66,7 @@
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
 | T-21 | Análisis de impacto: HU afectadas, reglas, dependencias y regresión (`ImpactAnalysis`) | A | T-18, T-19 | RF-19, RF-27 | ⬜ |
-| T-22 | `LocalAuthProvider` (argon2), roles y 3 usuarios sintéticos de demo | A | T-04 | RF-45, RF-46, RNF-05 | ⬜ |
+| T-22 | `LocalAuthProvider` (argon2), roles y 3 usuarios sintéticos de demo | A | T-04 | RF-45, RF-46, RNF-05 | ✅ |
 | T-23 | **Rediseño de la UI** (D-12): estructura de pestañas, flujo de navegación, estilo y estados vacíos/error, en `docs/specs/UI.md` | B | — | RNF-15 | ⬜ |
 | T-24 | UI: login, pestañas **Contexto** e **Historia**, chat, selector de origen y selector de modelo | B | T-23, T-22 | RF-14, RF-20, RF-42 | ⬜ |
 
@@ -185,6 +185,11 @@
 | PA-22 | RGPD: `adf_to_text` pasa al LLM el texto de las menciones `@Nombre`; sustituirlas por un marcador cuando haya datos reales | Integración día 2 (spec-checker) | Pendiente · v2.0 |
 | PA-23 | RF-02 «listar proyectos»: el protocolo congelado `IssueTracker` no tiene `list_projects`; el MVP trabaja con un único proyecto (`JIRA_PROJECT_KEY`). Decidir si se añade al contrato (navegación Proyecto → Épica → HU de §6.1) | T-14 | ✅ Hecha: `list_projects` añadido al contrato (SPEC-00 v1.3) |
 | PA-24 | Contexto: `list_children` pagina hasta 1000 hermanas/hijas antes de aplicar el presupuesto; acotar con una búsqueda limitada si los proyectos crecen | T-18 (security-reviewer) | Pendiente |
+| PA-25 | Que el nodo `publish` y la UI exijan también `require(user, PUBLISH_STORY/PUBLISH_TESTS)` además de la aprobación registrada (el permiso complementa la aprobación humana) | T-22 (security-reviewer) | Pendiente · T-25/T-31 |
+| PA-26 | Limitar los intentos de login por usuario/IP con backoff progresivo | T-22 (security-reviewer) | Pendiente · T-24 |
+| PA-27 | Auditar logins correctos y fallidos en `audit_log` (sin contraseña ni hash) | T-22 (security-reviewer) | Pendiente · T-25 |
+| PA-28 | `AuthorizationError` (403) en `adapters/errors.py` para `require`, distinto de `AuthenticationError` | T-22 (security-reviewer) | Pendiente (P) |
+| PA-29 | Impedir `core.seed_users` fuera de `APP_ENV=development` (reinicia las contraseñas demo) | T-22 (security-reviewer) | Pendiente |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -198,3 +203,4 @@
 | 3 | 2026-09-30 | **T-16 ✅ y T-17 ✅** (desde P por decisión del usuario): `core/rag/indexing.py` (`CorpusIndexer` + CLI `uv run python -m core.rag.indexing`) une T-12/T-13 con `OllamaEmbeddings` y `PgVectorStore`; completa la metadata (`source_path` y `source` relativos, `content_hash`, `doc_id`, `classified_by`, `ingested_at`; `date` es la de la cabecera) y vectoriza título · sección + contenido. Indexación real: **22 documentos, 248 fragmentos**, 7 categorías (≈3 min con bge-m3 en CPU, Ollama en Docker, perfil `local-llm`). Evaluación real (`uv run python -m eval.retrieval_eval`, k=6): **Recall@6 0,90, MRR 0,95, latencia máx. ≈0,5 s** (RNF-09 ✅). Fallos: preguntas cuya regla cambió un acta (Q-01 no recupera DOC-19; Q-02 no recupera DOC-03) → tenerlo en cuenta en T-18. Fábricas `build_embeddings`/`build_vector_store` en `core/factories.py` | Día 3 cerrado salvo T-14 | — | T-14 (JQL), luego día 4 (T-18, T-19, T-20) |
 | 4 | 2026-09-30 | **T-14 ✅** (P, rama `PreProduccion`): `JiraCloudTracker.search` paginado con `nextPageToken`/`isLast` por `/rest/api/3/search/jql` (páginas de 100, tope 1000), `list_epics` con `hierarchyLevel = 1` (no depende del idioma: en el sitio de pruebas las HU son «Historia»), `list_children` con `parent = CLAVE`; `core/context/jql.py` con `text_search_jql` (escapado Lucene + JQL) y `linked_issues_jql` para T-18. Verificado en Jira real (4 épicas, 4 HU de préstamo digital, 17 incidencias en varias páginas). Nota para T-18: el índice de búsqueda de Jira tarda en reflejar vínculos recién creados (`get_issue` los ve antes que `linkedIssues`). RF-02 «listar proyectos» queda en PA-23 | — | — | T-18 |
 | 4 | 2026-09-30 | **T-18 ✅** (P): `core/context/service.py` (`ContextService`) + `core/context/budget.py`; `retrieve_context` delega en él sin cambiar `AgentState` ni `Container`. HU → HU + épica + vínculos (máx. 5) + hermanas como resumen; épica → épica + hijas; necesidad → palabras clave con `OR` reordenadas por título (máx. 3). RAG: memorias primero y **norma ↔ acta** vía `metadata["related"]` (decisión del usuario). Presupuesto 6000 tokens (PA-07 resuelta) con margen por serialización y reserva del texto de la necesidad. Real: Q-01 trae DOC-02 + DOC-19; necesidades reales ponen HU-02, HU-13 y HU-08 primero; HU-01 ≈2,8k/6k tokens. **Para T-20:** el contexto de Jira/RAG es no confiable (delimitarlo en los prompts) y `previous`/`feedback` de las iteraciones no están en el presupuesto de T-18 | — | — | T-22 |
+| 4 | 2026-09-30 | **T-22 ✅** (P): `adapters/auth/local.py` (`LocalAuthProvider`: argon2id, tiempo constante con hash ficticio aleatorio, inactivos rechazados, rehash tolerante a fallos, `save_user` upsert), `core/permissions.py` (matriz rol × permiso, `can`/`require`; admin configura pero no genera ni publica, D-01), `core/factories.build_auth`. **Usuarios de demo:** `uv run python -m core.seed_users` crea `af-demo`, `qa-demo`, `admin-demo` con contraseñas aleatorias que se muestran **una sola vez** (decisión del usuario; no se guardan en repo, `.env` ni logs). Propuestas PA-25…PA-29 | — | Ejecutar el seed (lo hace el usuario) | Fusionar `Dia4` (T-19, T-20) y seguir con T-21 |

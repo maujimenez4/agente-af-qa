@@ -1,0 +1,27 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Datos locales generados
+data/memory/*.md
+!data/memory/.gitkeep
+data/uploads/
+
+# Claude Code
+.claude/worktrees/
+.claude/settings.local.json
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store

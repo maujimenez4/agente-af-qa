@@ -1,0 +1,30 @@
+# Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos.
+# Cada tarea es una CADENA ordenada: el primero es el principal y el resto, respaldos (RF-44).
+# Sin secretos: solo el nombre de la variable de entorno. Verifica los nombres de modelo el día 1 (T-08).
+providers:
+  groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
+  openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
+  local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
+
+tasks:
+  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
+  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
+  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
+  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
+  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
+  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: local, model: "POR_DEFINIR" } ]
+  classify_source:   [ { provider: local, model: "POR_DEFINIR" },        { provider: groq, model: "openai/gpt-oss-20b" } ]
+  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: local, model: "POR_DEFINIR" } ]
+
+embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
+
+limits:
+  max_retries_on_429: 2
+  context_token_budget: 6000
+  daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
+
+rag:
+  chunk_tokens: 650
+  overlap_tokens: 80
+  top_k: 6
+  memory_boost: 1.3               # RF-51

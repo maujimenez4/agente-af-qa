@@ -66,7 +66,7 @@ STORIES: dict[str, IssueDetail] = {
 DOCUMENTS: dict[str, dict[str, str]] = {
     "doc-reglamento": {
         "title": "Reglamento de préstamo (ficticio)",
-        "category": "normativa",
+        "category": "politicas",
         "content": (
             "Artículo 4. Cada persona socia puede tener hasta 3 reservas activas. "
             "Artículo 7. Un préstamo dura 21 días y admite 2 renovaciones si no hay reservas "
@@ -75,7 +75,7 @@ DOCUMENTS: dict[str, dict[str, str]] = {
     },
     "doc-glosario": {
         "title": "Glosario del servicio de préstamo (ficticio)",
-        "category": "glosario",
+        "category": "glosarios",
         "content": (
             "Reserva: bloqueo temporal de un ejemplar disponible durante 48 horas. "
             "Renovación: ampliación del plazo de un préstamo activo."

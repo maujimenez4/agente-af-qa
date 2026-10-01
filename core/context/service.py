@@ -22,7 +22,7 @@ from core.context.jql import any_keyword_jql, keywords
 
 MEMORY_CATEGORY = "memoria"
 # Una norma y el acta que la cambió deben llegar juntas al LLM (hallazgo de T-17).
-RELATED_PAIRS = {"normativa": "actas", "actas": "normativa"}
+RELATED_PAIRS = {"politicas": "documentacion", "documentacion": "politicas"}  # T-49: normas ↔ actas
 MAX_LINKED = 5
 MAX_NEED_MATCHES = 3
 MAX_NEED_CANDIDATES = 20

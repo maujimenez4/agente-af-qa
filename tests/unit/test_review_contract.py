@@ -244,7 +244,7 @@ def _rag_corpus() -> tuple[FakeEmbeddingProvider, FakeVectorStore]:
         store,
         embeddings,
         "DOC-A",
-        "normativa",
+        "politicas",
         "Norma ficticia: las reservas quedan bloqueadas cuarenta y ocho horas en mostrador.",
         related="DOC-B",
     )
@@ -252,7 +252,7 @@ def _rag_corpus() -> tuple[FakeEmbeddingProvider, FakeVectorStore]:
         store,
         embeddings,
         "DOC-B",
-        "actas",
+        "documentacion",
         "Acta ficticia de la comisión: acuerdo sobre plazos y calendario anual.",
         related="DOC-A",
     )

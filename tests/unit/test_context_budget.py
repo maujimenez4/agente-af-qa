@@ -40,7 +40,7 @@ def make_issue(
     )
 
 
-def make_chunk(chunk_id: str, content_chars: int, category: str = "normativa") -> RetrievedChunk:
+def make_chunk(chunk_id: str, content_chars: int, category: str = "politicas") -> RetrievedChunk:
     chunk = Chunk(
         id=chunk_id,
         document_id=f"doc-{chunk_id}",

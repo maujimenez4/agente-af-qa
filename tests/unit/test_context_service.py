@@ -148,7 +148,7 @@ def rag_fixture() -> tuple[SpyEmbeddings, SpyVectorStore]:
         store,
         embeddings,
         "DOC-A",
-        "normativa",
+        "politicas",
         "Norma ficticia: las reservas quedan bloqueadas cuarenta y ocho horas en mostrador.",
         related="DOC-B, DOC-G",
     )
@@ -156,7 +156,7 @@ def rag_fixture() -> tuple[SpyEmbeddings, SpyVectorStore]:
         store,
         embeddings,
         "DOC-B",
-        "actas",
+        "documentacion",
         "Acta ficticia de la comisión: acuerdo sobre plazos y calendario anual.",
         related="DOC-A",
     )
@@ -164,7 +164,7 @@ def rag_fixture() -> tuple[SpyEmbeddings, SpyVectorStore]:
         store,
         embeddings,
         "DOC-G",
-        "glosario",
+        "glosarios",
         "Glosario ficticio: término, definición y sinónimo.",
     )
     add_doc(
@@ -406,11 +406,10 @@ def test_gather_rag_norm_adds_related_minutes_with_filters() -> None:
 
     assert doc_ids(context.rag) == ["DOC-A", "DOC-B"]
     related_calls = [c for c in store.calls if c["filters"]]
-    assert {"k": 1, "filters": {"doc_id": "DOC-B", "category": "actas"}, "memory_boost": 1.0} in (
-        related_calls
-    )
+    expected = {"doc_id": "DOC-B", "category": "documentacion"}
+    assert {"k": 1, "filters": expected, "memory_boost": 1.0} in related_calls
     # DOC-G (glosario) figura en `related` pero no es un acta: no se añade.
-    assert {"doc_id": "DOC-G", "category": "actas"} in [c["filters"] for c in related_calls]
+    assert {"doc_id": "DOC-G", "category": "documentacion"} in [c["filters"] for c in related_calls]
 
 
 def test_gather_rag_minutes_add_related_norm() -> None:
@@ -420,7 +419,7 @@ def test_gather_rag_minutes_add_related_norm() -> None:
     context = make_service(embeddings=embeddings, store=store, top_k=1).gather(origin, None)
 
     assert doc_ids(context.rag) == ["DOC-B", "DOC-A"]
-    assert {"doc_id": "DOC-A", "category": "normativa"} in [c["filters"] for c in store.calls]
+    assert {"doc_id": "DOC-A", "category": "politicas"} in [c["filters"] for c in store.calls]
 
 
 def test_gather_rag_does_not_duplicate_already_retrieved_related_docs() -> None:
@@ -432,8 +431,8 @@ def test_gather_rag_does_not_duplicate_already_retrieved_related_docs() -> None:
     ids = doc_ids(context.rag)
     assert len(ids) == len(set(ids))
     filters = [c["filters"] for c in store.calls if c["filters"]]
-    assert {"doc_id": "DOC-B", "category": "actas"} not in filters
-    assert {"doc_id": "DOC-A", "category": "normativa"} not in filters
+    assert {"doc_id": "DOC-B", "category": "documentacion"} not in filters
+    assert {"doc_id": "DOC-A", "category": "politicas"} not in filters
 
 
 def test_gather_rag_related_docs_are_capped_at_four() -> None:
@@ -445,12 +444,13 @@ def test_gather_rag_related_docs_are_capped_at_four() -> None:
         store,
         embeddings,
         "NORM-1",
-        "normativa",
+        "politicas",
         "Norma ficticia sobre sanciones por retraso en devoluciones.",
         related=", ".join(minutes),
     )
     for n, doc_id in enumerate(minutes, start=1):
-        add_doc(store, embeddings, doc_id, "actas", f"Acta ficticia número {n} de la comisión.")
+        text = f"Acta ficticia número {n} de la comisión."
+        add_doc(store, embeddings, doc_id, "documentacion", text)
     origin = {"kind": "need", "text": "sanciones retraso devoluciones"}
     context = make_service(embeddings=embeddings, store=store, top_k=1).gather(origin, None)
 
@@ -459,18 +459,18 @@ def test_gather_rag_related_docs_are_capped_at_four() -> None:
 
 
 def test_gather_rag_ignores_related_of_other_categories() -> None:
-    """RF-11: solo normativa ↔ actas; un glosario con `related` no dispara búsquedas extra."""
+    """RF-11: solo politicas ↔ documentacion; un glosario con `related` no busca más."""
     embeddings = SpyEmbeddings()
     store = SpyVectorStore()
     add_doc(
         store,
         embeddings,
         "GLO-1",
-        "glosario",
+        "glosarios",
         "Glosario ficticio de términos de préstamo.",
         related="ACT-1",
     )
-    add_doc(store, embeddings, "ACT-1", "actas", "Acta ficticia sin relación léxica alguna.")
+    add_doc(store, embeddings, "ACT-1", "documentacion", "Acta ficticia sin relación léxica.")
     origin = {"kind": "need", "text": "glosario términos préstamo"}
     context = make_service(embeddings=embeddings, store=store, top_k=1).gather(origin, None)
     assert doc_ids(context.rag) == ["GLO-1"]

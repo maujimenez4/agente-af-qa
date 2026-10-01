@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-23, T-24, T-26 … T-36, T-39 … T-53 | — | — | T-01 … T-22, T-25 | T-37, T-38 (R-01) |
+| T-08, T-24, T-27 … T-36, T-39 … T-53 | — | — | T-01 … T-26 | T-37, T-38 (R-01) |
 
 ---
 
@@ -67,7 +67,7 @@
 |---|---|---|---|---|---|
 | T-21 | Análisis de impacto: HU afectadas, reglas, dependencias y regresión (`ImpactAnalysis`) | A | T-18, T-19 | RF-19, RF-27 | ✅ |
 | T-22 | `LocalAuthProvider` (argon2), roles y 3 usuarios sintéticos de demo | A | T-04 | RF-45, RF-46, RNF-05 | ✅ |
-| T-23 | **Rediseño de la UI** (D-12): estructura de pestañas, flujo de navegación, estilo y estados vacíos/error, en `docs/specs/UI.md` | B | — | RNF-15 | ⬜ |
+| T-23 | **Rediseño de la UI** (D-12): estructura de pestañas, flujo de navegación, estilo y estados vacíos/error, en `docs/specs/UI.md` | B | — | RNF-15 | ✅ |
 | T-24 | UI: login, pestañas **Contexto** e **Historia**, chat, selector de origen y selector de modelo | B | T-23, T-22 | RF-14, RF-20, RF-42 | ⬜ |
 
 **🔗 Sincronización:** **demo interna de los pasos 1–5 de extremo a extremo** desde la UI.
@@ -240,6 +240,13 @@
 | PA-44 | Las animaciones de la UI (Q de fase, de carga y de escritura) se hacen en Streamlit con SVG y CSS en `st.html`/componentes; si alguna no es viable, se sustituye por un estado estático equivalente | Día 6 (UI) | Pendiente · T-24 |
 | PA-60 | Mover `fill_placeholders` y `PromptLoader` de `core/functional/writer.py` a un módulo común de prompts (junto a PA-19): hoy `core/qa/writer.py` los importa y un cambio de firma en la sesión principal lo rompería | T-26 (spec-checker) | Pendiente (P) |
 | PA-61 | Conectar `core/qa/writer.TestWriter` al nodo `generate` en modo QA y guardar `prompt_version`; mostrar la matriz (`SuiteDraft.coverage_md`) y la estrategia en la pestaña QA (T-28) | T-26 | Pendiente (P) · sincronización del día 6 |
+| PA-62 | Permiso para el **Historial** en `core/permissions.py` (hoy no existe ninguno; la UI mixta lo muestra al administrador). Decidir si el analista y QA ven también su propio historial | T-23 | Pendiente (P) · T-45 |
+| PA-63 | Acción «Pedir sus pruebas a QA» en el resultado real de una HU (Mixta 4): no hay backend de avisos ni asignación entre roles | T-23 | Pendiente · v2 |
+| PA-64 | «Descargar informe» de Revisar la calidad (Mixta 5) como `.md` con `st.download_button` | T-23 | Pendiente · T-48 |
+| PA-65 | «Guardar borrador» del registro de la ejecución (QA 6): persistir el borrador antes de aprobar | T-23 | Pendiente · T-47 |
+| PA-66 | Eventos de progreso dentro del nodo `generate` (escribir, validar citas y diff, impacto) para que la Q de carga avance un cuarto por proceso real; hoy `graph.stream` solo distingue nodos | T-23 (spec-checker) | Pendiente (A) · T-24 |
+| PA-67 | Exponer el motivo del cambio de proveedor en la cadena (p. ej. límite de Groq → respaldo) para el aviso de la UI; hoy solo se conoce el proveedor y el modelo usados | T-23 (spec-checker) | Pendiente (A) · T-32 |
+| PA-68 | Actualizar las descripciones de T-23 y T-24 en el Kanban: siguen hablando de «pestañas» y la UI decidida es la «Propuesta mixta» (`docs/specs/UI.md`) | T-23 (spec-checker) | Pendiente (P) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -261,3 +268,4 @@
 | 5 | 2026-09-30 | **T-25 ✅** (P): `core/audit.py` (`SqlAuditTrail` sobre `audit_log`: create/iterate/approve/discard/publish, sin prompts ni contenido) y `core/artifact_state.py` (tabla `artifact_state`, migración `0002`: registro de aprobaciones persistente, que falla cerrado si está dañado, y versión de partida). `JIRA_PUBLISH_MODE=simulation` por defecto: `publish` audita el plan y no escribe en Jira; la aprobación sigue vigente. En `live`: auditoría antes de `update_status`, `failed_ids` y fallos de vínculo como errores, épica excluida (PA-38). PA-33 y PA-37 hechas; PA-06 parcial; PA-40…PA-42 nuevas. SPEC §6, §7 y anexo §11 actualizados. **Pendiente:** cablear `build_audit`/`build_versions`/`build_state_store` en el contenedor real (T-24/T-31), siempre los tres juntos (`audit_log` tiene FK a `artifacts`); `uv run alembic upgrade head` en cada entorno | — | Cuota de Groq (pruebas reales pendientes) | Fusión de `Dia5` |
 | 5 | 2026-09-30 | T-26 ✅ (B, rama `Dia5`, sesión del compañero): prompts `generate_tests` (v1) y `tests_retry` (v2, datos delimitados) en `prompts/`; `core/qa/validation.py` (cobertura: CP → CA/RN existentes, todo CA con ≥1 CP, al menos un caso positivo y uno negativo; citas; datos que parecen personales en cualquier texto que acabaría en Jira, sin repetir el valor) y `core/qa/writer.py` (`TestWriter.generate(story, ctx)` → `SuiteDraft` con `coverage_md`; un reintento y después `CoverageError`/`CitationError`; `story_jira_key` = clave de la HU o, si falta, la del origen solo si es una historia). `core/functional/citations.py` acepta ahora `UserStory` o `TestSuite` (solo tipos) | — | Prueba real `tests/integration/test_qa_live.py` sin ejecutar (sin `.env` ni Docker en este equipo): la verifica la sesión principal. Conexión al grafo en modo QA: PA-61 | T-23 |
 | 6 | 2026-10-01 | Revisión de la presentación del proyecto y decisiones: R-01 opción A (T-47), plan = estrategia, D-07 se mantiene, categorías del RAG de la presentación (T-49), revisar la HU como flujo propio (T-48). **UI decidida: «Propuesta mixta»** del lienzo (HU y QA, con animaciones), con proyecto por conversación; backend nuevo T-50 … T-53. Anexo para el compañero: `docs/prompts/PROMPT-05b-anexo-companero.md` (T-23 actualizado y T-49) | El compañero hace pull de `PreProduccion` y fusiona en `Dia5` | — | Fusión de `Dia5`; T-50 y T-51 (contratos) antes de T-27 |
+| 6 | 2026-10-01 | **T-23 ✅** (B, rama `Dia5`, sesión del compañero): `docs/specs/UI.md` a partir de la «Propuesta mixta» del lienzo (anexo PROMPT-05b): marco común, roles según `core/permissions.py`, una tabla por pantalla (Mixta 1 … 5 y QA 1 … 6) con su dependencia (T-47, T-48, T-50 … T-53, PA-05), contrato de aprobación con huella (§5; toda escritura en Jira pasa por `publish`), estados con los mensajes reales del código y las 6 animaciones con su viabilidad en Streamlit y alternativa estática. **Para T-24:** la Q de carga solo distingue nodos del grafo (PA-66); el permiso de Revisar la calidad y de registrar la ejecución es provisional (T-48, T-47); `ValueError`/`ApprovalError` al aprobar no son `AgentError`. Propuestas PA-62 … PA-68 | — | `alembic upgrade head` (migración 0002) sin ejecutar en este equipo: falta `.env` | T-49 |

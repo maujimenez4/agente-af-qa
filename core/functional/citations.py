@@ -3,11 +3,12 @@
 from adapters.errors import AgentError
 from core.functional.context import CitableSource, escape_data
 from schemas.common import SourceRef
+from schemas.quality import QualityReport
 from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 
-# Artefactos con citas: HU (T-20) y suites de QA (T-26).
-type CitedArtifact = UserStory | TestSuite
+# Artefactos con citas: HU (T-20), suites de QA (T-26) e informes de calidad (T-48).
+type CitedArtifact = UserStory | TestSuite | QualityReport
 
 
 class CitationError(AgentError):
@@ -28,7 +29,9 @@ def citation_errors(story: CitedArtifact, sources: list[CitableSource]) -> list[
     return errors
 
 
-def with_real_excerpts[T: (UserStory, TestSuite)](story: T, sources: list[CitableSource]) -> T:
+def with_real_excerpts[T: (UserStory, TestSuite, QualityReport)](
+    story: T, sources: list[CitableSource]
+) -> T:
     """Sustituye cada cita por la referencia canónica y su extracto real, sin duplicados."""
     index = _index(sources)
     refs: list[SourceRef] = []

@@ -11,6 +11,7 @@ from adapters.base import LLMResult, Message, StructuredResult, TaskType
 from schemas.common import Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.memory import Memory
+from schemas.quality import InvestCheck, QualityFinding, QualityReport
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
@@ -72,10 +73,49 @@ def _suite_citing_context(messages: list[Message]) -> TestSuite:
     return suite
 
 
+def renewal_quality_report() -> QualityReport:
+    """Informe de calidad sintético sobre `dataset.renewal_story()` (T-48)."""
+    return QualityReport(
+        summary="La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco (ficticio).",
+        invest=[
+            InvestCheck(
+                letter=letter,
+                verdict="improvable" if letter == "T" else "ok",
+                reason=f"Motivo ficticio de {letter}.",
+            )
+            for letter in ("I", "N", "V", "E", "S", "T")
+        ],
+        findings=[
+            QualityFinding(
+                kind="ambiguity",
+                target_id="CA-02",
+                explanation="«Avisar pronto» no se puede probar.",
+                proposal="Avisar en menos de 15 minutos.",
+            ),
+            QualityFinding(
+                kind="gap",
+                explanation="No dice qué pasa si la renovación falla.",
+                proposal="Añadir un criterio de error.",
+            ),
+        ],
+        open_questions=["¿Hay un máximo de renovaciones por año? (ficticio)"],
+    )
+
+
+def _quality_citing_context(messages: list[Message]) -> QualityReport:
+    report = renewal_quality_report()
+    for message in messages:
+        if message.role == "user" and (match := _SOURCE_TAG.search(message.content)):
+            ref, kind = match.group(1), match.group(2)
+            return report.model_copy(update={"sources": [SourceRef(kind=kind, ref=ref)]})
+    return report
+
+
 def _default_builders() -> dict[type[BaseModel], Builder]:
     return {
         UserStory: _story_citing_context,
         TestSuite: _suite_citing_context,
+        QualityReport: _quality_citing_context,
         ImpactAnalysis: lambda _messages: ImpactAnalysis(
             diffs=[StoryDiff(field="title", before="Renovar", after="Renovar un préstamo")],
             affected=[

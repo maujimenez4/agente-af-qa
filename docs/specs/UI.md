@@ -148,9 +148,9 @@ Flujo propio, **solo lectura: no publica** (decisión del día 6).
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
 | Cabecera | «Calidad de DEMO-4 · Revisar la calidad · solo lectura» | — | **T-48** |
-| Conversación | «He revisado DEMO-4 con INVEST y contra las fuentes. Hay 3 puntos a mejorar. No he cambiado nada en Jira.»; preguntas sobre el informe | Preguntar | **T-48** (`StoryWriter.review`) |
+| Conversación | «He revisado DEMO-4 con INVEST y contra las fuentes. Hay 3 puntos a mejorar. No he cambiado nada en Jira.»; preguntas sobre el informe | Preguntar | **T-48** (`QualityReview.report.summary`; las preguntas sobre el informe quedan para PA-101) |
 | Panel · INVEST | Seis filas I, N, V, E, S, T con «Bien» / «Mejorable» | — | **T-48** |
-| Panel · Hallazgos | Tipo (Ambigüedad · Hueco · Sin fuente), CA afectado, explicación y propuesta | — | **T-48** (`open_questions`, `changes_from_previous`) |
+| Panel · Hallazgos | Tipo (Ambigüedad · Hueco · Sin fuente), CA afectado, explicación y propuesta | — | **T-48** (`report.findings` con `FINDING_LABELS`: Ambigüedad, Hueco, Sin fuente, INVEST, Incoherencia con las fuentes; `report.open_questions`) |
 | Pie | *Descargar informe* · *Evolucionar DEMO-4 con esto*; «Este flujo no publica en Jira. Evolucionar abre una conversación nueva con estas mejoras como punto de partida.» | Descargar / abrir Mixta 2 con el flujo Evolucionar | Descarga: PA-64 · conversación nueva **T-52** |
 
 ## 5. Contrato de aprobación (SPEC-00 anexo §11)
@@ -293,7 +293,7 @@ Viabilidad: las seis se pueden hacer con `st.html` (SVG y CSS, sin JavaScript) y
 | Conversaciones persistentes y listado por usuario | Lista de conversaciones, retomar, Mixta 5 → Evolucionar | **T-52 ✅**: checkpointer creado **una sola vez** (`st.cache_resource`) con `build_checkpointer(config)` y `build_graph(container, checkpointer=…)`; conversación nueva con `new_conversation_config(user)` (`thread_id` generado en el servidor, nunca de la URL); lista con `container.conversations.list_for(user)` (título = flujo y clave; `status`: `started`, `in_review` → «Versión N», `approved`, `simulated` → «Simulado», `published` → «Publicado», `discarded`; una publicación parcial queda en `approved`); retomar con `resume_config(container.conversations, user, thread_id)`. Invoca siempre el grafo con esas configs: llevan `user` y el grafo rechaza a quien no es la dueña |
 | Reconocimiento de clave y HU parecida sin IA | Mixta 1, 2, QA 1 | **T-53 ✅**: `GuidedStart(container).propose(texto, proyecto, modo)` (claves que existen en Jira, también en minúsculas; cambio de proyecto con aviso; HU parecidas por texto; opciones con su `origin`) y `preview_sources(origin, excluded)` para el panel de fuentes con casillas (`required` en la incidencia de origen). Si `project_changed`, la UI avisa y llama a `container.projects.choose(user, proposal.project)`; si `ignored_projects` no está vacío, avisa de que esas claves son de otro proyecto y no se usan |
 | Registro de la ejecución | QA 5 (*Registrar la ejecución*), QA 6 | **T-47** |
-| Revisar la calidad | Mixta 5 | **T-48** |
+| Revisar la calidad | Mixta 5 | **T-48 ✅**: `QualityReviewer(container).review(user, clave, excluded_sources)` → `QualityReview`: `report.summary` (conversación), `report.invest_in_order()` (panel INVEST: «Bien» = `ok`, «Mejorable» = `improvable`), `report.findings` (tipo con `FINDING_LABELS`, `target_id`, explicación y propuesta), `report.to_markdown(clave)` (*Descargar informe*, PA-64) y `evolve_feedback()` para *Evolucionar con esto* (`initial_state(..., feedback=...)`). Dos llamadas al LLM (estructurar y revisar); no escribe en Jira. El texto del informe viene del LLM: se pinta **campo a campo** con `md_escape`, nunca `to_markdown()` con `st.markdown` (ese `.md`, ya escapado, es solo para descargar) |
 | Reintentar solo los fallidos sin duplicar | QA 5 (parcial), estado de error | **PA-05** (T-30) |
 | Categorías de las fuentes | Panel de fuentes | **T-49** |
 | `TestWriter` conectado al grafo | QA 1 … QA 4 | PA-61 |

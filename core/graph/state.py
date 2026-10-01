@@ -34,6 +34,22 @@ class AgentState(TypedDict):
     errors: list[str]
 
 
+def normalize_excluded_sources(
+    excluded_sources: list[str] | None, origin_key: str | None
+) -> list[str]:
+    """Fuentes desmarcadas, limpias y validadas (T-51); también la usa T-48."""
+    excluded = sorted({ref.strip() for ref in excluded_sources or [] if ref.strip()})
+    if len(excluded) > MAX_EXCLUDED_SOURCES:
+        raise ValueError(f"Se pueden excluir como máximo {MAX_EXCLUDED_SOURCES} fuentes.")
+    if invalid := [ref for ref in excluded if not SOURCE_REF.fullmatch(ref)]:
+        raise ValueError(f"Referencia de fuente no válida: {invalid[0][:50]!r}.")
+    if origin_key and origin_key in excluded:
+        raise ValueError(
+            f"La incidencia de origen {origin_key} no se puede excluir de las fuentes."
+        )
+    return excluded
+
+
 def initial_state(
     user: str,
     mode: Literal["functional", "qa"],
@@ -51,13 +67,7 @@ def initial_state(
     origin = Origin(**origin)
     if (key := origin.get("key")) and (match := ISSUE_KEY.fullmatch(key)):
         origin["project"] = match.group(1)  # una clave de otro proyecto lo cambia
-    excluded = sorted({ref.strip() for ref in excluded_sources or [] if ref.strip()})
-    if len(excluded) > MAX_EXCLUDED_SOURCES:
-        raise ValueError(f"Se pueden excluir como máximo {MAX_EXCLUDED_SOURCES} fuentes.")
-    if invalid := [ref for ref in excluded if not SOURCE_REF.fullmatch(ref)]:
-        raise ValueError(f"Referencia de fuente no válida: {invalid[0][:50]!r}.")
-    if key and key in excluded:
-        raise ValueError(f"La incidencia de origen {key} no se puede excluir de las fuentes.")
+    excluded = normalize_excluded_sources(excluded_sources, key)
     return AgentState(
         user=user,
         mode=mode,

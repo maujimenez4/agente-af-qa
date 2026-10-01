@@ -7,9 +7,8 @@ viene del LLM y se muestra siempre escapado (`app/text.py`).
 import streamlit as st
 
 from app.anim import phase_q, typing_q
-from app.conversation import Conversation, resume
+from app.conversation import Conversation, message_for, resume
 from app.editing import LIST_FIELDS, STEP_FIELDS, TEXT_FIELDS, form_to_content, story_to_form
-from app.origin import with_excluded
 from app.progress import phase_label, phase_of
 from app.review import (
     ReviewView,
@@ -30,7 +29,7 @@ MULTILINE_FIELDS = frozenset({"description", "business_goal"})  # conservan los 
 def render(session: SessionState) -> None:
     conv = current_conversation(session)
     if conv is None or session.workspace is None:
-        go(session, "inicio", current=None)
+        go(session, "inicio", current=None)  # el aviso de `current_conversation` se ve allí
         return
     view = conv.view
     phase = phase_of(view.artifact.status if view else None)
@@ -86,7 +85,7 @@ def _iterate(session: SessionState, conv: Conversation, message: str) -> None:
     try:
         answer = iterate_answer(message)
     except ValueError as exc:
-        st.error(md_escape(str(exc)))
+        st.error(md_escape(message_for(exc)))
         return
     conv.messages.append(("user", answer["feedback"]))
     typing = st.empty()
@@ -141,7 +140,7 @@ def _panel(session: SessionState, conv: Conversation) -> None:
     with tabs[2]:
         _impact(view)
     with tabs[3]:
-        _sources(session, conv, story, editable=latest and not conv.finished)
+        _sources(conv, story)
     if latest and not conv.finished:
         _actions(session, conv, view, story)
 
@@ -194,32 +193,19 @@ def _impact(view: ReviewView) -> None:
         st.markdown(md_lines([describe_operation(op) for op in view.plan]))
 
 
-def _sources(
-    session: SessionState, conv: Conversation, story: UserStory, *, editable: bool
-) -> None:
+def _sources(conv: Conversation, story: UserStory) -> None:
+    """Fuentes citadas (solo lectura): las desmarcadas se eligieron antes de generar (Mixta 2)."""
+    if conv.request.excluded_sources:
+        st.caption(
+            md_escape("Excluidas antes de generar: " + ", ".join(conv.request.excluded_sources))
+        )
     if not story.sources:
         st.caption("La propuesta no cita fuentes.")
         return
-    st.caption("Desmarca las fuentes que no deben influir y empieza una conversación nueva.")
-    keep: dict[str, bool] = {}
     for source in story.sources:
-        label = md_escape(f"{source.ref} · {source.kind}")
-        keep[source.ref] = st.checkbox(
-            label,
-            value=source.ref not in conv.request.excluded_sources,
-            disabled=not editable or source.ref == conv.request.key,
-            key=f"src-{conv.thread_id}-{source.ref}",
-        )
+        st.markdown(md_escape(f"{source.ref} · {source.kind}"))
         if source.excerpt:
             st.caption(md_escape(source.excerpt))
-    excluded = [ref for ref, checked in keep.items() if not checked]
-    if editable and excluded and st.button("Generar de nuevo sin esas fuentes", key="regen"):
-        request = with_excluded(conv.request, [*conv.request.excluded_sources, *excluded])
-        user = session.user
-        if user is None:
-            return
-        new = Conversation(request=request, user=user.username)
-        go(session, "generando", pending=new, current=new.thread_id)
 
 
 # --- Acciones ----------------------------------------------------------------------------------
@@ -298,7 +284,7 @@ def _editor(
     try:
         content = form_to_content(story, form)
     except ValueError as exc:
-        st.error(md_escape(str(exc)))
+        st.error(md_escape(message_for(exc)))
         return
     resume(ws, conv, edit_answer(view, content), session.user)
     accepted = conv.error is None and conv.view is not None and not conv.view.error

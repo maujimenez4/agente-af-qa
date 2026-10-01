@@ -1,13 +1,24 @@
-"""Mixta 2 · Origen fijado (`docs/specs/UI.md` §4.3): operación fijada y restricciones."""
+"""Mixta 2 · Origen fijado (`docs/specs/UI.md` §4.3): HU parecida, operación, restricciones y
+panel «Antes de generar» con las fuentes que se pueden desmarcar (T-53, T-51).
+"""
 
 import streamlit as st
 
+from adapters.errors import AgentError
 from app.anim import phase_q
-from app.conversation import Conversation
-from app.origin import find_issue_key, fix_origin, with_restrictions
-from app.session import SessionState, clear_composer, go
+from app.conversation import Conversation, message_for
+from app.origin import (
+    StartRequest,
+    preview_origin,
+    request_from_option,
+    with_excluded,
+    with_restrictions,
+)
+from app.session import SessionState, clear_composer, go, show_notices
+from app.sources import describe_card, excluded_refs, issue_card, source_label
 from app.text import md_escape
 from app.views.frame import simulation_notice
+from core.guided_start import GuidedStart, SourcePreview, StartOption
 
 
 def render(session: SessionState) -> None:
@@ -21,58 +32,115 @@ def render(session: SessionState) -> None:
     with head[1]:
         st.html(phase_q(1))
         st.caption("Fase 1 de 4 · Contexto")
+    show_notices(session)
 
-    if request.text:
-        with st.chat_message("user"):
-            st.markdown(md_escape(request.text))
-
-    similar = (
-        find_issue_key(request.text, prefer_project=request.project)
-        if request.kind == "need"
-        else None
-    )
-    if similar:
-        with st.chat_message("assistant"):
-            st.markdown(
-                f"He reconocido la clave **{md_escape(similar)}** en tu texto. "
-                "¿La evolucionamos o creamos una HU nueva?"
-            )
-            cols = st.columns(2)
-            if cols[0].button(f"Evolucionar {similar}", type="primary", key="evolve_similar"):
-                try:
-                    session.request = fix_origin(
-                        "evolve", request.project, key=similar, text=request.text
-                    )
-                except ValueError as exc:
-                    st.error(md_escape(str(exc)))
-                else:
-                    st.rerun()
-            cols[1].caption("O sigue abajo para crear una HU nueva con este texto.")
-    elif request.kind == "need":
-        st.caption(
-            "Buscar en Jira una HU parecida por texto (sin IA) estará disponible pronto (T-53)."
+    chat, panel = st.columns([5, 6], gap="large")
+    with chat:
+        if request.text:
+            with st.chat_message("user"):
+                st.markdown(md_escape(request.text))
+        _similar(session, request)
+        st.info(
+            f"**Operación fijada: {md_escape(request.describe())}**  \n"
+            "No cambia durante la conversación; es lo único que se podrá aprobar y publicar.",
+            icon=":material/lock:",
         )
+    with panel:
+        _before_generating(session, request, user.username)
+    simulation_notice(session)
 
-    st.info(
-        f"**Operación fijada: {md_escape(request.describe())}**  \n"
-        "No cambia durante la conversación; es lo único que se podrá aprobar y publicar.",
-        icon=":material/lock:",
-    )
-    if st.button("Cambiar la operación", key="change_op"):
-        go(session, "inicio", request=None)
 
+def _similar(session: SessionState, request: StartRequest) -> None:
+    """Tarjetas «HU parecida» (T-53, búsqueda por texto sin IA) con su épica y nº de CA y RN."""
+    if not session.alternatives:
+        return
+    with st.chat_message("assistant"):
+        st.caption("Búsqueda en Jira por texto · sin IA")
+        for option in session.alternatives:
+            _option_card(session, request, option)
+
+
+def _option_card(session: SessionState, request: StartRequest, option: StartOption) -> None:
+    ws = session.workspace
+    key = option.origin.get("key")
+    if ws is None or key is None:
+        return
+    with st.container(border=True):
+        try:
+            card = issue_card(ws.container.issue_tracker.get_issue(key))  # PA-56
+        except AgentError:
+            summary = option.issue.summary if option.issue else ""
+            st.markdown(f"**{md_escape(key)}** · {md_escape(summary)}")
+        else:
+            st.markdown(f"**{md_escape(card.key)}** · {md_escape(card.summary)}")
+            st.caption(md_escape(describe_card(card)))
+        cols = st.columns(2)
+        if cols[0].button(md_escape(option.label), type="primary", key=f"alt-{key}"):
+            try:
+                chosen = request_from_option(request.flow, option, request.text)
+            except ValueError as exc:
+                st.error(md_escape(message_for(exc)))
+                return
+            go(session, "origen", request=chosen, alternatives=[])
+        if request.kind == "need" and cols[1].button("Crear HU nueva", key=f"new-{key}"):
+            go(session, "origen", alternatives=[])
+
+
+def _before_generating(session: SessionState, request: StartRequest, username: str) -> None:
+    st.markdown("**Antes de generar**")
+    st.markdown(f"**Operación** · {md_escape(request.describe())}")
+    st.caption("Se puede cambiar solo antes de generar.")
+    if st.button("Cambiar", key="change_op"):
+        go(session, "inicio", request=None, alternatives=[])
     restrictions = st.text_area(
         "Restricciones (opcional)",
         placeholder="Por ejemplo: mismas reglas que en la web.",
         key="restrictions",
     )
-    st.caption(
-        "Las fuentes que se usarán se podrán revisar y desmarcar en la pestaña *Fuentes* tras "
-        "la primera versión. La vista previa antes de generar llegará con T-53."
-    )
+    excluded = _sources(session, request)
     if st.button("Generar propuesta", type="primary", key="generate"):
-        conv = Conversation(request=with_restrictions(request, restrictions), user=user.username)
+        final = with_excluded(with_restrictions(request, restrictions), excluded)
+        conv = Conversation(request=final, user=username)
         clear_composer()
         go(session, "generando", current=conv.thread_id, pending=conv)
     st.caption("Una llamada al modelo. Después itera conversando.")
-    simulation_notice(session)
+
+
+def _preview(session: SessionState, request: StartRequest) -> list[SourcePreview] | None:
+    """Vista previa de las fuentes, una vez por origen (mismo `gather` que el grafo, sin LLM)."""
+    ws = session.workspace
+    if ws is None:
+        return None
+    cache_key = f"preview-{hash(request)}"  # proyecto, origen, texto y exclusiones
+    if cache_key not in st.session_state:
+        try:
+            origin = preview_origin(request)
+            st.session_state[cache_key] = GuidedStart(ws.container).preview_sources(
+                origin, list(request.excluded_sources)
+            )
+        except (AgentError, ValueError) as exc:
+            st.error(md_escape(message_for(exc)))
+            st.caption("Puedes generar igualmente; se usarán todas las fuentes.")
+            return None
+    return list(st.session_state[cache_key])
+
+
+def _sources(session: SessionState, request: StartRequest) -> list[str]:
+    """Casillas de las fuentes; devuelve las desmarcadas (`excluded_sources`)."""
+    sources = _preview(session, request)
+    if not sources:
+        if sources is not None:
+            st.caption("No se han encontrado fuentes para este origen.")
+        return []
+    st.markdown(f"**Fuentes ({len(sources)})**")
+    checked: dict[str, bool] = {}
+    for source in sources:
+        checked[source.ref] = st.checkbox(
+            md_escape(source_label(source)),
+            value=True,
+            disabled=source.required,
+            key=f"src-{request.key or request.project}-{source.ref}",
+        )
+        if not checked[source.ref]:
+            st.caption("No influirá en la propuesta.")
+    return excluded_refs(sources, checked)

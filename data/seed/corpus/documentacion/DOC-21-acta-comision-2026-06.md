@@ -1,7 +1,7 @@
 ---
 id: DOC-21
 title: Acta de la Comisión de Servicios Bibliotecarios de junio de 2026
-category: actas
+category: documentacion
 version: 1
 date: 2026-06-10
 related: [DOC-04, DOC-08, DOC-10, DOC-20]

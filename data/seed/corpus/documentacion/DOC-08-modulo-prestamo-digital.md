@@ -1,7 +1,7 @@
 ---
 id: DOC-08
 title: Especificación del módulo de préstamo digital
-category: especificaciones
+category: documentacion
 version: 1
 date: 2026-06-20
 related: [DOC-01, DOC-02, DOC-03, DOC-04, DOC-09, DOC-10, DOC-14, DOC-16, DOC-21]

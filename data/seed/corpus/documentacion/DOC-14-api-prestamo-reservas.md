@@ -1,7 +1,7 @@
 ---
 id: DOC-14
 title: API interna de préstamo y reservas
-category: arquitectura
+category: documentacion
 version: 1
 date: 2026-06-25
 related: [DOC-01, DOC-02, DOC-03, DOC-05, DOC-08, DOC-12, DOC-13, DOC-15]

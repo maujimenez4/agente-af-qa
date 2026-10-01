@@ -1,7 +1,7 @@
 ---
 id: DOC-01
 title: Reglamento de préstamo
-category: normativa
+category: politicas
 version: 2
 date: 2026-04-20
 related: [DOC-02, DOC-03, DOC-05, DOC-07, DOC-11, DOC-20]

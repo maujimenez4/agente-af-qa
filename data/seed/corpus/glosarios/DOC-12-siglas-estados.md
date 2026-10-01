@@ -1,7 +1,7 @@
 ---
 id: DOC-12
 title: Siglas y códigos de estado
-category: glosario
+category: glosarios
 version: 2
 date: 2026-07-20
 related: [DOC-02, DOC-03, DOC-05, DOC-07, DOC-08, DOC-09, DOC-10, DOC-11, DOC-13, DOC-14]

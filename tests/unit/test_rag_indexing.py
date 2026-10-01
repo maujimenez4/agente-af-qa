@@ -81,28 +81,28 @@ def _write_md(path: Path, body: str, **header: str) -> Path:
 def _synthetic_corpus(root: Path) -> Path:
     """Tres documentos ficticios con cabecera YAML y un README de índice."""
     _write_md(
-        root / "normativa" / "DOC-91-reglamento-ficticio.md",
+        root / "politicas" / "DOC-91-reglamento-ficticio.md",
         "# Reglamento ficticio\n\n## Plazos\n\n"
         + "El préstamo ficticio dura veintiún días naturales. " * 6
         + "\n\n## Renovaciones\n\nSe permiten dos renovaciones ficticias por ejemplar.",
         id="DOC-91",
         title="Reglamento ficticio de préstamo",
-        category="normativa",
+        category="politicas",
         date="2026-03-01",
     )
     _write_md(
-        root / "glosario" / "DOC-92-glosario-ficticio.md",
+        root / "glosarios" / "DOC-92-glosario-ficticio.md",
         "# Glosario ficticio\n\n## Términos\n\nEjemplar: copia física ficticia de una obra.",
         id="DOC-92",
         title="Glosario ficticio",
-        category="glosario",
+        category="glosarios",
     )
     _write_md(
-        root / "normativa" / "DOC-93-politica-ficticia.md",
+        root / "politicas" / "DOC-93-politica-ficticia.md",
         "# Política ficticia\n\nLas sanciones ficticias se aplican por retraso en la devolución.",
         id="DOC-93",
         title="Política ficticia de sanciones",
-        category="normativa",
+        category="politicas",
     )
     (root / "README.md").write_text(
         "# Índice ficticio del corpus\n\nNo debe indexarse.", encoding="utf-8"
@@ -274,7 +274,7 @@ def test_index_dir_reports_documents_chunks_and_categories_when_corpus_indexed(
     report = _indexer(store=store).index_dir(root)
     assert isinstance(report, IndexReport)
     assert report.documents == 3
-    assert report.by_category == {"normativa": 2, "glosario": 1}
+    assert report.by_category == {"politicas": 2, "glosarios": 1}
     assert report.chunks == len(store.chunks)
     assert report.chunks > report.documents  # el reglamento se fragmenta en varias partes
 
@@ -301,7 +301,7 @@ def test_index_dir_stores_chunks_with_embedding_and_metadata_when_indexed(
         assert meta["title"]
     reglamento = [c for c in store.chunks.values() if c.document_id == "DOC-91"]
     assert {c.metadata["source_path"] for c in reglamento} == {
-        "normativa/DOC-91-reglamento-ficticio.md"
+        "politicas/DOC-91-reglamento-ficticio.md"
     }
     assert {c.metadata["date"] for c in reglamento} == {"2026-03-01"}
     assert any(c.metadata.get("section", "").endswith("Plazos") for c in reglamento)
@@ -324,7 +324,7 @@ def test_index_dir_deletes_document_before_upsert_when_indexing(tmp_path: Path) 
     root = _synthetic_corpus(tmp_path / "corpus")
     store = SpyVectorStore()
     _indexer(store=store).index_dir(root)
-    # `ingest_dir` recorre las rutas ordenadas: glosario/DOC-92, normativa/DOC-91, …/DOC-93.
+    # `ingest_dir` recorre las rutas ordenadas: glosarios/DOC-92, politicas/DOC-91, …/DOC-93.
     assert store.calls == [
         ("delete", "DOC-92"),
         ("upsert", "DOC-92"),
@@ -343,11 +343,11 @@ def test_index_dir_removes_stale_chunks_when_document_shrinks(tmp_path: Path) ->
     indexer.index_dir(root)
     before = [c for c in store.chunks.values() if c.document_id == "DOC-91"]
     _write_md(
-        root / "normativa" / "DOC-91-reglamento-ficticio.md",
+        root / "politicas" / "DOC-91-reglamento-ficticio.md",
         "# Reglamento ficticio\n\nVersión reducida y ficticia.",
         id="DOC-91",
         title="Reglamento ficticio de préstamo",
-        category="normativa",
+        category="politicas",
     )
     indexer.index_dir(root)
     after = [c for c in store.chunks.values() if c.document_id == "DOC-91"]
@@ -398,7 +398,7 @@ def test_index_dir_skips_document_when_chunker_returns_nothing(tmp_path: Path) -
     )
     report = indexer.index_dir(root)
     assert report.documents == 2
-    assert report.by_category == {"normativa": 2}
+    assert report.by_category == {"politicas": 2}
     assert [call for call in store.calls if call[1] == "DOC-92"] == [("delete", "DOC-92")]
 
 
@@ -406,15 +406,24 @@ def test_index_dir_skips_document_when_chunker_returns_nothing(tmp_path: Path) -
 
 
 def test_index_dir_indexes_whole_seed_corpus_when_using_fakes() -> None:
-    """T-16: el corpus piloto se indexa entero (22 documentos, 7 categorías) sin rutas
+    """T-16 / T-49: el corpus piloto se indexa entero (28 documentos, 7 categorías) sin rutas
     absolutas en la metadata."""
     store = FakeVectorStore()
     report = _indexer(store=store, chunk_tokens=650, overlap_tokens=80).index_dir(CORPUS)
-    assert report.documents == 22
+    assert report.documents == 28
     assert set(report.by_category) == set(CATEGORIES)
-    assert sum(report.by_category.values()) == 22
+    assert report.by_category == {
+        "documentacion": 13,
+        "glosarios": 2,
+        "historias": 2,
+        "politicas": 4,
+        "procesos": 3,
+        "productos": 2,
+        "pruebas": 2,
+    }
+    assert sum(report.by_category.values()) == 28
     assert report.chunks == len(store.chunks)
-    assert {c.document_id for c in store.chunks.values()} == {f"DOC-{n:02d}" for n in range(1, 23)}
+    assert {c.document_id for c in store.chunks.values()} == {f"DOC-{n:02d}" for n in range(1, 29)}
     for chunk in store.chunks.values():
         source = chunk.metadata["source_path"]
         assert not Path(source).is_absolute()
@@ -460,7 +469,7 @@ def test_indexing_main_prints_spanish_summary_and_returns_zero_when_fakes(
     out = capsys.readouterr().out
     assert out.startswith("Indexados 3 documentos y ")
     assert f"{len(store.chunks)} fragmentos" in out
-    assert "(glosario: 1, normativa: 2)" in out
+    assert "(glosarios: 1, politicas: 2)" in out
     assert all(len(c.embedding or []) == 8 for c in store.chunks.values())
 
 

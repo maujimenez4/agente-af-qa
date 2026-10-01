@@ -11,26 +11,27 @@ from pydantic import BaseModel, Field
 
 from adapters.errors import AgentError
 
+# Categorías de la presentación del proyecto (T-49, decisiones del día 6).
 CATEGORIES: tuple[str, ...] = (
-    "normativa",
-    "procesos",
-    "especificaciones",
-    "glosario",
-    "arquitectura",
-    "manuales",
-    "actas",
+    "productos",  # productos y servicios
+    "procesos",  # procesos de negocio
+    "politicas",  # políticas y reglas operativas
+    "documentacion",  # documentación funcional y técnica
+    "glosarios",  # glosarios, catálogos y criterios internos
+    "historias",  # HU y artefactos previos
+    "pruebas",  # estrategias, matrices y casos de prueba
 )
 MEMORY_CATEGORY = "memoria"  # reservada para las memorias que genera el agente
 SUPPORTED_EXTENSIONS: tuple[str, ...] = (".pdf", ".docx", ".md", ".txt")
 
 Category = Literal[
-    "normativa",
+    "productos",
     "procesos",
-    "especificaciones",
-    "glosario",
-    "arquitectura",
-    "manuales",
-    "actas",
+    "politicas",
+    "documentacion",
+    "glosarios",
+    "historias",
+    "pruebas",
 ]
 
 

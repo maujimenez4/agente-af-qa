@@ -1,7 +1,7 @@
 ---
 id: DOC-20
 title: Acta de la Comisión de Servicios Bibliotecarios de abril de 2026
-category: actas
+category: documentacion
 version: 1
 date: 2026-04-15
 related: [DOC-01, DOC-02, DOC-03, DOC-19]

@@ -1,7 +1,7 @@
 ---
 id: DOC-22
 title: Acta técnica del servicio digital de julio de 2026
-category: actas
+category: documentacion
 version: 1
 date: 2026-07-08
 related: [DOC-07, DOC-10, DOC-13, DOC-15, DOC-21]

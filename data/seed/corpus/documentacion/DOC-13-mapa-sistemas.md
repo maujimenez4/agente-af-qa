@@ -1,7 +1,7 @@
 ---
 id: DOC-13
 title: Mapa de sistemas del servicio digital
-category: arquitectura
+category: documentacion
 version: 2
 date: 2026-07-20
 related: [DOC-01, DOC-02, DOC-03, DOC-12, DOC-14, DOC-15, DOC-18, DOC-22]

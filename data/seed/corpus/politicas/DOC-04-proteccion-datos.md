@@ -1,7 +1,7 @@
 ---
 id: DOC-04
 title: Política de protección de datos de personas socias
-category: normativa
+category: politicas
 version: 2
 date: 2026-06-15
 related: [DOC-05, DOC-08, DOC-10, DOC-21]

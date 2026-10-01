@@ -6,6 +6,7 @@ checkpointer en memoria. Todos los datos proceden del dataset sintético de `tes
 """
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -14,10 +15,12 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.event_hooks import register_serde_event_listener
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.errors import InvalidUpdateError
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from adapters.errors import NotFoundError, PublishError
+from core.approvals import ApprovalError
 from core.container import Container
 from core.graph import AgentState, Origin, build_graph, initial_state, memory_checkpointer
 from core.graph.nodes import GraphNodes, _target
@@ -114,6 +117,67 @@ def _run_to_publish(
     return graph.invoke(_approve(graph, config), config)
 
 
+def _pending(graph: CompiledStateGraph, config: dict[str, Any]) -> dict[str, Any]:
+    (task,) = [t for t in graph.get_state(config).tasks if t.interrupts]
+    return task.interrupts[-1].value
+
+
+def _rejected(
+    graph: CompiledStateGraph,
+    config: dict[str, Any],
+    command: Command,
+    previous: dict[str, Any],
+) -> dict[str, Any]:
+    """T-51: una respuesta rechazada vuelve a pausar con la misma versión y huella y `error`."""
+    payload = _payload(graph.invoke(command, config))
+    assert payload["version"] == previous["version"]
+    assert payload["fingerprint"] == previous["fingerprint"]
+    assert isinstance(payload["error"], str) and payload["error"]
+    assert _pending(graph, config)["error"] == payload["error"]
+    return payload
+
+
+def _assert_nothing_approved_or_written(
+    container: Container, graph: CompiledStateGraph, config: dict[str, Any]
+) -> None:
+    """Principio 1: sin escrituras, sin memoria, sin approve auditado y sin aprobación vigente."""
+    assert _tracker(container).writes == []
+    assert _testmgmt(container).publish_calls == 0
+    assert _memory_chunks(container) == []
+    state = graph.get_state(config).values
+    artifact = state["artifact"]
+    assert artifact.status is not ArtifactStatus.APPROVED
+    actions = [e.action for e in container.audit.entries(artifact.id)]
+    assert "approve" not in actions and "publish" not in actions
+    assert container.approvals.find(artifact, _target(state, config)) is None
+    assert container.approvals.was_published(artifact) is False
+
+
+def _assert_no_effects(container: Container, artifact: Artifact, *targets: Any) -> None:
+    """Como la anterior, sin leer el estado del hilo (tras un ataque puede quedar inservible)."""
+    assert _tracker(container).writes == []
+    assert _testmgmt(container).publish_calls == 0
+    assert _memory_chunks(container) == []
+    actions = [e.action for e in container.audit.entries(artifact.id)]
+    assert actions == ["create"]
+    for target in targets:
+        assert container.approvals.find(artifact, target) is None
+    assert container.approvals.was_published(artifact) is False
+
+
+def _resume_after_attack_does_not_publish(
+    graph: CompiledStateGraph, config: dict[str, Any], fingerprint: str
+) -> None:
+    """Tras un ataque rechazado, el hilo falla cerrado: pausa con error o excepción."""
+    try:
+        result = graph.invoke(
+            Command(resume={"decision": "approve", "fingerprint": fingerprint}), config
+        )
+    except (InvalidUpdateError, ApprovalError):
+        return  # el hilo falla cerrado: tampoco se publica nada
+    assert "__interrupt__" in result
+
+
 def _artifact(status: ArtifactStatus, content: UserStory | tc.TestSuite | None = None) -> Artifact:
     content = content or dataset.renewal_story()
     kind = ArtifactType.TEST_SUITE if isinstance(content, tc.TestSuite) else ArtifactType.USER_STORY
@@ -157,7 +221,8 @@ def test_first_invocation_pauses_in_human_review_with_artifact_in_review(
     assert payload["artifact"]["type"] == ArtifactType.USER_STORY.value
     assert payload["artifact"]["content"]["jira_key"] == "DEMO-3"
     assert payload["impact"] is not None
-    assert payload["decisions"] == ["iterate", "approve", "discard"]
+    # T-51: la edición manual es una decisión más de la revisión (RF-32).
+    assert payload["decisions"] == ["iterate", "edit", "approve", "discard"]
     assert graph.get_state(config).next == ("human_review",)
 
 
@@ -483,16 +548,18 @@ def test_load_origin_unknown_key_raises_not_found(container: Container) -> None:
     [{"decision": "publicar"}, {"feedback": "sin decisión"}, {"decision": None}, "approve"],
     ids=["decision_desconocida", "sin_decision", "decision_nula", "no_es_dict"],
 )
-def test_resume_with_invalid_decision_raises(container: Container, answer: object) -> None:
-    """CA-00-04 (negativo): una decisión no válida al reanudar → ValueError, sin publicar."""
+def test_resume_with_invalid_decision_pauses_again_with_error(
+    container: Container, answer: object
+) -> None:
+    """CA-00-04 · T-51 (negativo): decisión no válida → misma pausa con `error`, sin efectos."""
     graph = build_graph(container)
     config = _config()
-    _start(graph, config)
+    first = _payload(_start(graph, config))
 
-    with pytest.raises(ValueError, match="Decisión no válida"):
-        graph.invoke(Command(resume=answer), config)
+    rejected = _rejected(graph, config, Command(resume=answer), first)
 
-    assert _tracker(container).writes == []
+    assert "Decisión no válida" in rejected["error"]
+    _assert_nothing_approved_or_written(container, graph, config)
     assert graph.get_state(config).values["artifact"].status is ArtifactStatus.IN_REVIEW
 
 
@@ -642,17 +709,23 @@ def test_forged_approved_artifact_via_update_state_cannot_publish(tmp_path: Path
 
 
 def test_content_swapped_at_resume_is_rejected(tmp_path: Path) -> None:
-    """Sustituir el contenido al reanudar invalida la huella: no se aprueba lo que no se vio."""
+    """Sustituir el contenido al reanudar invalida la huella: no se aprueba lo que no se vio.
+
+    T-51: la respuesta se rechaza con una nueva pausa (`error`) y, aunque se apruebe después
+    con la huella que muestra esa pausa, la versión alterada nunca se ofreció: tampoco se aprueba.
+    """
     container = fake_container(tmp_path)
     graph = build_graph(container)
     config = _config()
     result = _start(graph, config)
     payload = _payload(result)
     artifact = Artifact.model_validate(payload["artifact"])
+    original_target = _target(graph.get_state(config).values, config)
     swapped = artifact.model_copy(
         update={"content": artifact.content.model_copy(update={"title": "CONTENIDO NO REVISADO"})}
     )
-    with pytest.raises(ValueError, match="versión revisada"):
+
+    rejected = _payload(
         graph.invoke(
             Command(
                 update={"artifact": swapped},
@@ -660,20 +733,38 @@ def test_content_swapped_at_resume_is_rejected(tmp_path: Path) -> None:
             ),
             config,
         )
-    assert _tracker(container).writes == []
+    )
+    assert "versión revisada" in rejected["error"]
+    _assert_nothing_approved_or_written(container, graph, config)
+
+    # Segundo intento: aprobar con la huella de la pausa que muestra el contenido alterado.
+    # El registro de aprobaciones no la ofreció: falla cerrado, sin reintento (T-51).
+    with pytest.raises(ApprovalError, match="versión revisada"):
+        graph.invoke(
+            Command(resume={"decision": "approve", "fingerprint": rejected["fingerprint"]}),
+            config,
+        )
+    _assert_no_effects(container, artifact, original_target)
+    assert container.approvals.find(swapped, original_target) is None
+    assert container.approvals.is_offered(artifact, original_target)  # la oferta sigue intacta
+    _resume_after_attack_does_not_publish(graph, config, payload["fingerprint"])
+    _assert_no_effects(container, artifact, original_target)
 
 
 @pytest.mark.parametrize(
     "answer", [{"decision": "approve"}, {"decision": "approve", "fingerprint": "0" * 64}]
 )
 def test_approve_without_matching_fingerprint_is_rejected(tmp_path: Path, answer: dict) -> None:
+    """Principio 1 · T-51: sin la huella revisada → misma pausa con `error`, sin aprobación."""
     container = fake_container(tmp_path)
     graph = build_graph(container)
     config = _config()
-    _start(graph, config)
-    with pytest.raises(ValueError, match="versión revisada"):
-        graph.invoke(Command(resume=answer), config)
-    assert _tracker(container).writes == []
+    first = _payload(_start(graph, config))
+
+    rejected = _rejected(graph, config, Command(resume=answer), first)
+
+    assert "versión revisada" in rejected["error"]
+    _assert_nothing_approved_or_written(container, graph, config)
 
 
 def test_interrupt_payload_exposes_version_and_fingerprint(tmp_path: Path) -> None:
@@ -777,10 +868,12 @@ def test_content_swapped_with_recomputed_fingerprint_is_rejected(tmp_path: Path)
     graph = build_graph(container)
     config = _config()
     artifact = Artifact.model_validate(_payload(_start(graph, config))["artifact"])
+    original_target = _target(graph.get_state(config).values, config)
     evil = artifact.model_copy(
         update={"content": artifact.content.model_copy(update={"title": "NO REVISADO"})}
     )
-    with pytest.raises(ValueError, match="versión revisada"):
+
+    rejected = _payload(
         graph.invoke(
             Command(
                 update={"artifact": evil},
@@ -788,7 +881,21 @@ def test_content_swapped_with_recomputed_fingerprint_is_rejected(tmp_path: Path)
             ),
             config,
         )
-    assert _tracker(container).writes == []
+    )
+    assert "versión revisada" in rejected["error"]
+    _assert_nothing_approved_or_written(container, graph, config)
+
+    # Ni siquiera con la huella de revisión recalculada que muestra la nueva pausa.
+    # El registro de aprobaciones no la ofreció: falla cerrado, sin reintento (T-51).
+    with pytest.raises(ApprovalError, match="versión revisada"):
+        graph.invoke(
+            Command(resume={"decision": "approve", "fingerprint": rejected["fingerprint"]}),
+            config,
+        )
+    _assert_no_effects(container, artifact, original_target)
+    assert container.approvals.find(evil, original_target) is None
+    _resume_after_attack_does_not_publish(graph, config, rejected["fingerprint"])
+    _assert_no_effects(container, artifact, original_target)
 
 
 def test_memorize_requires_recorded_publication(tmp_path: Path) -> None:
@@ -842,17 +949,35 @@ def test_origin_kind_swapped_after_approval_cannot_change_operation(tmp_path: Pa
 
 
 def test_user_swapped_at_resume_is_rejected(tmp_path: Path) -> None:
-    """PoC L: la aprobación no puede quedar a nombre de otro usuario."""
+    """PoC L: la aprobación no puede quedar a nombre de otro usuario (T-51: pausa con error)."""
     container = fake_container(tmp_path)
     graph = build_graph(container)
     config = _config()
-    _start(graph, config)
+    first = _payload(_start(graph, config))
+    original_target = _target(graph.get_state(config).values, config)
     approve = _approve(graph, config)
-    with pytest.raises(ValueError, match="versión revisada"):
+
+    rejected = _payload(
         graph.invoke(
             Command(update={"user": "otro-usuario-ficticio"}, resume=approve.resume), config
         )
-    assert _tracker(container).writes == []
+    )
+    assert "versión revisada" in rejected["error"]
+    assert rejected["version"] == first["version"]
+    _assert_nothing_approved_or_written(container, graph, config)
+
+    # Con la huella de la pausa (calculada para el otro usuario) tampoco: no se le ofreció.
+    # El registro de aprobaciones no la ofreció: falla cerrado, sin reintento (T-51).
+    with pytest.raises(ApprovalError, match="versión revisada"):
+        graph.invoke(
+            Command(resume={"decision": "approve", "fingerprint": rejected["fingerprint"]}),
+            config,
+        )
+    artifact = Artifact.model_validate(first["artifact"])
+    other_target = replace(original_target, user="otro-usuario-ficticio")
+    _assert_no_effects(container, artifact, original_target, other_target)
+    _resume_after_attack_does_not_publish(graph, config, first["fingerprint"])
+    _assert_no_effects(container, artifact, original_target, other_target)
 
 
 def test_approval_from_another_thread_is_not_reused(tmp_path: Path) -> None:

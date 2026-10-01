@@ -4,7 +4,7 @@ Reúne el contexto de Jira según el origen (HU, épica o necesidad nueva) y el 
 ajusta al presupuesto de tokens. Solo depende de protocolos de `adapters/base.py`.
 """
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 
 from pydantic import BaseModel
 
@@ -49,6 +49,11 @@ def _doc_id(chunk: RetrievedChunk) -> str:
     return chunk.chunk.metadata.get("doc_id") or chunk.chunk.document_id
 
 
+def _is_excluded(chunk: RetrievedChunk, excluded: Collection[str]) -> bool:
+    """Fuente desmarcada por la persona, por su referencia citable o su id de documento."""
+    return chunk.source.ref in excluded or _doc_id(chunk) in excluded
+
+
 class ContextService:
     def __init__(
         self,
@@ -70,13 +75,21 @@ class ContextService:
         self._project_key = project_key
 
     def gather(
-        self, origin: Mapping[str, str], origin_issue: IssueDetail | None
+        self,
+        origin: Mapping[str, str],
+        origin_issue: IssueDetail | None,
+        excluded: Collection[str] = (),
     ) -> GatheredContext:
+        """`excluded`: fuentes desmarcadas por la persona (T-51); se quitan antes del presupuesto,
+        así su espacio lo aprovechan las demás. La incidencia de origen nunca se excluye."""
         issues = self._jira_context(origin, origin_issue)
         query = origin.get("text") or " ".join(
             f"{i.summary} {i.description_text}" for i in issues[:1]
         )
-        chunks = self._rag_context(query) if query.strip() else []
+        chunks = self._rag_context(query, set(excluded)) if query.strip() else []
+        if excluded:
+            origin_key = origin_issue.key if origin_issue else None
+            issues = [i for i in issues if i.key == origin_key or i.key not in excluded]
         # El texto de la necesidad también viaja al LLM: se reserva su espacio.
         reserved = estimate_tokens(origin.get("text") or "")
         budget = max(self._token_budget - reserved, 0)
@@ -140,10 +153,14 @@ class ContextService:
 
     # --- RAG --------------------------------------------------------------------------------
 
-    def _rag_context(self, query: str) -> list[RetrievedChunk]:
+    def _rag_context(self, query: str, excluded: set[str]) -> list[RetrievedChunk]:
+        """Las fuentes excluidas se quitan antes del par norma ↔ acta y su hueco se rellena."""
         (vector,) = self._embeddings.embed([query])
-        results = self._store.search(vector, query, k=self._top_k, memory_boost=self._memory_boost)
-        results += self._related_documents(vector, query, results)
+        results = self._store.search(
+            vector, query, k=self._top_k + len(excluded), memory_boost=self._memory_boost
+        )
+        results = [r for r in results if not _is_excluded(r, excluded)][: self._top_k]
+        results += self._related_documents(vector, query, results, excluded)
         # Memorias primero (RF-51); después, el resto por puntuación.
         return sorted(
             results,
@@ -151,11 +168,15 @@ class ContextService:
         )
 
     def _related_documents(
-        self, vector: list[float], query: str, results: Iterable[RetrievedChunk]
+        self,
+        vector: list[float],
+        query: str,
+        results: Iterable[RetrievedChunk],
+        excluded: Collection[str] = (),
     ) -> list[RetrievedChunk]:
         """Añade el acta citada por una norma recuperada (y viceversa) si aún no está."""
         results = list(results)
-        present = {_doc_id(r) for r in results}
+        present = {_doc_id(r) for r in results} | set(excluded)
         extra: list[RetrievedChunk] = []
         for result in results:
             wanted = RELATED_PAIRS.get(result.chunk.metadata.get("category", ""))
@@ -167,7 +188,7 @@ class ContextService:
                 best = self._store.search(
                     vector, query, k=1, filters={"doc_id": doc_id, "category": wanted}
                 )
-                if best:
+                if best and not _is_excluded(best[0], excluded):
                     extra.append(best[0])
                     present.add(doc_id)
         return extra

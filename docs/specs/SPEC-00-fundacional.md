@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.4 · **CONGELADA** (1.2 y 1.3 el 2026-09-30; 1.3 añade `list_projects`, RF-02; 1.4 el 2026-10-01: proyecto en la conversación y `create_story(…, project)`, T-50) |
+| Versión | 1.5 · **CONGELADA** (1.2 y 1.3 el 2026-09-30; 1.3 añade `list_projects`, RF-02; 1.4 el 2026-10-01: proyecto en la conversación y `create_story(…, project)`, T-50; 1.5 el 2026-10-01: fuentes excluidas, `plan` en la revisión y decisión `edit`, T-51) |
 | Propietario | Sesión principal |
 | Cubre | RNF-01, RNF-02, RNF-12, RNF-14, RNF-17, RNF-18, RNF-20, RNF-23, RNF-25, RNF-26 y la base de todos los RF |
 
@@ -205,7 +205,8 @@ class AgentState(TypedDict):
     rag_context: list[RetrievedChunk]
     artifact: Artifact | None
     feedback: list[str]             # historial de iteración (RF-20)
-    decision: Literal["iterate", "approve", "discard"] | None
+    decision: Literal["iterate", "edit", "approve", "discard"] | None
+    excluded_sources: list[str]     # fuentes desmarcadas antes de generar (T-51, RF-21)
     published_keys: list[str]
     errors: list[str]
 ```
@@ -220,7 +221,7 @@ class AgentState(TypedDict):
 | `publish` | **Único nodo que escribe** en Jira; exige `APPROVED`; registra la auditoría | 7 |
 | `memorize` | Memoria .md + reindexado (solo `USER_STORY` en el MVP, D-07) | 8 |
 
-Aristas: `human_review` → `generate` (iterate) · `publish` (approve) · `END` (discard).
+Aristas: `human_review` → `generate` (iterate) · `human_review` (edit) · `publish` (approve) · `END` (discard).
 Checkpointer: `langgraph-checkpoint-postgres`.
 
 ## 6. Modelo de datos (PostgreSQL)
@@ -283,7 +284,7 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Protocolos | `@runtime_checkable` | `adapters/base.py` |
 | Dependencias (§2) | `core/` puede importar también `adapters/errors.py` | — |
 | Errores (§8) | Base común `AgentError`; `RateLimitError.retry_after` | `adapters/errors.py` |
-| Reanudación de `human_review` (§5) | El payload del `interrupt` incluye `artifact`, `version`, `target` (operación descrita), `fingerprint`, `impact`, `decisions`. La reanudación es `{"decision": "iterate" \| "approve" \| "discard", "feedback"?: str, "fingerprint": str}`; `fingerprint` es **obligatoria** para `approve` y debe ser la recibida | `core/graph/nodes.py` |
+| Reanudación de `human_review` (§5) | El payload del `interrupt` incluye `artifact`, `version`, `target` (operación descrita), `fingerprint`, `impact`, `plan` (operaciones que `publish` ejecutará en Jira, T-51) y `decisions`. La reanudación es `{"decision": "iterate" \| "edit" \| "approve" \| "discard", "feedback"?: str, "fingerprint": str, "content"?: dict}`; `fingerprint` es **obligatoria** para `approve` y `edit` y debe ser la recibida. `edit` (T-51, RF-32) lleva el contenido completo editado: se valida con el modelo del tipo, no puede cambiar `jira_key`, `internal_id` ni `story_jira_key`, crea la versión siguiente sin llamar al LLM (en una evolución recalcula el diff frente a la versión de partida y conserva las HU afectadas), conserva `model_used` y `prompt_version`, se ofrece con su huella nueva, se audita como `iterate` con `detail.edited=true` y vuelve a `human_review`. Una reanudación rechazada (decisión no válida, huella que no casa con la versión revisada, edición inválida) no lanza: vuelve a pausar con el mismo payload y `error` con el motivo en español (`error` es `None` en la primera pausa), sin efectos, hasta 20 veces por pausa. Solo se reintenta lo que invalida la propia respuesta (`ReviewRejectedError`); un rechazo del registro de aprobaciones (`ApprovalError`) falla cerrado y el hilo no se recupera (la UI ofrece empezar de nuevo). La UI detecta la pausa por las interrupciones pendientes del hilo, no por `next` | `core/graph/nodes.py` |
 | Aprobación humana (§5) | `core/approvals.py`: la versión y su operación (`PublishTarget`: modo, tipo y clave de origen, usuario, hilo) se registran al generar; la operación no cambia entre iteraciones; `publish` toma la operación del registro, exige aprobación vigente y la consume (un solo uso); `memorize` exige publicación registrada. Desde T-25 persiste por artefacto en `artifact_state.state["ledger"]`; un registro dañado falla cerrado (`ApprovalError`) | `core/approvals.py` |
 | Claves de Jira | `^[A-Z][A-Z0-9_]+-\d+$`, validadas al cargar, generar y publicar | `core/graph/nodes.py` |
 | Composición | `core/container.build_container()` exige todas las dependencias hasta que existan los adaptadores reales; `bootstrap_logging()` cablea el enmascarado de secretos | `core/container.py` |
@@ -304,3 +305,4 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Proyecto en la conversación (T-50) | `Origin.project`: proyecto de Jira de la conversación, elegido al empezar entre los de `list_projects`; `initial_state` lo toma del prefijo de la clave de origen (una clave de otro proyecto lo cambia). `validate_origin` exige proyecto con formato `^[A-Z][A-Z0-9_]+$` y que la clave de origen sea suya. `PublishTarget.project_key` entra en la huella (lo aprobado es lo publicado) y el plan de `publish` lo incluye; `publish` rechaza una operación cuyo origen no sea del proyecto aprobado; los vínculos «relates to» del impacto sí pueden ir a HU de otros proyectos (se muestran en el plan y entran en la huella). Un registro de aprobaciones anterior sin `project_key` falla cerrado | `core/graph/state.py`, `core/graph/nodes.py`, `core/approvals.py` |
 | `create_story` (T-50) | `IssueTracker.create_story(story, epic_key, project)`: la HU se crea en el proyecto aprobado | `adapters/base.py` |
 | Elección del proyecto (T-50) | `core/projects.py`: `normalize_project_key`, `normalize_issue_key` y `project_of` para las claves escritas; `ProjectService.available(user)` → `ProjectChoice(projects, preselected)` (último usado si sigue visible; si no, `JIRA_PROJECT_KEY` si es visible) y `choose(user, project)` (valida contra `list_projects`, `NotFoundError` si no es visible, y lo recuerda). `Container.last_projects` (`LastProjectStore`, en memoria por defecto; `SqlLastProjectStore` con `build_last_projects`) y `Container.projects`. `ContextService` busca en el proyecto del origen | `core/projects.py`, `core/container.py`, `core/factories.py` |
+| Fuentes excluidas (T-51, RF-21) | `initial_state(user, mode, origin, excluded_sources)`: claves de Jira o `ref` de fuentes del RAG y de memorias que no influirán en la propuesta. `ContextService.gather(..., excluded)` las quita antes de aplicar el presupuesto de tokens; se quitan antes del par norma ↔ acta (no entra el acta de una norma excluida) y su hueco en `top_k` se rellena con el siguiente resultado; como máximo 50 referencias con formato de clave o id, nunca texto libre; la incidencia de origen no se puede excluir (`ValueError`). `create` audita `detail.excluded_sources` (solo referencias) | `core/graph/state.py`, `core/context/service.py` |

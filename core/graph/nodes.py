@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
+from pydantic import BaseModel, ValidationError
 
 from adapters.base import Chunk, Message, TaskType
 from adapters.errors import ExternalServiceError, PublishError
@@ -23,6 +24,7 @@ from core.functional.context import StoryContext
 from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
 from core.impact.analysis import ImpactAnalyzer
+from core.impact.diff import diff_stories
 from core.logging import get_logger
 from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
 from core.state_machine import transition
@@ -32,13 +34,32 @@ from schemas.impact import ImpactAnalysis, ImpactItem
 from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 
-DECISIONS: tuple[Decision, ...] = ("iterate", "approve", "discard")
+DECISIONS: tuple[Decision, ...] = ("iterate", "edit", "approve", "discard")
+# Respuestas rechazadas que una misma pausa de revisión admite antes de fallar (T-51).
+MAX_REVIEW_REJECTIONS = 20
+# Campos que la edición manual no puede cambiar: atan el artefacto a su origen (trazabilidad).
+FIXED_ON_EDIT: dict[ArtifactType, tuple[str, ...]] = {
+    ArtifactType.USER_STORY: ("jira_key", "internal_id"),
+    ArtifactType.TEST_SUITE: ("story_jira_key",),
+}
+_CONTENT_MODEL: dict[ArtifactType, type[BaseModel]] = {
+    ArtifactType.USER_STORY: UserStory,
+    ArtifactType.TEST_SUITE: TestSuite,
+}
 LINK_TYPE_IMPACT = "relates to"  # D-09
 DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
 # Clave de Jira: evita rutas o JQL inyectadas a través del origen (p. ej. "../x").
 JIRA_KEY = ISSUE_KEY
 
 log = get_logger("core.graph")
+
+
+class ReviewRejectedError(ValueError):
+    """La respuesta de la persona no es válida; se le muestra el motivo y puede corregirla.
+
+    Solo se lanza al validar la propia respuesta (decisión, huella, contenido editado), antes
+    de cualquier efecto: al repetirse en la reanudación vuelve a fallar igual.
+    """
 
 
 class GraphNodes:
@@ -59,7 +80,9 @@ class GraphNodes:
         """Jira + RAG ajustados al presupuesto de tokens (T-18)."""
         started = time.perf_counter()
         origin_issue = state["jira_context"][0] if state["jira_context"] else None
-        gathered = self._context_service(state).gather(state["origin"], origin_issue)
+        gathered = self._context_service(state).gather(
+            state["origin"], origin_issue, excluded=state.get("excluded_sources") or []
+        )
         log.info(
             "contexto reunido",
             user=state["user"],
@@ -137,12 +160,10 @@ class GraphNodes:
         artifact = transition(artifact, ArtifactStatus.IN_REVIEW)
         # Solo la versión ofrecida aquí podrá aprobarse en human_review.
         self.c.approvals.offer(artifact, _target(state, config))
-        self._record(
-            "create" if previous is None else "iterate",
-            state,
-            artifact,
-            detail={"prompt_version": artifact.prompt_version},
-        )
+        detail: dict[str, Any] = {"prompt_version": artifact.prompt_version}
+        if previous is None and (excluded := state.get("excluded_sources")):
+            detail["excluded_sources"] = list(excluded)  # solo referencias (T-51)
+        self._record("create" if previous is None else "iterate", state, artifact, detail=detail)
         log.info(
             "propuesta generada",
             user=state["user"],
@@ -241,26 +262,75 @@ class GraphNodes:
             raise ValueError("No hay ningún artefacto que revisar.")
         target = _target(state, config)
         fingerprint = review_fingerprint(artifact, target)
-        answer = interrupt(
-            {
-                "artifact": artifact.model_dump(mode="json"),
-                "version": artifact.version,
-                # Operación que se ejecutará en Jira si se aprueba (se muestra a la persona).
-                "target": target.describe(),
-                # La UI devuelve esta huella al aprobar: se aprueba exactamente lo que se vio.
-                "fingerprint": fingerprint,
-                "impact": artifact.impact.model_dump(mode="json") if artifact.impact else None,
-                "decisions": list(DECISIONS),
-            }
+        payload: dict[str, Any] = {
+            "artifact": artifact.model_dump(mode="json"),
+            "version": artifact.version,
+            # Operación que se ejecutará en Jira si se aprueba (se muestra a la persona).
+            "target": target.describe(),
+            # La UI devuelve esta huella al aprobar: se aprueba exactamente lo que se vio.
+            "fingerprint": fingerprint,
+            "impact": artifact.impact.model_dump(mode="json") if artifact.impact else None,
+            # T-51: operaciones que publish ejecutará en Jira, para el recibo (RF-31).
+            "plan": self._plan(target, artifact, _parent_of(state, target.origin_key)),
+            "decisions": list(DECISIONS),
+            "error": None,
+        }
+        # T-51: una respuesta rechazada vuelve a pausar con el motivo, sin bloquear el hilo. Al
+        # reanudar, LangGraph repite las respuestas anteriores en orden; las rechazadas vuelven a
+        # fallar sin efectos (se validan antes de registrar nada) y se llega a la nueva.
+        # El registro de aprobaciones (ApprovalError) y cualquier otro fallo no se reintentan:
+        # fallan cerrados.
+        for _ in range(MAX_REVIEW_REJECTIONS + 1):
+            answer = interrupt(payload)
+            try:
+                return self._apply_review(state, artifact, target, fingerprint, answer)
+            except ReviewRejectedError as exc:
+                payload = payload | {"error": str(exc)}
+                log.info(
+                    "revisión rechazada",
+                    user=state["user"],
+                    action="review_rejected",
+                    artifact_id=str(artifact.id),
+                )
+        raise ValueError(
+            "Demasiadas respuestas rechazadas en esta revisión; descarta la conversación y "
+            "empieza de nuevo."
         )
-        decision = answer.get("decision") if isinstance(answer, dict) else None
+
+    def _apply_review(
+        self,
+        state: AgentState,
+        artifact: Artifact,
+        target: PublishTarget,
+        fingerprint: str,
+        answer: object,
+    ) -> dict[str, Any]:
+        """Aplica la decisión de la persona; `ValueError` si no es válida (se le muestra)."""
+        if not isinstance(answer, dict):
+            answer = {}
+        decision = answer.get("decision")
         if decision not in DECISIONS:
-            raise ValueError(f"Decisión no válida: {decision!r}. Usa iterate, approve o discard.")
+            raise ReviewRejectedError(
+                f"Decisión no válida: {str(decision)[:50]!r}. Usa iterate, edit, approve o discard."
+            )
         feedback = (answer.get("feedback") or "").strip()
         if decision == "approve" and answer.get("fingerprint") != fingerprint:
-            raise ValueError(
+            raise ReviewRejectedError(
                 "La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto."
             )
+        if decision == "edit":
+            if answer.get("fingerprint") != fingerprint:
+                raise ReviewRejectedError(
+                    "La edición no parte de la versión revisada; vuelve a revisar el artefacto."
+                )
+            edited = self._edit(state, artifact, answer.get("content"), target)
+            update_edit: dict[str, Any] = {"artifact": edited, "decision": "edit"}
+            if feedback:
+                update_edit["feedback"] = [*state["feedback"], feedback]
+            log.info(
+                "edición manual", user=state["user"], action="edit", artifact_id=str(edited.id)
+            )
+            return update_edit
 
         status = {
             "iterate": ArtifactStatus.DRAFT,
@@ -282,6 +352,48 @@ class GraphNodes:
             "revisión humana", user=state["user"], action=decision, artifact_id=str(artifact.id)
         )
         return update
+
+    def _edit(
+        self, state: AgentState, artifact: Artifact, raw: object, target: PublishTarget
+    ) -> Artifact:
+        """Edición manual (RF-32): versión nueva con su huella, sin llamar al modelo (T-51)."""
+        if not isinstance(raw, dict):
+            raise ReviewRejectedError("La edición necesita el contenido completo del artefacto.")
+        try:
+            content = _CONTENT_MODEL[artifact.type].model_validate(raw)
+        except ValidationError as exc:
+            fields = sorted(
+                {".".join(str(p) for p in e["loc"]) or "contenido" for e in exc.errors()}
+            )
+            raise ReviewRejectedError(
+                "El contenido editado no es válido; revisa: " + ", ".join(fields[:8]) + "."
+            ) from None
+        for name in FIXED_ON_EDIT[artifact.type]:
+            if getattr(content, name) != getattr(artifact.content, name):
+                raise ReviewRejectedError(f"El campo {name} no se puede cambiar al editar.")
+        if content == artifact.content:
+            raise ReviewRejectedError("La edición no cambia nada respecto a la versión revisada.")
+        impact = artifact.impact
+        if isinstance(content, UserStory) and target.origin_kind == "story":
+            # El diff frente a Jira se recalcula sin LLM; las HU afectadas se conservan.
+            saved = (self.c.state_store.load(str(artifact.id)) or {}).get("baseline")
+            if saved:
+                diffs = diff_stories(UserStory.model_validate(saved), content)
+                base = impact or ImpactAnalysis(diffs=[], affected=[], regression_notes=[])
+                impact = base.model_copy(update={"diffs": diffs})
+        # Mismo modelo y versión de prompt que la versión base: la auditoría marca la edición.
+        edited = transition(artifact, ArtifactStatus.DRAFT).model_copy(
+            update={"version": artifact.version + 1, "content": content, "impact": impact}
+        )
+        edited = transition(edited, ArtifactStatus.IN_REVIEW)
+        self.c.approvals.offer(edited, target)
+        self._record(
+            "iterate",
+            state,
+            edited,
+            detail={"edited": True, "prompt_version": edited.prompt_version},
+        )
+        return edited
 
     # --- 7 · publish: ÚNICO nodo que escribe en Jira -------------------------------------------
 
@@ -306,7 +418,7 @@ class GraphNodes:
             )
 
         epic_key = _parent_of(state, approval.target.origin_key)
-        plan = self._plan(approval, artifact, epic_key)
+        plan = self._plan(approval.target, artifact, epic_key)
         if self.c.publish_mode != "live":
             # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría y la
             # aprobación sigue vigente para publicar de verdad cuando se active `live`.
@@ -374,10 +486,12 @@ class GraphNodes:
         }
 
     def _plan(
-        self, approval: Approval, artifact: Artifact, parent_key: str | None = None
+        self, target: PublishTarget, artifact: Artifact, parent_key: str | None = None
     ) -> list[dict[str, str]]:
-        """Operaciones que la publicación haría en Jira, derivadas de la aprobación (RF-31)."""
-        target = approval.target
+        """Operaciones que la publicación haría en Jira para esta operación (RF-31).
+
+        En `human_review` se muestran a la persona; en `publish`, con la operación aprobada.
+        """
         _check_project(target)
         project = target.project_key
         if isinstance(artifact.content, TestSuite):

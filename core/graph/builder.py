@@ -51,7 +51,8 @@ def memory_checkpointer() -> InMemorySaver:
 
 
 def _after_review(state: AgentState) -> str:
-    return {"iterate": "generate", "approve": "publish"}.get(state["decision"] or "", END)
+    routes = {"iterate": "generate", "edit": "human_review", "approve": "publish"}
+    return routes.get(state["decision"] or "", END)
 
 
 def build_graph(
@@ -71,7 +72,9 @@ def build_graph(
     graph.add_edge("retrieve_context", "generate")
     graph.add_edge("generate", "human_review")
     graph.add_conditional_edges(
-        "human_review", _after_review, {"generate": "generate", "publish": "publish", END: END}
+        "human_review",
+        _after_review,
+        {"generate": "generate", "human_review": "human_review", "publish": "publish", END: END},
     )
     graph.add_edge("publish", "memorize")
     graph.add_edge("memorize", END)

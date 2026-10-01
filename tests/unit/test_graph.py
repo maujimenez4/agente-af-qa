@@ -20,10 +20,10 @@ from langgraph.types import Command
 from adapters.errors import NotFoundError, PublishError
 from core.container import Container
 from core.graph import AgentState, Origin, build_graph, initial_state, memory_checkpointer
-from core.graph.nodes import LINK_TYPE_IMPACT, GraphNodes, _target
+from core.graph.nodes import GraphNodes, _target
 from schemas import test_case as tc
 from schemas.artifact import Artifact
-from schemas.common import ArtifactStatus, ArtifactType
+from schemas.common import ArtifactStatus, ArtifactType, SourceRef
 from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
@@ -179,7 +179,8 @@ def test_resume_iterate_with_feedback_pauses_again_with_new_version(
     assert state["feedback"] == [FEEDBACK]
     assert state["decision"] is None
     # El feedback llega al LLM en la regeneración.
-    assert FEEDBACK in container.llm.calls[-1]["messages"][0].content  # type: ignore[attr-defined]
+    messages = container.llm.calls[-1]["messages"]  # type: ignore[attr-defined]
+    assert any(FEEDBACK in m.content for m in messages if m.role == "user")
     assert _tracker(container).writes == []
 
 
@@ -215,13 +216,12 @@ def test_full_story_flow_iterate_approve_publish_memorize(
     assert final["feedback"] == [FEEDBACK]
 
     tracker = _tracker(container)
-    assert tracker.writes == [
-        ("update_story", {"key": "DEMO-3"}),
-        ("link", {"from": "DEMO-3", "to": "DEMO-2", "type": LINK_TYPE_IMPACT}),
-    ]
+    # Hasta T-21 el impacto solo trae el diff determinista: no hay HU afectadas que vincular.
+    assert tracker.writes == [("update_story", {"key": "DEMO-3"})]
     comments = tracker.issues["DEMO-3"].comments
     assert any("Cambios propuestos por el agente y aprobados" in c for c in comments)
-    assert any("| title | Renovar | Renovar un préstamo |" in c for c in comments)
+    # El diff ya no lo inventa el LLM: sale de diff_stories frente a la versión de Jira.
+    assert not any("| title | Renovar | Renovar un préstamo |" in c for c in comments)
 
     memory_file = tmp_path / "DEMO-3.md"
     assert memory_file.exists()
@@ -265,8 +265,8 @@ def test_writes_happen_only_in_publish_node(container: Container) -> None:
 
     assert list(writes_after) == ["human_review", "publish", "memorize"]
     assert writes_after["human_review"] == 0
-    assert writes_after["publish"] == 2
-    assert writes_after["memorize"] == 2
+    assert writes_after["publish"] == 1
+    assert writes_after["memorize"] == 1
 
 
 # --- 2 · épica y necesidad nueva --------------------------------------------------------------
@@ -282,15 +282,19 @@ def test_approve_new_story_creates_it_in_jira(
     graph = build_graph(container)
     config = _config()
     payload = _payload(_start(graph, config, origin=origin))
-    assert payload["impact"] is None
+    # T-21: una HU nueva también lleva impacto (sin diff) sobre las HU relacionadas.
+    assert payload["impact"]["diffs"] == []
     assert payload["artifact"]["content"]["jira_key"] is None
 
     final = graph.invoke(_approve(graph, config), config)
 
     tracker = _tracker(container)
-    ((action, data),) = tracker.writes
+    (action, data), *links = tracker.writes
     assert action == "create_story"
     assert data["epic_key"] == expected_epic
+    # RF-06: la HU creada se vincula a las HU afectadas (el fake propone DEMO-2).
+    assert [w[0] for w in links] == ["link"] * len(links)
+    assert all(w[1]["from"] == data["key"] and w[1]["to"] != expected_epic for w in links)
     new_key = data["key"]
     assert final["published_keys"] == [new_key]
     assert final["artifact"].content.jira_key == new_key
@@ -916,3 +920,39 @@ def test_load_origin_rejects_keys_with_trailing_newline(tmp_path: Path, key: str
     state = initial_state(AF_USER, "functional", {"kind": "story", "key": key})
     with pytest.raises(ValueError, match="Clave de Jira no válida"):
         GraphNodes(fake_container(tmp_path)).load_origin(state)
+
+
+def test_evolution_diff_is_deterministic_against_jira_baseline(tmp_path: Path) -> None:
+    """PA-30 / T-19: el diff compara la versión de Jira estructurada con la evolución."""
+    from core.impact.diff import diff_stories
+    from tests.fakes.llm import FakeLLMProvider
+
+    calls: list[str] = []
+
+    def story_builder(messages: list[Any]) -> UserStory:
+        system = messages[0].content
+        story = dataset.renewal_story(jira_key=None)
+        cited = story.model_copy(update={"sources": [SourceRef(kind="jira", ref="DEMO-3")]})
+        if "Pasas a la plantilla" in system:  # structure_story: versión de partida
+            calls.append("structure")
+            return cited
+        calls.append("evolve")
+        return cited.model_copy(update={"title": "Renovar un préstamo desde la app"})
+
+    llm = FakeLLMProvider()
+    llm.builders[UserStory] = story_builder
+    container = fake_container(tmp_path, llm=llm)
+    graph = build_graph(container)
+    config = _config()
+    artifact = Artifact.model_validate(_payload(_start(graph, config))["artifact"])
+    baseline = dataset.renewal_story(jira_key="DEMO-3").model_copy(
+        update={"sources": [SourceRef(kind="jira", ref="DEMO-3")]}
+    )
+    expected = diff_stories(baseline, artifact.content)
+    assert artifact.impact is not None
+    assert [d.field for d in artifact.impact.diffs] == [d.field for d in expected] == ["title"]
+    assert artifact.prompt_version is not None
+    assert calls == ["structure", "evolve"]
+    # Al iterar, la versión de partida no se vuelve a estructurar.
+    graph.invoke(Command(resume={"decision": "iterate", "feedback": "Ajusta el título"}), config)
+    assert calls == ["structure", "evolve", "evolve"]

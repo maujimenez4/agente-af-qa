@@ -11,14 +11,16 @@ con que el artefacto diga `APPROVED`. El ciclo es:
    del registro (nunca del estado) y la consume al publicar (un solo uso).
 4. `memorize` solo actúa sobre lo que `publish` registró como publicado.
 
-En T-25 este registro se persistirá en `audit_log`.
+Desde T-25 persiste por artefacto en `artifact_state` (y cada acción se audita en `audit_log`).
 """
 
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
+from typing import Any
 
+from core.artifact_state import ArtifactStateStore
 from schemas.artifact import Artifact
 
 _FINGERPRINT_FIELDS = {"id", "version", "type", "origin_key", "content", "impact"}
@@ -82,15 +84,18 @@ class Approval:
 
 @dataclass
 class ApprovalLedger:
-    """En memoria para el MVP del día 1; se sustituirá por la auditoría persistente (T-25)."""
+    """Registro de aprobaciones; con `store`, persistente por artefacto (T-25, PA-06)."""
 
+    store: ArtifactStateStore | None = None
     _targets: dict[str, PublishTarget] = field(default_factory=dict)
     _offers: dict[str, str] = field(default_factory=dict)
     _approvals: dict[tuple[str, int], Approval] = field(default_factory=dict)
+    _loaded: set[str] = field(default_factory=set)
 
     def offer(self, artifact: Artifact, target: PublishTarget) -> str:
         """Registra la versión que se muestra; la operación no puede cambiar entre iteraciones."""
         artifact_id = str(artifact.id)
+        self._ensure(artifact_id)
         fixed = self._targets.setdefault(artifact_id, target)
         if fixed != target or artifact.origin_key != target.origin_key:
             raise ApprovalError("El destino de publicación no puede cambiar entre iteraciones.")
@@ -99,16 +104,19 @@ class ApprovalLedger:
         for key, approval in list(self._approvals.items()):
             if key[0] == artifact_id and key[1] != artifact.version and not approval.consumed:
                 del self._approvals[key]
+        self._persist(artifact_id)
         return review_fingerprint(artifact, target)
 
     def is_offered(self, artifact: Artifact, target: PublishTarget) -> bool:
         artifact_id = str(artifact.id)
+        self._ensure(artifact_id)
         return self._targets.get(artifact_id) == target and self._offers.get(
             artifact_id
         ) == content_fingerprint(artifact)
 
     def record(self, artifact: Artifact, target: PublishTarget) -> Approval:
         """Aprueba la versión ofrecida; la oferta se consume y no se reaprueba lo publicado."""
+        self._ensure(str(artifact.id))
         if not self.is_offered(artifact, target):
             raise ApprovalError(_MISMATCH)
         previous = self._approvals.get((str(artifact.id), artifact.version))
@@ -123,10 +131,12 @@ class ApprovalLedger:
         )
         self._approvals[(approval.artifact_id, approval.version)] = approval
         del self._offers[approval.artifact_id]
+        self._persist(approval.artifact_id)
         return approval
 
     def find(self, artifact: Artifact, target: PublishTarget) -> Approval | None:
         """Aprobación vigente (no consumida) de esta versión exacta y esta misma operación."""
+        self._ensure(str(artifact.id))
         approval = self._approvals.get((str(artifact.id), artifact.version))
         if (
             approval is None
@@ -143,11 +153,73 @@ class ApprovalLedger:
         self._approvals[key] = replace(
             approval, consumed=True, published_fingerprint=content_fingerprint(published)
         )
+        self._persist(approval.artifact_id)
 
     def was_published(self, artifact: Artifact) -> bool:
+        self._ensure(str(artifact.id))
         approval = self._approvals.get((str(artifact.id), artifact.version))
         return bool(
             approval
             and approval.consumed
             and approval.published_fingerprint == content_fingerprint(artifact)
         )
+
+    # --- persistencia -------------------------------------------------------------------------
+
+    def _ensure(self, artifact_id: str) -> None:
+        """Carga del almacén el estado del artefacto la primera vez que se usa en este proceso."""
+        if self.store is None or artifact_id in self._loaded:
+            return
+        ledger = (self.store.load(artifact_id) or {}).get("ledger")
+        if ledger:
+            try:
+                target = PublishTarget(**ledger["target"]) if ledger.get("target") else None
+                approvals = [_approval_from(data) for data in ledger.get("approvals", [])]
+            except (KeyError, TypeError, ValueError):
+                # Falla cerrado: sin el registro íntegro no se aprueba ni se publica nada, y no
+                # se sobrescribe el estado guardado.
+                raise ApprovalError(
+                    "El registro de aprobaciones de este artefacto está dañado; "
+                    "revísalo antes de continuar."
+                ) from None
+            if target is not None:
+                self._targets[artifact_id] = target
+            if offer := ledger.get("offer"):
+                self._offers[artifact_id] = str(offer)
+            for approval in approvals:
+                if approval.artifact_id == artifact_id:
+                    self._approvals[(approval.artifact_id, approval.version)] = approval
+        self._loaded.add(artifact_id)
+
+    def _persist(self, artifact_id: str) -> None:
+        if self.store is None:
+            return
+        target = self._targets.get(artifact_id)
+        ledger = {
+            "target": asdict(target) if target else None,
+            "offer": self._offers.get(artifact_id),
+            "approvals": [
+                _approval_to(a) for (aid, _v), a in self._approvals.items() if aid == artifact_id
+            ],
+        }
+        state = self.store.load(artifact_id) or {}
+        state["ledger"] = ledger
+        self.store.save(artifact_id, state)
+
+
+def _approval_to(approval: Approval) -> dict[str, Any]:
+    data = asdict(approval)
+    data["at"] = approval.at.isoformat()
+    return data
+
+
+def _approval_from(data: dict[str, Any]) -> Approval:
+    return Approval(
+        artifact_id=data["artifact_id"],
+        version=int(data["version"]),
+        fingerprint=data["fingerprint"],
+        target=PublishTarget(**data["target"]),
+        at=datetime.fromisoformat(data["at"]),
+        consumed=bool(data.get("consumed", False)),
+        published_fingerprint=data.get("published_fingerprint"),
+    )

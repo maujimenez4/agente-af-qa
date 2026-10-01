@@ -1,20 +1,29 @@
 # Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos.
 # Cada tarea es una CADENA ordenada: el primero es el principal y el resto, respaldos (RF-44).
-# Sin secretos: solo el nombre de la variable de entorno. Verifica los nombres de modelo el día 1 (T-08).
+# Sin secretos: solo el nombre de la variable de entorno.
+# R-07 (2026-09-30): cadenas fijadas con los modelos disponibles ese día. En Groq las cuotas son
+# por modelo (PA-08): se reparten las tareas entre gpt-oss-120b, gpt-oss-20b y qwen3.8-27b para
+# sumar bolsas; OpenRouter (:free, límites diarios bajos) queda como último respaldo.
+# El modelo local de Ollama queda solo para embeddings hasta elegir uno que quepa en RAM (R-08).
+# Cambiar de proveedor (p. ej. uno corporativo compatible con la API de OpenAI) = añadirlo en
+# `providers` con su `api_key_env` y usarlo en las cadenas; el código no cambia (RF-42).
 providers:
   groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
   openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
   local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
 
 tasks:
-  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
-  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
-  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
-  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
-  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]
-  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: local, model: "POR_DEFINIR" } ]
-  classify_source:   [ { provider: local, model: "POR_DEFINIR" },        { provider: groq, model: "openai/gpt-oss-20b" } ]
-  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: local, model: "POR_DEFINIR" } ]
+  # Pesadas: máxima calidad.
+  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
+  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
+  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
+  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
+  # Medias.
+  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
+  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
+  # Ligeras.
+  classify_source:   [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
+  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
 
 embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 

@@ -42,7 +42,7 @@ uv run streamlit run app/main.py
 |---|---|---|
 | `schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`, `core/container.py` | **Principal** | CONGELADO tras el día 1. No lo cambies desde un worktree; propón el cambio. |
 | `adapters/jira/`, `adapters/testmgmt/`, `adapters/llm/`, `adapters/auth/` | **Área A** · Integraciones y núcleo | |
-| `core/graph/`, `core/context/`, `core/state_machine.py`, `core/audit.py`, `core/impact/` | **Área A** | |
+| `core/graph/`, `core/context/`, `core/state_machine.py`, `core/audit.py`, `core/artifact_state.py`, `core/impact/` | **Área A** | |
 | `data/seed/jira/`, `migrations/` | **Área A** | |
 | `adapters/embeddings/`, `adapters/vectorstore/`, `core/rag/` | **Área B** · Conocimiento y UI | |
 | `prompts/`, `core/functional/`, `core/qa/`, `core/memory/` | **Área B** | |

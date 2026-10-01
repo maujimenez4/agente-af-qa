@@ -135,7 +135,7 @@ Construir un **Producto Mínimo Funcional** de un agente de IA que apoye el Aná
 
 | ID | Tema | Contexto | Afecta a |
 |---|---|---|---|
-| R-01 | Alcance del soporte a la ejecución de pruebas | Consulta enviada a dirección. Opciones: A) registrar resultados, B) asistencia guiada + defectos, C) ejecución automatizada. Con subtareas, la ejecución se modelaría con estados y comentarios. | RF-28, RF-29 |
+| R-01 | Alcance del soporte a la ejecución de pruebas | **Cerrada el 2026-10-01: opción A** (registrar resultado y evidencia; RF-28 al MVP). Consulta enviada a dirección. Opciones: A) registrar resultados, B) asistencia guiada + defectos, C) ejecución automatizada. Con subtareas, la ejecución se modelaría con estados y comentarios. | RF-28, RF-29 |
 | R-05 | Mapeo entre convenciones internas (HU-XX, CP-XX) y claves de Jira | Provisionalmente: prefijo en el título `[HU-XX]` / `[CP-XX]` | RF-04, RF-06, RF-30 |
 | R-08 | RAM del equipo (gráficos Intel integrados) | Determina el tamaño del modelo local para tareas ligeras; los embeddings funcionan en CPU en cualquier caso | RF-10, RNF-07 |
 
@@ -189,8 +189,8 @@ Leyenda: ✅ aprobado · 🔍 en revisión · ⏸ aplazado · **(PA)** Propuesta
 | RF-25 | Generar datos sintéticos coherentes con las reglas de negocio | EP-04 | v1.0 | Should | ✅ |
 | RF-26 | Generar la estrategia de pruebas de una HU o épica | EP-04 | v1.0 | Should | ✅ |
 | RF-27 | Identificar riesgos, dependencias y áreas de impacto | EP-04 | v1.0 | Should | ✅ |
-| RF-28 | Registrar resultados de ejecución por caso de prueba (estado y evidencia) | EP-04 | v1.1 | Should | 🔍 R-01 |
-| RF-29 | Proponer un defecto vinculado ante un caso fallido **(PA)** | EP-04 | v1.1 | Could | 🔍 R-01 |
+| RF-28 | Registrar resultados de ejecución por caso de prueba (estado y evidencia) | EP-04 | v1.0 | Should | ⬜ R-01 (A) |
+| RF-29 | Proponer un defecto vinculado ante un caso fallido **(PA)** | EP-04 | v2.0 | Could | ⏸ R-01 (A) |
 | RF-30 | Publicar los artefactos de QA aprobados en Jira: CP como subtareas, estrategia y matriz como adjuntos (§6.2) | EP-04 | v1.0 | Must | ✅ |
 | RF-31 | Mostrar una vista previa del artefacto y de los cambios tal como quedarán en Jira | EP-05 | v1.0 | Must | ✅ |
 | RF-32 | Permitir la edición manual antes de aprobar | EP-05 | v1.0 | Should | ✅ |

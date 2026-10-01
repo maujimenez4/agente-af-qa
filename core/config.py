@@ -161,6 +161,8 @@ class Settings(BaseSettings):
     jira_api_token: SecretStr | None = None
     jira_project_key: str | None = None
     jira_test_subtask_type: str = "Subtarea"
+    # T-25: por defecto no se escribe en Jira; `live` solo cuando se decida publicar de verdad.
+    jira_publish_mode: Literal["simulation", "live"] = "simulation"
 
     # Proveedores LLM (D-14)
     groq_api_key: SecretStr | None = None

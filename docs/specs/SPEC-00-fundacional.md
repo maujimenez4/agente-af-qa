@@ -231,6 +231,7 @@ Checkpointer: `langgraph-checkpoint-postgres`.
 | `artifacts` | id, type, status, version, origin_key, jira_key, content (jsonb), impact (jsonb), created_by, model_used, prompt_version, timestamps |
 | `artifact_versions` | artifact_id, version, content (jsonb), created_at |
 | `audit_log` | id, artifact_id, action (`create`, `iterate`, `approve`, `publish`, `discard`), user, jira_keys, model, detail (jsonb), at |
+| `artifact_state` | artifact_id (PK, sin FK), state (jsonb: `ledger` de aprobaciones y `baseline` de la versión de partida), updated_at (T-25, migración `0002`) |
 | `documents` | id, title, category (7 categorías + `memoria`), source_path, embedding_model, content_hash, related_key, created_at |
 | `chunks` | id, document_id, ordinal, section, content, embedding `vector(N)`, tsv `tsvector`, metadata (jsonb) |
 | `llm_usage` | id, task, provider, model, input_tokens, output_tokens, est_cost, latency_ms, artifact_id, at (RF-43) |
@@ -241,6 +242,8 @@ Checkpointer: `langgraph-checkpoint-postgres`.
 ## 7. Configuración
 
 `.env` contiene los secretos y las URLs (ver `.env.example`). `config/models.yaml` contiene, sin secretos, la asignación de modelos por tarea como **cadena ordenada** de `{provider, model}` (el primero es el principal y el resto, respaldos). Solo se activan los proveedores cuya variable de clave exista. El selector de la UI (RF-42) puede sobrescribir el modelo de una tarea durante la sesión.
+
+`JIRA_PUBLISH_MODE` (`simulation` por defecto, o `live`) decide si el nodo `publish` escribe en Jira; en `simulation` solo audita el plan de operaciones (T-25).
 
 ## 8. Transversales
 - **Errores:** `adapters/errors.py` → `ExternalServiceError`, `AuthenticationError`, `NotFoundError`, `PublishError`, `InvalidTransitionError`, `RateLimitError`. Reintentos con backoff solo en lecturas.
@@ -280,7 +283,7 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Dependencias (§2) | `core/` puede importar también `adapters/errors.py` | — |
 | Errores (§8) | Base común `AgentError`; `RateLimitError.retry_after` | `adapters/errors.py` |
 | Reanudación de `human_review` (§5) | El payload del `interrupt` incluye `artifact`, `version`, `target` (operación descrita), `fingerprint`, `impact`, `decisions`. La reanudación es `{"decision": "iterate" \| "approve" \| "discard", "feedback"?: str, "fingerprint": str}`; `fingerprint` es **obligatoria** para `approve` y debe ser la recibida | `core/graph/nodes.py` |
-| Aprobación humana (§5) | `core/approvals.py`: la versión y su operación (`PublishTarget`: modo, tipo y clave de origen, usuario, hilo) se registran al generar; la operación no cambia entre iteraciones; `publish` toma la operación del registro, exige aprobación vigente y la consume (un solo uso); `memorize` exige publicación registrada. En memoria hasta T-25 (PA-06) | `core/approvals.py` |
+| Aprobación humana (§5) | `core/approvals.py`: la versión y su operación (`PublishTarget`: modo, tipo y clave de origen, usuario, hilo) se registran al generar; la operación no cambia entre iteraciones; `publish` toma la operación del registro, exige aprobación vigente y la consume (un solo uso); `memorize` exige publicación registrada. Desde T-25 persiste por artefacto en `artifact_state.state["ledger"]`; un registro dañado falla cerrado (`ApprovalError`) | `core/approvals.py` |
 | Claves de Jira | `^[A-Z][A-Z0-9_]+-\d+$`, validadas al cargar, generar y publicar | `core/graph/nodes.py` |
 | Composición | `core/container.build_container()` exige todas las dependencias hasta que existan los adaptadores reales; `bootstrap_logging()` cablea el enmascarado de secretos | `core/container.py` |
 | Checkpointer | Serializador con lista explícita de tipos (`checkpoint_serializer()`), sin pickle; reutilizarlo al conectar Postgres | `core/graph/builder.py` |
@@ -291,4 +294,9 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Jira y scopes | Token con scopes vía `https://api.atlassian.com/ex/jira/<cloudId>`; `test_connection` usa `/rest/api/3/project/search` (basta `read:jira-work`) | `adapters/jira/tracker.py` |
 | `list_projects` (v1.3) | `IssueTracker.list_projects() -> list[ProjectSummary]` (`ProjectSummary(key, name)`), para la navegación Proyecto → Épica → HU (§6.1, RF-02); en Jira, `/rest/api/3/project/search` (basta `read:jira-work`) | `adapters/base.py`, `adapters/jira/tracker.py` |
 | Permisos por rol | `core/permissions.py`: `Permission`, `ROLE_PERMISSIONS`, `can`, `require` (D-01: cada rol su flujo; el administrador configura pero no genera ni publica) | `core/permissions.py` |
-| Persistencia del núcleo | `core/` puede acceder con SQLAlchemy a **sus propias tablas** (`artifact_versions`, `audit_log`, `artifacts`) mediante repositorios como `core/impact/versions.py` y `core/audit.py`; los servicios externos (Jira, LLM, embeddings, vectores, usuarios) siguen detrás de `adapters/` | `core/impact/versions.py` |
+| Persistencia del núcleo | `core/` puede acceder con SQLAlchemy a **sus propias tablas** (`artifact_versions`, `audit_log`, `artifacts`) mediante repositorios como `core/impact/versions.py`, `core/audit.py` y `core/artifact_state.py` (incluida `artifact_state`); los servicios externos (Jira, LLM, embeddings, vectores, usuarios) siguen detrás de `adapters/` | `core/impact/versions.py` |
+| Modo de publicación (T-25) | `Container.publish_mode` (`simulation` \| `live`) desde `Settings.jira_publish_mode`. En `simulation`, `publish` calcula el plan (`update_story`/`create_story`, `link`, `publish_suite`), audita `publish` con `detail.simulated=true` y el plan, no escribe en Jira, no consume la aprobación y el artefacto sigue `APPROVED` | `core/graph/nodes.py` |
+| Auditoría (T-25, RF-35) | `core/audit.py`: `AuditEntry(artifact_id, action, user, jira_keys, model, detail)`; `generate` → `create`/`iterate` (`prompt_version`), `human_review` → `approve` (`operation`)/`discard`, `publish` → `publish` (`simulated`, `plan`, `failed`, `failed_ids`). `detail` nunca lleva prompts ni contenido del artefacto. En `live`, se audita antes de actualizar el estado de `artifacts`; los vínculos que fallan se informan como error sin deshacer lo publicado (RNF-13) | `core/audit.py`, `core/graph/nodes.py` |
+| Composición de T-25 | `Container` añade `audit`, `versions` (`VersionSink`: `save`, `update_status`), `state_store` y `publish_mode`; `__post_init__` conecta el registro de aprobaciones al `state_store`. Fábricas `build_audit`, `build_versions`, `build_state_store` | `core/container.py`, `core/factories.py` |
+| Versión de partida (PA-30, PA-37) | La HU de Jira estructurada una sola vez se guarda en `artifact_state.state["baseline"]` y se borra al descartar o publicar | `core/graph/nodes.py` |
+| Vínculos y épica (PA-38) | Al evolucionar o crear una HU, nunca se vincula `relates to` con su épica | `core/graph/nodes.py` |

@@ -118,6 +118,14 @@ class StoryVersionStore:
                     )
                 )
 
+    def update_status(self, artifact_id: UUID, status: str, jira_key: str | None = None) -> None:
+        """Actualiza estado (y clave de Jira, si llega) sin tocar el contenido de las versiones."""
+        values: dict[str, Any] = {"status": status, "updated_at": sa.func.now()}
+        if jira_key:
+            values["jira_key"] = jira_key
+        with self._transaction() as conn:
+            conn.execute(ARTIFACTS.update().where(ARTIFACTS.c.id == artifact_id).values(**values))
+
     def versions(self, artifact_id: UUID) -> list[int]:
         query = (
             sa.select(ARTIFACT_VERSIONS.c.version)

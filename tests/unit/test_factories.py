@@ -5,6 +5,7 @@ Datos 100 % sintéticos; sin red (HTTP con `httpx.MockTransport`).
 
 import base64
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -36,6 +37,10 @@ JIRA_BASE_URL = "https://villaficticia.example"
 JIRA_EMAIL = "persona@example.com"
 JIRA_TOKEN = "test-token"
 JIRA_CLOUD_ID = "test-cloud-id"
+
+TEST_MODELS = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "models.yaml"
+)  # modelos fijos de prueba
 
 
 def jira_settings(**overrides: str) -> Settings:
@@ -132,13 +137,15 @@ LLM_MESSAGES = [Message(role="user", content="Clasifica este documento ficticio.
 @pytest.fixture
 def no_keys_config(clean_env: pytest.MonkeyPatch) -> AppConfig:
     """AppConfig real (models.yaml) sin ninguna clave de proveedor."""
-    return AppConfig(Settings(_env_file=None), load_models_config())
+    return AppConfig(Settings(_env_file=None), load_models_config(TEST_MODELS))
 
 
 @pytest.fixture
 def groq_config(clean_env: pytest.MonkeyPatch) -> AppConfig:
     """AppConfig real con una clave de groq ficticia."""
-    return AppConfig(Settings(_env_file=None, groq_api_key=LLM_FAKE_KEY), load_models_config())
+    return AppConfig(
+        Settings(_env_file=None, groq_api_key=LLM_FAKE_KEY), load_models_config(TEST_MODELS)
+    )
 
 
 def fake_llm_factory(choice: ModelChoice) -> LLMProvider:

@@ -12,6 +12,8 @@ llamadas del proveedor compuesto.
 from collections.abc import Callable
 from typing import Any
 
+from langgraph.checkpoint.postgres import PostgresSaver
+
 from adapters.auth.local import LocalAuthProvider
 from adapters.base import IssueSummary, LLMProvider, PublishResult, TaskType
 from adapters.embeddings.ollama import OllamaEmbeddings
@@ -26,6 +28,8 @@ from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
 from core.config import AppConfig, ConfigError, Settings
 from core.container import Container, build_container
+from core.conversations import SqlConversationStore
+from core.graph.builder import postgres_checkpointer
 from core.impact.versions import StoryVersionStore
 from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
@@ -172,6 +176,17 @@ class PendingMemoryGenerator:
         )
 
 
+def build_conversations(config: AppConfig) -> SqlConversationStore:
+    """Lista de conversaciones por usuario en `conversations` (T-52, migración `0004`)."""
+    return SqlConversationStore.from_url(config.settings.sqlalchemy_url())
+
+
+def build_checkpointer(config: AppConfig) -> PostgresSaver:
+    """Checkpointer de la aplicación sobre la base de datos de `.env` (T-52)."""
+    url = config.settings.sqlalchemy_url().set(drivername="postgresql")
+    return postgres_checkpointer(url.render_as_string(hide_password=False))
+
+
 def build_app_container(config: AppConfig, *, router: ModelRouter | None = None) -> Container:
     """Contenedor real de la UI: Jira, LLM, embeddings, pgvector, usuarios y persistencia.
 
@@ -199,4 +214,6 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
         versions=build_versions(config),
         state_store=build_state_store(config),
         last_projects=build_last_projects(config),
+        conversations=build_conversations(config),
+        require_actor=True,  # T-52: sin persona autenticada en la config no se actúa
     )

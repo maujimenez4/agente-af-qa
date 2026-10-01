@@ -74,7 +74,7 @@ Hazlas con la skill del proyecto, **en este orden**.
 - Devuelve siempre la huella del último payload.
 
 **Lo que aún no hay en el backend.** Márcalo en la pantalla, sin inventar contratos:
-- **T-52 · conversaciones persistentes:** usa `memory_checkpointer()`. La lista muestra solo las conversaciones de la sesión actual, y se pierden al reiniciar.
+- **T-52 · conversaciones persistentes:** ya está en `PreProduccion` (`git merge origin/PreProduccion` si creaste `Dia6` antes). Crea el checkpointer **una sola vez** con `st.cache_resource` (`build_checkpointer(config)` abre un pool) y pásalo a `build_graph(container, checkpointer=…)`. Conversación nueva: `new_conversation_config(user)` (el `thread_id` lo genera el servidor; nunca lo tomes de la URL). Lista: `container.conversations.list_for(user)`. Retomar: `resume_config(container.conversations, user, thread_id)`. Invoca el grafo **siempre** con esas configs: llevan `user` y el grafo rechaza a quien no es la dueña. Estados y errores: UI.md §7 y la tabla de dependencias.
 - **T-53 · arranque guiado:**
   - de momento, reconocer una clave escrita con `normalize_issue_key`;
   - la «HU parecida por texto» y la **vista previa de fuentes antes de generar** quedan como «disponible pronto».

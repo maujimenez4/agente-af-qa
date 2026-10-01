@@ -24,6 +24,7 @@ from core.approvals import ApprovalLedger
 from core.artifact_state import ArtifactStateStore, InMemoryArtifactStateStore
 from core.audit import AuditTrail, InMemoryAuditTrail
 from core.config import ROOT_DIR, AppConfig, ConfigError
+from core.conversations import ConversationStore, InMemoryConversationStore
 from core.logging import configure_logging
 from core.projects import InMemoryLastProjectStore, LastProjectStore, ProjectService
 from schemas.artifact import Artifact
@@ -61,6 +62,10 @@ class Container:
     publish_mode: PublishMode = "simulation"
     # T-50: último proyecto de Jira usado por cada persona.
     last_projects: LastProjectStore = field(default_factory=InMemoryLastProjectStore)
+    # T-52: lista de conversaciones por usuario (el estado vive en el checkpointer).
+    conversations: ConversationStore = field(default_factory=InMemoryConversationStore)
+    # T-52: en la app, toda invocación del grafo lleva `configurable.user` (si falta, falla).
+    require_actor: bool = False
 
     def __post_init__(self) -> None:
         # El registro de aprobaciones persiste en el mismo almacén de estado del contenedor.
@@ -106,6 +111,8 @@ def build_container(
     state_store: ArtifactStateStore | None = None,
     publish_mode: PublishMode | None = None,
     last_projects: LastProjectStore | None = None,
+    conversations: ConversationStore | None = None,
+    require_actor: bool = False,
 ) -> Container:
     """Compone el contenedor. Sin adaptadores reales todavía, cada dependencia es obligatoria."""
     if config is not None:
@@ -138,4 +145,6 @@ def build_container(
         state_store=store,
         publish_mode=mode,
         last_projects=last_projects or InMemoryLastProjectStore(),
+        conversations=conversations or InMemoryConversationStore(),
+        require_actor=require_actor,
     )

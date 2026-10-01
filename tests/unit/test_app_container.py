@@ -60,6 +60,7 @@ def test_build_app_container_composes_real_adapters_and_persistence(
         "build_versions",
         "build_state_store",
         "build_last_projects",
+        "build_conversations",
     ):
         monkeypatch.setattr(factories, name, fake(name))
     monkeypatch.setattr("core.container.bootstrap_logging", lambda _config: None)
@@ -76,6 +77,7 @@ def test_build_app_container_composes_real_adapters_and_persistence(
     assert container.versions is not None
     assert container.approvals.store is container.state_store
     assert container.publish_mode == "simulation"  # por defecto no se escribe en Jira
+    assert container.require_actor is True  # T-52: la app exige quién actúa
 
 
 def _config() -> Any:

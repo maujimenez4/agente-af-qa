@@ -14,11 +14,12 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
 from adapters.base import Chunk
-from adapters.errors import ExternalServiceError, PublishError
+from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
 from core.context.service import ContextService
+from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.context import StoryContext
 from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
@@ -68,10 +69,32 @@ class GraphNodes:
 
     # --- 1 · load_origin -------------------------------------------------------------------
 
-    def load_origin(self, state: AgentState) -> dict[str, Any]:
+    def load_origin(
+        self, state: AgentState, config: RunnableConfig | None = None
+    ) -> dict[str, Any]:
         validate_origin(state)
-        key = state["origin"].get("key")
+        origin = state["origin"]
+        key = origin.get("key")
         jira_context = [self.c.issue_tracker.get_issue(key)] if key else []
+        # T-52: la conversación entra en la lista de su dueño (solo flujo y clave, sin texto).
+        thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
+        if thread_id:
+            if not THREAD_ID.fullmatch(str(thread_id)):
+                raise NotFoundError(NOT_YOURS, service="conversaciones")
+            _check_actor(state, config, self.c.require_actor)
+            existing = self.c.conversations.get(str(thread_id))
+            if existing is not None and existing.username != state["user"]:
+                raise NotFoundError(NOT_YOURS, service="conversaciones")
+            self.c.conversations.start(
+                new_summary(
+                    thread_id=str(thread_id),
+                    username=state["user"],
+                    project=origin.get("project") or "",
+                    mode=state["mode"],
+                    origin_kind=origin["kind"],
+                    origin_key=key,
+                )
+            )
         return {"jira_context": jira_context}
 
     # --- 2–3 · retrieve_context ------------------------------------------------------------
@@ -171,7 +194,7 @@ class GraphNodes:
             )
         artifact = transition(artifact, ArtifactStatus.IN_REVIEW)
         # Solo la versión ofrecida aquí podrá aprobarse en human_review.
-        self.c.approvals.offer(artifact, _target(state, config))
+        self.c.approvals.offer(artifact, _target(state, config, self.c.require_actor))
         detail: dict[str, Any] = {"prompt_version": artifact.prompt_version}
         if previous is None and (excluded := state.get("excluded_sources")):
             detail["excluded_sources"] = list(excluded)  # solo referencias (T-51)
@@ -184,7 +207,35 @@ class GraphNodes:
             model=model_used,
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
+        self._track(_target(state, config, self.c.require_actor), "in_review", artifact)
         return {"artifact": artifact, "decision": None}
+
+    def _track(
+        self,
+        target: PublishTarget,
+        status: ConversationStatus,
+        artifact: Artifact | None = None,
+    ) -> None:
+        """Actualiza la fila de la conversación en la lista, solo si es del dueño (T-52).
+
+        Es un índice secundario: si falla, no tumba el nodo (se repetiría al reanudar después de
+        efectos que no se repiten, como registrar la aprobación o escribir en Jira).
+        """
+        try:
+            self.c.conversations.update(
+                target.thread_id,
+                username=target.user,
+                status=status,
+                artifact_id=str(artifact.id) if artifact else None,
+                version=artifact.version if artifact else None,
+            )
+        except ExternalServiceError:
+            log.warning(
+                "lista de conversaciones sin actualizar",
+                user=target.user,
+                action="track_conversation",
+                artifact_id=str(artifact.id) if artifact else None,
+            )
 
     def _write_story(
         self, state: AgentState, artifact_id: str
@@ -290,7 +341,7 @@ class GraphNodes:
         artifact = state["artifact"]
         if artifact is None:
             raise ValueError("No hay ningún artefacto que revisar.")
-        target = _target(state, config)
+        target = _target(state, config, self.c.require_actor)
         fingerprint = review_fingerprint(artifact, target)
         payload: dict[str, Any] = {
             "artifact": artifact.model_dump(mode="json"),
@@ -360,6 +411,7 @@ class GraphNodes:
             log.info(
                 "edición manual", user=state["user"], action="edit", artifact_id=str(edited.id)
             )
+            self._track(target, "in_review", edited)
             return update_edit
 
         status = {
@@ -381,6 +433,9 @@ class GraphNodes:
         log.info(
             "revisión humana", user=state["user"], action=decision, artifact_id=str(artifact.id)
         )
+        if decision in ("approve", "discard"):
+            tracked: ConversationStatus = "approved" if decision == "approve" else "discarded"
+            self._track(target, tracked, reviewed)
         return update
 
     def _edit(
@@ -441,7 +496,7 @@ class GraphNodes:
         except ValueError as exc:
             raise PublishError(str(exc)) from None
         # El estado del grafo puede alterarse: la aprobación y la operación salen del registro.
-        approval = self.c.approvals.find(artifact, _target(state, config))
+        approval = self.c.approvals.find(artifact, _target(state, config, self.c.require_actor))
         if approval is None:
             raise PublishError(
                 "No consta una aprobación humana vigente para esta versión exacta del artefacto."
@@ -466,6 +521,7 @@ class GraphNodes:
                 artifact_id=str(artifact.id),
                 operations=len(plan),
             )
+            self._track(approval.target, "simulated", artifact)
             return {}
 
         if isinstance(artifact.content, TestSuite):
@@ -509,6 +565,8 @@ class GraphNodes:
             jira_keys=keys,
             failed=len(errors),
         )
+        if published.status is ArtifactStatus.PUBLISHED:
+            self._track(approval.target, "published", published)
         return {
             "artifact": published,
             "published_keys": [*state["published_keys"], *keys],
@@ -688,10 +746,25 @@ def validate_origin(state: AgentState) -> None:
         raise ValueError("El modo QA parte siempre de una HU existente.")
 
 
-def _target(state: AgentState, config: RunnableConfig | None) -> PublishTarget:
+def _check_actor(state: AgentState, config: RunnableConfig | None, required: bool = False) -> None:
+    """Quien actúa (`configurable.user`, T-52) tiene que ser la dueña de la conversación.
+
+    `new_conversation_config` y `resume_config` lo ponen siempre. Con `required`
+    (`Container.require_actor`, activo en la app), una config sin `user` falla cerrada; sin él
+    (pruebas y scripts con fakes) solo se compara si viene.
+    """
+    actor = ((config or {}).get("configurable") or {}).get("user")
+    if (actor is None and required) or (actor is not None and actor != state["user"]):
+        raise NotFoundError(NOT_YOURS, service="conversaciones")
+
+
+def _target(
+    state: AgentState, config: RunnableConfig | None, require_actor: bool = False
+) -> PublishTarget:
     thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
     if not thread_id:
         raise PublishError("Falta el identificador de la conversación (thread_id).")
+    _check_actor(state, config, require_actor)
     origin = state["origin"]
     return PublishTarget(
         mode=state["mode"],

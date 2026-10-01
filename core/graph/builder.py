@@ -1,12 +1,17 @@
 """Construcción del grafo LangGraph (SPEC-00 §5)."""
 
+import psycopg
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
 from adapters.base import Chunk, IssueDetail, IssueLink, IssueSummary, RetrievedChunk
+from adapters.errors import ExternalServiceError
 from core.container import Container
 from core.graph.nodes import GraphNodes
 from core.graph.state import AgentState
@@ -46,8 +51,35 @@ def checkpoint_serializer() -> JsonPlusSerializer:
 
 
 def memory_checkpointer() -> InMemorySaver:
-    """Checkpointer en memoria para pruebas; el de Postgres se conecta más adelante."""
+    """Checkpointer en memoria para pruebas (las conversaciones no sobreviven al proceso)."""
     return InMemorySaver(serde=checkpoint_serializer())
+
+
+def postgres_checkpointer(conninfo: str, *, max_size: int = 5) -> PostgresSaver:
+    """Checkpointer en PostgreSQL con el serializador de tipos explícitos (T-52, RF-20).
+
+    Crea sus tablas con `setup()` (idempotente): no van en Alembic porque sus índices se crean
+    con `CREATE INDEX CONCURRENTLY`, que no admite transacción. `conninfo` lleva la contraseña:
+    nunca se registra.
+    """
+    pool = ConnectionPool(
+        conninfo,
+        min_size=1,
+        max_size=max_size,
+        timeout=10.0,  # con la BD caída, la app avisa en segundos y no a los 30 por defecto
+        # Lo que exige PostgresSaver: autocommit, sin sentencias preparadas y filas como dict.
+        kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+        open=True,
+    )
+    saver = PostgresSaver(pool, serde=checkpoint_serializer())  # type: ignore[arg-type]
+    try:
+        saver.setup()
+    except psycopg.Error:
+        pool.close()
+        raise ExternalServiceError(
+            "No se pudo preparar el almacén de conversaciones en PostgreSQL.", service="postgres"
+        ) from None
+    return saver
 
 
 def _after_review(state: AgentState) -> str:

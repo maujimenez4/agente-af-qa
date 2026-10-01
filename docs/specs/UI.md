@@ -264,6 +264,8 @@ Errores: tarjeta con título corto y el **mensaje de la excepción tal cual** (e
 | `ApprovalError` | Destino cambiado | «El destino de publicación no puede cambiar entre iteraciones.» | Nueva conversación |
 | `AuthenticationError` (permisos) | Sin permiso | «No tienes permiso para realizar esta acción.» | — |
 | Publicación parcial (RNF-13) · no es una excepción: entradas de `state["errors"]` | Publicada en parte | «No se pudo publicar CP-04.» · «No se pudo vincular DEMO-3 con DEMO-2.» (el resumen «Creadas … · falló …» del lienzo se compone con `PublishResult.created`/`failed`, T-30) | *Reintentar solo los fallidos* (PA-05) |
+| `NotFoundError` (conversaciones, T-52) | Conversación ajena o inexistente | «No existe esa conversación o no es tuya.» | Volver a la lista |
+| `ExternalServiceError` (postgres, T-52) | Almacén de conversaciones caído al arrancar o al listar | «No se pudo preparar el almacén de conversaciones en PostgreSQL.» · «No se pudieron leer las conversaciones.» | Reintentar |
 
 Los errores nunca muestran cabeceras, tokens ni cuerpos de respuesta (CLAUDE.md, principio 2).
 
@@ -288,7 +290,7 @@ Viabilidad: las seis se pueden hacer con `st.html` (SVG y CSS, sin JavaScript) y
 |---|---|---|
 | Proyecto en la conversación (`project_key` en `Origin`/`PublishTarget`, último proyecto por usuario) | Mixta 1, 1b, lista de conversaciones | **T-50 ✅**: `container.projects.available(user)` → proyectos y preseleccionado; `choose(user, clave)` al fijarlo; `normalize_issue_key`/`normalize_project_key` para lo escrito (`core/projects.py`); `origin["project"]` |
 | Fuentes excluidas, `plan` de operaciones en `human_review`, decisión `edit` | Mixta 2, 3, recibo, QA 1, QA 3, QA 4 | **T-51 ✅**: `initial_state(user, mode, origin, excluded_sources)` (claves o `ref`, máx. 50; el origen no se excluye) y §5 |
-| Conversaciones persistentes y listado por usuario | Lista de conversaciones, retomar, Mixta 5 → Evolucionar | **T-52** |
+| Conversaciones persistentes y listado por usuario | Lista de conversaciones, retomar, Mixta 5 → Evolucionar | **T-52 ✅**: checkpointer creado **una sola vez** (`st.cache_resource`) con `build_checkpointer(config)` y `build_graph(container, checkpointer=…)`; conversación nueva con `new_conversation_config(user)` (`thread_id` generado en el servidor, nunca de la URL); lista con `container.conversations.list_for(user)` (título = flujo y clave; `status`: `started`, `in_review` → «Versión N», `approved`, `simulated` → «Simulado», `published` → «Publicado», `discarded`; una publicación parcial queda en `approved`); retomar con `resume_config(container.conversations, user, thread_id)`. Invoca siempre el grafo con esas configs: llevan `user` y el grafo rechaza a quien no es la dueña |
 | Reconocimiento de clave y HU parecida sin IA | Mixta 1, 2, QA 1 | **T-53** |
 | Registro de la ejecución | QA 5 (*Registrar la ejecución*), QA 6 | **T-47** |
 | Revisar la calidad | Mixta 5 | **T-48** |

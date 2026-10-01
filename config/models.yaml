@@ -1,30 +1,32 @@
 # Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos.
-# Cada tarea es una CADENA ordenada: el primero es el principal y el resto, respaldos (RF-44).
+# Desde el 2026-10-01 (decisión del usuario) solo se usan modelos LOCALES de Ollama en Docker: sin
+# cuota de Groq ni OpenRouter. La variante con Groq/OpenRouter está en config/models.groq.yaml
+# (activar con MODELS_CONFIG_PATH en el .env).
+# Levantar: docker compose --profile local-llm up -d ollama
+#           docker compose exec ollama ollama pull bge-m3
+#           docker compose exec ollama ollama pull qwen3:4b-instruct
+# Modelo generador: qwen3:4b-instruct (Q4, 2,5 GB; ~4 GB de RAM con 8192 de contexto, solo CPU).
+# Sin respaldo en la nube: si Ollama no responde, la tarea falla (no se gasta cuota).
+# Ventana de contexto: OLLAMA_CONTEXT_LENGTH=8192 en el servicio `ollama` de docker-compose.yml.
+# Cada tarea es una CADENA ordenada (RF-44); cambiar de proveedor = añadirlo en `providers`.
 # Sin secretos: solo el nombre de la variable de entorno.
-# R-07 (2026-09-30): cadenas fijadas con los modelos disponibles ese día. En Groq las cuotas son
-# por modelo (PA-08): se reparten las tareas entre gpt-oss-120b, gpt-oss-20b y qwen3.8-27b para
-# sumar bolsas; OpenRouter (:free, límites diarios bajos) queda como último respaldo.
-# El modelo local de Ollama queda solo para embeddings hasta elegir uno que quepa en RAM (R-08).
-# Cambiar de proveedor (p. ej. uno corporativo compatible con la API de OpenAI) = añadirlo en
-# `providers` con su `api_key_env` y usarlo en las cadenas; el código no cambia (RF-42).
 providers:
-  groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
-  openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
   local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
 
 tasks:
-  # Pesadas: máxima calidad.
-  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
+  # Pesadas.
+  generate_story:    [ { provider: local, model: "qwen3:4b-instruct" } ]
+  evolve_story:      [ { provider: local, model: "qwen3:4b-instruct" } ]
+  review_story:      [ { provider: local, model: "qwen3:4b-instruct" } ]
+  generate_tests:    [ { provider: local, model: "qwen3:4b-instruct" } ]
   # Medias.
-  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
-  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
+  analyze_impact:    [ { provider: local, model: "qwen3:4b-instruct" } ]
+  synthesize_memory: [ { provider: local, model: "qwen3:4b-instruct" } ]
   # Ligeras.
-  classify_source:   [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
-  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
+  classify_source:   [ { provider: local, model: "qwen3:4b-instruct" } ]
+  nl_to_jql:         [ { provider: local, model: "qwen3:4b-instruct" } ]
 
+# Sin cambios respecto a models.yaml: cambiar el modelo de embeddings invalidaría el índice del RAG.
 embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 
 limits:

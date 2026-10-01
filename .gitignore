@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Configuración local de modelos (Ollama)
+config/models.local.yaml
+
 # Python
 __pycache__/
 *.py[cod]

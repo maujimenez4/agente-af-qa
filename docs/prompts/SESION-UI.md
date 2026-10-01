@@ -3,15 +3,15 @@
 Prepara un worktree propio y abre Claude Code **en esa carpeta**. Pega como primer mensaje todo lo que hay debajo de la línea.
 
 ```bash
-# desde la carpeta del repositorio
+# desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git worktree add ../agente-ses-ui -b ses-ui origin/PreProduccion
-cd ../agente-ses-ui
+git worktree add .claude/worktrees/ses-ui -b ses-ui origin/PreProduccion
+cd .claude/worktrees/ses-ui
 uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
 
-Para arrancar la app a mano hace falta tu `.env`: cópialo tú a esta carpeta (está en `.gitignore`).
+Para arrancar la app a mano hace falta tu `.env`: cópialo tú a esta carpeta (está en `.gitignore`). Ollama y PostgreSQL son los de `docker compose` de la carpeta principal (`docker compose --profile local-llm up -d db ollama`).
 
 ---
 
@@ -19,7 +19,7 @@ Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama *
 - **Principal:** `PreProduccion`. Integra, es dueña de los contratos y hace T-48.
 - **Jira:** `ses-jira`, con T-27 y T-30 en `adapters/`.
 - **Memoria:** `ses-memoria`, con T-33 en `core/memory/`.
-- **Ollama:** una sesión que prepara los modelos locales.
+- **Ollama:** modelos locales (`qwen3:4b-instruct` y `bge-m3`), ya configurados en `config/models.yaml`.
 
 Para no pisaros, **solo tocas lo de esta sesión**. Si necesitas algo de otra, para y propónlo.
 
@@ -98,7 +98,7 @@ UI.md §6. El modo QA del grafo ya usa `TestWriter`; la matriz sale de `suite.co
   - Los logs no registran prompts ni contenido.
 - **LLM:**
   - Las pruebas automáticas usan fakes.
-  - No lances pruebas `integration` con LLM ni generes con el LLM real sin preguntarme: la cuota de Groq es limitada y otra sesión está preparando modelos locales en Ollama.
+  - No lances pruebas `integration` con LLM ni generes con el LLM real sin preguntarme: desde el 2026-10-01 solo se usan modelos locales de Ollama (`config/models.yaml`), que en CPU son lentos.
 - **Antes de cada commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
   - subagentes `spec-checker` CONFORME y `security-reviewer` APTO.

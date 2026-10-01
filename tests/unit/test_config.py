@@ -33,9 +33,14 @@ def _write_yaml(tmp_path: Path, data: dict) -> Path:
     return path
 
 
+# Variante con proveedores en la nube: la lógica de claves se prueba sobre ella (desde el
+# 2026-10-01 el models.yaml por defecto es solo local).
+GROQ_MODELS = DEFAULT_MODELS_PATH.parent / "models.groq.yaml"
+
+
 @pytest.fixture
 def models_data() -> dict:
-    return yaml.safe_load(DEFAULT_MODELS_PATH.read_text(encoding="utf-8"))
+    return yaml.safe_load(GROQ_MODELS.read_text(encoding="utf-8"))
 
 
 # --- models.yaml -------------------------------------------------------------------------
@@ -106,7 +111,7 @@ def test_placeholders_are_treated_as_missing(clean_env: pytest.MonkeyPatch) -> N
 
 def test_env_example_behaves_as_no_keys(clean_env: pytest.MonkeyPatch) -> None:
     settings = Settings(_env_file=ROOT_DIR / ".env.example")
-    config = AppConfig(settings, load_models_config())
+    config = AppConfig(settings, load_models_config(GROQ_MODELS))
     assert not config.provider_status("groq").available
     assert not config.provider_status("openrouter").available
 
@@ -137,7 +142,7 @@ def test_secrets_are_secretstr_and_hidden_in_repr(clean_env: pytest.MonkeyPatch)
 
 
 def test_without_keys_only_local_provider_is_available(no_keys_settings: Settings) -> None:
-    config = AppConfig(no_keys_settings, load_models_config())
+    config = AppConfig(no_keys_settings, load_models_config(GROQ_MODELS))
     status = config.providers_status()
     assert status["local"].available
     assert not status["groq"].available
@@ -184,7 +189,7 @@ def test_unknown_key_env_is_read_from_environment(
 
 def test_ollama_base_url_overrides_local_provider(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("OLLAMA_BASE_URL", "http://ollama.local.invalid:11434/v1")
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(GROQ_MODELS))
     assert config.base_url_for("local") == "http://ollama.local.invalid:11434/v1"
     assert config.base_url_for("groq") == "https://api.groq.com/openai/v1"
 
@@ -217,9 +222,26 @@ def test_yaml_syntax_error_does_not_echo_content(tmp_path: Path) -> None:
     assert info.value.__cause__ is None
 
 
-def test_real_models_yaml_has_no_placeholders() -> None:
-    """R-07: sin modelos por definir y cada cadena con al menos un proveedor con clave."""
-    models = load_models_config()
+@pytest.mark.parametrize("path", [DEFAULT_MODELS_PATH, GROQ_MODELS], ids=["local", "groq"])
+def test_real_models_yaml_has_no_placeholders(path: Path) -> None:
+    """R-07: sin modelos por definir en ninguna de las dos variantes versionadas."""
+    models = load_models_config(path)
+    assert set(models.tasks) == set(TaskType)
     for task, chain in models.tasks.items():
-        assert all("POR_DEFINIR" not in ref.model for ref in chain), task.value
+        assert chain and all("POR_DEFINIR" not in ref.model for ref in chain), task.value
+
+
+def test_default_models_yaml_is_local_only() -> None:
+    """Decisión del 2026-10-01: por defecto solo modelos locales de Ollama, sin claves ni cuota."""
+    models = load_models_config()
+    providers = {ref.provider for chain in models.tasks.values() for ref in chain}
+    assert providers == {"local"}
+    assert all(models.providers[p].api_key_env is None for p in providers)
+    assert models.embeddings.model == "bge-m3"  # cambiarlo invalidaría el índice del RAG
+
+
+def test_groq_variant_has_a_keyed_provider_in_every_chain() -> None:
+    """R-07: en la variante de Groq, cada cadena tiene al menos un proveedor con clave."""
+    models = load_models_config(GROQ_MODELS)
+    for task, chain in models.tasks.items():
         assert any(models.providers[ref.provider].api_key_env for ref in chain), task.value

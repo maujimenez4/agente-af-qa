@@ -3,10 +3,10 @@
 Prepara un worktree propio y abre Claude Code **en esa carpeta**. Pega como primer mensaje todo lo que hay debajo de la línea.
 
 ```bash
-# desde la carpeta del repositorio
+# desde la carpeta del repositorio (agente-af-qa): se reutiliza el worktree area-a
 git fetch origin
-git worktree add ../agente-ses-jira -b ses-jira origin/PreProduccion
-cd ../agente-ses-jira
+git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
+cd .claude/worktrees/area-a
 uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
@@ -19,7 +19,7 @@ Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama *
 - **Principal:** `PreProduccion`. Integra, es dueña de los contratos, del grafo y de la composición.
 - **UI:** `ses-ui`, en `app/`.
 - **Memoria:** `ses-memoria`, en `core/memory/`.
-- **Ollama:** prepara modelos locales.
+- **Ollama:** modelos locales (`qwen3:4b-instruct` y `bge-m3`), ya configurados en `config/models.yaml`.
 
 **Solo tocas lo de esta sesión**; si necesitas algo de otra, para y propónlo.
 

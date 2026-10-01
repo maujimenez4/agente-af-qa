@@ -18,6 +18,8 @@ services:
   ollama:
     image: ollama/ollama
     profiles: ["local-llm"]      # docker compose --profile local-llm up -d
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"   # 6000 de contexto RAG + instrucciones + salida
     ports:
       - "11434:11434"
     volumes:

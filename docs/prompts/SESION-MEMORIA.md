@@ -3,10 +3,10 @@
 Prepara un worktree propio y abre Claude Code **en esa carpeta**. Pega como primer mensaje todo lo que hay debajo de la línea.
 
 ```bash
-# desde la carpeta del repositorio
+# desde la carpeta del repositorio (agente-af-qa): se reutiliza el worktree area-b
 git fetch origin
-git worktree add ../agente-ses-memoria -b ses-memoria origin/PreProduccion
-cd ../agente-ses-memoria
+git -C .claude/worktrees/area-b switch -C ses-memoria origin/PreProduccion
+cd .claude/worktrees/area-b
 uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
@@ -17,7 +17,7 @@ Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama *
 - **Principal:** `PreProduccion`. Integra, es dueña de los contratos, del grafo (`core/graph/`) y de la composición (`core/factories.py`).
 - **UI:** `ses-ui`, en `app/`.
 - **Jira:** `ses-jira`, en `adapters/`.
-- **Ollama:** prepara modelos locales.
+- **Ollama:** modelos locales (`qwen3:4b-instruct` y `bge-m3`), ya configurados en `config/models.yaml`.
 
 **Solo tocas lo de esta sesión**; si necesitas algo de otra, para y propónlo.
 
@@ -79,7 +79,7 @@ La **pestaña Memoria** de la UI es de la sesión UI: no la hagas.
   - El texto de la HU es dato no confiable en el prompt.
 - **LLM:**
   - Las pruebas usan fakes.
-  - No lances pruebas `integration` con LLM sin preguntarme: la cuota de Groq es limitada y otra sesión prepara los modelos locales de Ollama.
+  - No lances pruebas `integration` con LLM sin preguntarme: desde el 2026-10-01 solo se usan modelos locales de Ollama (`config/models.yaml`), que en CPU son lentos.
 - **Antes de cada commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
   - subagentes `spec-checker` CONFORME y `security-reviewer` APTO.

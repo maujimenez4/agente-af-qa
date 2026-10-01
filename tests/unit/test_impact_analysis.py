@@ -587,7 +587,9 @@ def test_graph_evolution_carries_diff_and_validated_affected_and_links(
     ]
 
 
-@pytest.mark.parametrize("origin", [{"kind": "need", "text": "Necesidad ficticia de avisos."}])
+@pytest.mark.parametrize(
+    "origin", [{"kind": "need", "text": "Necesidad ficticia de avisos.", "project": "DEMO"}]
+)
 def test_graph_new_story_from_need_without_context_skips_impact_llm(
     tmp_path: Path, origin: Origin
 ) -> None:

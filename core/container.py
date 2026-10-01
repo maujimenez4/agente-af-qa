@@ -25,6 +25,7 @@ from core.artifact_state import ArtifactStateStore, InMemoryArtifactStateStore
 from core.audit import AuditTrail, InMemoryAuditTrail
 from core.config import ROOT_DIR, AppConfig, ConfigError
 from core.logging import configure_logging
+from core.projects import InMemoryLastProjectStore, LastProjectStore, ProjectService
 from schemas.artifact import Artifact
 
 DEFAULT_MEMORY_DIR = ROOT_DIR / "data" / "memory"
@@ -58,11 +59,19 @@ class Container:
     versions: VersionSink | None = None
     state_store: ArtifactStateStore = field(default_factory=InMemoryArtifactStateStore)
     publish_mode: PublishMode = "simulation"
+    # T-50: último proyecto de Jira usado por cada persona.
+    last_projects: LastProjectStore = field(default_factory=InMemoryLastProjectStore)
 
     def __post_init__(self) -> None:
         # El registro de aprobaciones persiste en el mismo almacén de estado del contenedor.
         if self.approvals.store is None:
             self.approvals.store = self.state_store
+
+    @property
+    def projects(self) -> ProjectService:
+        """Proyectos visibles, preselección (último usado o `JIRA_PROJECT_KEY`) y elección."""
+        default = self.config.settings.jira_project_key if self.config else None
+        return ProjectService(self.issue_tracker, self.last_projects, default)
 
     @property
     def top_k(self) -> int:
@@ -96,6 +105,7 @@ def build_container(
     versions: VersionSink | None = None,
     state_store: ArtifactStateStore | None = None,
     publish_mode: PublishMode | None = None,
+    last_projects: LastProjectStore | None = None,
 ) -> Container:
     """Compone el contenedor. Sin adaptadores reales todavía, cada dependencia es obligatoria."""
     if config is not None:
@@ -127,4 +137,5 @@ def build_container(
         versions=versions,
         state_store=store,
         publish_mode=mode,
+        last_projects=last_projects or InMemoryLastProjectStore(),
     )

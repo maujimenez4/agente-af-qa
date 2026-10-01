@@ -90,26 +90,28 @@ def test_create_story_returns_new_key_with_prefix_and_records_write(
 ) -> None:
     """CA-00-03: create_story crea clave nueva, prefijo [HU-XX] y registra en `writes`."""
     story = dataset.renewal_story(jira_key=None)
-    key = tracker.create_story(story, "DEMO-1")
+    key = tracker.create_story(story, "DEMO-1", "DEMO")
     assert key.startswith("DEMO-")
     assert key not in dataset.STORIES
     created = tracker.get_issue(key)
     assert created.summary == "[HU-02] Renovar un préstamo"
     assert created.parent_key == "DEMO-1"
-    assert tracker.writes == [("create_story", {"key": key, "epic_key": "DEMO-1"})]
+    assert tracker.writes == [
+        ("create_story", {"key": key, "epic_key": "DEMO-1", "project": "DEMO"})
+    ]
     assert key in {c.key for c in tracker.list_children("DEMO-1")}
 
 
 def test_create_story_generates_distinct_keys(tracker: FakeIssueTracker) -> None:
     """CA-00-03: dos creaciones consecutivas generan claves distintas."""
     story = dataset.renewal_story(jira_key=None)
-    assert tracker.create_story(story, None) != tracker.create_story(story, None)
+    assert tracker.create_story(story, None, "DEMO") != tracker.create_story(story, None, "DEMO")
 
 
 def test_create_story_without_internal_id_has_no_prefix(tracker: FakeIssueTracker) -> None:
     """CA-00-03 (límite): sin internal_id el summary es solo el título."""
     story = dataset.renewal_story(jira_key=None).model_copy(update={"internal_id": None})
-    key = tracker.create_story(story, None)
+    key = tracker.create_story(story, None, "DEMO")
     assert tracker.get_issue(key).summary == "Renovar un préstamo"
     assert tracker.get_issue(key).parent_key is None
 

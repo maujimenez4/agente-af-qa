@@ -49,6 +49,7 @@ STORY_ORIGIN: Origin = {"kind": "story", "key": "DEMO-3"}
 EPIC_ORIGIN: Origin = {"kind": "epic", "key": "DEMO-1"}
 NEED_ORIGIN: Origin = {
     "kind": "need",
+    "project": "DEMO",
     "text": "Avisar por correo tres días antes del vencimiento del préstamo (ficticio).",
 }
 FEEDBACK = "Añade un criterio ficticio sobre el aviso de vencimiento."
@@ -214,7 +215,7 @@ def test_simulated_plan_for_evolution_updates_story_and_links_affected(tmp_path:
 
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
 
-    assert plan[0] == {"op": "update_story", "key": "DEMO-3"}
+    assert plan[0] == {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
     assert plan[1:] == _links(artifact, "DEMO-3")
     assert plan[1:], "el fake propone al menos una HU afectada (DEMO-2)"
     assert all(step["to"] != "DEMO-3" for step in plan[1:])
@@ -227,7 +228,7 @@ def test_simulated_plan_for_epic_creates_story_and_skips_epic_link(tmp_path: Pat
 
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
 
-    assert plan[0] == {"op": "create_story", "epic": "DEMO-1"}
+    assert plan[0] == {"op": "create_story", "project": "DEMO", "epic": "DEMO-1"}
     assert plan[1:] == _links(artifact, "(HU nueva)", exclude="DEMO-1")
     assert plan[1:], "el fake propone al menos una HU afectada (DEMO-2)"
     assert all(step["to"] != "DEMO-1" for step in plan[1:])
@@ -240,7 +241,7 @@ def test_simulated_plan_for_need_creates_story_without_epic(tmp_path: Path) -> N
 
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
 
-    assert plan[0] == {"op": "create_story", "epic": ""}
+    assert plan[0] == {"op": "create_story", "project": "DEMO", "epic": ""}
     assert plan[1:] == _links(artifact, "(HU nueva)")
 
 
@@ -252,7 +253,12 @@ def test_simulated_plan_for_qa_publishes_suite_with_case_count(tmp_path: Path) -
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
 
     assert plan == [
-        {"op": "publish_suite", "story": "DEMO-3", "cases": str(len(artifact.content.cases))}
+        {
+            "op": "publish_suite",
+            "project": "DEMO",
+            "story": "DEMO-3",
+            "cases": str(len(artifact.content.cases)),
+        }
     ]
     assert plan[0]["cases"] == "2"
 
@@ -302,7 +308,7 @@ def test_live_publish_audits_not_simulated_with_keys_and_failed(tmp_path: Path) 
     assert publish.jira_keys == final["published_keys"]
     assert publish.detail["failed"] == 0
     assert publish.detail["status"] == "published"
-    assert publish.detail["plan"][0] == {"op": "create_story", "epic": "DEMO-1"}
+    assert publish.detail["plan"][0] == {"op": "create_story", "project": "DEMO", "epic": "DEMO-1"}
     assert _tracker(container).writes[0][0] == "create_story"
 
 
@@ -391,7 +397,7 @@ def test_evolution_never_links_to_its_epic(
     assert artifact.impact is not None
     assert epic in {item.jira_key for item in artifact.impact.affected}
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
-    assert plan[0] == {"op": "update_story", "key": "DEMO-3"}
+    assert plan[0] == {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
     assert all(step.get("to") != epic for step in plan[1:])
     links = [data for op, data in _tracker(container).writes if op == "link"]
     assert all(data["to"] != epic for data in links)
@@ -512,7 +518,7 @@ def test_full_simulated_flow_persists_coherent_rows(tmp_path: Path, engine: Engi
     audit = SqlAuditTrail(engine).entries(artifact.id)
     assert [e.action for e in audit] == ["create", "iterate", "approve", "publish"]
     assert audit[-1].detail["simulated"] is True
-    assert audit[-1].detail["plan"][0] == {"op": "update_story", "key": "DEMO-3"}
+    assert audit[-1].detail["plan"][0] == {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
     state = SqlArtifactStateStore(engine).load(str(artifact.id))
     assert state is not None
     assert set(state) == {"baseline", "ledger"}

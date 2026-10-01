@@ -5,7 +5,6 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 """
 
 import json
-import re
 import time
 from dataclasses import replace
 from typing import Any
@@ -25,6 +24,7 @@ from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
 from core.impact.analysis import ImpactAnalyzer
 from core.logging import get_logger
+from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
 from core.state_machine import transition
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType
@@ -36,7 +36,7 @@ DECISIONS: tuple[Decision, ...] = ("iterate", "approve", "discard")
 LINK_TYPE_IMPACT = "relates to"  # D-09
 DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
 # Clave de Jira: evita rutas o JQL inyectadas a través del origen (p. ej. "../x").
-JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
+JIRA_KEY = ISSUE_KEY
 
 log = get_logger("core.graph")
 
@@ -59,7 +59,7 @@ class GraphNodes:
         """Jira + RAG ajustados al presupuesto de tokens (T-18)."""
         started = time.perf_counter()
         origin_issue = state["jira_context"][0] if state["jira_context"] else None
-        gathered = self._context_service().gather(state["origin"], origin_issue)
+        gathered = self._context_service(state).gather(state["origin"], origin_issue)
         log.info(
             "contexto reunido",
             user=state["user"],
@@ -72,7 +72,7 @@ class GraphNodes:
         )
         return {"jira_context": gathered.jira, "rag_context": gathered.rag}
 
-    def _context_service(self) -> ContextService:
+    def _context_service(self, state: AgentState) -> ContextService:
         config = self.c.config
         return ContextService(
             self.c.issue_tracker,
@@ -83,7 +83,7 @@ class GraphNodes:
             token_budget=(
                 config.models.limits.context_token_budget if config else DEFAULT_TOKEN_BUDGET
             ),
-            project_key=config.settings.jira_project_key if config else None,
+            project_key=state["origin"].get("project"),  # el de la conversación (T-50)
         )
 
     # --- 4 · generate ----------------------------------------------------------------------
@@ -378,6 +378,8 @@ class GraphNodes:
     ) -> list[dict[str, str]]:
         """Operaciones que la publicación haría en Jira, derivadas de la aprobación (RF-31)."""
         target = approval.target
+        _check_project(target)
+        project = target.project_key
         if isinstance(artifact.content, TestSuite):
             if (
                 target.mode != "qa"
@@ -388,6 +390,7 @@ class GraphNodes:
             return [
                 {
                     "op": "publish_suite",
+                    "project": project,
                     "story": target.origin_key or "",
                     "cases": str(len(artifact.content.cases)),
                 }
@@ -396,11 +399,11 @@ class GraphNodes:
             raise PublishError("La operación aprobada no corresponde a una HU.")
         if target.origin_kind == "story" and target.origin_key:
             source, epic = target.origin_key, parent_key  # PA-38: nunca vincular a su épica
-            plan = [{"op": "update_story", "key": source}]
+            plan = [{"op": "update_story", "project": project, "key": source}]
         else:
             source = "(HU nueva)"
             epic = target.origin_key if target.origin_kind == "epic" else None
-            plan = [{"op": "create_story", "epic": epic or ""}]
+            plan = [{"op": "create_story", "project": project, "epic": epic or ""}]
         plan += [
             {"op": "link", "from": source, "to": item.jira_key, "type": LINK_TYPE_IMPACT}
             for item in _one_per_key(artifact.impact)
@@ -415,13 +418,14 @@ class GraphNodes:
         target, impact = approval.target, artifact.impact
         if not isinstance(story, UserStory) or target.mode != "functional":
             raise PublishError("La operación aprobada no corresponde a una HU.")
+        _check_project(target)
         if target.origin_kind == "story" and target.origin_key:
             key = target.origin_key
             epic_key = parent_key
             self.c.issue_tracker.update_story(key, story, _diff_comment_md(impact))
         else:
             epic_key = target.origin_key if target.origin_kind == "epic" else None
-            key = self.c.issue_tracker.create_story(story, epic_key)
+            key = self.c.issue_tracker.create_story(story, epic_key, target.project_key)
         # RF-06: vínculos a las HU afectadas (T-21), nunca a la épica (PA-38). Un vínculo que
         # falla no pierde lo ya publicado: se informa como error y se audita (RNF-13).
         errors: list[str] = []
@@ -482,6 +486,17 @@ class GraphNodes:
         return {}
 
 
+def _check_project(target: PublishTarget) -> None:
+    """Nada se publica fuera del proyecto aprobado: la clave de origen tiene que ser suya (T-50)."""
+    if not PROJECT_KEY.fullmatch(target.project_key):
+        raise PublishError("La operación aprobada no indica un proyecto de Jira válido.")
+    key = target.origin_key
+    if key is not None and (not JIRA_KEY.fullmatch(key) or project_of(key) != target.project_key):
+        raise PublishError(
+            f"La incidencia {key} no pertenece al proyecto aprobado ({target.project_key})."
+        )
+
+
 def _parent_of(state: AgentState, key: str | None) -> str | None:
     """Épica de la incidencia `key` según el contexto de Jira del estado."""
     return next((i.parent_key for i in state["jira_context"] if i.key == key), None)
@@ -505,12 +520,22 @@ def validate_origin(state: AgentState) -> None:
     """Valida modo y origen; se llama al cargar, al generar y al publicar."""
     origin = state["origin"]
     kind, key, text = origin.get("kind"), origin.get("key"), origin.get("text")
+    project = origin.get("project")
     if kind not in ("epic", "story", "need"):
         raise ValueError(f"Tipo de origen no válido: {kind!r}.")
     if kind in ("epic", "story") and not key:
         raise ValueError(f"El origen '{kind}' necesita una clave de Jira.")
     if key is not None and not JIRA_KEY.fullmatch(key):
         raise ValueError(f"Clave de Jira no válida: {key!r} (formato esperado: PROYECTO-123).")
+    # T-50: cada conversación trabaja en un proyecto de Jira, y el origen pertenece a él.
+    if not project:
+        raise ValueError("Elige el proyecto de Jira de la conversación.")
+    if not PROJECT_KEY.fullmatch(project):
+        raise ValueError(
+            f"Clave de proyecto no válida: {project[:50]!r} (formato esperado: PROYECTO)."
+        )
+    if key is not None and project_of(key) != project:
+        raise ValueError(f"La incidencia {key} no pertenece al proyecto {project}.")
     if kind == "need" and not (text and text.strip()):
         raise ValueError("Una necesidad nueva necesita un texto descriptivo.")
     if state["mode"] not in ("functional", "qa"):
@@ -528,6 +553,7 @@ def _target(state: AgentState, config: RunnableConfig | None) -> PublishTarget:
         mode=state["mode"],
         origin_kind=origin["kind"],
         origin_key=origin.get("key"),
+        project_key=origin.get("project") or "",
         user=state["user"],
         thread_id=str(thread_id),
     )

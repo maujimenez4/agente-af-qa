@@ -199,6 +199,7 @@ def test_graph_audits_create_iterate_approve_publish_in_order_when_live(tmp_path
     assert entries[0].detail["prompt_version"] is not None
     assert entries[2].detail["operation"] == {
         "operation": "actualizar HU",
+        "project": "DEMO",
         "jira_key": "DEMO-3",
         "epic_key": None,
     }

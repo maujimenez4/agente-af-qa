@@ -588,15 +588,15 @@ def test_retrieve_context_node_default_config_keeps_full_context(
     assert update["rag_context"]
 
 
-def test_retrieve_context_node_uses_project_key_from_config_for_need(
+def test_retrieve_context_node_uses_origin_project_over_config_for_need(
     tmp_path: Path, clean_env: pytest.MonkeyPatch, restore_logging: None
 ) -> None:
-    """RF-14: con JIRA_PROJECT_KEY en la configuración, una necesidad busca HU en Jira."""
-    clean_env.setenv("JIRA_PROJECT_KEY", "DEMO")
+    """RF-14 · T-50: una necesidad busca HU en el proyecto de la conversación, no en `.env`."""
+    clean_env.setenv("JIRA_PROJECT_KEY", "OTRO")
     tracker = SpyIssueTracker()
     container = fake_container(tmp_path, config=_app_config(), issue_tracker=tracker)
     nodes = GraphNodes(container)
-    origin = {"kind": "need", "text": "renovaciones"}  # el fake aplica AND a las palabras
+    origin = {"kind": "need", "text": "renovaciones", "project": "DEMO"}  # AND de palabras
     state = initial_state("af-demo", "functional", origin)  # type: ignore[arg-type]
     state.update(nodes.load_origin(state))  # type: ignore[typeddict-item]
 
@@ -607,13 +607,17 @@ def test_retrieve_context_node_uses_project_key_from_config_for_need(
     assert [i.key for i in update["jira_context"]] == ["DEMO-3"]
 
 
-def test_retrieve_context_node_without_config_has_no_jira_for_need(tmp_path: Path) -> None:
-    """RF-14: sin AppConfig (sin project_key), una necesidad no consulta Jira."""
+def test_retrieve_context_node_without_config_uses_origin_project_for_need(
+    tmp_path: Path,
+) -> None:
+    """RF-14 · T-50: sin AppConfig, la necesidad sigue buscando en el proyecto del origen."""
     tracker = SpyIssueTracker()
     nodes = GraphNodes(fake_container(tmp_path, issue_tracker=tracker))
-    origin = {"kind": "need", "text": "renovar un préstamo"}
+    origin = {"kind": "need", "text": "renovar un préstamo", "project": "OTRO"}
     state = initial_state("af-demo", "functional", origin)  # type: ignore[arg-type]
     state.update(nodes.load_origin(state))  # type: ignore[typeddict-item]
 
-    assert nodes.retrieve_context(state)["jira_context"] == []
-    assert tracker.searches == []
+    nodes.retrieve_context(state)
+
+    assert len(tracker.searches) == 1
+    assert tracker.searches[0][0].startswith('project = "OTRO" AND text ~ ')

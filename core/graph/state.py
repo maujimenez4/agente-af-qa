@@ -3,6 +3,7 @@
 from typing import Literal, NotRequired, TypedDict
 
 from adapters.base import IssueDetail, RetrievedChunk
+from core.projects import ISSUE_KEY
 from schemas.artifact import Artifact
 
 Decision = Literal["iterate", "approve", "discard"]
@@ -12,12 +13,13 @@ class Origin(TypedDict):
     kind: Literal["epic", "story", "need"]
     key: NotRequired[str]
     text: NotRequired[str]
+    project: NotRequired[str]  # proyecto de Jira de la conversación (T-50)
 
 
 class AgentState(TypedDict):
     user: str
     mode: Literal["functional", "qa"]
-    origin: Origin  # {kind: "epic"|"story"|"need", key?: str, text?: str}
+    origin: Origin  # {kind: "epic"|"story"|"need", key?: str, text?: str, project?: str}
     jira_context: list[IssueDetail]
     rag_context: list[RetrievedChunk]
     artifact: Artifact | None
@@ -28,6 +30,10 @@ class AgentState(TypedDict):
 
 
 def initial_state(user: str, mode: Literal["functional", "qa"], origin: Origin) -> AgentState:
+    """Estado inicial; con clave de origen, el proyecto es el de la clave (T-50)."""
+    origin = Origin(**origin)
+    if (key := origin.get("key")) and (match := ISSUE_KEY.fullmatch(key)):
+        origin["project"] = match.group(1)  # una clave de otro proyecto lo cambia
     return AgentState(
         user=user,
         mode=mode,

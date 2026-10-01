@@ -3,8 +3,9 @@
 El estado del checkpointer puede modificarse con `update_state` o al reanudar, así que no basta
 con que el artefacto diga `APPROVED`. El ciclo es:
 
-1. `generate` ofrece una versión (`offer`) con su operación de publicación (`PublishTarget`).
-   La operación queda fijada en la primera oferta y no cambia entre iteraciones.
+1. `generate` ofrece una versión (`offer`) con su operación de publicación (`PublishTarget`,
+   con el proyecto de Jira desde T-50). La operación queda fijada en la primera oferta y no
+   cambia entre iteraciones.
 2. `human_review` muestra versión y operación; la persona aprueba la huella de ambas
    (`review_fingerprint`) y se registra la aprobación (`record`).
 3. `publish` exige una aprobación vigente para esa versión y esa operación, toma la operación
@@ -48,6 +49,7 @@ class PublishTarget:
     mode: str  # "functional" | "qa"
     origin_kind: str  # "epic" | "story" | "need"
     origin_key: str | None
+    project_key: str  # T-50: lo aprobado es lo publicado, también el proyecto
     user: str
     thread_id: str
 
@@ -61,6 +63,7 @@ class PublishTarget:
             operation = "crear HU"
         return {
             "operation": operation,
+            "project": self.project_key,
             "jira_key": self.origin_key if self.origin_kind == "story" else None,
             "epic_key": self.origin_key if self.origin_kind == "epic" else None,
         }

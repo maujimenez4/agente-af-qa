@@ -26,6 +26,7 @@ from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
 from core.config import AppConfig, Settings
 from core.impact.versions import StoryVersionStore
+from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
@@ -96,6 +97,11 @@ def build_versions(config: AppConfig) -> StoryVersionStore:
 def build_state_store(config: AppConfig) -> SqlArtifactStateStore:
     """Aprobaciones y versión de partida por artefacto en `artifact_state` (T-25)."""
     return SqlArtifactStateStore.from_url(config.settings.sqlalchemy_url())
+
+
+def build_last_projects(config: AppConfig) -> SqlLastProjectStore:
+    """Último proyecto de Jira usado por cada persona en `user_last_project` (T-50)."""
+    return SqlLastProjectStore.from_url(config.settings.sqlalchemy_url())
 
 
 def build_embeddings(config: AppConfig) -> OllamaEmbeddings:

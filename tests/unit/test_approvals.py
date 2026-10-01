@@ -19,7 +19,12 @@ from tests.fakes import dataset
 USER = "af-demo"
 ORIGIN = "DEMO-3"
 TARGET = PublishTarget(
-    mode="functional", origin_kind="story", origin_key=ORIGIN, user=USER, thread_id="hilo-1"
+    mode="functional",
+    origin_kind="story",
+    origin_key=ORIGIN,
+    project_key="DEMO",
+    user=USER,
+    thread_id="hilo-1",
 )
 
 
@@ -120,6 +125,7 @@ def test_review_fingerprint_covers_operation() -> None:
     assert review_fingerprint(artifact, TARGET) != review_fingerprint(artifact, epic)
     assert TARGET.describe() == {
         "operation": "actualizar HU",
+        "project": "DEMO",
         "jira_key": ORIGIN,
         "epic_key": None,
     }

@@ -24,6 +24,7 @@ TABLES = {
     "documents",
     "chunks",
     "llm_usage",
+    "user_last_project",  # 0003 (T-50)
 }
 
 OFFLINE_URL = URL.create("postgresql+psycopg", username="agente", host="localhost", database="x")

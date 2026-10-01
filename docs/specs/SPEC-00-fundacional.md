@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 1.3 · **CONGELADA** (1.2 y 1.3 el 2026-09-30; 1.3 añade `list_projects`, RF-02) |
+| Versión | 1.4 · **CONGELADA** (1.2 y 1.3 el 2026-09-30; 1.3 añade `list_projects`, RF-02; 1.4 el 2026-10-01: proyecto en la conversación y `create_story(…, project)`, T-50) |
 | Propietario | Sesión principal |
 | Cubre | RNF-01, RNF-02, RNF-12, RNF-14, RNF-17, RNF-18, RNF-20, RNF-23, RNF-25, RNF-26 y la base de todos los RF |
 
@@ -144,7 +144,7 @@ class IssueTracker(Protocol):                       # Área A · Jira
     def list_epics(self, project: str) -> list[IssueSummary]: ...
     def list_children(self, epic_key: str) -> list[IssueSummary]: ...
     # --- ESCRITURA: solo desde el nodo publish ---
-    def create_story(self, story: UserStory, epic_key: str | None) -> str: ...
+    def create_story(self, story: UserStory, epic_key: str | None, project: str) -> str: ...  # T-50
     def update_story(self, key: str, story: UserStory, diff_comment_md: str) -> None: ...
     def link(self, from_key: str, to_key: str, link_type: str, comment_md: str | None = None) -> None: ...
 
@@ -200,7 +200,7 @@ Cada protocolo tiene su **fake** en `tests/fakes/` desde el día 1.
 class AgentState(TypedDict):
     user: str
     mode: Literal["functional", "qa"]
-    origin: Origin                  # {kind: "epic"|"story"|"need", key?: str, text?: str}
+    origin: Origin                  # {kind: "epic"|"story"|"need", key?: str, text?: str, project?: str}
     jira_context: list[IssueDetail]
     rag_context: list[RetrievedChunk]
     artifact: Artifact | None
@@ -232,6 +232,7 @@ Checkpointer: `langgraph-checkpoint-postgres`.
 | `artifact_versions` | artifact_id, version, content (jsonb), created_at |
 | `audit_log` | id, artifact_id, action (`create`, `iterate`, `approve`, `publish`, `discard`), user, jira_keys, model, detail (jsonb), at |
 | `artifact_state` | artifact_id (PK, sin FK), state (jsonb: `ledger` de aprobaciones y `baseline` de la versión de partida), updated_at (T-25, migración `0002`) |
+| `user_last_project` | username (PK, sin FK), project_key, updated_at (T-50, migración `0003`: último proyecto usado, para preseleccionarlo) |
 | `documents` | id, title, category (7 categorías + `memoria`), source_path, embedding_model, content_hash, related_key, created_at |
 | `chunks` | id, document_id, ordinal, section, content, embedding `vector(N)`, tsv `tsvector`, metadata (jsonb) |
 | `llm_usage` | id, task, provider, model, input_tokens, output_tokens, est_cost, latency_ms, artifact_id, at (RF-43) |
@@ -300,3 +301,6 @@ Precisiones acordadas durante T-01…T-07. Forman parte del contrato congelado; 
 | Composición de T-25 | `Container` añade `audit`, `versions` (`VersionSink`: `save`, `update_status`), `state_store` y `publish_mode`; `__post_init__` conecta el registro de aprobaciones al `state_store`. Fábricas `build_audit`, `build_versions`, `build_state_store` | `core/container.py`, `core/factories.py` |
 | Versión de partida (PA-30, PA-37) | La HU de Jira estructurada una sola vez se guarda en `artifact_state.state["baseline"]` y se borra al descartar o publicar | `core/graph/nodes.py` |
 | Vínculos y épica (PA-38) | Al evolucionar o crear una HU, nunca se vincula `relates to` con su épica | `core/graph/nodes.py` |
+| Proyecto en la conversación (T-50) | `Origin.project`: proyecto de Jira de la conversación, elegido al empezar entre los de `list_projects`; `initial_state` lo toma del prefijo de la clave de origen (una clave de otro proyecto lo cambia). `validate_origin` exige proyecto con formato `^[A-Z][A-Z0-9_]+$` y que la clave de origen sea suya. `PublishTarget.project_key` entra en la huella (lo aprobado es lo publicado) y el plan de `publish` lo incluye; `publish` rechaza una operación cuyo origen no sea del proyecto aprobado; los vínculos «relates to» del impacto sí pueden ir a HU de otros proyectos (se muestran en el plan y entran en la huella). Un registro de aprobaciones anterior sin `project_key` falla cerrado | `core/graph/state.py`, `core/graph/nodes.py`, `core/approvals.py` |
+| `create_story` (T-50) | `IssueTracker.create_story(story, epic_key, project)`: la HU se crea en el proyecto aprobado | `adapters/base.py` |
+| Elección del proyecto (T-50) | `core/projects.py`: `normalize_project_key`, `normalize_issue_key` y `project_of` para las claves escritas; `ProjectService.available(user)` → `ProjectChoice(projects, preselected)` (último usado si sigue visible; si no, `JIRA_PROJECT_KEY` si es visible) y `choose(user, project)` (valida contra `list_projects`, `NotFoundError` si no es visible, y lo recuerda). `Container.last_projects` (`LastProjectStore`, en memoria por defecto; `SqlLastProjectStore` con `build_last_projects`) y `Container.projects`. `ContextService` busca en el proyecto del origen | `core/projects.py`, `core/container.py`, `core/factories.py` |

@@ -38,6 +38,7 @@ STORY_ORIGIN: Origin = {"kind": "story", "key": "DEMO-3"}
 EPIC_ORIGIN: Origin = {"kind": "epic", "key": "DEMO-1"}
 NEED_ORIGIN: Origin = {
     "kind": "need",
+    "project": "DEMO",
     "text": "Avisar a la persona socia por correo tres días antes del vencimiento del préstamo.",
 }
 FEEDBACK = "Añade un criterio para el aviso de vencimiento (texto ficticio)."
@@ -438,8 +439,12 @@ def test_qa_partial_failure_reports_errors_and_keeps_approved(tmp_path: Path) ->
     [
         ("functional", {"kind": "story"}, "necesita una clave"),
         ("functional", {"kind": "epic", "key": ""}, "necesita una clave"),
-        ("functional", {"kind": "need"}, "texto descriptivo"),
-        ("functional", {"kind": "need", "text": "   "}, "texto descriptivo"),
+        ("functional", {"kind": "need", "project": "DEMO"}, "texto descriptivo"),
+        (
+            "functional",
+            {"kind": "need", "text": "   ", "project": "DEMO"},
+            "texto descriptivo",
+        ),
         ("functional", {"kind": "bug", "key": "DEMO-3"}, "no válido"),
         ("qa", {"kind": "epic", "key": "DEMO-1"}, "modo QA"),
         ("qa", NEED_ORIGIN, "modo QA"),
@@ -896,7 +901,12 @@ def test_operation_cannot_change_through_an_iteration(
 def test_interrupt_payload_describes_the_operation(tmp_path: Path) -> None:
     graph = build_graph(fake_container(tmp_path))
     payload = _payload(_start(graph, _config(), origin=EPIC_ORIGIN))
-    assert payload["target"] == {"operation": "crear HU", "jira_key": None, "epic_key": "DEMO-1"}
+    assert payload["target"] == {
+        "operation": "crear HU",
+        "project": "DEMO",
+        "jira_key": None,
+        "epic_key": "DEMO-1",
+    }
 
 
 def test_published_version_cannot_be_approved_again(tmp_path: Path) -> None:

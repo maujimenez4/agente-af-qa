@@ -65,9 +65,9 @@ class FakeIssueTracker:
 
     # --- ESCRITURA ---
 
-    def create_story(self, story: UserStory, epic_key: str | None) -> str:
+    def create_story(self, story: UserStory, epic_key: str | None, project: str) -> str:
         self._next_number += 1
-        key = f"{dataset.PROJECT_KEY}-{self._next_number}"
+        key = f"{project}-{self._next_number}"
         prefix = f"[{story.internal_id}] " if story.internal_id else ""
         self.issues[key] = IssueDetail(
             key=key,
@@ -77,7 +77,7 @@ class FakeIssueTracker:
             parent_key=epic_key,
             description_text=story.description,
         )
-        self.writes.append(("create_story", {"key": key, "epic_key": epic_key}))
+        self.writes.append(("create_story", {"key": key, "epic_key": epic_key, "project": project}))
         return key
 
     def update_story(self, key: str, story: UserStory, diff_comment_md: str) -> None:

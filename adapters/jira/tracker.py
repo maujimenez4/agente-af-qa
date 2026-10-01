@@ -153,7 +153,7 @@ class JiraCloudTracker:
 
     # --- ESCRITURA: solo desde el nodo publish (T-27) ---------------------------------------
 
-    def create_story(self, story: UserStory, epic_key: str | None) -> str:
+    def create_story(self, story: UserStory, epic_key: str | None, project: str) -> str:
         raise NotImplementedError("La creación de HU se implementa en T-27.")
 
     def update_story(self, key: str, story: UserStory, diff_comment_md: str) -> None:

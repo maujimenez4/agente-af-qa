@@ -47,6 +47,7 @@ def _target(origin_key: str = "DEMO-3", thread_id: str = THREAD) -> PublishTarge
         mode="functional",
         origin_kind="story",
         origin_key=origin_key,
+        project_key="DEMO",
         user=AF_USER,
         thread_id=thread_id,
     )
@@ -289,6 +290,7 @@ def test_ledger_key_is_saved_without_removing_other_keys() -> None:
         "mode": "functional",
         "origin_kind": "story",
         "origin_key": "DEMO-3",
+        "project_key": "DEMO",
         "user": AF_USER,
         "thread_id": THREAD,
     }

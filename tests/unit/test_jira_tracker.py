@@ -213,7 +213,9 @@ def test_tracker_implements_issue_tracker_protocol() -> None:
 @pytest.mark.parametrize(
     "call",
     [
-        pytest.param(lambda t: t.create_story(dataset.renewal_story(None), "DEMO-1"), id="create"),
+        pytest.param(
+            lambda t: t.create_story(dataset.renewal_story(None), "DEMO-1", "DEMO"), id="create"
+        ),
         pytest.param(
             lambda t: t.update_story("DEMO-3", dataset.renewal_story(), "Cambio ficticio"),
             id="update_story",

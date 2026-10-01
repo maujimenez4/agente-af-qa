@@ -1,3 +1,5 @@
+> **Sustituido el 2026-10-01:** ya no se trabaja con el compañero. Su contenido pasa a `SESION-UI.md` (sesiones paralelas de Claude Code).
+
 # PROMPT-07 · Día 7 · UI con T-52 y T-53, T-31 y T-28 (sesión del compañero)
 
 Prepara el repositorio y pega todo lo que hay debajo de la línea como primer mensaje en Claude Code:

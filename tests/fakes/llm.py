@@ -62,10 +62,20 @@ def _story_citing_context(messages: list[Message]) -> UserStory:
     return story
 
 
+def _suite_citing_context(messages: list[Message]) -> TestSuite:
+    """Suite del dataset que cita la primera fuente recibida, como `_story_citing_context`."""
+    suite = renewal_test_suite()
+    for message in messages:
+        if message.role == "user" and (match := _SOURCE_TAG.search(message.content)):
+            ref, kind = match.group(1), match.group(2)
+            return suite.model_copy(update={"sources": [SourceRef(kind=kind, ref=ref)]})
+    return suite
+
+
 def _default_builders() -> dict[type[BaseModel], Builder]:
     return {
         UserStory: _story_citing_context,
-        TestSuite: lambda _messages: renewal_test_suite(),
+        TestSuite: _suite_citing_context,
         ImpactAnalysis: lambda _messages: ImpactAnalysis(
             diffs=[StoryDiff(field="title", before="Renovar", after="Renovar un préstamo")],
             affected=[

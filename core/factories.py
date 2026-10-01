@@ -13,9 +13,9 @@ from collections.abc import Callable
 from typing import Any
 
 from adapters.auth.local import LocalAuthProvider
-from adapters.base import LLMProvider, TaskType
+from adapters.base import IssueSummary, LLMProvider, PublishResult, TaskType
 from adapters.embeddings.ollama import OllamaEmbeddings
-from adapters.errors import AuthenticationError
+from adapters.errors import AuthenticationError, ExternalServiceError, PublishError
 from adapters.jira.tracker import JiraCloudTracker
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
@@ -24,10 +24,14 @@ from adapters.llm.usage import UsageRecorder
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
-from core.config import AppConfig, Settings
+from core.config import AppConfig, ConfigError, Settings
+from core.container import Container, build_container
 from core.impact.versions import StoryVersionStore
 from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
+from schemas.artifact import Artifact
+from schemas.memory import Memory
+from schemas.test_case import TestSuite
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
 
@@ -142,3 +146,57 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
         )
 
     return create
+
+
+# --- Contenedor de la aplicación (T-24) ---------------------------------------------------------
+
+
+class PendingTestManagement:
+    """Hasta T-30 no hay publicación de casos en Jira; en simulación nunca se llama."""
+
+    def publish_suite(self, suite: TestSuite) -> PublishResult:
+        raise PublishError("La publicación de casos de prueba en Jira llega con T-30.")
+
+    def list_cases(self, story_key: str) -> list[IssueSummary]:
+        raise ExternalServiceError(
+            "La consulta de casos de prueba en Jira llega con T-30.", service="jira"
+        )
+
+
+class PendingMemoryGenerator:
+    """Hasta T-33 no hay memoria real; solo se llamaría tras publicar en `live`."""
+
+    def generate(self, artifact: Artifact) -> Memory:
+        raise ExternalServiceError(
+            "La memoria de la HU publicada llega con T-33.", service="memoria"
+        )
+
+
+def build_app_container(config: AppConfig, *, router: ModelRouter | None = None) -> Container:
+    """Contenedor real de la UI: Jira, LLM, embeddings, pgvector, usuarios y persistencia.
+
+    Auditoría, versiones y estado de los artefactos van siempre juntos (`audit_log` tiene FK a
+    `artifacts`). Para el selector de modelo (RF-42), crea el router con `model_router(config)`,
+    consérvalo y pásalo aquí. Publicar casos de prueba (T-30) y generar la memoria (T-33) quedan
+    pendientes: con `JIRA_PUBLISH_MODE=simulation` no se llega a usarlos, y en `live` no se
+    compone (una HU se publicaría sin memoria).
+    """
+    if config.settings.jira_publish_mode == "live":
+        raise ConfigError(
+            "JIRA_PUBLISH_MODE=live requiere publicar casos (T-30) y la memoria (T-33); "
+            "usa simulation hasta entonces."
+        )
+    return build_container(
+        config,
+        issue_tracker=build_issue_tracker(config.settings),
+        test_management=PendingTestManagement(),
+        llm=build_llm_provider(config, router=router),
+        embeddings=build_embeddings(config),
+        vector_store=build_vector_store(config),
+        memory_generator=PendingMemoryGenerator(),
+        auth=build_auth(config),
+        audit=build_audit(config),
+        versions=build_versions(config),
+        state_store=build_state_store(config),
+        last_projects=build_last_projects(config),
+    )

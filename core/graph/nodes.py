@@ -4,7 +4,6 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 (T-25) y la memoria real (T-33) se completan en sus tareas.
 """
 
-import json
 import time
 from dataclasses import replace
 from typing import Any
@@ -14,7 +13,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
-from adapters.base import Chunk, Message, TaskType
+from adapters.base import Chunk
 from adapters.errors import ExternalServiceError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
@@ -27,6 +26,7 @@ from core.impact.analysis import ImpactAnalyzer
 from core.impact.diff import diff_stories
 from core.logging import get_logger
 from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
+from core.qa.writer import SuiteDraft, TestWriter
 from core.state_machine import transition
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType
@@ -120,19 +120,31 @@ class GraphNodes:
         impact: ImpactAnalysis | None = None
         prompt_version: str | None = None
 
-        if state["mode"] == "qa":
-            # T-26 sustituirá este camino por core/qa al fusionar la rama del día 5.
-            messages = [Message(role="user", content=_context_json(state))]
-            result = self.c.llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
-            content: UserStory | TestSuite = result.content.model_copy(
-                update={"story_jira_key": origin["key"]}
-            )
-            artifact_type = ArtifactType.TEST_SUITE
-            model_used = f"{result.provider}/{result.model}"
-        else:
-            draft, impact = self._write_story(state, str(artifact_id))
-            content, artifact_type = draft.story, ArtifactType.USER_STORY
-            model_used, prompt_version = f"{draft.provider}/{draft.model}", draft.prompt_version
+        content: UserStory | TestSuite
+        try:
+            if state["mode"] == "qa":
+                suite_draft = self._write_suite(state, str(artifact_id))
+                content, artifact_type = suite_draft.suite, ArtifactType.TEST_SUITE
+                model_used = f"{suite_draft.provider}/{suite_draft.model}"
+                prompt_version = suite_draft.prompt_version
+            else:
+                draft, impact = self._write_story(state, str(artifact_id))
+                content, artifact_type = draft.story, ArtifactType.USER_STORY
+                model_used = f"{draft.provider}/{draft.model}"
+                prompt_version = draft.prompt_version
+        except Exception:
+            # Sin primera versión no hay artefacto: no queda una versión de partida huérfana
+            # (cada reintento usa un id nuevo). Si la limpieza falla, sube el error original.
+            if previous is None:
+                try:
+                    self._forget_baseline(str(artifact_id))
+                except Exception:
+                    log.warning(
+                        "versión de partida sin limpiar",
+                        action="forget_baseline",
+                        artifact_id=str(artifact_id),
+                    )
+            raise
 
         if previous is None:
             artifact = Artifact(
@@ -209,6 +221,24 @@ class GraphNodes:
             draft.story, jira, baseline=baseline, origin_key=origin.get("key")
         )
         return draft, impact
+
+    def _write_suite(self, state: AgentState, artifact_id: str) -> SuiteDraft:
+        """Suite de QA con los prompts de T-26 sobre la HU de Jira estructurada (PA-61).
+
+        La HU se estructura una sola vez por artefacto (versión de partida); al iterar, la suite
+        se regenera con todo el feedback acumulado (RF-20).
+        """
+        origin = state["origin"]
+        ctx = StoryContext(
+            origin_kind="story",
+            origin_key=origin.get("key"),
+            need=origin.get("text") or "",
+            jira=list(state["jira_context"]),
+            rag=list(state["rag_context"]),
+            feedback=list(state["feedback"]),
+        )
+        story = self._baseline(StoryWriter(self.c.llm), ctx, artifact_id)
+        return TestWriter(self.c.llm).generate(story, ctx)
 
     def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
         """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37)."""
@@ -671,24 +701,6 @@ def _target(state: AgentState, config: RunnableConfig | None) -> PublishTarget:
         user=state["user"],
         thread_id=str(thread_id),
     )
-
-
-def _context_json(state: AgentState) -> str:
-    """Contexto estructurado para el LLM; las instrucciones irán en prompts/ (T-20, T-26)."""
-    payload = {
-        "mode": state["mode"],
-        "origin": dict(state["origin"]),
-        "jira_context": [i.model_dump(mode="json") for i in state["jira_context"]],
-        "rag_context": [
-            {"source": r.source.model_dump(mode="json"), "content": r.chunk.content}
-            for r in state["rag_context"]
-        ],
-        "previous": state["artifact"].content.model_dump(mode="json")
-        if state["artifact"]
-        else None,
-        "feedback": state["feedback"],
-    }
-    return json.dumps(payload, ensure_ascii=False)
 
 
 def _diff_comment_md(impact: ImpactAnalysis | None) -> str:

@@ -39,11 +39,14 @@ def initial_state(
     mode: Literal["functional", "qa"],
     origin: Origin,
     excluded_sources: list[str] | None = None,
+    feedback: list[str] | None = None,
 ) -> AgentState:
     """Estado inicial; con clave de origen, el proyecto es el de la clave (T-50).
 
     `excluded_sources`: claves de Jira o referencias del RAG que no influirán en la propuesta
     (T-51). La incidencia de origen no se puede excluir.
+    `feedback`: indicaciones previas a la primera versión (restricciones al evolucionar, tipos
+    de caso en QA); llegan al LLM como el resto del feedback (RF-20).
     """
     origin = Origin(**origin)
     if (key := origin.get("key")) and (match := ISSUE_KEY.fullmatch(key)):
@@ -62,7 +65,7 @@ def initial_state(
         jira_context=[],
         rag_context=[],
         artifact=None,
-        feedback=[],
+        feedback=[item.strip() for item in feedback or [] if item.strip()],
         decision=None,
         excluded_sources=excluded,
         published_keys=[],

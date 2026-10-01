@@ -89,7 +89,7 @@ Fase 1 de 4. Conversación a la izquierda y panel «Antes de generar» a la dere
 | HU parecida | Etiqueta «Búsqueda en Jira por texto · sin IA»; tarjeta con la HU encontrada (clave, épica, nº de CA y RN) | *Evolucionar DEMO-3* · *Crear HU nueva* | **T-53** (HU parecida por `ContextService`, sin LLM) |
 | Tarjeta «Operación fijada» | «Operación fijada: evolucionar DEMO-3. No cambia durante la conversación; es lo único que se podrá aprobar y publicar.» | — | `PublishTarget` en `core/approvals.py` |
 | Panel · Operación | Operación y origen; «Se puede cambiar solo antes de generar.» | *Cambiar* (vuelve a Mixta 1) | — |
-| Panel · Restricciones | Texto opcional | Escribir | Se añade al texto de la necesidad (decisión de integración a confirmar en T-51) |
+| Panel · Restricciones | Texto opcional | Escribir | Necesidad nueva: se añade a `origin.text`. Evolucionar: `initial_state(..., feedback=[restricciones])` (en `origin.text` sustituiría la consulta al RAG) |
 | Panel · Fuentes | Lista con **casillas**: título, `DOC-NN` o clave y categoría; una fuente desmarcada indica «No influirá en la propuesta»; la memoria aparece como «prioritaria» | Marcar / desmarcar | Fuentes excluidas en el estado inicial **T-51** · nombres de categoría **T-49** |
 | Panel · Presupuesto | «Contexto · 3.150 de 6.000 tokens» con barra de progreso | — | `core/context/budget.py` (T-18) |
 | Panel · Pie | *Generar propuesta* · «Una llamada al modelo. Después itera conversando.» | Arranca el grafo | `core/graph` (`retrieve_context` → `generate`) |
@@ -155,13 +155,15 @@ Flujo propio, **solo lectura: no publica** (decisión del día 6).
 
 ## 5. Contrato de aprobación (SPEC-00 anexo §11)
 
-1. `human_review` hace `interrupt()` con el payload `{artifact, version, target, fingerprint, impact, decisions}`.
-2. La UI muestra el recibo (§4.6 / §6.4) con `target` e `impact`. La lista detallada de operaciones de Jira (`plan`) llega con **T-51**; hasta entonces el recibo se construye con `target` e `impact`.
+1. `human_review` hace `interrupt()` con el payload `{artifact, version, target, fingerprint, impact, plan, decisions, error}` (T-51). La UI detecta la pausa por las **interrupciones pendientes** del hilo (`get_state(config).tasks[*].interrupts` o `__interrupt__` del resultado), **no por `next`**: tras una respuesta rechazada, `next` queda vacío aunque la revisión siga abierta.
+2. La UI muestra el recibo (§4.6 / §6.4) con `plan`: una casilla por operación (`update_story`/`create_story` con su `project`, `link` con su destino, `publish_suite` con el número de casos), más `target` e `impact` para el detalle.
 3. Respuestas de la UI:
-   - Aprobar: `{"decision": "approve", "fingerprint": <la huella recibida>}`. **Sin huella, o con otra, no se aprueba**: el grafo responde «La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.» (`ValueError`; `ApprovalError` de `core/approvals.py` también es subclase de `ValueError`, no de `AgentError`: T-24 debe capturarlas).
+   - Aprobar: `{"decision": "approve", "fingerprint": <la huella recibida>}`.
    - Iterar: `{"decision": "iterate", "feedback": "<texto del chat>"}`.
    - Descartar: `{"decision": "discard"}`.
-   - Editar a mano: decisión `edit` (contenido editado → versión nueva con su huella) **T-51**.
+   - Editar a mano: `{"decision": "edit", "content": <contenido completo editado>, "fingerprint": <la huella recibida>}`. Crea la versión siguiente sin llamar al modelo y vuelve a pausar con su **huella nueva**; `jira_key`, `internal_id` y `story_jira_key` no se pueden cambiar.
+   - **Respuesta rechazada** (decisión no válida, huella que no casa con la versión revisada, edición inválida o sin cambios): no hay excepción; la revisión vuelve a pausar con el mismo payload y `error` con el motivo en español (p. ej. «La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.»). La UI lo muestra junto al recibo o al editor. Hasta 20 rechazos por pausa; después, `ValueError` «Demasiadas respuestas rechazadas…» → nueva conversación.
+   - **Rechazo del registro de aprobaciones** (`ApprovalError`, subclase de `ValueError`, no de `AgentError`): falla cerrado y el hilo no se recupera; la UI ofrece **empezar de nuevo**.
 4. La UI no guarda ni reconstruye la huella: devuelve exactamente la del último `interrupt`. Si la persona itera, la huella anterior deja de valer.
 5. *Aprobar y publicar* solo se activa con todas las casillas del recibo marcadas; es una ayuda visual: la garantía la da la huella en el grafo.
 6. Tras publicar, la aprobación se consume (un solo uso). En simulación sigue vigente (T-25), siempre que la huella siga coincidiendo con la versión aprobada; su caducidad antes de activar `live` es PA-41.
@@ -178,7 +180,7 @@ Fase 1 de 4.
 |---|---|---|---|
 | Clave reconocida | «Clave reconocida en Jira · sin IA»; tarjeta con la HU (épica, nº de CA y RN, «sin casos de prueba en Jira», «Publicada por el agente») | — | **T-53** · `get_issue` |
 | Operación fijada | «Operación fijada: suite de pruebas de DEMO-3. Los casos serán subtareas de DEMO-3 con la etiqueta «caso-prueba»; la estrategia y la matriz, adjuntos.» | — | `PublishTarget` (D-09) |
-| Panel · Tipos de caso (RF-22) | Casillas Positivos, Negativos, Alternos, De excepción | Marcar | Indicaciones para `TestWriter` (T-26) como texto (a confirmar en PA-61 / T-51) |
+| Panel · Tipos de caso (RF-22) | Casillas Positivos, Negativos, Alternos, De excepción | Marcar | `initial_state(..., feedback=["Incluye casos: …"])`; `TestWriter` lo recibe en el contexto (PA-61 ✅) |
 | Panel · Incluir además | Datos sintéticos (RF-25), Riesgos, dependencias e impacto (RF-27), Estrategia de pruebas (RF-26) | Marcar | `SuiteDraft` (T-26) |
 | Panel · Fuentes | HU de origen (**obligatoria**, sin casilla), memoria de la HU (prioritaria), casos de HU relacionadas (regresión), documentos | Marcar / desmarcar | Fuentes excluidas **T-51** · categorías **T-49** |
 | Pie | *Generar la suite* · «Una llamada al modelo. Después itera conversando.» | Arranca el grafo en modo QA | Conexión de `TestWriter` al grafo (PA-61) |
@@ -284,8 +286,8 @@ Viabilidad: las seis se pueden hacer con `st.html` (SVG y CSS, sin JavaScript) y
 
 | Necesidad de la UI | Pantallas | Tarea |
 |---|---|---|
-| Proyecto en la conversación (`project_key` en `Origin`/`PublishTarget`, último proyecto por usuario) | Mixta 1, 1b, lista de conversaciones | **T-50** |
-| Fuentes excluidas, `plan` de operaciones en `human_review`, decisión `edit` | Mixta 2, 3, recibo, QA 1, QA 3, QA 4 | **T-51** |
+| Proyecto en la conversación (`project_key` en `Origin`/`PublishTarget`, último proyecto por usuario) | Mixta 1, 1b, lista de conversaciones | **T-50 ✅**: `container.projects.available(user)` → proyectos y preseleccionado; `choose(user, clave)` al fijarlo; `normalize_issue_key`/`normalize_project_key` para lo escrito (`core/projects.py`); `origin["project"]` |
+| Fuentes excluidas, `plan` de operaciones en `human_review`, decisión `edit` | Mixta 2, 3, recibo, QA 1, QA 3, QA 4 | **T-51 ✅**: `initial_state(user, mode, origin, excluded_sources)` (claves o `ref`, máx. 50; el origen no se excluye) y §5 |
 | Conversaciones persistentes y listado por usuario | Lista de conversaciones, retomar, Mixta 5 → Evolucionar | **T-52** |
 | Reconocimiento de clave y HU parecida sin IA | Mixta 1, 2, QA 1 | **T-53** |
 | Registro de la ejecución | QA 5 (*Registrar la ejecución*), QA 6 | **T-47** |

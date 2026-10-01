@@ -1,0 +1,9 @@
+# Configuración de Streamlit para la UI (T-24).
+# Sin trazas en el navegador: los errores se muestran con su mensaje en español y el detalle
+# queda en los logs (sin secretos ni contenido).
+[client]
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

@@ -18,7 +18,7 @@ from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
-from core.context.service import ContextService
+from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.context import StoryContext
 from core.functional.writer import StoryDraft, StoryWriter
@@ -48,7 +48,6 @@ _CONTENT_MODEL: dict[ArtifactType, type[BaseModel]] = {
     ArtifactType.TEST_SUITE: TestSuite,
 }
 LINK_TYPE_IMPACT = "relates to"  # D-09
-DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
 # Clave de Jira: evita rutas o JQL inyectadas a través del origen (p. ej. "../x").
 JIRA_KEY = ISSUE_KEY
 
@@ -119,18 +118,8 @@ class GraphNodes:
         return {"jira_context": gathered.jira, "rag_context": gathered.rag}
 
     def _context_service(self, state: AgentState) -> ContextService:
-        config = self.c.config
-        return ContextService(
-            self.c.issue_tracker,
-            self.c.embeddings,
-            self.c.vector_store,
-            top_k=self.c.top_k,
-            memory_boost=self.c.memory_boost,
-            token_budget=(
-                config.models.limits.context_token_budget if config else DEFAULT_TOKEN_BUDGET
-            ),
-            project_key=state["origin"].get("project"),  # el de la conversación (T-50)
-        )
+        # El proyecto es el de la conversación (T-50).
+        return build_context_service(self.c, state["origin"].get("project"))
 
     # --- 4 · generate ----------------------------------------------------------------------
 

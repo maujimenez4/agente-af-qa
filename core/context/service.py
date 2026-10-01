@@ -5,6 +5,7 @@ ajusta al presupuesto de tokens. Solo depende de protocolos de `adapters/base.py
 """
 
 from collections.abc import Collection, Iterable, Mapping
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
@@ -20,7 +21,13 @@ from adapters.errors import NotFoundError
 from core.context.budget import BudgetReport, apply_budget, estimate_tokens
 from core.context.jql import any_keyword_jql, keywords
 
+if TYPE_CHECKING:
+    from core.container import Container
+
 MEMORY_CATEGORY = "memoria"
+DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
+# Tipos de incidencia que no son HU: no se proponen como «HU parecida» (T-53).
+NOT_STORIES = frozenset({"epic", "épica", "subtarea", "sub-task", "subtask", "task", "tarea"})
 # Una norma y el acta que la cambió deben llegar juntas al LLM (hallazgo de T-17).
 RELATED_PAIRS = {"politicas": "documentacion", "documentacion": "politicas"}  # T-49: normas ↔ actas
 MAX_LINKED = 5
@@ -127,14 +134,27 @@ class ContextService:
                 add(self._safe_get(match.key) or _detail_from_summary(match, None))
         return list(found.values())
 
+    def similar_stories(self, text: str, project: str) -> list[IssueSummary]:
+        """HU del proyecto parecidas al texto, por búsqueda de texto en Jira y sin IA (T-53)."""
+        stories = [
+            issue
+            for issue in self._ranked_candidates(text, project)
+            if issue.issue_type.strip().lower() not in NOT_STORIES
+        ]
+        return stories[:MAX_NEED_MATCHES]  # se filtra antes de cortar
+
     def _related_to_need(self, text: str) -> list[IssueSummary]:
+        return self._ranked_candidates(text)[:MAX_NEED_MATCHES]
+
+    def _ranked_candidates(self, text: str, project: str | None = None) -> list[IssueSummary]:
         """Candidatas con alguna palabra clave, reordenadas por coincidencias en el título."""
         words = keywords(text)
-        if not words or not self._project_key:
+        project = project or self._project_key
+        if not words or not project:
             return []
         try:
-            jql = any_keyword_jql(self._project_key, words)
-        except ValueError:  # JIRA_PROJECT_KEY no válida: sin búsqueda en Jira
+            jql = any_keyword_jql(project, words)
+        except ValueError:  # clave de proyecto no válida: sin búsqueda en Jira
             return []
         candidates = self._tracker.search(jql, limit=MAX_NEED_CANDIDATES)
 
@@ -142,8 +162,7 @@ class ContextService:
             title = issue.summary.lower()
             return sum(word in title for word in words)
 
-        ranked = sorted(candidates, key=overlap, reverse=True)  # estable: conserva el orden de Jira
-        return ranked[:MAX_NEED_MATCHES]
+        return sorted(candidates, key=overlap, reverse=True)  # estable: conserva el orden de Jira
 
     def _safe_get(self, key: str) -> IssueDetail | None:
         try:
@@ -192,3 +211,19 @@ class ContextService:
                     extra.append(best[0])
                     present.add(doc_id)
         return extra
+
+
+def build_context_service(container: "Container", project: str | None) -> ContextService:
+    """`ContextService` con la configuración del contenedor; lo usan el grafo y T-53."""
+    config = container.config
+    return ContextService(
+        container.issue_tracker,
+        container.embeddings,
+        container.vector_store,
+        top_k=container.top_k,
+        memory_boost=container.memory_boost,
+        token_budget=(
+            config.models.limits.context_token_budget if config else DEFAULT_TOKEN_BUDGET
+        ),
+        project_key=project,
+    )

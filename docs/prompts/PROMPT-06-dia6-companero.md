@@ -75,10 +75,9 @@ Hazlas con la skill del proyecto, **en este orden**.
 
 **Lo que aún no hay en el backend.** Márcalo en la pantalla, sin inventar contratos:
 - **T-52 · conversaciones persistentes:** ya está en `PreProduccion` (`git merge origin/PreProduccion` si creaste `Dia6` antes). Crea el checkpointer **una sola vez** con `st.cache_resource` (`build_checkpointer(config)` abre un pool) y pásalo a `build_graph(container, checkpointer=…)`. Conversación nueva: `new_conversation_config(user)` (el `thread_id` lo genera el servidor; nunca lo tomes de la URL). Lista: `container.conversations.list_for(user)`. Retomar: `resume_config(container.conversations, user, thread_id)`. Invoca el grafo **siempre** con esas configs: llevan `user` y el grafo rechaza a quien no es la dueña. Estados y errores: UI.md §7 y la tabla de dependencias.
-- **T-53 · arranque guiado:**
-  - de momento, reconocer una clave escrita con `normalize_issue_key`;
-  - la «HU parecida por texto» y la **vista previa de fuentes antes de generar** quedan como «disponible pronto».
-  - Hasta T-53, el panel de fuentes con casillas se muestra en la pestaña *Fuentes* tras la primera versión; desmarcar abre una conversación nueva con `excluded_sources`.
+- **T-53 · arranque guiado:** ya está en `PreProduccion`. `GuidedStart(container)` de `core/guided_start.py`:
+  - `propose(texto, proyecto, modo)` → `StartProposal`: claves reconocidas en el texto (también en minúsculas, solo si existen en Jira), `project`/`project_changed` (si es `True`, la UI avisa de que el proyecto de la conversación ha cambiado y llama a `container.projects.choose(user, proposal.project)`; `propose` no lo hace; `ignored_projects` lista los proyectos de claves que no se ofrecen, para avisar), HU parecidas por texto (sin IA) y `options` con su etiqueta y el `origin` listo para `initial_state`;
+  - `preview_sources(origin, excluded)` → filas del panel «Antes de generar» (`ref`, `kind`, `title`, `category`, `required`); las desmarcadas van en `excluded_sources`. Usa los embeddings, no el LLM.
 - **Recibo de aprobación y resultado (Mixta 4):** son **T-31**, no los hagas. *Revisar y aprobar* puede quedar desactivado con «disponible en T-31».
 
 **Animaciones (PA-44):** solo la Q de fase y la de «escribiendo», con SVG y CSS en `st.html`, respetando `prefers-reduced-motion`. Si algo no es viable, usa la alternativa estática de UI.md y anótalo como PA.

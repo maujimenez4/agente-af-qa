@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-23, T-24, T-26 … T-36, T-39 … T-46 | — | — | T-01 … T-22, T-25 | T-37, T-38 (R-01) |
+| T-08, T-23, T-24, T-26 … T-36, T-39 … T-53 | — | — | T-01 … T-22, T-25 | T-37, T-38 (R-01) |
 
 ---
 
@@ -121,6 +121,18 @@
 
 ---
 
+## Tareas añadidas el día 6
+
+| ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
+|---|---|---|---|---|---|
+| T-47 | Registro de la ejecución por caso: estado (Pasó, Falló, Bloqueado) y evidencia como comentario en la subtarea CP, con aprobación humana | A | T-30 | RF-28, R-01 (opción A) | ⬜ |
+| T-48 | Flujo **Revisar una HU**: análisis de calidad (INVEST, ambigüedades, CA sin fuente) de una HU de Jira con `StoryWriter.review`, sin publicar | A | T-21, T-25 | RF-18 | ⬜ |
+| T-49 | Categorías del RAG de la presentación: `CATEGORIES`, prompt de clasificación, metadatos del corpus y reindexado | B | T-12 | RF-12 | ⬜ |
+| T-50 | Proyecto en la conversación: `project_key` en `Origin` y `PublishTarget` (lo aprobado es lo publicado), validación de claves escritas, último proyecto por usuario y `create_story(story, epic_key, project)` (cambio de contrato, antes de T-27) | P | T-25 | RF-02, RF-04, RF-14 | ⬜ |
+| T-51 | Contrato de revisión para la UI: fuentes excluidas en el estado inicial, `plan` de operaciones de Jira en el payload de `human_review` y decisión `edit` (contenido editado → versión nueva con su huella) | P | T-25 | RF-21, RF-31, RF-32 | ⬜ |
+| T-52 | Conversaciones persistentes: checkpointer en PostgreSQL con el serializador de tipos explícitos y listado de conversaciones por usuario (proyecto, flujo, estado) | A | T-25 | RF-20, RF-47 | ⬜ |
+| T-53 | Arranque guiado sin IA: reconocimiento de claves de Jira en el texto y propuesta de HU parecida por búsqueda de texto (`ContextService`), antes de arrancar el grafo | A | T-50 | RF-14, RF-19 | ⬜ |
+
 ## Días 11–15 · v1.1 y demo final
 
 | ID | Tarea | Sesión | Trazabilidad | Estado |
@@ -165,6 +177,19 @@
 | 2026-09-30 | **Primera evolución de una HU de Jira (PA-30, opción 2):** la incidencia de Jira se estructura primero como `UserStory` con el LLM, para tener diff por campo desde la primera versión (RF-05, RNF-16) |
 | 2026-09-30 | **R-07 cerrada** (decisión del usuario): cadenas de `config/models.yaml` con los modelos gratuitos disponibles — pesadas `groq gpt-oss-120b → groq qwen3.8-27b → openrouter qwen3.8-27b:free`; medias `groq gpt-oss-20b → groq qwen3.8-27b → openrouter gemma-4-31b-it:free`; ligeras `groq gpt-oss-20b → openrouter gemma-4-26b-a4b-it:free`; Ollama solo para embeddings (R-08). Posible cambio futuro a modelos corporativos (Foundry): solo se toca `models.yaml` y el `.env`. Las pruebas usan `tests/fixtures/models.yaml` y no dependen de los modelos reales |
 | 2026-09-30 | Reparto del día 5: el compañero hace **T-26** y **T-23** en la rama `Dia5` (PR contra `PreProduccion`, prompt en `docs/prompts/PROMPT-05-dia5-companero.md`); la sesión principal conecta T-20 al grafo (PA-30) y sigue con **T-21 → T-25**. Rangos de propuestas: principal PA-35…PA-59, compañero desde PA-60 |
+
+## Decisiones del día 6
+| Fecha | Decisión |
+|---|---|
+| 2026-10-01 | Revisión de la presentación del proyecto (P1 · Agente AI · QA) frente al alcance: flujo de 8 pasos, plantilla de HU, campos de la memoria y capacidades de QA ya coinciden |
+| 2026-10-01 | **R-01 cerrada · opción A:** basta con registrar el resultado de la ejecución por caso (estado y evidencia en la subtarea de Jira). RF-28 entra en el MVP (la presentación lista la ejecución como salida); RF-29 (defectos) queda fuera → **T-47** |
+| 2026-10-01 | "Plan de pruebas" = estrategia de pruebas (RF-26); no hay documento aparte |
+| 2026-10-01 | **D-07 se mantiene:** sin memoria de los artefactos de QA en el MVP |
+| 2026-10-01 | **Categorías del RAG alineadas con la presentación** (diapositiva 4): productos y servicios, procesos de negocio, políticas y reglas operativas, documentación funcional y técnica, glosarios y criterios internos, HU y artefactos previos, estrategias y casos de prueba. Revisar el impacto en el par norma ↔ acta y en el corpus → **T-49** (área B) |
+| 2026-10-01 | **Revisar y mejorar una HU es un flujo propio** (sin evolucionarla ni publicarla por defecto) → **T-48** |
+| 2026-10-01 | **UI: «Propuesta mixta»** (lienzo de diseño, página «Propuesta mixta»: https://claude.ai/artifact/PK7Mfx3z357t1x7e2hsSbB). Asistente conversacional por fuera con **arranque guiado** por dentro: cuatro flujos (nueva necesidad, evolucionar HU, revisar la calidad, preparar pruebas), el modelo **no** pregunta para recoger datos (búsqueda de HU parecida en Jira por texto, sin IA), la operación queda fijada antes de generar, las fuentes se pueden desmarcar, la conversación sirve para iterar (RF-20), recibo de aprobación por operaciones, resultado simulado o real, flujo de QA con matriz, recibo, publicación parcial y registro de la ejecución. Animaciones de la Q (fase, carga por procesos, escritura y publicación). Sustituye al modelo de pestañas de T-23 → anexo `docs/prompts/PROMPT-05b-anexo-companero.md` |
+| 2026-10-01 | **Proyecto de Jira por conversación:** se elige al empezar (todos los proyectos que ve la conexión, `list_projects`), viene preseleccionado el último usado y queda fijo en la conversación; una clave de otro proyecto lo cambia sola. Sin lista de proyectos permitidos en Ajustes → **T-50** |
+| 2026-10-01 | Backend necesario para la UI → **T-50 … T-53** (sesión principal); la conversación libre para recoger datos queda como propuesta para v2 (PA-43) |
 
 ## Propuestas adicionales detectadas durante el desarrollo
 | ID | Propuesta | Origen (tarea) | Decisión |
@@ -211,6 +236,8 @@
 | PA-40 | Firmar (HMAC con clave del `.env`) el registro de aprobaciones de `artifact_state`: hoy quien pueda escribir en la tabla puede fabricar una aprobación | T-25 (security-reviewer) | Pendiente (P) |
 | PA-41 | Caducidad de la aprobación que queda vigente tras una publicación simulada (hoy no caduca al pasar a `live`) | T-25 (security-reviewer) | Pendiente (P) |
 | PA-42 | Que `tests/pg_temp.py` solo cree bases temporales en un host local (evitar un servidor compartido) | T-25 (security-reviewer) | Pendiente (P) |
+| PA-43 | Conversación libre para recoger los datos (el asistente pregunta con el LLM, variante «Asistente 2» del lienzo) | Día 6 (UI) | Pendiente · v2 |
+| PA-44 | Las animaciones de la UI (Q de fase, de carga y de escritura) se hacen en Streamlit con SVG y CSS en `st.html`/componentes; si alguna no es viable, se sustituye por un estado estático equivalente | Día 6 (UI) | Pendiente · T-24 |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |
@@ -230,3 +257,4 @@
 | 5 | 2026-09-30 | **PA-30 ✅** (P): el nodo `generate` usa `StoryWriter` (prompts de T-20). Origen HU → `structure` (nuevo `prompts/structure_story.md`, v1) una vez por artefacto + `evolve`; necesidad/épica → `generate` y, al iterar, `evolve` sobre el borrador; `prompt_version` y `model_used` en el `Artifact`. Impacto = diff determinista (`diff_stories`) frente a la versión estructurada de Jira; **hasta T-21 no hay HU afectadas ni vínculos «relates to» al publicar**. Cruce con el área B: `core/functional/writer.py` y `tests/fakes/llm.py` (el fake cita la primera fuente del contexto) — revisar al fusionar `Dia5`. **Bloqueo real:** la cadena `evolve_story` falla en vivo por límite de Groq y respaldo de OpenRouter sin definir (`POR_DEFINIR:free`, R-07) | — | Elegir modelos (R-07) | T-21 → T-25 |
 | 5 | 2026-09-30 | **T-21 ✅** (P): `core/impact/analysis.py` (`ImpactAnalyzer`) + `prompts/analyze_impact.md` v1 (cruce con `prompts/` del área B, revisar al fusionar `Dia5`). `diffs` siempre deterministas; HU afectadas y regresión del LLM con un prompt pequeño (HU, cambios y resumen de candidatas: épica excluida, máx. 12); solo claves candidatas, un reintento y descarte anotado; sin llamada si no hay cambios o candidatas. También para HU nuevas (§6.1). `publish` vincula «relates to» al actualizar y al crear, un vínculo por clave con todos los motivos. **Sin consumo de cuota:** la prueba real (`tests/integration/test_impact_live.py`) está escrita y pendiente de ejecutar cuando el usuario lo autorice | — | Cuota de Groq (ejecución real pendiente) | T-25 |
 | 5 | 2026-09-30 | **T-25 ✅** (P): `core/audit.py` (`SqlAuditTrail` sobre `audit_log`: create/iterate/approve/discard/publish, sin prompts ni contenido) y `core/artifact_state.py` (tabla `artifact_state`, migración `0002`: registro de aprobaciones persistente, que falla cerrado si está dañado, y versión de partida). `JIRA_PUBLISH_MODE=simulation` por defecto: `publish` audita el plan y no escribe en Jira; la aprobación sigue vigente. En `live`: auditoría antes de `update_status`, `failed_ids` y fallos de vínculo como errores, épica excluida (PA-38). PA-33 y PA-37 hechas; PA-06 parcial; PA-40…PA-42 nuevas. SPEC §6, §7 y anexo §11 actualizados. **Pendiente:** cablear `build_audit`/`build_versions`/`build_state_store` en el contenedor real (T-24/T-31), siempre los tres juntos (`audit_log` tiene FK a `artifacts`); `uv run alembic upgrade head` en cada entorno | — | Cuota de Groq (pruebas reales pendientes) | Fusión de `Dia5` |
+| 6 | 2026-10-01 | Revisión de la presentación del proyecto y decisiones: R-01 opción A (T-47), plan = estrategia, D-07 se mantiene, categorías del RAG de la presentación (T-49), revisar la HU como flujo propio (T-48). **UI decidida: «Propuesta mixta»** del lienzo (HU y QA, con animaciones), con proyecto por conversación; backend nuevo T-50 … T-53. Anexo para el compañero: `docs/prompts/PROMPT-05b-anexo-companero.md` (T-23 actualizado y T-49) | El compañero hace pull de `PreProduccion` y fusiona en `Dia5` | — | Fusión de `Dia5`; T-50 y T-51 (contratos) antes de T-27 |

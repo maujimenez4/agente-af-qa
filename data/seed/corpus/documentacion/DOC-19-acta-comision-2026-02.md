@@ -1,7 +1,7 @@
 ---
 id: DOC-19
 title: Acta de la Comisión de Servicios Bibliotecarios de febrero de 2026
-category: actas
+category: documentacion
 version: 1
 date: 2026-02-18
 related: [DOC-02, DOC-06, DOC-10]

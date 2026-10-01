@@ -1,7 +1,7 @@
 ---
 id: DOC-15
 title: Integración con la pasarela AvisosVF
-category: arquitectura
+category: documentacion
 version: 2
 date: 2026-07-15
 related: [DOC-04, DOC-07, DOC-10, DOC-13, DOC-14, DOC-22]

@@ -2,12 +2,15 @@
 
 Corpus base del RAG del MVP (D-06, T-09). Describe el servicio digital de una biblioteca municipal **ficticia**: préstamo, reservas, renovaciones, personas socias, catálogo, sanciones y notificaciones. Todos los nombres de lugares, sistemas y dominios son inventados; no contiene datos personales.
 
+Las HU previas (DOC-25, DOC-26) son antecedentes de un proyecto anterior: no son HU del seed de Jira ni usan claves `DEMO-N`.
+
 Este índice lo usa T-15 para sembrar Jira de forma coherente con el corpus.
 
 ## Estructura
 
 - Ruta de cada documento: `data/seed/corpus/<categoría>/<id>-<titulo-corto>.md`.
 - Cabecera YAML con `id`, `title`, `category`, `version`, `date`, `related` y `epics`.
+- Categorías (T-49): `productos` (productos y servicios), `procesos` (procesos de negocio), `politicas` (políticas y reglas operativas), `documentacion` (documentación funcional y técnica), `glosarios` (glosarios, catálogos y criterios internos), `historias` (HU y artefactos previos) y `pruebas` (estrategias, matrices y casos de prueba).
 - La categoría `memoria` está reservada para las memorias que genera el agente y no se usa aquí.
 
 ## Reglas clave del dominio
@@ -31,30 +34,36 @@ No deben contradecirse. El dataset de los fakes de prueba (T-06) y el seed de Ji
 
 | Id | Título | Categoría | Temas |
 |---|---|---|---|
-| DOC-01 | Reglamento de préstamo | normativa | EP-PRESTAMO |
-| DOC-02 | Reglamento de reservas | normativa | EP-PRESTAMO |
-| DOC-03 | Política de sanciones | normativa | EP-AVISOS |
-| DOC-04 | Política de protección de datos de personas socias | normativa | EP-SOCIOS, EP-PRESTAMO |
+| DOC-01 | Reglamento de préstamo | politicas | EP-PRESTAMO |
+| DOC-02 | Reglamento de reservas | politicas | EP-PRESTAMO |
+| DOC-03 | Política de sanciones | politicas | EP-AVISOS |
+| DOC-04 | Política de protección de datos de personas socias | politicas | EP-SOCIOS, EP-PRESTAMO |
 | DOC-05 | Alta y renovación del carné de persona socia | procesos | EP-SOCIOS |
 | DOC-06 | Circuito de reserva y recogida | procesos | EP-PRESTAMO, EP-AVISOS |
 | DOC-07 | Devolución, retrasos y reclamaciones | procesos | EP-PRESTAMO, EP-AVISOS |
-| DOC-08 | Especificación del módulo de préstamo digital | especificaciones | EP-PRESTAMO |
-| DOC-09 | Especificación del catálogo en línea | especificaciones | EP-CATALOGO |
-| DOC-10 | Especificación del módulo de notificaciones | especificaciones | EP-AVISOS |
-| DOC-11 | Glosario del servicio bibliotecario | glosario | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO, EP-AVISOS |
-| DOC-12 | Siglas y códigos de estado | glosario | EP-PRESTAMO, EP-CATALOGO |
-| DOC-13 | Mapa de sistemas del servicio digital | arquitectura | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO, EP-AVISOS |
-| DOC-14 | API interna de préstamo y reservas | arquitectura | EP-PRESTAMO |
-| DOC-15 | Integración con la pasarela AvisosVF | arquitectura | EP-AVISOS |
-| DOC-16 | Guía del portal para personas socias | manuales | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO |
-| DOC-17 | Manual de mostrador para personal de sala | manuales | EP-PRESTAMO, EP-SOCIOS |
-| DOC-18 | Guía de autopréstamo | manuales | EP-PRESTAMO |
-| DOC-19 | Acta de la Comisión de Servicios Bibliotecarios de febrero de 2026 | actas | EP-PRESTAMO |
-| DOC-20 | Acta de la Comisión de Servicios Bibliotecarios de abril de 2026 | actas | EP-PRESTAMO, EP-AVISOS |
-| DOC-21 | Acta de la Comisión de Servicios Bibliotecarios de junio de 2026 | actas | EP-PRESTAMO, EP-AVISOS |
-| DOC-22 | Acta técnica del servicio digital de julio de 2026 | actas | EP-AVISOS |
+| DOC-08 | Especificación del módulo de préstamo digital | documentacion | EP-PRESTAMO |
+| DOC-09 | Especificación del catálogo en línea | documentacion | EP-CATALOGO |
+| DOC-10 | Especificación del módulo de notificaciones | documentacion | EP-AVISOS |
+| DOC-11 | Glosario del servicio bibliotecario | glosarios | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO, EP-AVISOS |
+| DOC-12 | Siglas y códigos de estado | glosarios | EP-PRESTAMO, EP-CATALOGO |
+| DOC-13 | Mapa de sistemas del servicio digital | documentacion | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO, EP-AVISOS |
+| DOC-14 | API interna de préstamo y reservas | documentacion | EP-PRESTAMO |
+| DOC-15 | Integración con la pasarela AvisosVF | documentacion | EP-AVISOS |
+| DOC-16 | Guía del portal para personas socias | documentacion | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO |
+| DOC-17 | Manual de mostrador para personal de sala | documentacion | EP-PRESTAMO, EP-SOCIOS |
+| DOC-18 | Guía de autopréstamo | documentacion | EP-PRESTAMO |
+| DOC-19 | Acta de la Comisión de Servicios Bibliotecarios de febrero de 2026 | documentacion | EP-PRESTAMO |
+| DOC-20 | Acta de la Comisión de Servicios Bibliotecarios de abril de 2026 | documentacion | EP-PRESTAMO, EP-AVISOS |
+| DOC-21 | Acta de la Comisión de Servicios Bibliotecarios de junio de 2026 | documentacion | EP-PRESTAMO, EP-AVISOS |
+| DOC-22 | Acta técnica del servicio digital de julio de 2026 | documentacion | EP-AVISOS |
+| DOC-23 | Carta de servicios de la Biblioteca Municipal | productos | EP-PRESTAMO, EP-SOCIOS |
+| DOC-24 | Catálogo de servicios digitales de PortalVF y AppVF | productos | EP-PRESTAMO, EP-SOCIOS, EP-CATALOGO, EP-AVISOS |
+| DOC-25 | HU previa · Registrar las devoluciones del buzón exterior | historias | EP-PRESTAMO |
+| DOC-26 | HU previa · Avisar de que el carné va a caducar | historias | EP-SOCIOS, EP-AVISOS |
+| DOC-27 | Estrategia de pruebas del módulo de préstamo digital | pruebas | EP-PRESTAMO |
+| DOC-28 | Casos de prueba de reservas | pruebas | EP-PRESTAMO |
 
-Documentos por categoría: normativa 4 · procesos 3 · especificaciones 3 · glosario 2 · arquitectura 3 · manuales 3 · actas 4 (22 en total).
+Documentos por categoría: productos 2 · procesos 3 · politicas 4 · documentacion 13 · glosarios 2 · historias 2 · pruebas 2 (28 en total). Categorías alineadas con la presentación del proyecto (T-49).
 
 ## Temas de épica para el seed de Jira (T-15)
 

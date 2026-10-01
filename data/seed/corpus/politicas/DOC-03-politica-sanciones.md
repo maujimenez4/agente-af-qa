@@ -1,7 +1,7 @@
 ---
 id: DOC-03
 title: Política de sanciones
-category: normativa
+category: politicas
 version: 2
 date: 2026-05-01
 related: [DOC-01, DOC-02, DOC-07, DOC-10, DOC-20]

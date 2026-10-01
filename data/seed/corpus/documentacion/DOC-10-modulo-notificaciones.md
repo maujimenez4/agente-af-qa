@@ -1,7 +1,7 @@
 ---
 id: DOC-10
 title: Especificación del módulo de notificaciones
-category: especificaciones
+category: documentacion
 version: 2
 date: 2026-07-15
 related: [DOC-02, DOC-03, DOC-04, DOC-05, DOC-06, DOC-07, DOC-15, DOC-19, DOC-20, DOC-21, DOC-22]

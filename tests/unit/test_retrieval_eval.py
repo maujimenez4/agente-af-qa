@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from adapters.base import Chunk, EmbeddingProvider, RetrievedChunk, VectorStore
+from core.rag.documents import CATEGORIES
 from eval.retrieval_eval import (
     DEFAULT_QUESTIONS_PATH,
     LATENCY_TARGET_MS,
@@ -93,21 +94,38 @@ def test_expected_docs_exist_in_corpus_headers() -> None:
         assert not missing, f"{question.id} referencia documentos inexistentes: {missing}"
 
 
+ACTA_IDS = frozenset({"DOC-19", "DOC-20", "DOC-21", "DOC-22"})
+# Categorías con documentos esperados en el set actual (T-49 solo remapeó `category`).
+CURRENT_QUESTION_CATEGORIES = frozenset({"politicas", "documentacion", "procesos", "glosarios"})
+
+
+def _is_acta(meta: dict) -> bool:
+    """Las actas están en `documentacion` (T-49): se reconocen por id o por título «Acta…»."""
+    return meta["id"] in ACTA_IDS or str(meta.get("title", "")).startswith("Acta")
+
+
 def test_questions_cover_categories_and_amending_minutes() -> None:
+    """RNF-14 · T-49: las categorías del set son las de RF-12, cubren las 4 actuales y hay
+    al menos 3 preguntas cuya respuesta combina una política con el acta que la cambió."""
     docs = _corpus_docs()
     questions = load_questions()
     categories = {docs[d][0]["category"] for q in questions for d in q.expected_docs}
     with_minutes = [
         q
         for q in questions
-        if any(docs[d][0]["category"] == "actas" for d in q.expected_docs)
-        and any(docs[d][0]["category"] == "normativa" for d in q.expected_docs)
+        if any(_is_acta(docs[d][0]) for d in q.expected_docs)
+        and any(docs[d][0]["category"] == "politicas" for d in q.expected_docs)
     ]
 
-    assert len(categories) >= 5
-    assert len(with_minutes) >= 2
+    assert categories <= set(CATEGORIES), (
+        f"Categorías fuera de RF-12: {categories - set(CATEGORIES)}"
+    )
+    assert categories >= CURRENT_QUESTION_CATEGORIES
+    assert len(categories) >= 4
+    assert len(with_minutes) >= 3
     for q in questions:
         if q.category is not None:
+            assert q.category in CATEGORIES, f"{q.id}: categoría '{q.category}' no válida"
             assert q.category in {docs[d][0]["category"] for d in q.expected_docs}
 
 

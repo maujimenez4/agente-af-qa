@@ -1,7 +1,7 @@
 ---
 id: DOC-16
 title: Guía del portal para personas socias
-category: manuales
+category: documentacion
 version: 2
 date: 2026-07-01
 related: [DOC-02, DOC-05, DOC-07, DOC-08, DOC-09, DOC-10]

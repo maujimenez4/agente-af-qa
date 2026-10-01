@@ -1,7 +1,7 @@
 ---
 id: DOC-17
 title: Manual de mostrador para personal de sala
-category: manuales
+category: documentacion
 version: 2
 date: 2026-06-30
 related: [DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06, DOC-07]

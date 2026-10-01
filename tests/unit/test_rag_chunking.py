@@ -29,7 +29,7 @@ from core.rag.chunking import (
 from core.rag.documents import IngestedDocument
 
 ROOT = Path(__file__).resolve().parents[2]
-DOC_02 = ROOT / "data" / "seed" / "corpus" / "normativa" / "DOC-02-reglamento-reservas.md"
+DOC_02 = ROOT / "data" / "seed" / "corpus" / "politicas" / "DOC-02-reglamento-reservas.md"
 
 WORD_RE = re.compile(r"\S+")
 
@@ -49,8 +49,8 @@ def _make_doc(
     *,
     doc_id: str = "DOC-99",
     title: str = "Documento ficticio de prueba",
-    category: str = "normativa",
-    source_path: str = "data/seed/corpus/normativa/DOC-99-ficticio.md",
+    category: str = "politicas",
+    source_path: str = "data/seed/corpus/politicas/DOC-99-ficticio.md",
     metadata: dict[str, str] | None = None,
 ) -> IngestedDocument:
     """Construye un `IngestedDocument` sintético a mano (T-12 se implementa en paralelo)."""
@@ -521,9 +521,9 @@ def test_chunk_document_fills_metadata_when_document_has_extra_metadata() -> Non
     chunks = chunk_document(doc, chunk_tokens=650, overlap_tokens=80)
 
     for chunk in chunks:
-        assert chunk.metadata["category"] == "normativa"
+        assert chunk.metadata["category"] == "politicas"
         assert chunk.metadata["title"] == "Documento ficticio de prueba"
-        assert chunk.metadata["source"] == "data/seed/corpus/normativa/DOC-99-ficticio.md"
+        assert chunk.metadata["source"] == "data/seed/corpus/politicas/DOC-99-ficticio.md"
         assert chunk.metadata["version"] == "3"
         assert chunk.metadata["related_key"] == "PRJ-123"
         assert chunk.metadata["epics"] == "EP-FICTICIA"
@@ -538,7 +538,7 @@ def test_chunk_document_splits_long_section_keeping_section_and_limit() -> None:
     """RF-09: una sección larga se divide recursivamente; todos sus chunks conservan la sección."""
     body = _paragraphs_text(paragraphs=15)
     md = f"# Manual ficticio\n\n## Procedimiento largo\n\n{body}\n\n## Cierre\n\nFin ficticio.\n"
-    doc = _make_doc(md, category="manuales")
+    doc = _make_doc(md, category="documentacion")
 
     chunks = chunk_document(doc, chunk_tokens=100, overlap_tokens=20)
     long_chunks = [c for c in chunks if c.section == "Manual ficticio > Procedimiento largo"]
@@ -648,7 +648,7 @@ def _doc_02() -> IngestedDocument:
         body,
         doc_id=str(header["id"]),
         title=str(header["title"]),
-        category="normativa",
+        category="politicas",
         source_path=DOC_02.relative_to(ROOT).as_posix(),
         metadata={"version": str(header["version"])},
     )
@@ -667,7 +667,7 @@ def test_chunk_document_splits_corpus_reglamento_by_sections_when_default_sizes(
     assert rules
     assert any("RN-RES-02" in c.content for c in rules)
     assert all(estimate_tokens(c.content) <= 650 for c in chunks)
-    assert all(c.metadata["category"] == "normativa" for c in chunks)
+    assert all(c.metadata["category"] == "politicas" for c in chunks)
     assert all(c.metadata["source"].endswith("DOC-02-reglamento-reservas.md") for c in chunks)
     assert all(c.document_id == "DOC-02" for c in chunks)
 

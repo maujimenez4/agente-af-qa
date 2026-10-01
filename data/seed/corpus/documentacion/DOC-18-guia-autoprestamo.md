@@ -1,7 +1,7 @@
 ---
 id: DOC-18
 title: Guía de autopréstamo
-category: manuales
+category: documentacion
 version: 1
 date: 2026-04-05
 related: [DOC-01, DOC-03, DOC-07, DOC-13]

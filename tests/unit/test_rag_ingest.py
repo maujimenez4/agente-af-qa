@@ -32,14 +32,23 @@ from core.rag.ingest import (
     normalize_text,
     split_front_matter,
 )
-from core.rag.prompts import Prompt
+from core.rag.prompts import Prompt, load_prompt
 from tests.fakes.llm import FakeLLMProvider
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "data" / "seed" / "corpus"
 EXPECTED_CATEGORIES = (
-    "normativa",
+    "productos",
     "procesos",
+    "politicas",
+    "documentacion",
+    "glosarios",
+    "historias",
+    "pruebas",
+)
+# Slugs de la clasificación anterior a T-49: ya no son categorías válidas.
+LEGACY_CATEGORIES = (
+    "normativa",
     "especificaciones",
     "glosario",
     "arquitectura",
@@ -58,7 +67,7 @@ Builder = Callable[[list[Message]], BaseModel]
 # --- Utilidades ------------------------------------------------------------------------
 
 
-def _classification_builders(category: str = "glosario") -> dict[type[BaseModel], Builder]:
+def _classification_builders(category: str = "glosarios") -> dict[type[BaseModel], Builder]:
     return {
         SourceClassification: lambda _m: SourceClassification(
             category=category,  # type: ignore[arg-type]
@@ -67,7 +76,7 @@ def _classification_builders(category: str = "glosario") -> dict[type[BaseModel]
     }
 
 
-def _classifying_llm(category: str = "glosario") -> FakeLLMProvider:
+def _classifying_llm(category: str = "glosarios") -> FakeLLMProvider:
     return FakeLLMProvider(builders=_classification_builders(category))
 
 
@@ -217,17 +226,40 @@ def test_source_classification_accepts_each_category(category: str) -> None:
     assert result.category == category
 
 
-@pytest.mark.parametrize("category", ["memoria", "recetas", "Normativa", ""])
+@pytest.mark.parametrize("category", ["memoria", "recetas", "Politicas", ""])
 def test_source_classification_rejects_invalid_category(category: str) -> None:
     """RF-12 · Rechaza "memoria" (reservada), categorías desconocidas y variantes de mayúsculas."""
     with pytest.raises(ValidationError):
         SourceClassification(category=category, justification="Motivo ficticio")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("category", [*LEGACY_CATEGORIES, MEMORY_CATEGORY])
+def test_source_classification_rejects_category_when_legacy_or_memoria(category: str) -> None:
+    """RF-12 · T-49: rechaza los slugs anteriores (normativa, actas…) y la reservada "memoria"."""
+    with pytest.raises(ValidationError):
+        SourceClassification(category=category, justification="Motivo ficticio")  # type: ignore[arg-type]
+
+
+def test_categories_exclude_legacy_slugs() -> None:
+    """RF-12 · T-49: ninguna categoría anterior sigue en CATEGORIES."""
+    assert not set(LEGACY_CATEGORIES) & set(CATEGORIES)
+
+
+def test_classify_source_prompt_is_version_3_and_mentions_seven_slugs() -> None:
+    """RF-12 · T-49: `prompts/classify_source.md` tiene `version: 3` y nombra las 7 categorías."""
+    prompt = load_prompt("classify_source")
+
+    assert prompt.version == "3"
+    missing = [c for c in EXPECTED_CATEGORIES if f"`{c}`" not in prompt.text]
+    assert not missing, f"El prompt no menciona las categorías {missing}"
+    legacy = [c for c in LEGACY_CATEGORIES if f"`{c}`" in prompt.text]
+    assert not legacy, f"El prompt aún ofrece las categorías antiguas {legacy}"
+
+
 def test_source_classification_rejects_empty_justification() -> None:
     """RF-12 · La justificación es obligatoria (min_length=1)."""
     with pytest.raises(ValidationError):
-        SourceClassification(category="glosario", justification="")
+        SourceClassification(category="glosarios", justification="")
 
 
 def test_ingested_document_defaults_metadata_to_empty_dict() -> None:
@@ -235,7 +267,7 @@ def test_ingested_document_defaults_metadata_to_empty_dict() -> None:
     doc = IngestedDocument(
         id="DOC-99",
         title="Documento ficticio",
-        category="glosario",
+        category="glosarios",
         classified_by="metadata",
         source_path="data/ficticio/DOC-99.md",
         content_hash="0" * 64,
@@ -254,7 +286,7 @@ def test_ingested_document_rejects_unknown_classifier() -> None:
         IngestedDocument(
             id="DOC-99",
             title="Documento ficticio",
-            category="glosario",
+            category="glosarios",
             classified_by="manual",  # type: ignore[arg-type]
             source_path="x.md",
             content_hash="0" * 64,
@@ -331,11 +363,13 @@ def test_normalize_text_is_idempotent() -> None:
 
 def test_split_front_matter_parses_header_and_returns_rest() -> None:
     """RF-12 · Cabecera YAML válida → (dict, resto del texto)."""
-    raw = "---\nid: DOC-99\ncategory: glosario\nrelated: [DOC-01, DOC-02]\n---\n# Título\n\nCuerpo."
+    raw = (
+        "---\nid: DOC-99\ncategory: glosarios\nrelated: [DOC-01, DOC-02]\n---\n# Título\n\nCuerpo."
+    )
 
     header, rest = split_front_matter(raw)
 
-    assert header == {"id": "DOC-99", "category": "glosario", "related": ["DOC-01", "DOC-02"]}
+    assert header == {"id": "DOC-99", "category": "glosarios", "related": ["DOC-01", "DOC-02"]}
     assert rest == "# Título\n\nCuerpo."
 
 
@@ -545,7 +579,7 @@ def test_ingest_md_text_excludes_header_and_is_normalized(
         tmp_path / "DOC-92-sanciones.md",
         "# Sanciones ficticias\n\n\n\n\nUn día de suspensión por día de retraso.   \n",
         id="DOC-92",
-        category="normativa",
+        category="politicas",
         version=3,
     )
 
@@ -565,7 +599,7 @@ def test_ingest_md_defaults_id_to_stem_and_title_to_first_h1(
     path = _md(
         tmp_path / "horario-verano.md",
         "Nota previa ficticia.\n\n# Horario de verano de Villaficticia\n\nCierre a las 14:00.\n",
-        category="manuales",
+        category="documentacion",
     )
 
     doc = Ingestor(FakeLLMProvider(), extractor=docling_extractor, prompt=TEST_PROMPT).ingest(path)
@@ -612,11 +646,11 @@ def test_ingest_md_calls_llm_when_header_category_is_missing_or_invalid(
         "# Siglas ficticias\n\nPVF: PortalVF, portal ficticio.\n",
         **header,
     )
-    fake = _classifying_llm("glosario")
+    fake = _classifying_llm("glosarios")
 
     doc = Ingestor(fake, extractor=docling_extractor, prompt=TEST_PROMPT).ingest(path)
 
-    assert doc.category == "glosario"
+    assert doc.category == "glosarios"
     assert doc.classified_by == "llm"
     assert len(fake.calls) == 1
 
@@ -630,7 +664,7 @@ def test_ingest_md_converts_header_metadata_to_strings(
         "# Avisos ficticios\n\nRecordatorio tres días antes del vencimiento.\n",
         id="DOC-94",
         title="Avisos ficticios",
-        category="especificaciones",
+        category="documentacion",
         version=2,
         date="2026-07-20",
         related=["DOC-01", "DOC-10"],
@@ -716,12 +750,12 @@ def test_ingest_txt_is_classified_by_llm_with_structured_call(tmp_path: Path) ->
     """RF-12 · TXT sin cabecera → generate_structured(SourceClassification, CLASSIFY_SOURCE)."""
     text = _long_text()
     path = _write(tmp_path / "glosario-minimo.txt", text)
-    fake = _classifying_llm("glosario")
+    fake = _classifying_llm("glosarios")
     ingestor = Ingestor(fake, extractor=ReadFileExtractor(), prompt=TEST_PROMPT)
 
     doc = ingestor.ingest(path)
 
-    assert doc.category == "glosario"
+    assert doc.category == "glosarios"
     assert doc.classified_by == "llm"
     assert len(fake.calls) == 1
     call = fake.calls[0]
@@ -733,7 +767,7 @@ def test_ingest_classification_messages_use_prompt_and_truncated_text(tmp_path: 
     """RF-12 · messages = [system con prompt.text, user con título y ≤ max_classify_chars]."""
     text = _long_text()
     path = _write(tmp_path / "glosario-minimo.txt", text)
-    fake = _classifying_llm("glosario")
+    fake = _classifying_llm("glosarios")
     ingestor = Ingestor(
         fake, extractor=ReadFileExtractor(), prompt=TEST_PROMPT, max_classify_chars=100
     )
@@ -754,7 +788,7 @@ def test_ingest_classification_sends_whole_text_when_shorter_than_limit(tmp_path
     """RF-12 · Límite: un texto más corto que max_classify_chars se envía completo."""
     text = "Préstamo: cesión temporal ficticia de un ejemplar."
     path = _write(tmp_path / "definicion.txt", text)
-    fake = _classifying_llm("glosario")
+    fake = _classifying_llm("glosarios")
 
     Ingestor(fake, extractor=ReadFileExtractor(), prompt=TEST_PROMPT).ingest(path)
 
@@ -810,12 +844,12 @@ def test_ingest_docx_with_real_extractor(
         "Manual ficticio de sala",
         "El personal ficticio registra las devoluciones en PrestaVF.",
     )
-    fake = _classifying_llm("manuales")
+    fake = _classifying_llm("documentacion")
 
     doc = Ingestor(fake, extractor=docling_extractor, prompt=TEST_PROMPT).ingest(path)
 
     assert "El personal ficticio registra las devoluciones en PrestaVF." in doc.text
-    assert doc.category == "manuales"
+    assert doc.category == "documentacion"
     assert doc.metadata["extension"] == ".docx"
 
 
@@ -835,7 +869,7 @@ def test_ingest_dir_recurses_filters_and_sorts(tmp_path: Path) -> None:
     """RF-07 · Recorre en profundidad, solo extensiones soportadas, sin README.md, ordenado."""
     _write(tmp_path / "README.md", "# Índice ficticio\n")
     _write(tmp_path / "b" / "README.md", "# Índice ficticio de b\n")
-    _md(tmp_path / "a" / "uno.md", "# Uno\n\nTexto ficticio uno.\n", category="normativa")
+    _md(tmp_path / "a" / "uno.md", "# Uno\n\nTexto ficticio uno.\n", category="politicas")
     _write(tmp_path / "b" / "dos.txt", "Texto ficticio dos.\n")
     _write(tmp_path / "b" / "c" / "tres.txt", "Texto ficticio tres.\n")
     (tmp_path / "b" / "tabla.xlsx").write_bytes(b"ficticio")
@@ -857,16 +891,16 @@ def test_ingest_dir_returns_empty_list_for_empty_dir(tmp_path: Path) -> None:
 
 
 def test_ingest_dir_ingests_pilot_corpus_from_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RF-07/RF-12 · El corpus piloto: 22 documentos clasificados por metadatos y sin LLM."""
+    """RF-07/RF-12 · El corpus piloto: 28 documentos clasificados por metadatos y sin LLM."""
     monkeypatch.chdir(ROOT)
     fake = FakeLLMProvider()
 
     docs = Ingestor(fake).ingest_dir(Path("data/seed/corpus"))
 
-    assert len(docs) == 22
+    assert len(docs) == 28
     assert fake.calls == []
     ids = [d.id for d in docs]
-    assert len(set(ids)) == 22
+    assert len(set(ids)) == 28
     for doc in docs:
         source = Path(doc.source_path)
         assert re.fullmatch(r"DOC-\d{2}", doc.id)
@@ -901,7 +935,7 @@ def test_ingest_dir_skips_symlinks(tmp_path: Path) -> None:
     root = tmp_path / "corpus"
     root.mkdir()
     (root / "dentro.md").write_text(
-        "---\nid: DOC-90\ntitle: Dentro\ncategory: glosario\n---\n# Dentro\n\nTexto.",
+        "---\nid: DOC-90\ntitle: Dentro\ncategory: glosarios\n---\n# Dentro\n\nTexto.",
         encoding="utf-8",
     )
     try:
@@ -922,7 +956,7 @@ def test_classification_message_wraps_title_and_content_in_delimiters(tmp_path: 
     fake = FakeLLMProvider(
         builders={
             SourceClassification: lambda _m: SourceClassification(
-                category="manuales", justification="Guía"
+                category="documentacion", justification="Guía"
             )
         }
     )

@@ -1,4 +1,4 @@
-"""Comprueba el corpus piloto sintético del RAG (T-09, D-06)."""
+"""Comprueba el corpus piloto sintético del RAG (T-09, D-06; categorías de T-49, RF-12)."""
 
 import datetime as dt
 import re
@@ -10,21 +10,28 @@ from typing import Any, NamedTuple
 import pytest
 import yaml
 
+from core.rag.documents import CATEGORIES as RAG_CATEGORIES
+
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "data" / "seed" / "corpus"
 README = CORPUS / "README.md"
 
 CATEGORIES = frozenset(
     {
-        "normativa",
+        "productos",
         "procesos",
-        "especificaciones",
-        "glosario",
-        "arquitectura",
-        "manuales",
-        "actas",
+        "politicas",
+        "documentacion",
+        "glosarios",
+        "historias",
+        "pruebas",
     }
 )
+LEGACY_FOLDERS = frozenset(
+    {"normativa", "especificaciones", "glosario", "arquitectura", "manuales", "actas"}
+)
+# Actas (en `documentacion` desde T-49): pueden citar valores ya derogados.
+ACTA_IDS = frozenset({"DOC-19", "DOC-20", "DOC-21", "DOC-22"})
 FORBIDDEN_CATEGORY = "memoria"
 EPICS = frozenset({"EP-PRESTAMO", "EP-SOCIOS", "EP-CATALOGO", "EP-AVISOS"})
 HEADER_TYPES: dict[str, type | tuple[type, ...]] = {
@@ -54,7 +61,7 @@ DNI_RE = re.compile(r"\b\d{8}[A-Za-z]\b")
 NIE_RE = re.compile(r"\b[XYZ]\d{7}[A-Za-z]\b")
 URL_RE = re.compile(r"https?://([^/\s)>\]`\"']+)")
 
-MIN_DOCS, MAX_DOCS = 15, 25
+MIN_DOCS, MAX_DOCS = 15, 35
 MIN_PER_CATEGORY = 2
 MIN_WORDS, MAX_WORDS = 300, 1500
 
@@ -95,10 +102,15 @@ def _all_markdown_files() -> list[Path]:
 
 
 @cache
-def _normativa_text() -> str:
-    """Texto conjunto de la normativa sin marcas de negrita."""
-    bodies = [doc.body for doc in _load_documents() if doc.path.parent.name == "normativa"]
+def _politicas_text() -> str:
+    """Texto conjunto de las políticas (reglamentos y normas) sin marcas de negrita."""
+    bodies = [doc.body for doc in _load_documents() if doc.path.parent.name == "politicas"]
     return "\n".join(bodies).replace("**", "")
+
+
+def _is_acta(doc: CorpusDocument) -> bool:
+    """Un acta se reconoce por su id (DOC-19…DOC-22) o por un título que empieza por «Acta»."""
+    return doc.header.get("id") in ACTA_IDS or str(doc.header.get("title", "")).startswith("Acta")
 
 
 def _readme_text() -> str:
@@ -116,7 +128,7 @@ MD_PARAMS = pytest.mark.parametrize(
 
 
 def test_corpus_size_within_range() -> None:
-    """El corpus tiene entre 15 y 25 documentos."""
+    """El corpus tiene entre 15 y 35 documentos (28 tras T-49)."""
     assert MIN_DOCS <= len(DOCUMENTS) <= MAX_DOCS, (
         f"El corpus tiene {len(DOCUMENTS)} documentos; se esperan entre {MIN_DOCS} y {MAX_DOCS}"
     )
@@ -127,6 +139,35 @@ def test_every_category_has_minimum_documents() -> None:
     counts = Counter(doc.path.parent.name for doc in DOCUMENTS)
     short = {cat: counts.get(cat, 0) for cat in CATEGORIES if counts.get(cat, 0) < MIN_PER_CATEGORY}
     assert not short, f"Categorías con menos de {MIN_PER_CATEGORY} documentos: {short}"
+
+
+@pytest.mark.parametrize("category", sorted(CATEGORIES))
+def test_category_has_minimum_documents_when_t49_slugs(category: str) -> None:
+    """RF-12 · T-49: cada categoría nueva tiene al menos 2 documentos en su carpeta."""
+    count = sum(1 for doc in DOCUMENTS if doc.path.parent.name == category)
+    assert count >= MIN_PER_CATEGORY, f"La categoría '{category}' tiene {count} documentos"
+
+
+def test_corpus_categories_match_rag_categories() -> None:
+    """RF-12 · T-49: las categorías del corpus son exactamente las de `core.rag.documents`."""
+    assert frozenset(RAG_CATEGORIES) == CATEGORIES
+
+
+def test_no_legacy_folders_or_categories_remain() -> None:
+    """RF-12 · T-49: no quedan carpetas ni cabeceras con las categorías anteriores."""
+    folders = {p.name for p in CORPUS.iterdir() if p.is_dir()}
+    assert not folders & LEGACY_FOLDERS, f"Carpetas antiguas: {sorted(folders & LEGACY_FOLDERS)}"
+    legacy = [d.path.name for d in DOCUMENTS if d.header.get("category") in LEGACY_FOLDERS]
+    assert not legacy, f"Documentos con categoría antigua: {legacy}"
+
+
+def test_actas_are_identified_in_documentacion() -> None:
+    """T-49: las actas (DOC-19…DOC-22) están en `documentacion` y su título empieza por «Acta»."""
+    actas = [d for d in DOCUMENTS if _is_acta(d)]
+    assert sorted(str(d.header.get("id")) for d in actas) == sorted(ACTA_IDS)
+    for doc in actas:
+        assert doc.path.parent.name == "documentacion", f"{doc.path.name} fuera de documentacion"
+        assert str(doc.header.get("title", "")).startswith("Acta"), f"{doc.path.name}: título"
 
 
 def test_no_folders_outside_allowed_categories() -> None:
@@ -319,7 +360,7 @@ def test_phone_pattern_ignores_non_phones(text: str) -> None:
     assert not PHONE_RE.search(text)
 
 
-# 6. Reglas clave de la normativa
+# 6. Reglas clave de las políticas
 
 
 @pytest.mark.parametrize(
@@ -333,9 +374,9 @@ def test_phone_pattern_ignores_non_phones(text: str) -> None:
         "12 meses",
     ],
 )
-def test_normativa_contains_key_rule(phrase: str) -> None:
-    """La normativa recoge las reglas clave del dominio."""
-    assert phrase in _normativa_text(), f"La normativa no contiene «{phrase}»"
+def test_politicas_contains_key_rule(phrase: str) -> None:
+    """Las políticas recogen las reglas clave del dominio."""
+    assert phrase in _politicas_text(), f"Las políticas no contienen «{phrase}»"
 
 
 @pytest.mark.parametrize(
@@ -348,23 +389,25 @@ def test_normativa_contains_key_rule(phrase: str) -> None:
         (r"amplía el préstamo (\d+) días", "21"),
     ],
 )
-def test_normativa_values_are_consistent(pattern: str, expected: str) -> None:
-    """La normativa no se contradice: cada regla clave tiene un único valor."""
-    values = re.findall(pattern, _normativa_text(), flags=re.IGNORECASE)
-    assert values, f"La normativa no contiene ninguna aparición de «{pattern}»"
+def test_politicas_values_are_consistent(pattern: str, expected: str) -> None:
+    """Las políticas no se contradicen: cada regla clave tiene un único valor."""
+    values = re.findall(pattern, _politicas_text(), flags=re.IGNORECASE)
+    assert values, f"Las políticas no contienen ninguna aparición de «{pattern}»"
     wrong = sorted(set(values) - {expected})
     assert not wrong, f"«{pattern}» toma valores {wrong}; solo se admite {expected}"
 
 
-def test_normativa_has_no_superseded_values() -> None:
-    """Los valores antiguos (p. ej. «72 horas») no aparecen en la normativa."""
-    assert "72 horas" not in _normativa_text(), "La normativa contiene el valor antiguo «72 horas»"
+def test_politicas_has_no_superseded_values() -> None:
+    """Los valores antiguos (p. ej. «72 horas») no aparecen en las políticas."""
+    assert "72 horas" not in _politicas_text(), (
+        "Las políticas contienen el valor antiguo «72 horas»"
+    )
 
 
 @cache
 def _non_actas_text() -> str:
     """Texto conjunto de todo el corpus salvo las actas, que pueden citar valores antiguos."""
-    bodies = [doc.body for doc in _load_documents() if doc.path.parent.name != "actas"]
+    bodies = [doc.body for doc in _load_documents() if not _is_acta(doc)]
     return "\n".join(bodies).replace("**", "")
 
 

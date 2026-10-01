@@ -1,7 +1,7 @@
 ---
 id: DOC-09
 title: Especificación del catálogo en línea
-category: especificaciones
+category: documentacion
 version: 1
 date: 2026-04-28
 related: [DOC-02, DOC-08, DOC-10, DOC-13, DOC-14]

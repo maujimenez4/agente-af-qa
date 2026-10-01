@@ -1,7 +1,7 @@
 ---
 id: DOC-11
 title: Glosario del servicio bibliotecario
-category: glosario
+category: glosarios
 version: 2
 date: 2026-07-20
 related: [DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-10, DOC-12, DOC-18]

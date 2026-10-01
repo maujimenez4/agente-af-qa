@@ -1,7 +1,7 @@
 ---
 id: DOC-02
 title: Reglamento de reservas
-category: normativa
+category: politicas
 version: 3
 date: 2026-05-01
 related: [DOC-01, DOC-03, DOC-06, DOC-10, DOC-12, DOC-19, DOC-20]

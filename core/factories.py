@@ -31,6 +31,7 @@ from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
 from core.impact.versions import StoryVersionStore
+from core.memory.generator import LLMMemoryGenerator
 from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
 from schemas.artifact import Artifact
@@ -192,23 +193,24 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
 
     Auditoría, versiones y estado de los artefactos van siempre juntos (`audit_log` tiene FK a
     `artifacts`). Para el selector de modelo (RF-42), crea el router con `model_router(config)`,
-    consérvalo y pásalo aquí. Publicar casos de prueba (T-30) y generar la memoria (T-33) quedan
-    pendientes: con `JIRA_PUBLISH_MODE=simulation` no se llega a usarlos, y en `live` no se
-    compone (una HU se publicaría sin memoria).
+    consérvalo y pásalo aquí. La memoria usa `LLMMemoryGenerator` (T-33) con el mismo LLM;
+    publicar casos de prueba (T-30) queda pendiente: con `JIRA_PUBLISH_MODE=simulation` no se
+    llega a usarlo, y en `live` no se compone (falta además la escritura en Jira, T-27).
     """
     if config.settings.jira_publish_mode == "live":
         raise ConfigError(
-            "JIRA_PUBLISH_MODE=live requiere publicar casos (T-30) y la memoria (T-33); "
+            "JIRA_PUBLISH_MODE=live requiere la escritura en Jira (T-27) y publicar casos (T-30); "
             "usa simulation hasta entonces."
         )
+    llm = build_llm_provider(config, router=router)
     return build_container(
         config,
         issue_tracker=build_issue_tracker(config.settings),
         test_management=PendingTestManagement(),
-        llm=build_llm_provider(config, router=router),
+        llm=llm,
         embeddings=build_embeddings(config),
         vector_store=build_vector_store(config),
-        memory_generator=PendingMemoryGenerator(),
+        memory_generator=LLMMemoryGenerator(llm),  # T-33
         auth=build_auth(config),
         audit=build_audit(config),
         versions=build_versions(config),

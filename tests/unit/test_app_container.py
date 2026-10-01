@@ -8,6 +8,7 @@ from adapters.errors import AgentError, ExternalServiceError, PublishError
 from core import factories
 from core.config import ROOT_DIR, AppConfig, ConfigError, Settings, load_models_config
 from core.container import Container
+from core.memory.generator import LLMMemoryGenerator
 from tests.fakes.llm import renewal_test_suite
 
 MODELS_FIXTURE = ROOT_DIR / "tests" / "fixtures" / "models.yaml"
@@ -73,7 +74,9 @@ def test_build_app_container_composes_real_adapters_and_persistence(
     assert set(built) >= {"build_audit", "build_versions", "build_state_store"}
     assert built["build_llm_provider"] == {"router": router}
     assert isinstance(container.test_management, factories.PendingTestManagement)
-    assert isinstance(container.memory_generator, factories.PendingMemoryGenerator)
+    # T-33: la memoria real, con el mismo LLM (y router) que el resto del contenedor.
+    assert isinstance(container.memory_generator, LLMMemoryGenerator)
+    assert container.memory_generator._llm is container.llm
     assert container.versions is not None
     assert container.approvals.store is container.state_store
     assert container.publish_mode == "simulation"  # por defecto no se escribe en Jira

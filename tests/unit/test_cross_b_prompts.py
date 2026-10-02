@@ -2,8 +2,8 @@
 
 Cubre huecos de `core/rag/prompts.py` que no prueban `test_rag_prompts.py`: BOM, cuerpo vacío,
 `version` no escalar, nombres con `../`, cierre de la cabecera con espacios y CRLF.
-Ninguno se marca `xfail`: se fijan como comportamiento y la propuesta de corrección (BOM, cuerpo
-vacío y `../`) es PA-224; al corregirla, invertir estas pruebas. Datos ficticios.
+El BOM, el cuerpo vacío y los nombres con `../` se corrigieron en PA-224; lo demás se fija como
+comportamiento. Datos ficticios.
 """
 
 from pathlib import Path
@@ -21,31 +21,40 @@ def _write(directory: Path, name: str, content: str) -> Path:
     return path
 
 
-def test_load_prompt_raises_config_error_when_file_starts_with_bom(tmp_path: Path) -> None:
-    """CLAUDE.md (comportamiento fijado): con BOM la cabecera no se reconoce y falla en alto.
-
-    El mensaje dice que falta «version:», aunque la cabecera exista tras el BOM.
-    """
+def test_load_prompt_reads_header_when_file_starts_with_bom(tmp_path: Path) -> None:
+    """PA-224: un BOM inicial no oculta la cabecera (se lee con `utf-8-sig`)."""
     _write(tmp_path, "con_bom", "﻿---\nversion: 1\n---\n\nCuerpo ficticio.")
 
-    with pytest.raises(ConfigError, match="no tiene cabecera"):
-        load_prompt("con_bom", tmp_path)
+    prompt = load_prompt("con_bom", tmp_path)
+
+    assert (prompt.version, prompt.text) == ("1", "Cuerpo ficticio.")
 
 
-def test_load_prompt_returns_empty_text_when_body_is_empty(tmp_path: Path) -> None:
-    """CLAUDE.md (comportamiento fijado): un prompt sin cuerpo se carga con texto vacío."""
+def test_load_prompt_raises_config_error_when_body_is_empty(tmp_path: Path) -> None:
+    """PA-224: un prompt sin texto tras la cabecera no se carga (no llegaría nada al LLM)."""
     _write(tmp_path, "vacio", "---\nversion: 1\n---\n\n   \n")
 
-    prompt = load_prompt("vacio", tmp_path)
+    with pytest.raises(ConfigError, match="no tiene texto"):
+        load_prompt("vacio", tmp_path)
 
-    assert (prompt.version, prompt.text) == ("1", "")
 
-
-def test_load_prompt_returns_empty_text_when_header_closes_at_end(tmp_path: Path) -> None:
-    """CLAUDE.md (límite): la cabecera cerrada al final del archivo da cuerpo vacío."""
+def test_load_prompt_raises_config_error_when_header_closes_at_end(tmp_path: Path) -> None:
+    """PA-224 (límite): la cabecera cerrada al final del archivo deja el cuerpo vacío: error."""
     _write(tmp_path, "solo_cabecera", "---\nversion: 2\n---")
 
-    assert load_prompt("solo_cabecera", tmp_path).text == ""
+    with pytest.raises(ConfigError, match="no tiene texto"):
+        load_prompt("solo_cabecera", tmp_path)
+
+
+@pytest.mark.parametrize("name", ["../fuera", "sub/dir", "Mayusculas", "con-guion", "", "x" * 65])
+def test_load_prompt_rejects_invalid_name_without_reading(tmp_path: Path, name: str) -> None:
+    """PA-224: el nombre debe ser `[a-z0-9_]` (hasta 64); «../x» no sale de `prompts/`."""
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    _write(tmp_path, "fuera", "---\nversion: 1\n---\n\nPrompt ficticio fuera de la carpeta.")
+
+    with pytest.raises(ConfigError, match="no es un nombre de prompt válido"):
+        load_prompt(name, prompts_dir)
 
 
 @pytest.mark.parametrize(
@@ -59,22 +68,6 @@ def test_load_prompt_stringifies_version_when_it_is_not_a_plain_string(
     _write(tmp_path, "version_rara", f"---\nversion: {raw_version}\n---\n\nCuerpo ficticio.")
 
     assert load_prompt("version_rara", tmp_path).version == expected
-
-
-def test_load_prompt_reads_outside_prompts_dir_when_name_has_parent_segments(
-    tmp_path: Path,
-) -> None:
-    """CLAUDE.md (comportamiento fijado): el nombre no se valida; '../x' sale de la carpeta.
-
-    Los nombres son constantes del código, no entrada del usuario.
-    """
-    prompts_dir = tmp_path / "prompts"
-    prompts_dir.mkdir()
-    _write(tmp_path, "fuera", "---\nversion: 1\n---\n\nPrompt ficticio fuera de la carpeta.")
-
-    prompt = load_prompt("../fuera", prompts_dir)
-
-    assert prompt.text == "Prompt ficticio fuera de la carpeta."
 
 
 def test_load_prompt_raises_config_error_when_closing_line_has_trailing_space(

@@ -209,14 +209,6 @@ def test_old_csrf_token_is_rejected_after_login_rotation(api: Api) -> None:
     assert api.post("/projects/choose", {"project": "DEMO"}).status_code == 200
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-161): sin sesión, un cuerpo inválido da 422 antes del 401; la sesión se "
-        "comprueba dentro del handler, tras validar el cuerpo (api/app.py:188-191, "
-        "api/security.py:112-119)"
-    ),
-)
 def test_unauthenticated_request_is_401_before_body_validation(rt: Runtime) -> None:
     """Req. 1 y contrato (401 «Sin sesión o caducada»): sin cookie no se valida ni procesa nada."""
     client = _client(rt)
@@ -317,14 +309,6 @@ def test_approve_without_csrf_is_403_and_writes_nothing(live_rt: Runtime) -> Non
     _nothing_written(live_rt)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-162): `iterate` valida el feedback (`service.iterate_answer`) antes de "
-        "comprobar la sesión y el CSRF: sin token responde 422 en vez de 403 (api/app.py:652, "
-        "api/app.py:658)"
-    ),
-)
 def test_iterate_without_csrf_is_403_even_with_blank_feedback(api: Api) -> None:
     """Req. 2: en todo POST el CSRF se comprueba antes que el contenido."""
     cid = api.post("/conversations", EVOLVE).json()["id"]
@@ -701,7 +685,7 @@ def test_security_headers_also_on_error_responses(api: Api, rt: Runtime) -> None
         _client(rt).get(f"{API_PREFIX}/conversations"),  # 401
         api.post("/projects/choose", {"project": "DEMO"}, csrf=False),  # 403
         api.get("/ruta-ficticia-inexistente"),  # 404
-        api.client.patch(f"{API_PREFIX}/settings"),  # 405
+        api.client.patch(f"{API_PREFIX}/settings", headers={"X-CSRF-Token": api.csrf}),  # 405
         api.post("/start/propose", {"text": "x" * 300_000, "project": "DEMO"}),  # 413
         api.post("/projects/choose", {"project": "!"}),  # 422
     ]
@@ -870,14 +854,6 @@ def test_sse_error_event_mid_stream_has_no_internal_details(
     assert api.session.streams == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-163): el evento SSE `error` de un fallo con el flujo abierto lleva "
-        '`{"error": ErrorBody}` y no la conversación completa que promete el contrato '
-        "(api/app.py:606-612; docs/api/openapi.yaml:1711-1715)"
-    ),
-)
 def test_sse_error_event_data_is_the_full_conversation_as_in_the_contract(
     api: Api, rt: Runtime, fast_sse: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

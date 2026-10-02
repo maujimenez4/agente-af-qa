@@ -1710,9 +1710,10 @@ paths:
       summary: Eventos en vivo (SSE)
       description: '`text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), `review_ready`,
         `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación
-        completa, como en `GET /conversations/{id}`). El servidor cierra el flujo tras `result` de una
-        conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay
-        un comentario `: ping` cada 15 s. Si se corta, basta con consultar el estado.'
+        completa, como en `GET /conversations/{id}`; si falla la lectura a mitad del flujo, la última
+        conocida con `state=error` y `error`). El servidor cierra el flujo tras `result` de una conversación
+        terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay un comentario
+        `: ping` cada 15 s. Si se corta, basta con consultar el estado.'
       operationId: events_api_v1_conversations__conversation_id__events_get
       parameters:
       - name: conversation_id

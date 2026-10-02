@@ -57,13 +57,23 @@ from app.origin import (
 )
 from app.progress import STEPS, completed_steps, nodes_in_update, phase_label, phase_of
 from app.review import (
+    ReceiptItem,
+    ReviewView,
+    approve_answer,
+    change_marks,
     describe_operation,
+    describe_target,
     discard_answer,
     edit_answer,
+    field_label,
     iterate_answer,
+    outcome_from_state,
     parse_payload,
     pending_from_result,
     pending_from_state,
+    receipt_items,
+    receipt_progress,
+    source_count,
     summarize,
 )
 from app.session import (
@@ -92,7 +102,7 @@ from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
-from tests.fakes.llm import FakeLLMProvider
+from tests.fakes.llm import FakeLLMProvider, renewal_test_suite
 
 AF_USER = dataset.DEMO_USERS["af-demo"][1]
 QA_USER = dataset.DEMO_USERS["qa-demo"][1]
@@ -1828,3 +1838,377 @@ def test_message_for_value_error_from_manual_edit_shows_its_message() -> None:
     story = _story()
     exc = _raised(form_to_content, story, story_to_form(story))
     assert message_for(exc) == "No has cambiado nada de la propuesta."
+
+
+# --- T-31 · Recibo de aprobación y resultado (UI.md §4.5–4.7, §5, §6.4–6.5) ------------------
+
+UPDATE_OP = {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
+LINK_OP = {"op": "link", "from": "DEMO-3", "to": "DEMO-2", "type": "relates to"}
+CREATE_OP = {"op": "create_story", "project": "DEMO", "epic": "DEMO-1"}
+SUITE_OP = {"op": "publish_suite", "project": "DEMO", "story": "DEMO-3", "cases": "5"}
+
+
+def _view(
+    plan: list[dict[str, str]],
+    version: int = 3,
+    impact: ImpactAnalysis | None = None,
+) -> ReviewView:
+    payload = _payload(version=version, impact=impact)
+    payload["plan"] = plan
+    return parse_payload(payload)
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        (
+            {"operation": "actualizar HU", "project": "DEMO", "jira_key": "DEMO-3"},
+            "Actualizar DEMO-3 · proyecto DEMO",
+        ),
+        (
+            {"operation": "crear HU", "project": "DEMO", "jira_key": None, "epic_key": "DEMO-1"},
+            "Crear una HU nueva en la épica DEMO-1 · proyecto DEMO",
+        ),
+        (
+            {"operation": "crear HU", "project": "DEMO", "jira_key": None, "epic_key": None},
+            "Crear una HU nueva · proyecto DEMO",
+        ),
+        (
+            {"operation": "publicar casos de prueba", "project": "DEMO", "jira_key": "DEMO-3"},
+            "Publicar los casos de prueba de DEMO-3 · proyecto DEMO",
+        ),
+    ],
+    ids=["actualizar", "crear-en-epica", "crear-en-proyecto", "qa"],
+)
+def test_describe_target_is_readable_text(target: dict[str, str | None], expected: str) -> None:
+    """UI.md §4.6 · T-31: `PublishTarget.describe()` se muestra como texto, nunca como dict."""
+    text = describe_target(target)
+    assert text == expected
+    assert "{" not in text
+
+
+def test_describe_target_unknown_operation_or_empty_is_kept() -> None:
+    """UI.md §4.6 (límite): operación desconocida se muestra tal cual; vacía → texto vacío."""
+    assert describe_target({"operation": "operación ficticia"}) == "operación ficticia"
+    assert describe_target({}) == ""
+
+
+def test_parse_payload_with_target_dict_gives_text_and_target_info() -> None:
+    """UI.md §5.1 · T-31: `target` dict → `view.target` legible y `target_info` con el dict."""
+    payload = _payload()
+    payload["target"] = {
+        "operation": "actualizar HU",
+        "project": "DEMO",
+        "jira_key": "DEMO-3",
+        "epic_key": None,
+    }
+    view = parse_payload(payload)
+    assert view.target == "Actualizar DEMO-3 · proyecto DEMO"
+    assert view.target_info == payload["target"]
+
+
+def test_parse_payload_with_target_str_is_kept_for_compatibility() -> None:
+    """UI.md §5.1 (compatibilidad): un `target` en texto se conserva y no hay `target_info`."""
+    view = parse_payload(_payload())
+    assert view.target == "Evolucionar DEMO-3 (ficticio)"
+    assert view.target_info is None
+
+
+def test_approve_answer_returns_decision_and_exact_fingerprint() -> None:
+    """UI.md §5.3–5.4 · T-31: aprobar = `{"decision": "approve", "fingerprint": <recibida>}`."""
+    view = _view([UPDATE_OP])
+    assert approve_answer(view) == {"decision": "approve", "fingerprint": view.fingerprint}
+
+
+def test_receipt_items_update_story_lists_changed_fields_and_comment() -> None:
+    """UI.md §4.6 · RF-31: «Actualizar DEMO-3 con la versión N» con los campos cambiados."""
+    (item,) = receipt_items(_view([UPDATE_OP], version=3, impact=_impact()))
+    assert item.text == "Actualizar DEMO-3 con la versión 3"
+    assert item.detail == "Cambia: título, descripción. Se añade un comentario con los cambios."
+
+
+def test_receipt_items_update_story_without_impact_only_mentions_comment() -> None:
+    """UI.md §4.6 (límite): sin `impact` el detalle solo menciona el comentario."""
+    (item,) = receipt_items(_view([UPDATE_OP], version=1))
+    assert item.text == "Actualizar DEMO-3 con la versión 1"
+    assert item.detail == "Se añade un comentario con los cambios."
+
+
+def test_receipt_items_update_story_truncates_many_changed_fields() -> None:
+    """UI.md §4.6 (límite): más de 8 campos cambiados → los 8 primeros y «y N más»."""
+    impact = ImpactAnalysis(
+        diffs=[StoryDiff(field=f"campo_{n}", before="a", after="b") for n in range(10)],
+        affected=[],
+        regression_notes=[],
+    )
+    (item,) = receipt_items(_view([UPDATE_OP], impact=impact))
+    assert "campo_7 y 2 más." in item.detail
+    assert "campo_8" not in item.detail
+
+
+def test_receipt_items_create_story_in_epic() -> None:
+    """UI.md §4.6 · RF-31: crear HU en la épica, con la versión revisada."""
+    (item,) = receipt_items(_view([CREATE_OP]))
+    assert item.text == "Crear una HU nueva en la épica DEMO-1"
+    assert item.detail == "Con la versión revisada."
+
+
+def test_receipt_items_link_carries_reason_from_impact() -> None:
+    """UI.md §4.6: «Vincular con DEMO-2 (relates to)» con el motivo de `impact.affected`."""
+    (item,) = receipt_items(_view([LINK_OP], impact=_impact()))
+    assert item.text == "Vincular con DEMO-2 (relates to)"
+    assert item.detail == "Comparte la RN de reservas Otro motivo ficticio"
+    assert "Historial ficticio" not in item.detail  # el motivo de DEMO-4 no se mezcla
+
+
+def test_receipt_items_link_without_impact_has_no_reason() -> None:
+    """UI.md §4.6 (límite): sin `impact` el vínculo no lleva motivo."""
+    (item,) = receipt_items(_view([LINK_OP]))
+    assert item.detail == ""
+
+
+def test_receipt_items_publish_suite_is_split_in_three() -> None:
+    """UI.md §6.4 · D-09: subtareas «caso-prueba», `estrategia-<CLAVE>.md` y `matriz-<CLAVE>.md`."""
+    items = receipt_items(_view([SUITE_OP]))
+    assert [item.text for item in items] == [
+        "Crear 5 subtareas en DEMO-3 con la etiqueta «caso-prueba»",
+        "Adjuntar estrategia-DEMO-3.md",
+        "Adjuntar matriz-DEMO-3.md",
+    ]
+    assert "prioridad" in items[0].detail
+    assert items[2].detail == "Cobertura CA/RN ↔ CP."
+
+
+def test_receipt_items_unknown_operation_is_shown_by_name() -> None:
+    """UI.md §5.2 (límite): una operación desconocida tiene su casilla con su nombre."""
+    (item,) = receipt_items(_view([{"op": "operacion_ficticia"}]))
+    assert item.text == "operacion_ficticia"
+    assert item.id == "0-operacion_ficticia"
+
+
+def test_receipt_items_ids_are_unique_and_stable() -> None:
+    """UI.md §4.6: un id por casilla, único y estable para la misma versión."""
+    view = _view([UPDATE_OP, LINK_OP, {**LINK_OP, "to": "DEMO-4"}, SUITE_OP], impact=_impact())
+    first, second = receipt_items(view), receipt_items(view)
+    ids = [item.id for item in first]
+    assert ids == [item.id for item in second]
+    assert len(ids) == len(set(ids)) == 6
+    assert ids == [
+        "0-update",
+        "1-link-DEMO-2",
+        "2-link-DEMO-4",
+        "3-cases",
+        "3-strategy",
+        "3-matrix",
+    ]
+
+
+def test_receipt_items_empty_plan_has_no_items() -> None:
+    """UI.md §4.6 (límite): sin operaciones no hay casillas."""
+    assert receipt_items(_view([])) == []
+
+
+def test_receipt_progress_counts_checked_items() -> None:
+    """UI.md §4.6 y §5.5: «N de M revisadas» → «Todo revisado» solo con todas marcadas."""
+    items = [ReceiptItem("a", "Uno"), ReceiptItem("b", "Dos"), ReceiptItem("c", "Tres")]
+    assert receipt_progress(items, {}) == (0, False)
+    assert receipt_progress(items, {"a": True, "b": False}) == (1, False)
+    assert receipt_progress(items, {"a": True, "c": True, "otra": True}) == (2, False)
+    assert receipt_progress(items, {"a": True, "b": True, "c": True}) == (3, True)
+
+
+def test_receipt_progress_without_items_cannot_approve() -> None:
+    """UI.md §4.6 (límite): sin operaciones no se puede aprobar."""
+    assert receipt_progress([], {"a": True}) == (0, False)
+
+
+def test_source_count_counts_cited_sources() -> None:
+    """UI.md §4.6: «Generado con IA a partir de N fuentes»."""
+    payload = _payload()
+    payload["artifact"]["content"]["sources"] = [
+        {"kind": "rag", "ref": "doc-reglamento"},
+        {"kind": "jira", "ref": "DEMO-2"},
+    ]
+    assert source_count(parse_payload(payload)) == 2
+    assert source_count(_view([])) == 0
+
+
+def _marks_impact(*diffs: StoryDiff) -> ImpactAnalysis:
+    return ImpactAnalysis(diffs=list(diffs), affected=[], regression_notes=[])
+
+
+def test_change_marks_changed_and_new_items() -> None:
+    """UI.md §4.5 · PA-73: «Cambiado en vN» si había `before`, «Nueva» si no."""
+    impact = _marks_impact(
+        StoryDiff(field="acceptance_criteria[CA-02]", before="Antes ficticio", after="Después"),
+        StoryDiff(field="acceptance_criteria[CA-03]", before=None, after="CA nuevo ficticio"),
+        StoryDiff(field="business_rules[RN-03]", before=None, after="RN nueva ficticia"),
+        StoryDiff(field="business_rules[RN-01]", before="Máx. 2", after="Máx. 3 (ficticio)"),
+    )
+    assert change_marks(_view([UPDATE_OP], version=2, impact=impact)) == {
+        "CA-02": "Cambiado en v2",
+        "CA-03": "Nueva",
+        "RN-03": "Nueva",
+        "RN-01": "Cambiado en v2",
+    }
+
+
+def test_change_marks_ignore_removed_and_other_fields() -> None:
+    """UI.md §4.5 (límite): los eliminados (after None) y los campos que no son CA/RN no marcan."""
+    impact = _marks_impact(
+        StoryDiff(field="acceptance_criteria[CA-01]", before="CA quitado ficticio", after=None),
+        StoryDiff(field="title", before="Renovar", after="Renovar un préstamo"),
+        StoryDiff(field="acceptance_criteria", before="a", after="b"),
+        StoryDiff(field="scope_includes[0]", before=None, after="Nuevo alcance ficticio"),
+    )
+    assert change_marks(_view([UPDATE_OP], impact=impact)) == {}
+
+
+def test_change_marks_without_impact_is_empty() -> None:
+    """UI.md §4.5 (límite): sin `impact` (versión 1 de una necesidad) no hay marcas."""
+    assert change_marks(_view([UPDATE_OP])) == {}
+
+
+def _artifact(status: ArtifactStatus, version: int = 2, *, suite: bool = False) -> Artifact:
+    return Artifact(
+        id=uuid4(),
+        type=ArtifactType.TEST_SUITE if suite else ArtifactType.USER_STORY,
+        status=status,
+        version=version,
+        origin_key="DEMO-3",
+        content=renewal_test_suite() if suite else dataset.renewal_story(),
+        created_by=AF_USER.username,
+    )
+
+
+def _state(
+    artifact: Artifact | None, decision: str | None = "approve", **values: Any
+) -> dict[str, Any]:
+    return {
+        "artifact": artifact,
+        "decision": decision,
+        "published_keys": [],
+        "errors": [],
+        **values,
+    }
+
+
+def test_outcome_simulated_when_approved_without_keys_or_errors() -> None:
+    """UI.md §4.7 · T-25: `APPROVED` sin claves ni errores → simulado; la aprobación sigue."""
+    approved = _view([UPDATE_OP, LINK_OP], version=2)
+    outcome = outcome_from_state(_state(_artifact(ArtifactStatus.APPROVED)), approved, "af-demo")
+    assert outcome is not None
+    assert outcome.kind == "simulated"
+    assert (outcome.version, outcome.approved_by) == (2, "af-demo")
+    assert outcome.operations == [
+        "Actualizar DEMO-3 con la versión revisada",
+        "Vincular DEMO-3 con DEMO-2 (relates to)",
+    ]
+    assert (outcome.published_keys, outcome.errors, outcome.message) == ([], [], None)
+    assert outcome.story is True
+
+
+def test_outcome_published_when_status_published() -> None:
+    """UI.md §4.7 (real): `PUBLISHED` con sus claves → publicado."""
+    values = _state(_artifact(ArtifactStatus.PUBLISHED), published_keys=["DEMO-3"])
+    outcome = outcome_from_state(values, _view([UPDATE_OP]), "af-demo")
+    assert outcome is not None
+    assert outcome.kind == "published"
+    assert outcome.published_keys == ["DEMO-3"]
+
+
+def test_outcome_partial_when_published_with_errors() -> None:
+    """UI.md §6.5 · RNF-13: publicado con `errors` (vínculo fallido) → en parte."""
+    values = _state(
+        _artifact(ArtifactStatus.PUBLISHED),
+        published_keys=["DEMO-3"],
+        errors=["No se pudo vincular DEMO-3 con DEMO-2."],
+    )
+    outcome = outcome_from_state(values, _view([UPDATE_OP, LINK_OP]), "af-demo")
+    assert outcome is not None
+    assert outcome.kind == "partial"
+    assert outcome.errors == ["No se pudo vincular DEMO-3 con DEMO-2."]
+
+
+def test_outcome_partial_qa_suite_approved_with_errors_and_keys() -> None:
+    """UI.md §6.5 · T-30: una suite con fallos sigue `APPROVED` con claves y errores → en parte."""
+    values = _state(
+        _artifact(ArtifactStatus.APPROVED, suite=True),
+        published_keys=["DEMO-501"],
+        errors=["No se pudo publicar CP-02."],
+    )
+    outcome = outcome_from_state(values, _view([SUITE_OP]), "qa-demo")
+    assert outcome is not None
+    assert outcome.kind == "partial"
+    assert outcome.story is False
+    assert outcome.operations == ["Publicar 5 casos de prueba en DEMO-3"]
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"published_keys": ["DEMO-501"]},
+        {"errors": ["No se pudo publicar CP-01."]},
+    ],
+    ids=["solo-claves", "solo-errores"],
+)
+def test_outcome_partial_qa_suite_with_keys_or_errors(values: dict[str, list[str]]) -> None:
+    """UI.md §6.5 (límite): una suite `APPROVED` con claves o con errores ya es «en parte»."""
+    state = _state(_artifact(ArtifactStatus.APPROVED, suite=True), **values)
+    outcome = outcome_from_state(state, _view([SUITE_OP]), "qa-demo")
+    assert outcome is not None and outcome.kind == "partial"
+
+
+def test_outcome_published_without_memory_carries_failure() -> None:
+    """PA-251 · UI.md §4.7: publicado y la memoria falla → `published_without_memory` + motivo."""
+    values = _state(_artifact(ArtifactStatus.PUBLISHED), published_keys=["DEMO-3"])
+    outcome = outcome_from_state(
+        values, _view([UPDATE_OP]), "af-demo", failure="Memoria ficticia caída."
+    )
+    assert outcome is not None
+    assert outcome.kind == "published_without_memory"
+    assert outcome.message == "Memoria ficticia caída."
+
+
+def test_outcome_simulated_suite_is_not_a_story() -> None:
+    """UI.md §6.5: el resultado de una suite no promete memoria (`story` False)."""
+    state = _state(_artifact(ArtifactStatus.APPROVED, suite=True))
+    outcome = outcome_from_state(state, _view([SUITE_OP]), "qa-demo")
+    assert outcome is not None
+    assert (outcome.kind, outcome.story) == ("simulated", False)
+
+
+@pytest.mark.parametrize("decision", ["iterate", "discard", "edit", None])
+def test_outcome_is_none_when_not_approved(decision: str | None) -> None:
+    """UI.md §4.7 (negativa): sin `decision == "approve"` no hay resultado."""
+    state = _state(_artifact(ArtifactStatus.APPROVED), decision=decision)
+    assert outcome_from_state(state, _view([UPDATE_OP]), "af-demo") is None
+
+
+def test_outcome_is_none_without_artifact() -> None:
+    """UI.md §4.7 (negativa): sin artefacto en el estado no hay resultado."""
+    assert outcome_from_state(_state(None), _view([UPDATE_OP]), "af-demo") is None
+    assert outcome_from_state({}, _view([UPDATE_OP]), "af-demo") is None
+
+
+@pytest.mark.parametrize(
+    "status", [ArtifactStatus.IN_REVIEW, ArtifactStatus.DRAFT, ArtifactStatus.DISCARDED]
+)
+def test_outcome_is_none_for_status_not_approved(status: ArtifactStatus) -> None:
+    """UI.md §4.7 (negativa): un artefacto que no está aprobado ni publicado no da resultado."""
+    assert outcome_from_state(_state(_artifact(status)), _view([UPDATE_OP]), "af-demo") is None
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("title", "título"),
+        ("acceptance_criteria[CA-03]", "CA-03"),
+        ("business_rules[RN-01]", "RN-01"),
+        ("sources[jira:DEMO-2]", "fuentes"),
+        ("campo_raro", "campo_raro"),
+    ],
+)
+def test_field_label_is_readable(field: str, expected: str) -> None:
+    """UI.md §4.6: el recibo nombra los campos cambiados en español o por su ID de CA/RN."""
+    assert field_label(field) == expected

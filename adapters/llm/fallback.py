@@ -2,24 +2,82 @@
 
 Recorre la cadena de la tarea en orden: si un proveedor alcanza su límite (429) o falla, pasa al
 siguiente. Una salida estructurada inválida no provoca respaldo: se informa al usuario (RNF-28).
-Cada llamada correcta se registra en `llm_usage` (RF-43).
+Cada llamada correcta se registra en `llm_usage` (RF-43); si el registro falla, la respuesta
+no se pierde (RNF-12).
+
+Cada cambio de proveedor genera un `FallbackEvent` con su motivo (PA-67). La UI lo recoge
+envolviendo la invocación en `capture_fallbacks()`, que usa una `ContextVar`: cada sesión ve
+solo sus eventos.
 """
 
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Literal
 
 import structlog
 from pydantic import BaseModel
 
 from adapters.base import LLMProvider, LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import ExternalServiceError, RateLimitError
-from adapters.llm.openai_compatible import StructuredOutputError
-from adapters.llm.usage import UsageRecord, UsageRecorder
+from adapters.llm.openai_compatible import ProviderTimeoutError, StructuredOutputError
+from adapters.llm.usage import UsageRecord, UsageRecorder, current_artifact_id
 
 log = structlog.get_logger(__name__)
 
 ChainResolver = Callable[[TaskType], Sequence[LLMProvider]]
+FallbackReason = Literal["limite", "tiempo_espera", "error"]
+
+_REASON_TEXT: dict[FallbackReason, str] = {
+    "limite": "ha alcanzado su límite de uso",
+    "tiempo_espera": "no ha respondido a tiempo",
+    "error": "ha fallado",
+}
+
+
+@dataclass(frozen=True)
+class FallbackEvent:
+    """Un proveedor de la cadena falló y se pasó al siguiente (o se agotó la cadena)."""
+
+    task: TaskType
+    provider: str
+    model: str | None
+    reason: FallbackReason
+    at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def message(self) -> str:
+        """Aviso en español para la UI, sin datos internos.
+
+        No afirma que haya otro modelo: si la cadena se agota, la UI muestra además el error
+        final de la llamada.
+        """
+        return f"{self.provider} {_REASON_TEXT[self.reason]}."
+
+
+_EVENTS: ContextVar[list[FallbackEvent] | None] = ContextVar("llm_fallback_events", default=None)
+
+
+@contextmanager
+def capture_fallbacks() -> Iterator[list[FallbackEvent]]:
+    """Recoge los cambios de proveedor de las llamadas hechas dentro del bloque (PA-67)."""
+    events: list[FallbackEvent] = []
+    token = _EVENTS.set(events)
+    try:
+        yield events
+    finally:
+        _EVENTS.reset(token)
+
+
+def fallback_reason(exc: ExternalServiceError) -> FallbackReason:
+    if isinstance(exc, RateLimitError):
+        return "limite"
+    if isinstance(exc, ProviderTimeoutError):
+        return "tiempo_espera"
+    return "error"
 
 
 class FallbackLLMProvider:
@@ -72,6 +130,7 @@ class FallbackLLMProvider:
             except StructuredOutputError:
                 raise
             except ExternalServiceError as exc:
+                reason = fallback_reason(exc)
                 log.warning(
                     "llm_provider_failed",
                     action="llm_call",
@@ -79,8 +138,11 @@ class FallbackLLMProvider:
                     provider=name,
                     model=model,
                     error=type(exc).__name__,
+                    reason=reason,
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )
+                if (events := _EVENTS.get()) is not None:
+                    events.append(FallbackEvent(task, name, model, reason))
                 failures.append(exc)
                 continue
             self._record(task, result)
@@ -100,25 +162,43 @@ class FallbackLLMProvider:
         )
         if self._recorder is None:
             return
-        self._recorder.record(
-            UsageRecord(
-                task=task,
-                provider=result.provider,
-                model=result.model,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                latency_ms=result.latency_ms,
-            )
-        )
-        if self._daily_token_warning is not None:
-            used = self.tokens_today()
-            if used >= self._daily_token_warning:
-                log.warning(
-                    "llm_daily_budget_warning",
-                    action="llm_call",
-                    tokens_today=used,
-                    threshold=self._daily_token_warning,
+        try:
+            self._recorder.record(
+                UsageRecord(
+                    task=task,
+                    provider=result.provider,
+                    model=result.model,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    latency_ms=result.latency_ms,
+                    artifact_id=current_artifact_id(),
                 )
+            )
+        except Exception as exc:  # el registro no puede tumbar la respuesta (RNF-12)
+            self._warn_usage("llm_usage_not_recorded", task, result, exc)
+            return
+        if self._daily_token_warning is None:
+            return
+        try:
+            used = self.tokens_today()
+        except Exception as exc:  # el aviso diario tampoco (RNF-12)
+            self._warn_usage("llm_usage_not_read", task, result, exc)
+            return
+        if used >= self._daily_token_warning:
+            log.warning(
+                "llm_daily_budget_warning",
+                action="llm_call",
+                tokens_today=used,
+                threshold=self._daily_token_warning,
+            )
+
+    @staticmethod
+    def _warn_usage(
+        event: str, task: TaskType, result: LLMResult | StructuredResult, exc: Exception
+    ) -> None:
+        log.warning(
+            event, action="llm_call", task=task.value, model=result.model, error=type(exc).__name__
+        )
 
 
 def _chain_error(task: TaskType, failures: list[ExternalServiceError]) -> ExternalServiceError:

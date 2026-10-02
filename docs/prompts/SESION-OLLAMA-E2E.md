@@ -1,57 +1,54 @@
-# SESIÓN OLLAMA · Ronda 2: elegir un modelo local más rápido y repetir la prueba de punta a punta
+# SESIÓN OLLAMA · Ronda 3: validar los arreglos antes de elegir el modelo
 
 Pega como mensaje en la sesión de Ollama (carpeta principal, rama `PreProduccion`) todo lo que hay debajo de la línea. Antes, trae lo último: `git pull origin PreProduccion`.
 
 ---
 
-Tu diagnóstico fue muy útil: con `qwen3:4b-instruct` en CPU (~3,5 tokens/s) una HU tardó casi 19 min en una llamada y el reintento no cabía en 8192 de contexto.
+Tu comparativa de los cinco modelos fue muy útil. La principal ha organizado así lo que sigue:
+- Tus dos causas comunes (IDs de RN copiados del corpus y `sources` vacío) y la opción de desactivar el razonamiento las implementa la **sesión Modelos (T-58)**, en paralelo contigo. No las hagas tú en el código.
+- **Antes de elegir el modelo**, comprobamos con tu script que esos arreglos funcionan de verdad. Así T-58 sabe qué priorizar y la fase 2 se decide con datos.
 
-**Ya está en `PreProduccion`:**
-- **`limits.request_timeout_s`** (600 s) en `config/models.yaml`.
-- **`limits.max_output_tokens`** por tarea: HU 2500, suite 3000, revisión 2000, impacto 800, memoria 1200, clasificar y JQL 200. Se envía como `max_tokens` a la API.
-- **`JIRA_PUBLISH_MODE=live`** ya no está bloqueado, pero seguimos en `simulation`.
+## Fase 1b · Medir con los arreglos aplicados solo en tu script (sin tocar el repositorio)
+Mismo caso que antes (necesidad de reservas, mismo RAG, tope de 2500). En el script, **no en `prompts/`**, añade al prompt de sistema de `generate_story` estas dos instrucciones:
+1. «Numera las reglas `RN-01`, `RN-02`… y los criterios `CA-01`, `CA-02`…, aunque las fuentes usen otros identificadores; el identificador del documento (p. ej. `RN-RES-01`) va dentro de la descripción.»
+2. «`sources` no puede ir vacío: cita al menos una fuente del contexto con su `ref` copiado literalmente.»
 
-**Decisión del usuario:** **probar un modelo local más pequeño** para que la demo sea viable con CPU.
+Mide:
+- **`qwen3:1.7b` sin razonamiento**: prueba `extra_body={"reasoning_effort": "none"}` y, si no surte efecto, `extra_body={"think": False}`. Apunta cuál funciona contra el endpoint OpenAI de Ollama: T-58 lo necesita.
+- **`phi4-mini`** con las dos instrucciones.
+- Si sobra tiempo, **`qwen3:4b-instruct` sin razonamiento** como referencia de calidad.
 
-## Fase 1 · Elegir el modelo (mide y documenta; no cambies código)
-1. **Candidatos** (ajusta según lo que haya en Ollama): `qwen3:1.7b`, `qwen2.5:3b-instruct`, `llama3.2:3b` y `phi4-mini`, más `qwen3:4b-instruct` como referencia con el tope nuevo. Descárgalos con `docker compose exec ollama ollama pull <modelo>`.
-2. **Mismo caso para todos:** `StoryWriter.generate` con la necesidad de ejemplo del corpus y su contexto real del RAG. Hazlo con un script de un solo uso que **guarde la salida en bruto** en `docs/pruebas/salidas/` (sin secretos) y lo apunte:
-   - tokens/s y tiempo total;
-   - tokens de salida;
-   - si el JSON es válido a la primera o necesita reintento;
-   - si las citas son correctas o salta `CitationError`;
-   - una valoración breve de la calidad en español: CA en Gherkin con sentido y sin repetirse.
-3. **Ventana de contexto:** si el reintento sigue sin caber, prueba `OLLAMA_CONTEXT_LENGTH=16384` en `docker-compose.yml` y anota la RAM.
-4. **Antes de cambiar nada, avísame con una tabla comparativa y tu recomendación.**
+Guarda las salidas en bruto en `docs/pruebas/salidas/` con el sufijo `-r3`. Después, dame la misma tabla que la vez anterior, con dos columnas más: «¿Pasa a la primera?» y «Reintentos evitados por los arreglos». Cierra con tu recomendación de modelo principal y de respaldo, y con los valores propuestos de `request_timeout_s` y `max_output_tokens`.
 
-## Fase 2 · Aplicar el modelo elegido (cuando yo lo confirme)
-- Cambia en `config/models.yaml` las cadenas de las tareas al modelo elegido. Puedes dejar `qwen3:4b-instruct` como respaldo en las tareas que lo necesiten.
-- Ajusta `request_timeout_s`, `max_output_tokens` y, si hace falta, `OLLAMA_CONTEXT_LENGTH`, con los valores medidos.
-- `uv run pytest -m "not integration"` debe seguir en verde: hay pruebas que leen `config/models.yaml`. Haz commit solo de `config/models.yaml` y `docker-compose.yml`.
+## Fase 2 · Aplicar el modelo (cuando yo lo confirme y T-58 esté fusionada)
+- `config/models.yaml`:
+  - las cadenas de cada tarea con el modelo elegido y su respaldo;
+  - la opción para desactivar el razonamiento, en el formato que defina T-58;
+  - `request_timeout_s` y `max_output_tokens` con los valores medidos.
+- `docker-compose.yml`: `OLLAMA_CONTEXT_LENGTH` solo si hace falta (8192 bastó).
+- `uv run pytest -m "not integration"` en verde: hay pruebas que leen `config/models.yaml`.
+- Commit solo de `config/models.yaml`, `docker-compose.yml` y `docs/pruebas/salidas/`: `Modelos: <modelo> en local con topes medidos [RNF-09, RNF-10]`.
 
-## Fase 3 · Prueba de punta a punta (como en la ronda anterior)
-Retoma los pasos 3 a 7 del encargo anterior:
-- lecturas reales;
-- pruebas `integration` con LLM;
-- `eval/e2e_local.py` con los escenarios (a) a (f);
-- la UI a mano;
-- el informe `docs/pruebas/E2E-local-2026-10-02.md`.
+## Fase 3 · Prueba de punta a punta
+Con el modelo nuevo:
+1. lecturas reales;
+2. pruebas `integration` con LLM;
+3. `eval/e2e_local.py`, escenarios (a) a (f);
+4. la API real a mano: `uv run python -m api` y los pasos de `docs/api/README.md` con `curl` o el Swagger de `/api/docs`; ya no la UI de Streamlit;
+5. el informe `docs/pruebas/E2E-local-2026-10-02.md`.
 
-Con el modelo nuevo debería llevar minutos por escenario, no horas.
+Commit: `E2E: prueba de punta a punta con modelos locales [RNF-09, RNF-10]`.
 
 ## Reglas
 - **Solo creas o cambias:**
-  - `config/models.yaml` y `docker-compose.yml` (fase 2);
+  - el script de medición (fuera del repositorio o en `eval/`);
   - `eval/e2e_local.py`;
-  - `docs/pruebas/` (informe y salidas en bruto).
+  - `docs/pruebas/`;
+  - y en la fase 2, `config/models.yaml` y `docker-compose.yml`.
 
-  No toques `core/`, `adapters/`, `app/`, `web/`, `schemas/`, `prompts/` ni `docs/KANBAN.md`.
-- No leas ni muestres el `.env`.
-- `JIRA_PUBLISH_MODE=simulation` siempre.
+  No toques `core/`, `adapters/`, `api/`, `app/`, `web/`, `schemas/`, `prompts/` ni `docs/KANBAN.md`.
+- No leas ni muestres el `.env`. `JIRA_PUBLISH_MODE=simulation` siempre.
 - No mates procesos globales: si Ollama se cuelga, `docker compose restart ollama`.
-- **Commits:**
-  - fase 2: `Modelos: <modelo elegido> en local con topes medidos [RNF-09, RNF-10]`;
-  - fase 3: `E2E: prueba de punta a punta con modelos locales [RNF-09, RNF-10]`;
-  - sin push. Avísame.
+- Commits sin push. Avísame al terminar cada fase.
 
-Empieza por la fase 1 y dame la tabla comparativa antes de cambiar nada.
+Empieza por la fase 1b y dame la tabla antes de cambiar nada.

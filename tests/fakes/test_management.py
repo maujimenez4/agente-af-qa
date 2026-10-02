@@ -3,7 +3,11 @@
 from dataclasses import dataclass, field
 
 from adapters.base import IssueSummary, PublishResult
+from adapters.errors import PublishError
+from adapters.testmgmt.jira_native import MAX_EVIDENCE_CHARS, ExecutionStatus
 from schemas.test_case import TestSuite
+
+EXECUTION_VALUES = {status.value for status in ExecutionStatus}
 
 
 @dataclass
@@ -16,6 +20,9 @@ class FakeTestManagement:
     cases: dict[str, list[IssueSummary]] = field(default_factory=dict)
     attachments: dict[str, dict[str, str]] = field(default_factory=dict)
     publish_calls: int = 0
+    # T-47: ejecuciones registradas (clave, resultado, evidencia) y claves que fallan.
+    executions: list[tuple[str, str, str]] = field(default_factory=list)
+    fail_execution_keys: set[str] = field(default_factory=set)
     _next_number: int = 500
 
     def publish_suite(self, suite: TestSuite) -> PublishResult:
@@ -45,3 +52,16 @@ class FakeTestManagement:
 
     def list_cases(self, story_key: str) -> list[IssueSummary]:
         return list(self.cases.get(story_key, []))
+
+    def record_execution(self, case_key: str, status: str, evidence_md: str) -> None:
+        """T-47 (PA-206): aún fuera del protocolo; mismas reglas que `JiraNativeTests`."""
+        value = str(getattr(status, "value", status))
+        if value not in EXECUTION_VALUES:
+            raise PublishError(f"«{value[:30]}» no es un resultado de ejecución.")
+        if len(evidence_md.strip()) > MAX_EVIDENCE_CHARS:
+            raise PublishError(f"La evidencia supera los {MAX_EVIDENCE_CHARS} caracteres.")
+        if value == "fallo" and not evidence_md.strip():
+            raise PublishError("Un caso fallido necesita evidencia.")
+        if case_key in self.fail_execution_keys:
+            raise PublishError(f"No se pudo registrar la ejecución en {case_key}.")
+        self.executions.append((case_key, value, evidence_md))

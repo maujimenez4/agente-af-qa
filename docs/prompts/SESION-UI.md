@@ -1,6 +1,6 @@
-# SESIÓN LIBRE (antes UI) · T-54: flujo unido HU → QA
+# SESIÓN FLUJO (antes UI) · Ronda 3: T-54, flujo unido HU → QA
 
-La sesión UI ya no hace la UI en Streamlit: el frontend pasa a React (T-56, responsable del área B). Esta sesión hace ahora **T-54**. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu T-31 ya está fusionada en `PreProduccion`. **T-54 quedó sin hacer en la ronda anterior** y es ahora lo más urgente: la API (T-55) tiene sus rutas de QA encadenada respondiendo 501 hasta que T-54 esté lista. El frontend pasa a React (T-56, responsable del área B), así que esta sesión ya no toca la UI de Streamlit. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
@@ -13,12 +13,12 @@ uv run pytest -m "not integration"          # debe salir en verde antes de empez
 
 ---
 
-Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-flujo`**, creada desde `PreProduccion`. Tu tarea es **T-54: flujo unido HU → QA**, una petición de dirección.
+Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-flujo`**, creada desde `PreProduccion`. Tu T-31 ya está fusionada. Tu tarea ahora es **T-54: flujo unido HU → QA**, una petición de dirección.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`. Contrato y API HTTP (T-55).
-- **Jira:** `ses-jira`, con T-47.
-- **T-32:** `ses-memoria`, en `adapters/llm/`.
+- **Principal:** `PreProduccion`. Integra; dueña de la API (`api/`, T-55 ya hecha) y de los contratos. Cuando fusione T-54 conectará `/conversations/{id}/handoff` y `/qa/*` (PA-105) a tu diseño: deja en tu informe las funciones de servicio que debe llamar la API (listar entregas, pasar a QA y recoger).
+- **Modelos:** `ses-modelos`, con T-58, en `prompts/`, `core/functional/`, `core/qa/` y `adapters/llm/`. Ojo: `_write_suite` está en tu zona y `core/qa/` en la suya; si necesitas tocar `core/qa/`, avísame.
+- **Jira:** `ses-jira`, con PA-208 y la prueba cruzada T-34.
 - **Ollama:** medición de modelos locales.
 - **Responsable del área B:** frontend en React (`web/`, rama `area-b`).
 

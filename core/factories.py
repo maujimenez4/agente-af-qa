@@ -10,6 +10,7 @@ llamadas del proveedor compuesto.
 """
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -23,7 +24,7 @@ from adapters.jira.tracker import JiraCloudTracker
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
 from adapters.llm.router import ModelChoice, ModelRouter
-from adapters.llm.usage import UsageRecorder
+from adapters.llm.usage import SqlUsageRecorder, UsageRecorder
 from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
@@ -75,6 +76,11 @@ def build_llm_provider(
         recorder,
         daily_token_warning=config.models.limits.daily_token_warning,
     )
+
+
+def build_usage_recorder(config: AppConfig) -> SqlUsageRecorder:
+    """Consumo de cada llamada al LLM en `llm_usage`, sobre la base de datos de `.env` (RF-43)."""
+    return SqlUsageRecorder.from_url(config.settings.sqlalchemy_url())
 
 
 def _jira_credentials(settings: Settings) -> tuple[str, SecretStr, SecretStr]:
@@ -220,7 +226,7 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
     son los reales. `JIRA_PUBLISH_MODE=simulation` por defecto; `live` se activa en el `.env`
     (escritura validada en el sandbox el 2026-10-02).
     """
-    llm = build_llm_provider(config, router=router)
+    llm = build_llm_provider(config, build_usage_recorder(config), router=router)
     return build_container(
         config,
         issue_tracker=build_issue_tracker(config.settings),
@@ -237,3 +243,19 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
         conversations=build_conversations(config),
         require_actor=True,  # T-52: sin persona autenticada en la config no se actúa
     )
+
+
+def build_session_container(
+    config: AppConfig,
+    base: Container,
+    router: ModelRouter,
+    recorder: UsageRecorder | None = None,
+) -> Container:
+    """Contenedor de una sesión de la API (T-55): los adaptadores de `base` y un LLM propio.
+
+    Cada sesión tiene su router para que el selector de modelo (RF-42) no afecte a las demás;
+    Jira, la base de datos, el registro de aprobaciones y el resto se comparten en el proceso.
+    `recorder`: el registro de consumo del proceso (T-32, `build_usage_recorder`).
+    """
+    llm = build_llm_provider(config, recorder, router=router)
+    return replace(base, llm=llm, memory_generator=LLMMemoryGenerator(llm))

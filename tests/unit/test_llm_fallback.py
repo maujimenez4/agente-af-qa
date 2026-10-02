@@ -3,11 +3,19 @@
 Los eslabones de la cadena son `tests.fakes.llm.FakeLLMProvider`; no hay llamadas reales.
 """
 
+import dataclasses
+import json
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import uuid4
 
+import httpx
 import pytest
+import sqlalchemy as sa
+from structlog.testing import capture_logs
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import (
@@ -15,11 +23,32 @@ from adapters.errors import (
     ExternalServiceError,
     RateLimitError,
 )
-from adapters.llm.fallback import FallbackLLMProvider
-from adapters.llm.openai_compatible import StructuredOutputError
-from adapters.llm.usage import InMemoryUsageRecorder, UsageRecord
+from adapters.llm.fallback import (
+    FallbackEvent,
+    FallbackLLMProvider,
+    capture_fallbacks,
+    fallback_reason,
+)
+from adapters.llm.openai_compatible import (
+    OpenAICompatibleProvider,
+    ProviderTimeoutError,
+    StructuredOutputError,
+)
+from adapters.llm.usage import InMemoryUsageRecorder, UsageRecord, usage_scope
 from schemas.user_story import UserStory
 from tests.fakes.llm import FakeLLMProvider
+from tests.unit.test_llm_openai_compatible import (
+    BODY_MARKER,
+    FAKE_KEY,
+    TEST_PROMPTS,
+    VALID_ANSWER,
+    Answer,
+    FakeServer,
+    bad_request,
+    make_client,
+)
+from tests.unit.test_llm_openai_compatible import completion as oa_completion
+from tests.unit.test_llm_openai_compatible import error_response as oa_error
 
 MESSAGES = [Message(role="user", content="Genera una HU ficticia de renovación.")]
 TASK = TaskType.GENERATE_STORY
@@ -305,3 +334,429 @@ def test_generate_still_works_when_daily_warning_exceeded() -> None:
 
     assert result.provider == "a"
     assert len(recorder.records) == 1
+
+
+# --- T-32 · Cadena con proveedores OpenAI-compatibles (RNF-12, RNF-27, PA-16) ---------------
+
+
+@dataclass
+class Link:
+    """Eslabón real (OpenAICompatibleProvider) sobre un servidor falso."""
+
+    provider: OpenAICompatibleProvider
+    server: FakeServer
+    sleeps: list[float]
+
+
+def _link(name: str, model: str, *replies: Any, **kwargs: Any) -> Link:
+    server = FakeServer(list(replies))
+    sleeps: list[float] = []
+    provider = OpenAICompatibleProvider(
+        name, model, make_client(server), prompts=TEST_PROMPTS, sleep=sleeps.append, **kwargs
+    )
+    return Link(provider, server, sleeps)
+
+
+def _timeout() -> httpx.ReadTimeout:
+    return httpx.ReadTimeout("tiempo agotado (ficticio)")
+
+
+def test_chain_uses_next_provider_when_first_times_out() -> None:
+    """CA-2 · RNF-12: un tiempo agotado no se reintenta con el mismo proveedor: pasa al siguiente
+    y el evento lleva el motivo «tiempo_espera»."""
+    first = _link("a", "ma", _timeout())
+    second = _link("b", "mb", oa_completion("respuesta ficticia"))
+
+    with capture_fallbacks() as events:
+        result = _fixed_chain(first.provider, second.provider).generate(MESSAGES, TASK)
+
+    assert (result.provider, result.content) == ("b", "respuesta ficticia")
+    assert len(first.server.requests) == 1  # sin bucle de reintentos
+    assert first.sleeps == []
+    assert [(e.provider, e.model, e.reason) for e in events] == [("a", "ma", "tiempo_espera")]
+
+
+def test_chain_raises_spanish_external_error_when_all_time_out() -> None:
+    """CA-2: si todos agotan el tiempo → ExternalServiceError en español de la cadena."""
+    links = [_link("a", "ma", _timeout()), _link("b", "mb", _timeout())]
+
+    with capture_fallbacks() as events, pytest.raises(ExternalServiceError) as info:
+        _fixed_chain(*(link.provider for link in links)).generate(MESSAGES, TASK)
+
+    assert not isinstance(info.value, RateLimitError | ProviderTimeoutError)
+    assert "Todos los proveedores" in str(info.value)
+    assert "generate_story" in str(info.value)
+    assert all(len(link.server.requests) == 1 for link in links)
+    assert [e.reason for e in events] == ["tiempo_espera", "tiempo_espera"]
+
+
+def test_chain_moves_on_without_sleeping_when_retry_after_exceeds_max_wait() -> None:
+    """CA-1 · RNF-27: retry-after > max_wait_s → RateLimitError inmediato y siguiente proveedor."""
+    first = _link("a", "ma", oa_error(429, {"retry-after": "120"}), max_wait_s=20.0)
+    second = _link("b", "mb", oa_completion("ok"))
+
+    with capture_fallbacks() as events:
+        result = _fixed_chain(first.provider, second.provider).generate(MESSAGES, TASK)
+
+    assert result.provider == "b"
+    assert first.sleeps == []
+    assert len(first.server.requests) == 1
+    assert [(e.provider, e.reason) for e in events] == [("a", "limite")]
+
+
+def test_chain_uses_next_provider_when_generic_400_in_structured() -> None:
+    """CA-3 · PA-16: en la cadena, un 400 genérico pasa al siguiente proveedor (motivo «error»)
+    sin probar el modo JSON en el primero."""
+    first = _link("a", "ma", bad_request("context length exceeded", "messages"))
+    second = _link("b", "mb", oa_completion(VALID_ANSWER))
+
+    with capture_fallbacks() as events:
+        result = _fixed_chain(first.provider, second.provider).generate_structured(
+            MESSAGES, Answer, TASK
+        )
+
+    assert result.provider == "b"
+    assert result.content.score == 7
+    assert len(first.server.requests) == 1
+    assert [(e.provider, e.reason) for e in events] == [("a", "error")]
+
+
+# --- T-32 · capture_fallbacks y FallbackEvent (PA-67) --------------------------------------
+
+
+def _failing_chain() -> FallbackLLMProvider:
+    return _fixed_chain(
+        FakeLLMProvider(provider="a", model="ma", error=RateLimitError("Límite.", "a")),
+        FakeLLMProvider(provider="b", model="mb", error=ProviderTimeoutError("Tiempo.", "b")),
+        FakeLLMProvider(provider="c", model="mc", error=ExternalServiceError("Caído.", "c")),
+        FakeLLMProvider(provider="d", model="md"),
+    )
+
+
+def test_capture_fallbacks_collects_events_in_order_when_providers_fail() -> None:
+    """CA-4 · PA-67: se recogen los eventos en orden con proveedor, modelo, motivo y tarea."""
+    with capture_fallbacks() as events:
+        result = _failing_chain().generate(MESSAGES, TASK)
+
+    assert result.provider == "d"
+    assert [(e.provider, e.model, e.reason) for e in events] == [
+        ("a", "ma", "limite"),
+        ("b", "mb", "tiempo_espera"),
+        ("c", "mc", "error"),
+    ]
+    assert all(e.task == TASK for e in events)
+    assert all(e.at.tzinfo is not None for e in events)
+
+
+def test_capture_fallbacks_is_empty_when_first_provider_answers() -> None:
+    """CA-4 (límite): sin cambios de proveedor no hay eventos."""
+    with capture_fallbacks() as events:
+        _fixed_chain(FakeLLMProvider(provider="a")).generate(MESSAGES, TASK)
+
+    assert events == []
+
+
+def test_capture_fallbacks_records_event_of_last_provider_when_chain_exhausted() -> None:
+    """CA-4: si se agota la cadena, cada eslabón fallido deja su evento."""
+    chain = _fixed_chain(
+        FakeLLMProvider(provider="a", error=RateLimitError("Límite.", "a")),
+        FakeLLMProvider(provider="b", error=RateLimitError("Límite.", "b")),
+    )
+    with capture_fallbacks() as events, pytest.raises(RateLimitError):
+        chain.generate(MESSAGES, TASK)
+
+    assert [e.provider for e in events] == ["a", "b"]
+
+
+def test_capture_fallbacks_collects_nothing_when_call_is_outside_block() -> None:
+    """CA-4: las llamadas hechas fuera del bloque no se recogen."""
+    chain = _failing_chain()
+    chain.generate(MESSAGES, TASK)  # fuera de cualquier bloque: no debe fallar
+
+    with capture_fallbacks() as events:
+        pass
+    chain.generate(MESSAGES, TASK)  # tras cerrar el bloque
+
+    assert events == []
+
+
+def test_capture_fallbacks_isolates_nested_blocks() -> None:
+    """CA-4: un bloque anidado recoge solo lo suyo y el exterior sigue recogiendo al volver."""
+    single_failure = _fixed_chain(
+        FakeLLMProvider(provider="x", error=ExternalServiceError("Caído.", "x")),
+        FakeLLMProvider(provider="y"),
+    )
+    with capture_fallbacks() as outer:
+        single_failure.generate(MESSAGES, TASK)
+        with capture_fallbacks() as inner:
+            _failing_chain().generate(MESSAGES, TASK)
+        single_failure.generate(MESSAGES, TASK)
+
+    assert [e.provider for e in inner] == ["a", "b", "c"]
+    assert [e.provider for e in outer] == ["x", "x"]
+
+
+def test_capture_fallbacks_restores_previous_block_when_exception() -> None:
+    """CA-4: si el bloque interior termina con excepción, se restaura el exterior."""
+    with capture_fallbacks() as outer:
+        with pytest.raises(RuntimeError), capture_fallbacks():
+            raise RuntimeError("fallo ficticio")
+        _failing_chain().generate(MESSAGES, TASK)
+
+    assert len(outer) == 3
+
+
+def test_capture_fallbacks_isolates_threads() -> None:
+    """CA-4: otro hilo (otra sesión) no ve los eventos del hilo principal ni al revés."""
+    seen_in_thread: list[list[FallbackEvent]] = []
+    errors: list[BaseException] = []
+
+    def other_session() -> None:
+        try:
+            with capture_fallbacks() as thread_events:
+                _fixed_chain(
+                    FakeLLMProvider(provider="hilo", error=RateLimitError("Límite.", "hilo")),
+                    FakeLLMProvider(provider="ok"),
+                ).generate(MESSAGES, TASK)
+            _failing_chain().generate(MESSAGES, TASK)  # fuera de su bloque
+            seen_in_thread.append(thread_events)
+        except BaseException as exc:  # pragma: no cover - se informa abajo
+            errors.append(exc)
+
+    with capture_fallbacks() as main_events:
+        thread = threading.Thread(target=other_session)
+        thread.start()
+        thread.join(timeout=10)
+        _fixed_chain(
+            FakeLLMProvider(provider="principal", error=RateLimitError("Límite.", "p")),
+            FakeLLMProvider(provider="ok"),
+        ).generate(MESSAGES, TASK)
+
+    assert errors == []
+    assert [e.provider for e in seen_in_thread[0]] == ["hilo"]
+    assert [e.provider for e in main_events] == ["principal"]
+
+
+def test_capture_fallbacks_ignores_calls_from_thread_without_block() -> None:
+    """CA-4: un hilo sin bloque propio no escribe en la lista del hilo principal."""
+    with capture_fallbacks() as main_events:
+        thread = threading.Thread(target=lambda: _failing_chain().generate(MESSAGES, TASK))
+        thread.start()
+        thread.join(timeout=10)
+
+    assert main_events == []
+
+
+@pytest.mark.parametrize(
+    ("reason", "fragment"),
+    [
+        ("limite", "límite de uso"),
+        ("tiempo_espera", "no ha respondido a tiempo"),
+        ("error", "ha fallado"),
+    ],
+)
+def test_fallback_event_message_is_spanish_when_built(reason: Any, fragment: str) -> None:
+    """CA-4 · PA-67: el aviso para la UI está en español y nombra al proveedor."""
+    event = FallbackEvent(TASK, "proveedor-ficticio", "modelo-ficticio", reason)
+
+    assert fragment in event.message
+    assert event.message.startswith("proveedor-ficticio ")
+    assert event.message.endswith(".")
+    assert "siguiente" not in event.message  # vale también para el último de la cadena
+
+
+def test_fallback_event_message_omits_internal_details_when_error_has_them() -> None:
+    """CA-4 · RNF-02: el aviso no incluye el texto de la excepción, la tarea interna ni la clave."""
+    marker = "MARCADOR-INTERNO-NO-MOSTRAR test-key https://llm.example/v1"
+    chain = _fixed_chain(
+        FakeLLMProvider(provider="a", model="ma", error=ExternalServiceError(marker, "a")),
+        FakeLLMProvider(provider="b"),
+    )
+    with capture_fallbacks() as events:
+        chain.generate(MESSAGES, TASK)
+
+    message = events[0].message
+    for forbidden in ("MARCADOR-INTERNO", "test-key", "llm.example", TASK.value, "Exception"):
+        assert forbidden not in message
+
+
+def test_fallback_event_is_immutable() -> None:
+    """CA-4: los eventos son inmutables (frozen)."""
+    event = FallbackEvent(TASK, "a", "ma", "error")
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        event.provider = "otro"  # type: ignore[misc]
+
+
+def test_structured_output_error_creates_no_event_nor_fallback() -> None:
+    """CA-4 · RNF-28: una salida estructurada inválida no genera evento ni respaldo."""
+    error = StructuredOutputError("Salida no válida (ficticio).", service="a")
+    second = FakeLLMProvider(provider="b")
+
+    with capture_fallbacks() as events, pytest.raises(StructuredOutputError):
+        _fixed_chain(FakeLLMProvider(provider="a", error=error), second).generate_structured(
+            MESSAGES, UserStory, TASK
+        )
+
+    assert events == []
+    assert second.calls == []
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (RateLimitError("Límite.", "a", retry_after=3.0), "limite"),
+        (ProviderTimeoutError("Tiempo.", "a"), "tiempo_espera"),
+        (AuthenticationError("Clave.", "a"), "error"),
+        (ExternalServiceError("Caído.", "a"), "error"),
+    ],
+    ids=["rate_limit", "timeout", "auth", "external"],
+)
+def test_fallback_reason_maps_error_type(error: ExternalServiceError, expected: str) -> None:
+    """CA-4 · PA-67: el motivo se deduce del tipo de error."""
+    assert fallback_reason(error) == expected
+
+
+# --- T-32 · Registro de uso con artefacto (RF-43) ------------------------------------------
+
+
+def test_usage_record_carries_artifact_id_when_inside_scope() -> None:
+    """CA-5 · RF-43: dentro de usage_scope el registro lleva el artifact_id del bloque."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(lambda _task: [FakeLLMProvider()], recorder)
+    artifact_id = uuid4()
+
+    with usage_scope(artifact_id=artifact_id):
+        fallback.generate(MESSAGES, TASK)
+        fallback.generate_structured(MESSAGES, UserStory, TASK)
+
+    assert [r.artifact_id for r in recorder.records] == [artifact_id, artifact_id]
+
+
+def test_usage_record_has_no_artifact_id_when_outside_scope() -> None:
+    """CA-5: fuera de usage_scope el registro lleva artifact_id None, también tras el bloque."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(lambda _task: [FakeLLMProvider()], recorder)
+
+    fallback.generate(MESSAGES, TASK)
+    with usage_scope(artifact_id=uuid4()):
+        pass
+    fallback.generate(MESSAGES, TASK)
+
+    assert [r.artifact_id for r in recorder.records] == [None, None]
+
+
+def test_usage_scope_restores_artifact_id_after_exception() -> None:
+    """CA-5: si el bloque lanza, el artifact_id se restaura igualmente."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(lambda _task: [FakeLLMProvider()], recorder)
+    outer = uuid4()
+
+    with usage_scope(artifact_id=outer):
+        with pytest.raises(RuntimeError), usage_scope(artifact_id=uuid4()):
+            raise RuntimeError("fallo ficticio")
+        fallback.generate(MESSAGES, TASK)
+    fallback.generate(MESSAGES, TASK)
+
+    assert [r.artifact_id for r in recorder.records] == [outer, None]
+
+
+@dataclass
+class BrokenRecorder:
+    """UsageRecorder cuya base de datos falla en `record` o en `tokens_since`."""
+
+    fail_on: str
+    records: list[UsageRecord] = field(default_factory=list)
+
+    def _error(self) -> Exception:
+        return sa.exc.OperationalError(
+            "INSERT INTO llm_usage MARCADOR-SQL-NO-MOSTRAR",
+            {"secret": "test-key"},
+            Exception("conexión rechazada MARCADOR-SQL-NO-MOSTRAR"),
+        )
+
+    def record(self, usage: UsageRecord) -> None:
+        if self.fail_on == "record":
+            raise self._error()
+        self.records.append(usage)
+
+    def tokens_since(self, since: datetime) -> int:
+        if self.fail_on == "tokens_since":
+            raise self._error()
+        return 0
+
+
+@pytest.mark.parametrize(
+    ("fail_on", "event"),
+    [("record", "llm_usage_not_recorded"), ("tokens_since", "llm_usage_not_read")],
+)
+def test_generate_returns_result_and_warns_when_usage_store_fails(fail_on: str, event: str) -> None:
+    """CA-5 · RNF-12: si el registro de uso o el consumo diario fallan, la respuesta se devuelve
+    y se registra un aviso (`llm_usage_not_recorded` o `llm_usage_not_read`) sin el mensaje."""
+    recorder = BrokenRecorder(fail_on)
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", model="ma")],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs:
+        result = fallback.generate(MESSAGES, TASK)
+
+    assert result.provider == "a"
+    warnings = [entry for entry in logs if entry["event"] == event]
+    assert len(warnings) == 1
+    assert warnings[0]["error"] == "OperationalError"
+    assert warnings[0]["log_level"] == "warning"
+    text = json.dumps(logs, ensure_ascii=False, default=str)
+    assert "MARCADOR-SQL-NO-MOSTRAR" not in text
+    assert "test-key" not in text
+
+
+def test_structured_returns_result_when_usage_store_fails() -> None:
+    """CA-5 · RNF-12: lo mismo en generate_structured."""
+    fallback = FallbackLLMProvider(lambda _task: [FakeLLMProvider()], BrokenRecorder("record"))
+
+    result = fallback.generate_structured(MESSAGES, UserStory, TASK)
+
+    assert isinstance(result.content, UserStory)
+
+
+# --- T-32 · Logs de la cadena (RNF-02) -----------------------------------------------------
+
+
+def test_chain_logs_omit_message_content_and_error_text() -> None:
+    """CA-10 · RNF-02: los eventos de fallback.py no llevan el contenido de los mensajes, el
+    texto de los errores ni la clave."""
+    secret_messages = [Message(role="user", content="CONTENIDO-PRIVADO-FICTICIO")]
+    chain = _fixed_chain(
+        FakeLLMProvider(
+            provider="a", error=ExternalServiceError("ERROR-INTERNO test-key", service="a")
+        ),
+        FakeLLMProvider(provider="b"),
+    )
+
+    with capture_logs() as logs:
+        chain.generate(secret_messages, TASK)
+
+    events = [entry["event"] for entry in logs]
+    assert events == ["llm_provider_failed", "llm_call"]
+    failed = logs[0]
+    assert failed["error"] == "ExternalServiceError"
+    assert failed["reason"] == "error"
+    text = json.dumps(logs, ensure_ascii=False, default=str)
+    for forbidden in ("CONTENIDO-PRIVADO-FICTICIO", "ERROR-INTERNO", "test-key", "Respuesta"):
+        assert forbidden not in text
+
+
+def test_chain_logs_omit_content_with_real_provider_when_timeout() -> None:
+    """CA-10 · RNF-02: con proveedores reales sobre MockTransport, ni la clave ni el cuerpo
+    llegan a los logs."""
+    first = _link("a", "ma", oa_error(500))
+    second = _link("b", "mb", oa_completion("RESPUESTA-PRIVADA-FICTICIA"))
+
+    with capture_logs() as logs:
+        _fixed_chain(first.provider, second.provider).generate(MESSAGES, TASK)
+
+    text = json.dumps(logs, ensure_ascii=False, default=str)
+    for forbidden in (FAKE_KEY, BODY_MARKER, "RESPUESTA-PRIVADA-FICTICIA", MESSAGES[0].content):
+        assert forbidden not in text

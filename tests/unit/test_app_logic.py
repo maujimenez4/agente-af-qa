@@ -56,6 +56,22 @@ from app.origin import (
     with_restrictions,
 )
 from app.progress import STEPS, completed_steps, nodes_in_update, phase_label, phase_of
+from app.qa import (
+    CASE_TYPES,
+    COVERAGE_BADGE,
+    EXTRAS,
+    QA_STEPS_LABELS,
+    QA_SUGGESTIONS,
+    REQUIRED_TYPES,
+    TYPE_LABELS,
+    CaseRow,
+    attachment_names,
+    case_rows,
+    coverage_rows,
+    data_rows,
+    qa_feedback,
+    suite_summary,
+)
 from app.quality import (
     REVIEW_STEPS,
     FindingRow,
@@ -108,9 +124,10 @@ from core.permissions import Permission
 from core.projects import normalize_issue_key
 from core.quality import QualityReview, QualityReviewer
 from schemas.artifact import Artifact
-from schemas.common import ArtifactStatus, ArtifactType, SourceRef
+from schemas.common import ArtifactStatus, ArtifactType, Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.quality import FINDING_LABELS, INVEST_NAMES, InvestCheck, QualityFinding, QualityReport
+from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
@@ -202,13 +219,21 @@ def test_flow_cards_qa_disables_story_flows_with_af_hint(flow_id: str) -> None:
     assert card.hint == AF_HINT
 
 
-def test_flow_cards_qa_tests_card_is_pending_t28() -> None:
-    """UI.md §3: Preparar pruebas está permitida a QA, pero su pantalla llega con T-28."""
+def test_flow_cards_qa_tests_card_enabled_after_t28() -> None:
+    """UI.md §3 · §6.1 · T-28: Preparar pruebas está activa para QA, sin tarea pendiente."""
     card = _cards(QA_USER)["tests"]
+    assert card.flow.pending_task is None
     assert card.allowed is True
-    assert card.enabled is False
-    assert card.hint == f"{card.flow.hint} Disponible pronto (T-28)."
-    assert not any(c.enabled for c in flow_cards(QA_USER))
+    assert card.enabled is True
+    assert card.hint == card.flow.hint
+    assert [c.flow.id for c in flow_cards(QA_USER) if c.enabled] == ["tests"]
+
+
+def test_no_flow_has_pending_task_after_t28() -> None:
+    """UI.md §3 · T-28: con la pantalla de QA ya no queda ninguna tarjeta «Disponible pronto»."""
+    assert all(flow.pending_task is None for flow in FLOWS)
+    for user in (AF_USER, QA_USER):
+        assert not any("Disponible pronto" in card.hint for card in flow_cards(user))
 
 
 def test_shows_flows_false_for_admin_and_anonymous() -> None:
@@ -226,11 +251,11 @@ def test_shows_flows_true_for_generating_roles(user: Any) -> None:
 
 @pytest.mark.parametrize(
     ("user", "expected"),
-    [(AF_USER, "need"), (QA_USER, None), (ADMIN_USER, None), (None, None)],
+    [(AF_USER, "need"), (QA_USER, "tests"), (ADMIN_USER, None), (None, None)],
     ids=["functional", "qa", "admin", "anonimo"],
 )
 def test_default_flow_by_role(user: Any, expected: str | None) -> None:
-    """UI.md §4.1: el primer flujo habilitado; QA no tiene ninguno hasta T-28."""
+    """UI.md §4.1 · T-28: el primer flujo habilitado; para QA, Preparar pruebas."""
     assert default_flow(user) == expected
 
 
@@ -2527,3 +2552,244 @@ def test_evolve_request_keeps_sources_excluded_while_reviewing(tmp_path: Path) -
     request = evolve_request(review, "DEMO", ("doc-glosario",))
     assert request.excluded_sources == ("doc-glosario",)
     assert build_initial_state(AF_USER.username, request)["excluded_sources"] == ["doc-glosario"]
+
+
+# --- T-28 · QA 1 … QA 3: lógica pura de `app/qa.py` (UI.md §6.1–6.3, RF-22…RF-27) ------------
+
+QA_STRATEGY_TEXT = (
+    "estrategia de pruebas (alcance, niveles, entornos, criterios de entrada y salida, prioridad)"
+)
+QA_DATA_TEXT = "datos sintéticos de prueba (identificadores ficticios)"
+QA_RISKS_TEXT = "riesgos, dependencias y áreas de impacto"
+
+
+def _extra_case(internal_id: str = "CP-03") -> TestCase:
+    """Caso ficticio adicional que cubre CA-01 (para simular una v2 con un caso nuevo)."""
+    return TestCase(
+        internal_id=internal_id,
+        title="Renovar con datos de un socio ficticio",
+        criterion_ids=["CA-01"],
+        type=TestCaseType.ALTERNATE,
+        preconditions=[],
+        steps=[
+            TestStep(action="Abrir la ficha", data="Socio S-0000 (ficticio)", expected="Ficha"),
+            TestStep(action="Pulsar «Renovar»", expected="Vencimiento +21 días"),
+        ],
+        gherkin="Escenario: renovar (ficticio)\n  Dado un préstamo activo",
+        priority=Priority.SHOULD,
+    )
+
+
+def _suite_with(*extra: TestCase, **update: Any) -> TestSuite:
+    suite = renewal_test_suite()
+    return suite.model_copy(update={"cases": [*suite.cases, *extra], **update})
+
+
+def test_qa_case_types_cover_every_test_case_type_in_order() -> None:
+    """UI.md §6.1 · RF-22 · T-28: cuatro casillas de tipo, en el orden del diseño."""
+    assert [kind for kind, _ in CASE_TYPES] == list(TestCaseType)
+    assert [label for _, label in CASE_TYPES] == [
+        "Positivos",
+        "Negativos",
+        "Alternos",
+        "De excepción",
+    ]
+    assert {TestCaseType.POSITIVE, TestCaseType.NEGATIVE} == REQUIRED_TYPES
+    assert set(TYPE_LABELS) == set(TestCaseType)
+    assert TYPE_LABELS[TestCaseType.EXCEPTION] == "de excepción"
+
+
+def test_qa_extras_are_data_risks_and_strategy() -> None:
+    """UI.md §6.1 · RF-25/26/27 · T-28: «Incluir además» con datos, riesgos y estrategia."""
+    assert [key for key, _ in EXTRAS] == ["data", "risks", "strategy"]
+    assert all(label for _, label in EXTRAS)
+
+
+def test_qa_feedback_always_includes_positive_and_negative_when_not_passed() -> None:
+    """UI.md §6.1 · RF-22 · T-28 (límite): sin tipos ni extras siguen positivos y negativos."""
+    assert qa_feedback(set(), set()) == ("Incluye casos: positivos, negativos.",)
+
+
+def test_qa_feedback_keeps_case_types_order_regardless_of_input() -> None:
+    """UI.md §6.1 · T-28: los tipos salen en el orden de CASE_TYPES, no en el de la selección."""
+    feedback = qa_feedback({TestCaseType.EXCEPTION, TestCaseType.ALTERNATE}, set())
+    assert feedback == ("Incluye casos: positivos, negativos, alternos, de excepción.",)
+
+
+def test_qa_feedback_without_alternate_omits_it() -> None:
+    """UI.md §6.1 · T-28 (negativa): un tipo desmarcado no aparece en el primer feedback."""
+    feedback = qa_feedback({TestCaseType.POSITIVE, TestCaseType.EXCEPTION}, set())
+    assert feedback == ("Incluye casos: positivos, negativos, de excepción.",)
+    assert "alternos" not in feedback[0]
+
+
+def test_qa_feedback_extras_in_extras_order() -> None:
+    """UI.md §6.1 · RF-25/26/27 · T-28: los extras van en una segunda frase y en orden."""
+    feedback = qa_feedback(set(TestCaseType), {"strategy", "data", "risks"})
+    assert feedback == (
+        "Incluye casos: positivos, negativos, alternos, de excepción.",
+        f"Incluye además: {QA_DATA_TEXT}; {QA_RISKS_TEXT}; {QA_STRATEGY_TEXT}.",
+    )
+
+
+def test_qa_feedback_single_extra() -> None:
+    """UI.md §6.1 · RF-26 · T-28: solo la estrategia."""
+    assert qa_feedback(set(), {"strategy"})[1] == f"Incluye además: {QA_STRATEGY_TEXT}."
+
+
+def test_qa_feedback_ignores_unknown_extras_and_has_no_second_sentence() -> None:
+    """UI.md §6.1 · T-28 (negativa): sin extras válidos no hay segunda frase."""
+    assert qa_feedback(set(), {"desconocido"}) == ("Incluye casos: positivos, negativos.",)
+
+
+def test_case_rows_v1_without_previous_has_no_new_marks() -> None:
+    """UI.md §6.3 · RF-23 · T-28: en v1 sin versión previa nunca se marca «Nuevo»."""
+    rows = case_rows(renewal_test_suite(), 1, None)
+    assert [row.id for row in rows] == ["CP-01", "CP-02"]
+    assert all(row.new_in is None for row in rows)
+
+
+def test_case_rows_maps_trace_type_priority_and_steps() -> None:
+    """UI.md §6.3 · RF-23 (trazabilidad) · T-28: «Verifica CA-…, RN-…», tipo en español."""
+    first, second = case_rows(renewal_test_suite(), 1, None)
+    assert first == CaseRow(
+        id="CP-01",
+        title="Renovar un préstamo sin reservas",
+        type="positivo",
+        priority="Must",
+        verifies="Verifica CA-01, RN-01",
+        new_in=None,
+        gherkin=None,
+        steps=[("Pulsar «Renovar»", "", "Vencimiento +21 días")],
+        preconditions=["Préstamo activo con 0 renovaciones"],
+    )
+    assert (second.type, second.verifies) == ("negativo", "Verifica CA-02, RN-02")
+
+
+def test_case_rows_without_rules_lists_only_criteria() -> None:
+    """UI.md §6.3 · RF-23 · T-28 (límite): un caso sin RN muestra solo sus CA."""
+    extra = case_rows(_suite_with(_extra_case()), 1, None)[-1]
+    assert extra.verifies == "Verifica CA-01"
+    assert (extra.type, extra.priority) == ("alterno", "Should")
+    assert extra.steps[0] == ("Abrir la ficha", "Socio S-0000 (ficticio)", "Ficha")
+    assert extra.steps[1][1] == ""  # sin datos → cadena vacía
+    assert extra.gherkin is not None and extra.gherkin.startswith("Escenario")
+    assert extra.preconditions == []
+
+
+def test_case_rows_marks_only_cases_absent_in_previous_version() -> None:
+    """UI.md §6.3 · T-28: «Nuevo en v2» solo para los IDs que no estaban en la versión previa."""
+    rows = case_rows(_suite_with(_extra_case()), 2, renewal_test_suite())
+    assert {row.id: row.new_in for row in rows} == {
+        "CP-01": None,
+        "CP-02": None,
+        "CP-03": "Nuevo en v2",
+    }
+
+
+def test_case_rows_same_ids_as_previous_marks_none() -> None:
+    """UI.md §6.3 · T-28 (negativa): una versión que solo cambia títulos no marca nada nuevo."""
+    previous = renewal_test_suite()
+    retitled = previous.model_copy(
+        update={
+            "cases": [c.model_copy(update={"title": "Otro (ficticio)"}) for c in previous.cases]
+        }
+    )
+    assert all(row.new_in is None for row in case_rows(retitled, 3, previous))
+
+
+def test_case_rows_uses_version_number_in_mark() -> None:
+    """UI.md §6.3 · T-28: la marca lleva el número de la versión mostrada."""
+    rows = case_rows(_suite_with(_extra_case("CP-04")), 5, renewal_test_suite())
+    assert rows[-1].new_in == "Nuevo en v5"
+
+
+def test_coverage_rows_follow_suite_coverage() -> None:
+    """UI.md §6.3 · RF-24 · T-28: la matriz sale de `TestSuite.coverage()`, no del Markdown."""
+    suite = _suite_with(_extra_case())
+    rows = coverage_rows(suite)
+    assert rows == [
+        {"CA/RN": ref, "Casos de prueba": ", ".join(cases), "Nº": str(len(cases))}
+        for ref, cases in suite.coverage().items()
+    ]
+    assert rows[0] == {"CA/RN": "CA-01", "Casos de prueba": "CP-01, CP-03", "Nº": "2"}
+    assert [row["CA/RN"] for row in rows] == ["CA-01", "CA-02", "RN-01", "RN-02"]
+
+
+def test_coverage_badge_text() -> None:
+    """UI.md §6.3 · RF-24 · T-28: insignia «Todos los CA cubiertos»."""
+    assert COVERAGE_BADGE == "Todos los CA cubiertos"
+
+
+def test_data_rows_union_of_columns_and_empty_values() -> None:
+    """UI.md §6.3 · RF-25 · T-28: columnas unidas de todas las filas; lo que falta queda vacío."""
+    suite = _suite_with(
+        synthetic_data=[
+            {"socio": "S-0001 (ficticio)", "libro": "L-0001"},
+            {"socio": "S-0002 (ficticio)", "fecha": "2099-01-01"},
+        ]
+    )
+    assert data_rows(suite) == [
+        {"socio": "S-0001 (ficticio)", "libro": "L-0001", "fecha": ""},
+        {"socio": "S-0002 (ficticio)", "libro": "", "fecha": "2099-01-01"},
+    ]
+
+
+def test_data_rows_without_synthetic_data_is_empty() -> None:
+    """UI.md §6.3 · RF-25 · T-28 (límite): sin datos sintéticos no hay filas."""
+    assert data_rows(renewal_test_suite()) == []
+
+
+def test_suite_summary_without_risks() -> None:
+    """UI.md §6.2 · T-28: mensaje del asistente con versión y nº de casos."""
+    assert suite_summary(renewal_test_suite(), 1) == (
+        "Suite lista · versión 1: 2 casos y la cobertura comprobada. "
+        "Revisa la suite en el panel y pídeme los cambios que quieras."
+    )
+
+
+def test_suite_summary_with_risks_mentions_the_first() -> None:
+    """UI.md §6.3 · RF-27 · T-28: con riesgos, se cita el principal (el primero)."""
+    suite = _suite_with(_extra_case(), risks=["Reservas concurrentes (ficticio)", "Otro riesgo"])
+    assert suite_summary(suite, 2) == (
+        "Suite lista · versión 2: 3 casos y la cobertura comprobada. "
+        "Riesgo principal: Reservas concurrentes (ficticio). "
+        "Revisa la suite en el panel y pídeme los cambios que quieras."
+    )
+
+
+def test_attachment_names_for_story() -> None:
+    """UI.md §6.3 · D-09 · T-28: adjuntos `matriz-<CLAVE>.md` y `estrategia-<CLAVE>.md`."""
+    assert attachment_names("DEMO-3") == ("matriz-DEMO-3.md", "estrategia-DEMO-3.md")
+
+
+def test_qa_steps_and_suggestions_are_three() -> None:
+    """UI.md §6.2–6.3 · T-28: un texto QA por paso de `STEPS` y tres sugerencias distintas."""
+    assert len(QA_STEPS_LABELS) == len(STEPS) == 3  # `completed_steps` cuenta sobre STEPS
+    assert len(set(QA_SUGGESTIONS)) == 3
+
+
+def test_summarize_test_suite_view_uses_suite_summary() -> None:
+    """UI.md §6.2 · T-28: `summarize` de una vista con TestSuite → `suite_summary`."""
+    suite = _suite_with(risks=["Riesgo ficticio"])
+    artifact = Artifact(
+        id=uuid4(),
+        type=ArtifactType.TEST_SUITE,
+        status=ArtifactStatus.IN_REVIEW,
+        version=2,
+        origin_key="DEMO-3",
+        content=suite,
+        created_by=QA_USER.username,
+    )
+    view = ReviewView(
+        artifact=artifact,
+        version=2,
+        fingerprint="0" * 64,
+        target="Publicar los casos de prueba de DEMO-3 · proyecto DEMO",
+        plan=[],
+        impact=None,
+        decisions=[],
+        error=None,
+    )
+    assert summarize(view) == suite_summary(suite, 2)
+    assert "Riesgo principal: Riesgo ficticio" in summarize(view)

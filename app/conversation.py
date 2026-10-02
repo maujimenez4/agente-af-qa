@@ -6,6 +6,7 @@ y los fakes. El estado vive en el checkpointer; aquí solo está lo que la UI pi
 """
 
 from collections.abc import Iterator
+from contextlib import closing
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any
@@ -267,8 +268,11 @@ def start(ws: Workspace, conv: Conversation, actor: User | None = None) -> Itera
     _remember(ws, conv)
     try:
         state = build_initial_state(conv.user, conv.request)
-        for update in ws.graph.stream(state, conv.config, stream_mode="updates"):
-            yield from nodes_in_update(update)
+        # Se cierra siempre aquí: un `stream` abandonado lo cerraría la recogida de basura en
+        # cualquier hilo y su executor puede bloquearse esperando a otros hilos.
+        with closing(ws.graph.stream(state, conv.config, stream_mode="updates")) as updates:
+            for update in updates:
+                yield from nodes_in_update(update)
         _refresh(ws, conv)
     except Exception as exc:  # se muestra el mensaje; el tipo va al log
         _fail(conv, exc)

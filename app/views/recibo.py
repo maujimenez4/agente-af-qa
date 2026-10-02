@@ -54,7 +54,8 @@ def render(session: SessionState) -> None:
     if cols[0].button("Descartar", key="receipt-discard"):
         resume(ws, conv, discard_answer(), user)
         go(session, "iterar")
-    if cols[1].button("Volver a la propuesta", key="receipt-back"):
+    back = "Volver a la suite" if conv.request.mode == "qa" else "Volver a la propuesta"
+    if cols[1].button(back, key="receipt-back"):
         go(session, "iterar")
     if cols[2].button(
         "Aprobar y publicar",

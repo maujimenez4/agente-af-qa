@@ -1,10 +1,13 @@
 """Mixta 2b · Generando (`docs/specs/UI.md` §4.4): progreso por nodos del grafo (PA-66)."""
 
+from contextlib import closing
+
 import streamlit as st
 
 from app.anim import phase_q
 from app.conversation import Conversation, start
 from app.progress import STEPS, completed_steps
+from app.qa import QA_STEPS_LABELS
 from app.review import summarize
 from app.session import SessionState, go
 from app.text import md_escape
@@ -33,18 +36,26 @@ def _run(session: SessionState, conv: Conversation) -> None:
     ws = session.workspace
     if ws is None:
         return
+    qa = conv.request.mode == "qa"  # QA 2 (UI.md §6.2): mismo patrón, textos de la suite
+    labels = QA_STEPS_LABELS if qa else tuple(step.label for step in STEPS)
+    what = "la suite" if qa else "la propuesta"
     done: list[str] = []
-    with st.status("Generando la propuesta…", expanded=True) as status:
+    with st.status(f"Generando {what}…", expanded=True) as status:
         placeholder = st.empty()
-        placeholder.markdown(_steps_md(0))
-        for node in start(ws, conv, session.user):
-            done.append(node)
-            placeholder.markdown(_steps_md(completed_steps(done)))
+        placeholder.markdown(_steps_md(0, labels))
+        with closing(start(ws, conv, session.user)) as nodes:  # cerrado aunque se corte la página
+            for node in nodes:
+                done.append(node)
+                placeholder.markdown(_steps_md(completed_steps(done), labels))
         if conv.error or conv.view is None:
-            status.update(label="No se ha podido generar la propuesta", state="error")
+            status.update(label=f"No se ha podido generar {what}", state="error")
         else:
-            status.update(label="Propuesta lista", state="complete")
-    st.caption("Las citas se comprueban antes de mostrar la propuesta; suele tardar menos de 30 s.")
+            status.update(label=f"{'Suite lista' if qa else 'Propuesta lista'}", state="complete")
+    st.caption(
+        "La cobertura se comprueba antes de mostrar la suite."
+        if qa
+        else "Las citas se comprueban antes de mostrar la propuesta; suele tardar menos de 30 s."
+    )
     if conv.error or conv.view is None:
         _failed(session, conv, conv.error or INTERRUPTED)
         return
@@ -62,9 +73,9 @@ def _failed(session: SessionState, conv: Conversation, message: str) -> None:
         go(session, "inicio", pending=None, current=None)
 
 
-def _steps_md(completed: int) -> str:
+def _steps_md(completed: int, labels: tuple[str, ...]) -> str:
     lines = []
-    for index, step in enumerate(STEPS):
+    for index, label in enumerate(labels):
         mark = "✓" if index < completed else ("…" if index == completed else "·")
-        lines.append(f"{mark} {step.label}")
+        lines.append(f"{mark} {label}")
     return "  \n".join(lines)

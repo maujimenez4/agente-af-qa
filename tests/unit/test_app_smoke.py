@@ -26,9 +26,11 @@ from core.config import ROOT_DIR
 from core.container import Container
 from core.graph import memory_checkpointer
 from schemas.quality import INVEST_NAMES
+from schemas.test_case import TestSuite
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
+from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.test_management import FakeTestManagement
 
 MAIN = str(ROOT_DIR / "app" / "main.py")
@@ -179,15 +181,163 @@ def test_smoke_compose_failure_shows_message_and_retry(monkeypatch: pytest.Monke
     assert _session(at).workspace is None
 
 
-def test_smoke_qa_user_sees_tests_card_disabled_until_t28(composed: Container) -> None:
-    """UI.md §3 · app/flows.py: QA ve «Preparar pruebas» desactivada (pending_task T-28)."""
+def test_smoke_qa_user_sees_tests_card_enabled(composed: Container) -> None:
+    """UI.md §3 · §6.1 · T-28: QA ve «Preparar pruebas» activa y el compositor abierto."""
     at = _app()
     _login(at, "qa-demo", _password("qa-demo"))
     tests_card = at.button(key="flow-tests")
     assert "Preparar pruebas" in str(tests_card.label)
-    assert tests_card.disabled is True
+    assert tests_card.disabled is False
     assert all(at.button(key=f"flow-{flow}").disabled for flow in ("need", "evolve", "review"))
-    assert len(at.text_area) == 0  # sin flujo habilitado no hay compositor
+    assert at.text_area(key="start_text") is not None  # flujo por defecto: Preparar pruebas
+    _assert_nothing_written(composed)
+
+
+QA_STRATEGY_MD = (
+    "# Título de estrategia ficticia\n\n"
+    "Ver [guía ficticia](https://example.invalid/guia) antes de probar."
+)
+QA_GHERKIN = "Escenario: renovar sin reservas (ficticio)\n  Dado un préstamo activo"
+
+
+@pytest.fixture
+def qa_composed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Container:
+    """Como `composed`, con un LLM fake cuya suite trae Markdown en la estrategia y Gherkin."""
+    llm = FakeLLMProvider()
+    base = llm.builders[TestSuite]
+
+    def build(messages: list[Any]) -> TestSuite:
+        suite = base(messages)
+        assert isinstance(suite, TestSuite)
+        cases = [suite.cases[0].model_copy(update={"gherkin": QA_GHERKIN}), *suite.cases[1:]]
+        return suite.model_copy(
+            update={
+                "strategy_md": QA_STRATEGY_MD,
+                "cases": cases,
+                "risks": ["Reservas concurrentes (ficticio)"],
+                "synthetic_data": [{"socio": "S-0001 (ficticio)"}],
+            }
+        )
+
+    llm.builders[TestSuite] = build
+    container = fake_container(tmp_path, llm=llm, publish_mode="simulation", require_actor=True)
+    checkpointer = memory_checkpointer()
+    monkeypatch.setattr(app_session, "build_config", lambda: None)
+    monkeypatch.setattr(app_session, "model_router", lambda _config: None)
+    monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
+    monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
+    return container
+
+
+def _to_qa_origin(at: AppTest) -> None:
+    """Login como QA → «DEMO-3» en el compositor (flujo por defecto: Preparar pruebas) → QA 1."""
+    _login(at, "qa-demo", _password("qa-demo"))
+    at.text_area(key="start_text").input("DEMO-3")
+    at.button(key="continue").click().run()
+    assert not at.exception, at.exception
+
+
+def test_smoke_qa_origin_shows_case_types_extras_and_fixed_origin(composed: Container) -> None:
+    """UI.md §6.1 · RF-22 · T-28: QA 1 con tipos de caso, extras y la HU de origen fija."""
+    at = _app()
+    _to_qa_origin(at)
+    session = _session(at)
+    assert session.screen == "origen", _texts(at)
+    assert session.request is not None
+    assert (session.request.flow, session.request.key) == ("tests", "DEMO-3")
+    assert session.request.mode == "qa"
+
+    boxes = {box.key: box for box in at.checkbox}
+    for required in ("qa-type-positivo", "qa-type-negativo"):
+        assert boxes[required].disabled is True and boxes[required].value is True
+    for optional in ("qa-type-alterno", "qa-type-excepcion", "qa-data", "qa-risks", "qa-strategy"):
+        assert boxes[optional].disabled is False and boxes[optional].value is True
+    assert boxes["src-DEMO-3-DEMO-3"].disabled is True
+    texts = _texts(at)
+    assert "Clave reconocida en Jira · sin IA" in texts
+    assert "caso\\-prueba" in texts
+    assert at.button(key="generate").label == "Generar la suite"
+    assert "restrictions" not in [area.key for area in at.text_area]
+    _assert_nothing_written(composed)
+
+
+def test_smoke_qa_generate_iterate_and_approve_simulated(qa_composed: Container) -> None:
+    """UI.md §6.1–6.4 · RF-22…RF-27 · T-28 (y T-31): QA 1 → QA 3 → recibo → simulada."""
+    at = _app()
+    _to_qa_origin(at)
+    at.checkbox(key="qa-type-alterno").uncheck().run()
+    assert not at.exception, at.exception
+    at.button(key="generate").click().run()
+    assert not at.exception, at.exception
+
+    # QA 3: el primer feedback refleja las casillas y la vista es una suite.
+    session = _session(at)
+    assert session.screen == "iterar", _texts(at)
+    assert session.workspace is not None and session.current is not None
+    conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)
+    values = session.workspace.graph.get_state(conv.config).values
+    assert "alternos" not in values["feedback"][0]
+    assert "de excepción" in values["feedback"][0]
+    assert conv.view is not None and isinstance(conv.view.artifact.content, TestSuite)
+
+    labels = [str(tab.label) for tab in at.tabs]
+    n_cases = len(conv.view.artifact.content.cases)
+    for label in (f"Casos ({n_cases})", "Cobertura", "Datos y riesgos", "Estrategia"):
+        assert label in labels, labels
+    assert any("Todos los CA cubiertos" in str(s.value) for s in at.success)
+    assert at.button(key="edit-suite").disabled is True
+
+    # Estrategia en texto plano (st.text), nunca interpretada como Markdown.
+    assert any(str(t.value) == QA_STRATEGY_MD for t in at.text)
+    for element in at.markdown:
+        value = str(element.value)
+        assert "# Título de estrategia ficticia" not in value, value
+        assert "](https://example.invalid/guia)" not in value, value
+    assert any(str(code.value) == QA_GHERKIN for code in at.code)
+
+    # Recibo QA: subtareas, estrategia y matriz; «Volver a la suite».
+    at.button(key="approve").click().run()
+    assert not at.exception, at.exception
+    assert _session(at).screen == "recibo", _texts(at)
+    boxes = list(at.checkbox)
+    assert len(boxes) == 3, [str(box.label) for box in boxes]
+    box_labels = " | ".join(str(box.label) for box in boxes)
+    assert "subtareas" in box_labels
+    assert "estrategia" in box_labels and "matriz" in box_labels
+    assert at.button(key="receipt-back").label == "Volver a la suite"
+    for box in boxes:
+        box.check()
+    at.run()
+    at.button(key="receipt-approve").click().run()
+    assert not at.exception, at.exception
+    assert any("Aprobada · simulada" in str(s.value) for s in at.success)
+    _assert_nothing_written(qa_composed)
+
+
+def test_smoke_qa_receipt_back_returns_to_suite(composed: Container) -> None:
+    """UI.md §6.4 · T-28: «Volver a la suite» vuelve a QA 3 sin aprobar."""
+    at = _app()
+    _to_qa_origin(at)
+    at.button(key="generate").click().run()
+    at.button(key="approve").click().run()
+    assert _session(at).screen == "recibo", _texts(at)
+    at.button(key="receipt-back").click().run()
+    assert not at.exception, at.exception
+    session = _session(at)
+    assert session.screen == "iterar"
+    conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)  # type: ignore[union-attr]
+    assert conv.outcome is None and conv.view is not None
+    _assert_nothing_written(composed)
+
+
+def test_smoke_functional_user_sees_tests_card_disabled_with_qa_hint(composed: Container) -> None:
+    """UI.md §3 · T-28 (negativa): el analista funcional ve «Preparar pruebas» desactivada."""
+    at = _app()
+    _login(at, "af-demo", _password("af-demo"))
+    card = at.button(key="flow-tests")
+    assert "Preparar pruebas" in str(card.label)
+    assert card.disabled is True
+    assert card.help == "Disponible para el rol QA."
     _assert_nothing_written(composed)
 
 

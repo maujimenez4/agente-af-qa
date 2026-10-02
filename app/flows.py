@@ -54,7 +54,6 @@ FLOWS: tuple[Flow, ...] = (
         hint="Casos, cobertura, datos y estrategia de una HU.",
         placeholder="Escribe la clave de la HU para la que quieres pruebas, por ejemplo DEMO-3.",
         permission=Permission.GENERATE_TESTS,
-        pending_task="T-28",
     ),
 )
 

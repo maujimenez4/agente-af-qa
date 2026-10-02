@@ -97,9 +97,13 @@ class TestWriter:
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(suite, sources):
+                problem = (
+                    "no cita ninguna de las fuentes del contexto"
+                    if not suite.sources
+                    else "cita fuentes que no están en el contexto recibido"
+                )
                 raise CitationError(
-                    "La suite cita fuentes que no están en el contexto recibido. "
-                    "Vuelve a generarla o revisa las fuentes disponibles."
+                    f"La suite {problem}. Vuelve a generarla o revisa las fuentes disponibles."
                 )
             if suite_errors(suite, story, sources):
                 raise CoverageError(

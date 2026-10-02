@@ -26,6 +26,7 @@ from pydantic import BaseModel, SecretStr, ValidationError
 
 from adapters.base import LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import AuthenticationError, ExternalServiceError, RateLimitError
+from adapters.llm.repairs import repair_ids
 
 log = structlog.get_logger(__name__)
 
@@ -74,6 +75,7 @@ class OpenAICompatibleProvider:
         max_wait_s: float = 20.0,
         sleep: Callable[[float], None] = time.sleep,
         max_output_tokens: Mapping[TaskType, int] | None = None,
+        extra_body: Mapping[str, Any] | None = None,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -85,6 +87,8 @@ class OpenAICompatibleProvider:
         self._json_schema_supported = True
         # Tope de salida por tarea (`limits.max_output_tokens`): sin tope si la tarea no lo tiene.
         self._max_output_tokens = dict(max_output_tokens or {})
+        # Opciones del modelo en `config/models.yaml` (p. ej. `think: false`, T-58).
+        self._extra_body = dict(extra_body or {})
 
     @classmethod
     def create(
@@ -134,26 +138,21 @@ class OpenAICompatibleProvider:
         content, input_tokens, output_tokens = self._complete_structured(
             payload, schema, max_tokens
         )
-        try:
-            parsed = _parse(content, schema)
-        except ValidationError as exc:
-            # Un único reintento con el error de validación (RNF-28).
+        parsed, shown, errors = self._parse_or_repair(content, schema, task)
+        if parsed is None:
+            # Un único reintento con el error de validación (RNF-28), sobre la versión reparada.
             retry_payload = [
                 *payload,
-                {"role": "assistant", "content": content},
-                {
-                    "role": "user",
-                    "content": self._prompts.retry.replace("{errors}", _validation_errors(exc)),
-                },
+                {"role": "assistant", "content": shown},
+                {"role": "user", "content": self._prompts.retry.replace("{errors}", errors)},
             ]
             content, extra_in, extra_out = self._complete_structured(
                 retry_payload, schema, max_tokens
             )
             input_tokens += extra_in
             output_tokens += extra_out
-            try:
-                parsed = _parse(content, schema)
-            except ValidationError:
+            parsed, _, _ = self._parse_or_repair(content, schema, task)
+            if parsed is None:
                 raise StructuredOutputError(
                     f"El modelo {self.model} de {self.provider} no devolvió una respuesta "
                     f"válida para «{schema.__name__}» tras reintentarlo. Prueba de nuevo o "
@@ -170,6 +169,38 @@ class OpenAICompatibleProvider:
         )
 
     # --- Internos ------------------------------------------------------------------------
+
+    def _parse_or_repair[T: BaseModel](
+        self, content: str, schema: type[T], task: TaskType
+    ) -> tuple[T | None, str, str]:
+        """(objeto o None, contenido para el reintento, errores sin valores de entrada).
+
+        Si la salida solo falla por IDs con otro formato, se renumeran sin llamar al LLM (T-58).
+        """
+        try:
+            return _parse(content, schema), content, ""
+        except ValidationError as exc:
+            first_errors = _validation_errors(exc)
+        data = _load_json(content)
+        changes = repair_ids(schema, data) if data is not None else []
+        if not changes:
+            return None, content, first_errors
+        repaired = json.dumps(data, ensure_ascii=False)
+        try:
+            parsed = schema.model_validate_json(repaired)
+        except ValidationError as exc:
+            return None, repaired, _validation_errors(exc)
+        log.info(
+            "llm_output_repaired",
+            action="llm_call",
+            task=task.value,
+            provider=self.provider,
+            model=self.model,
+            schema=schema.__name__,
+            repaired_ids=len(changes),
+            prefixes=sorted({change.prefix for change in changes}),
+        )
+        return parsed, repaired, ""
 
     def _complete_structured(
         self,
@@ -224,6 +255,8 @@ class OpenAICompatibleProvider:
         extra: dict[str, Any] = {"response_format": response_format} if response_format else {}
         if max_tokens is not None:
             extra["max_tokens"] = max_tokens
+        if self._extra_body:
+            extra["extra_body"] = self._extra_body
         attempt = 0
         while True:
             try:
@@ -337,10 +370,21 @@ def _to_openai_messages(messages: list[Message]) -> list[dict[str, str]]:
 
 
 def _parse[T: BaseModel](content: str, schema: type[T]) -> T:
+    return schema.model_validate_json(_json_text(content))
+
+
+def _json_text(content: str) -> str:
     text = content.strip()
     if match := _CODE_FENCE.match(text):
         text = match.group(1)
-    return schema.model_validate_json(text)
+    return text
+
+
+def _load_json(content: str) -> Any:
+    try:
+        return json.loads(_json_text(content))
+    except ValueError:
+        return None
 
 
 def _validation_errors(exc: ValidationError) -> str:

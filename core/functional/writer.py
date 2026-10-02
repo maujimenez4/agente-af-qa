@@ -109,9 +109,13 @@ class StoryWriter:
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(story, sources):
+                problem = (
+                    "no cita ninguna de las fuentes del contexto"
+                    if not story.sources
+                    else "cita fuentes que no están en el contexto recibido"
+                )
                 raise CitationError(
-                    "La propuesta cita fuentes que no están en el contexto recibido. "
-                    "Vuelve a generarla o revisa las fuentes disponibles."
+                    f"La propuesta {problem}. Vuelve a generarla o revisa las fuentes disponibles."
                 )
         return StoryDraft(
             story=with_real_excerpts(story, sources),

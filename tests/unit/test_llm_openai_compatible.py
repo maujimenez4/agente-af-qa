@@ -27,6 +27,10 @@ from adapters.llm.openai_compatible import (
     StructuredOutputError,
     StructuredPrompts,
 )
+from schemas.test_case import TestSuite
+from schemas.user_story import UserStory
+from tests.fakes import dataset
+from tests.fakes.llm import renewal_test_suite
 
 FAKE_KEY = "test-key"
 PROVIDER = "proveedor-ficticio"
@@ -939,3 +943,238 @@ def test_logs_omit_messages_key_and_body_when_json_schema_unsupported() -> None:
     text = _log_text(logs)
     for forbidden in (FAKE_KEY, BODY_MARKER, "Villaficticia", "Renovación ficticia"):
         assert forbidden not in text
+
+
+# --- T-58 · Reparación de IDs sin segunda llamada (RNF-09, RNF-10, RNF-12) -------------------
+
+RES_RULES = [
+    {"id": f"RN-RES-{n:02d}", "description": f"Regla ficticia del reglamento {n}"}
+    for n in range(1, 4)
+]
+
+
+def _story_json(**update: Any) -> str:
+    """HU sintética de renovación (Villaficticia) como JSON, con los cambios indicados."""
+    data = dataset.renewal_story(jira_key=None).model_dump(mode="json")
+    data.update(update)
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _events(logs: list[Any]) -> list[str]:
+    return [entry["event"] for entry in logs]
+
+
+def test_structured_repairs_ids_with_single_request_when_only_ids_invalid() -> None:
+    """B · T-58: una HU con RN-RES-* se devuelve válida con UNA sola petición HTTP."""
+    setup = make_provider(
+        completion(_story_json(business_rules=RES_RULES), prompt_tokens=40, completion_tokens=9)
+    )
+
+    result = setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert len(setup.server.requests) == 1
+    assert [rule.id for rule in result.content.business_rules] == ["RN-01", "RN-02", "RN-03"]
+    assert result.content.business_rules[0].description.endswith("(ref. original: RN-RES-01)")
+    assert (result.input_tokens, result.output_tokens) == (40, 9)
+
+
+def test_structured_logs_repair_without_content_when_ids_repaired() -> None:
+    """B · T-58 · RNF-02: log `llm_output_repaired` con metadatos y sin contenido de la HU."""
+    setup = make_provider(completion(_story_json(business_rules=RES_RULES)))
+
+    with capture_logs() as logs:
+        setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    repaired = [entry for entry in logs if entry["event"] == "llm_output_repaired"]
+    assert len(repaired) == 1
+    entry = repaired[0]
+    assert entry["task"] == TaskType.GENERATE_STORY.value
+    assert entry["provider"] == PROVIDER
+    assert entry["model"] == MODEL
+    assert entry["schema"] == "UserStory"
+    assert entry["repaired_ids"] == 3
+    assert entry["prefixes"] == ["RN"]
+    text = _log_text(logs)
+    for forbidden in ("RN-RES", "Regla ficticia", "Villaficticia", FAKE_KEY, "ref. original"):
+        assert forbidden not in text
+
+
+def test_structured_repairs_ids_when_response_inside_json_fences() -> None:
+    """B · T-58: una respuesta entre ```json … ``` también se repara sin reintento."""
+    fenced = f"```json\n{_story_json(business_rules=RES_RULES)}\n```"
+    setup = make_provider(completion(fenced))
+
+    result = setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert len(setup.server.requests) == 1
+    assert [rule.id for rule in result.content.business_rules] == ["RN-01", "RN-02", "RN-03"]
+
+
+def test_structured_retries_with_repaired_version_and_remaining_errors_when_other_error() -> None:
+    """B · T-58: IDs inválidos + otro error → reintento con la versión reparada y solo el resto."""
+    broken = _story_json(business_rules=RES_RULES, priority="Urgentísima")
+    setup = make_provider(
+        completion(broken, prompt_tokens=10, completion_tokens=5),
+        completion(_story_json(), prompt_tokens=20, completion_tokens=7),
+    )
+
+    result = setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert len(setup.server.requests) == 2
+    assert (result.input_tokens, result.output_tokens) == (30, 12)
+    assistant, user = setup.server.bodies()[1]["messages"][-2:]
+    assert assistant["role"] == "assistant"
+    sent = json.loads(assistant["content"])
+    assert [rule["id"] for rule in sent["business_rules"]] == ["RN-01", "RN-02", "RN-03"]
+    assert sent["priority"] == "Urgentísima"  # lo no reparable, tal cual
+    assert user["role"] == "user"
+    assert user["content"].startswith("REINTENTO-FICTICIO\n")
+    assert "priority" in user["content"]
+    assert "business_rules" not in user["content"]  # el error de patrón ya no aparece
+    assert "pattern" not in user["content"]
+
+
+def test_structured_repairs_retry_output_instead_of_raising_when_retry_has_bad_ids() -> None:
+    """B · T-58: si el reintento llega con IDs inválidos, se repara y no se lanza."""
+    setup = make_provider(
+        completion("{esto no es JSON", prompt_tokens=10, completion_tokens=5),
+        completion(_story_json(business_rules=RES_RULES), prompt_tokens=20, completion_tokens=6),
+    )
+
+    with capture_logs() as logs:
+        result = setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert len(setup.server.requests) == 2
+    assert [rule.id for rule in result.content.business_rules] == ["RN-01", "RN-02", "RN-03"]
+    assert (result.input_tokens, result.output_tokens) == (30, 11)
+    assert "llm_output_repaired" in _events(logs)
+
+
+def test_structured_retries_normally_with_original_when_json_invalid() -> None:
+    """B · T-58: un JSON roto no se repara: reintento normal con la salida original."""
+    bad = '```json\n{"title": "HU ficticia", \n```'
+    setup = make_provider(completion(bad), completion(_story_json()))
+
+    with capture_logs() as logs:
+        result = setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert result.content.title
+    assert len(setup.server.requests) == 2
+    assert setup.server.bodies()[1]["messages"][-2] == {"role": "assistant", "content": bad}
+    assert "llm_output_repaired" not in _events(logs)
+
+
+def test_structured_raises_when_retry_still_invalid_after_repair() -> None:
+    """B · T-58 (error): si tras reintento y reparación sigue inválida → StructuredOutputError."""
+    broken = _story_json(business_rules=RES_RULES, priority="Urgentísima")
+    setup = make_provider(completion(broken), completion(broken))
+
+    with pytest.raises(StructuredOutputError) as info:
+        setup.provider.generate_structured(MESSAGES, UserStory, TaskType.GENERATE_STORY)
+
+    assert len(setup.server.requests) == 2
+    assert "RN-RES" not in str(info.value)
+
+
+def test_structured_does_not_repair_schemas_without_registry() -> None:
+    """B · T-58: un esquema sin reparación sigue el camino de reintento de siempre."""
+    setup = make_provider(completion('{"title": "x", "score": "no"}'), completion(VALID_ANSWER))
+
+    with capture_logs() as logs:
+        result = setup.provider.generate_structured(MESSAGES, Answer, TaskType.GENERATE_STORY)
+
+    assert result.content.score == 7
+    assert len(setup.server.requests) == 2
+    assert "llm_output_repaired" not in _events(logs)
+
+
+def test_structured_repairs_test_suite_case_ids_and_refs_with_single_request() -> None:
+    """B · T-58: una suite con CP y refs mal numerados se repara sin segunda llamada."""
+    data = renewal_test_suite().model_dump(mode="json")
+    data["cases"][0]["internal_id"] = "CP1"
+    data["cases"][0]["criterion_ids"] = ["ca_01"]
+    data["cases"][1]["rule_ids"] = ["RN 2"]
+    setup = make_provider(completion(json.dumps(data, ensure_ascii=False)))
+
+    result = setup.provider.generate_structured(MESSAGES, TestSuite, TaskType.GENERATE_TESTS)
+
+    assert len(setup.server.requests) == 1
+    cases = result.content.cases
+    assert [case.internal_id for case in cases] == ["CP-03", "CP-02"]
+    assert cases[0].criterion_ids == ["CA-01"]
+    assert cases[1].rule_ids == ["RN-02"]
+
+
+# --- T-58 · extra_body (opciones del modelo) -------------------------------------------------
+
+
+def test_extra_body_is_sent_in_every_request_including_retry_and_json_mode() -> None:
+    """C · T-58: con extra_body={"think": False} cada petición lleva "think": false."""
+    setup = make_provider(
+        schema_rejected_response(),
+        completion("{roto"),
+        completion(VALID_ANSWER),
+        extra_body={"think": False},
+    )
+
+    setup.provider.generate_structured(MESSAGES, Answer, TaskType.GENERATE_STORY)
+
+    bodies = setup.server.bodies()
+    assert len(bodies) == 3  # json_schema rechazado, modo JSON y reintento
+    assert bodies[1]["response_format"] == {"type": "json_object"}
+    assert bodies[2]["response_format"] == {"type": "json_object"}
+    assert all(body["think"] is False for body in bodies)
+    assert all("extra_body" not in body for body in bodies)
+
+
+def test_extra_body_is_sent_in_plain_generate() -> None:
+    """C · T-58: `generate` (texto libre) también envía las opciones del modelo."""
+    setup = make_provider(completion("ok"), extra_body={"reasoning_effort": "none"})
+
+    setup.provider.generate(MESSAGES, TaskType.CLASSIFY_SOURCE)
+
+    assert setup.server.bodies()[0]["reasoning_effort"] == "none"
+
+
+@pytest.mark.parametrize("extra_body", [None, {}], ids=["sin-parametro", "vacio"])
+def test_body_has_no_new_keys_when_no_extra_body(extra_body: dict[str, Any] | None) -> None:
+    """C · T-58: sin extra_body, el cuerpo de la petición no cambia (sin claves nuevas)."""
+    kwargs: dict[str, Any] = {} if extra_body is None else {"extra_body": extra_body}
+    setup = make_provider(completion("{roto"), completion(VALID_ANSWER), **kwargs)
+
+    setup.provider.generate_structured(MESSAGES, Answer, TaskType.GENERATE_STORY)
+
+    for body in setup.server.bodies():
+        assert set(body) == {"model", "messages", "response_format"}
+
+
+def test_extra_body_is_copied_when_caller_mutates_original() -> None:
+    """C · T-58 (límite): el proveedor guarda una copia; cambiar el dict original no le afecta."""
+    options: dict[str, Any] = {"think": False}
+    setup = make_provider(completion("ok"), extra_body=options)
+    options["think"] = True
+    options["otra"] = "x"
+
+    setup.provider.generate(MESSAGES, TaskType.GENERATE_STORY)
+
+    body = setup.server.bodies()[0]
+    assert body["think"] is False
+    assert "otra" not in body
+
+
+def test_create_forwards_extra_body_to_constructor() -> None:
+    """C · T-58: `create` pasa `extra_body` al proveedor."""
+    server = FakeServer([completion("ok")])
+
+    provider = OpenAICompatibleProvider.create(
+        "local",
+        "modelo-local-ficticio",
+        LOCAL_URL,
+        None,
+        http_client=httpx.Client(transport=httpx.MockTransport(server)),
+        prompts=TEST_PROMPTS,
+        extra_body={"think": False},
+    )
+    provider.generate(MESSAGES, TaskType.GENERATE_STORY)
+
+    assert server.bodies()[0]["think"] is False

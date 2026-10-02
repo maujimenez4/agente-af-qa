@@ -1,5 +1,5 @@
 ---
-version: 2
+version: 3
 task: tests_retry
 ---
 
@@ -19,4 +19,4 @@ Las únicas fuentes que puedes citar son (tipo y ref):
 {allowed}
 </fuentes_permitidas>
 
-Devuelve de nuevo la suite completa corregida: cada caso solo con IDs de la lista, cada CA con al menos un caso, al menos un caso positivo y uno negativo, datos sintéticos ficticios y citas solo de la lista de fuentes.
+Devuelve de nuevo la suite completa corregida: cada caso solo con IDs de la lista, cada CA con al menos un caso, al menos un caso positivo y uno negativo, datos sintéticos ficticios y citas solo de la lista de fuentes (al menos una si la lista no está vacía).

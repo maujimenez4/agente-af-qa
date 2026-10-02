@@ -29,7 +29,7 @@ from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
-from core.config import AppConfig, Settings
+from core.config import AppConfig, ConfigError, Settings
 from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
@@ -166,6 +166,7 @@ def structured_prompts() -> StructuredPrompts:
 
 def _openai_factory(config: AppConfig) -> ProviderFactory:
     prompts = structured_prompts()
+    options = _model_options(config)
 
     def create(choice: ModelChoice) -> LLMProvider:
         return OpenAICompatibleProvider.create(
@@ -177,9 +178,24 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
             max_retries_on_429=config.models.limits.max_retries_on_429,
             timeout_s=config.models.limits.request_timeout_s,
             max_output_tokens=config.models.limits.max_output_tokens,
+            extra_body=options.get((choice.provider, choice.model)),
         )
 
     return create
+
+
+def _model_options(config: AppConfig) -> dict[tuple[str, str], dict[str, Any]]:
+    """`options` de cada modelo de las cadenas (T-58); las mismas en todas las tareas."""
+    found: dict[tuple[str, str], dict[str, Any]] = {}
+    for chain in config.models.tasks.values():
+        for ref in chain:
+            body = ref.options.request_body() if ref.options else {}
+            if found.setdefault((ref.provider, ref.model), body) != body:
+                raise ConfigError(
+                    f"El modelo «{ref.model}» de «{ref.provider}» tiene 'options' distintas en "
+                    "varias tareas de config/models.yaml; deben coincidir."
+                )
+    return {key: body for key, body in found.items() if body}
 
 
 # --- Contenedor de la aplicación (T-24) ---------------------------------------------------------

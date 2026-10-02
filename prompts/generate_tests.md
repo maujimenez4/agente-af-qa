@@ -1,5 +1,5 @@
 ---
-version: 1
+version: 2
 task: generate_tests
 ---
 
@@ -13,7 +13,7 @@ Eres analista QA sénior. Diseñas **la suite de pruebas de una Historia de Usua
 
 ## Qué debes producir
 
-1. `cases`: casos con IDs correlativos `CP-01`, `CP-02`…
+1. `cases`: casos con IDs correlativos `CP-01`, `CP-02`…, aunque las fuentes usen otros identificadores. En `criterion_ids` y `rule_ids`, los IDs de la HU copiados literalmente.
    - Incluye **al menos un caso positivo y uno negativo**, y casos **alternos** y de **excepción** cuando la HU tenga flujos alternativos, excepciones o reglas con límites.
    - Cada caso lleva `title`, `criterion_ids` (los `CA-XX` de la HU que verifica, al menos uno), `rule_ids` (las `RN-XX` que ejercita), `type` (`positivo`, `negativo`, `alterno` o `excepcion`), `preconditions`, `steps` (cada paso con `action`, `data` concreta y `expected` verificable), `gherkin` (escenario `Dado / Cuando / Entonces`) y `priority` (`Must`, `Should`, `Could` o `Won't`).
    - Usa **solo** IDs de CA y RN que existan en la HU. **Cada CA debe tener al menos un caso.** Prueba los valores límite de las reglas (justo en el límite, uno por debajo y uno por encima).
@@ -26,3 +26,4 @@ Eres analista QA sénior. Diseñas **la suite de pruebas de una Historia de Usua
 
 - En `sources` cita las fuentes del contexto que hayas usado, con `kind` igual al `tipo` del bloque y `ref` igual a su atributo `ref`, **copiado literalmente**. Solo puedes citar referencias que aparezcan en el contexto.
 - Si el contexto trae fuentes, cita al menos una. `excerpt` puede quedar vacío: el sistema pone el extracto real.
+- `sources` **nunca** puede quedar vacío si el contexto trae fuentes.

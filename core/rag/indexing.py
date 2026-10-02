@@ -32,7 +32,8 @@ Chunker = Callable[[IngestedDocument], list[Chunk]]
 class ReplacingStore(Protocol):
     """Almacén que sustituye un documento de forma atómica (PA-216).
 
-    Aún no está en `VectorStore` (`adapters/base.py`, congelado): PA-225 propone añadirlo.
+    Ya forma parte de `VectorStore` (PA-225); la comprobación se conserva para almacenes que
+    no lo implementen (borrado y reinserción, no atómico).
     """
 
     def replace_document(self, document_id: str, chunks: list[Chunk]) -> None: ...

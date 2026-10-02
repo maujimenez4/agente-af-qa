@@ -207,42 +207,26 @@ EMPTY_VALUES = [
 ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-219): "
-        "memory_errors no exige objetivo; vacío o reducido a «---» por _one_line "
-        "se acepta y el .md queda con «—» (core/memory/generator.py:127 y :134)"
-    ),
-)
 @pytest.mark.parametrize("value", EMPTY_VALUES)
 def test_empty_objective_is_an_error_when_sanitized_to_nothing(value: str) -> None:
     """RF-36 (negativo): la memoria debe recoger el objetivo; vacío → error y reintento."""
     assert _errors(_memory(objective=value))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-219): memory_errors no exige alcance; vacío o «---» se acepta "
-        "(core/memory/generator.py:128 y :134)"
-    ),
-)
 @pytest.mark.parametrize("value", EMPTY_VALUES)
 def test_empty_scope_is_an_error_when_sanitized_to_nothing(value: str) -> None:
     """RF-36 (negativo): la memoria debe recoger el alcance; vacío → error y reintento."""
     assert _errors(_memory(scope=value))
 
 
-def test_empty_objective_is_accepted_without_retry_currently() -> None:
-    """RF-36 (comportamiento observado que motiva el defecto): «---» pasa sin reintento."""
+def test_empty_objective_is_retried_and_then_rejected() -> None:
+    """RF-36 · PA-219 (corregido): «---» o vacío pide reintento y, si sigue vacío, es un error."""
     llm = _llm(_memory(objective="---", scope=""))
 
-    memory = LLMMemoryGenerator(llm).generate(_artifact())
+    with pytest.raises(MemorySynthesisError):
+        LLMMemoryGenerator(llm).generate(_artifact())
 
-    assert memory.objective == "" and memory.scope == ""
-    assert "## Objetivo\n—\n" in memory.to_markdown()
-    assert len(llm.calls) == 1
+    assert len(llm.calls) == 2
 
 
 # --- 3 · CP inventados en una suite (Principio 4, RNF-25) ----------------------------------

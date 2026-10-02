@@ -144,6 +144,10 @@ def memory_errors(memory: Memory, facts: ArtifactFacts) -> list[str]:
     unknown = sorted({i for text in _texts(memory) for i in TRACE_ID.findall(text)} - known)
     if unknown:
         errors.append(f"IDs que no existen en el artefacto: {', '.join(unknown)}")
+    # PA-219 (RF-36): objetivo y alcance son obligatorios; vacíos o solo «---» piden reintento.
+    for label, text in (("objetivo", memory.objective), ("alcance", memory.scope)):
+        if not _one_line(text):
+            errors.append(f"falta el {label} de la memoria")
     missing = _missing(facts.criteria, memory.acceptance_criteria)
     if missing:
         errors.append(f"faltan criterios de aceptación: {', '.join(missing)}")

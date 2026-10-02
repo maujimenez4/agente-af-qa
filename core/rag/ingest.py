@@ -20,6 +20,7 @@ import yaml
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import ExternalServiceError
+from core.functional.context import escape_data
 from core.rag.documents import (
     CATEGORIES,
     MEMORY_CATEGORY,
@@ -188,8 +189,9 @@ class Ingestor:
             Message(
                 role="user",
                 content=(
-                    f"<titulo>{title}</titulo>\n\n"
-                    f"<documento>\n{text[: self._max_classify_chars]}\n</documento>"
+                    # PA-215: los datos no pueden cerrar los delimitadores (inyección de prompt).
+                    f"<titulo>{escape_data(title)}</titulo>\n\n"
+                    f"<documento>\n{escape_data(text[: self._max_classify_chars])}\n</documento>"
                 ),
             ),
         ]

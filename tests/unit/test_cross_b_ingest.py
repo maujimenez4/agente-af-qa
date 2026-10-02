@@ -232,15 +232,6 @@ def test_source_classification_rejects_memory_category() -> None:
         SourceClassification(category=MEMORY_CATEGORY, justification="Ficticia")  # type: ignore[arg-type]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-215): "
-        "el texto se inserta sin escapar entre <documento> y </documento>; un "
-        "'</documento>' del propio documento cierra el delimitador antes de tiempo "
-        "(core/rag/ingest.py:187-188; core/functional/context.py usa escape_data)"
-    ),
-)
 def test_classification_message_escapes_delimiters_when_text_contains_them(
     tmp_path: Path,
 ) -> None:

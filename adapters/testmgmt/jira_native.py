@@ -11,12 +11,15 @@ cobertura van como adjuntos `.md` de la HU.
   publicada); un adjunto con el mismo nombre tampoco se vuelve a subir. Si la búsqueda falla, no
   se publica nada.
 - Ante un 401/403 o un 429 se deja de escribir: el resto se marca como fallido sin intentarlo.
+- **Ejecución (T-47, RF-28):** `record_execution` registra el resultado de un CP en su subtarea
+  (transición, etiqueta `ejecucion-<estado>` y comentario con la evidencia).
 - Escrituras de un solo intento (`adapters/jira/http.py`); solo las llama el nodo `publish`.
 """
 
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -31,7 +34,17 @@ from adapters.errors import (
     PublishError,
     RateLimitError,
 )
-from adapters.jira.adf import Node, bullet_list, code_block, doc, heading, paragraph, table, text
+from adapters.jira.adf import (
+    Node,
+    bullet_list,
+    code_block,
+    doc,
+    heading,
+    markdown_to_adf,
+    paragraph,
+    table,
+    text,
+)
 from adapters.jira.http import SERVICE, JiraHttp
 from adapters.jira.jql import CASE_LABEL, cases_jql
 from adapters.jira.story_template import prefixed_summary
@@ -46,6 +59,37 @@ _CASE_PREFIX = re.compile(r"^\[(CP-\d+)\]")
 _MAX_KEY_IN_MESSAGE = 50
 _MAX_SUBTASK_TYPE = 60
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")  # incluye `\r` y `\n`
+MAX_EVIDENCE_CHARS = 20_000
+_NUMERIC_ID = re.compile(r"[0-9]{1,18}")  # ASCII: `isdigit` admite «²» o «١»
+
+
+class ExecutionStatus(StrEnum):
+    """Resultado de la ejecución de un CP (T-47). PA-206: pasará a `schemas/test_case.py`."""
+
+    PASSED = "paso"
+    FAILED = "fallo"
+    BLOCKED = "bloqueado"
+    NOT_RUN = "sin-ejecutar"
+
+
+STATUS_TEXT = {
+    ExecutionStatus.PASSED: "Pasó",
+    ExecutionStatus.FAILED: "Falló",
+    ExecutionStatus.BLOCKED: "Bloqueado",
+    ExecutionStatus.NOT_RUN: "Sin ejecutar",
+}
+_EXECUTION_PREFIX = "ejecucion-"
+EXECUTION_LABELS = {status: f"{_EXECUTION_PREFIX}{status.value}" for status in ExecutionStatus}
+# Nombres de la transición o del estado de destino que se buscan para cada resultado, sin
+# distinguir mayúsculas. Configurable en el constructor (`execution_transitions`, PA-207). Si el
+# flujo de trabajo no tiene ninguno (p. ej. no hay estado «Falló»), el estado no cambia y el
+# resultado queda en la etiqueta `ejecucion-<estado>` y en el comentario.
+DEFAULT_EXECUTION_TRANSITIONS: dict[ExecutionStatus, tuple[str, ...]] = {
+    ExecutionStatus.PASSED: ("Pasó", "Passed", "Done", "Hecho", "Finalizada", "Listo"),
+    ExecutionStatus.FAILED: ("Falló", "Failed"),
+    ExecutionStatus.BLOCKED: ("Bloqueado", "Blocked"),
+    ExecutionStatus.NOT_RUN: ("Sin ejecutar", "To Do", "Por hacer", "Tareas por hacer"),
+}
 
 
 class JiraNativeTests:
@@ -64,7 +108,9 @@ class JiraNativeTests:
         max_wait_s: float = 30.0,
         sleep: Callable[[float], None] = time.sleep,
         timeout: float = 30.0,
+        execution_transitions: Mapping[ExecutionStatus, Sequence[str]] | None = None,
     ) -> None:
+        self._transitions = _transition_names(execution_transitions)
         subtask_type = subtask_type.strip()  # los espacios de los extremos (`.env`) se quitan
         if (
             not subtask_type
@@ -204,6 +250,104 @@ class JiraNativeTests:
             except AgentError:
                 result.failed.append(name)
 
+    def record_execution(
+        self, case_key: str, status: ExecutionStatus | str, evidence_md: str
+    ) -> None:
+        """Registra el resultado de un CP en su subtarea (T-47, RF-28, R-01 opción A).
+
+        Transición al estado configurado (si el flujo de trabajo la tiene), etiqueta
+        `ejecucion-<estado>` y comentario con el resultado y la evidencia, por este orden: el
+        comentario, lo único que se duplicaría al repetir, va el último.
+        """
+        started = time.perf_counter()
+        key = _checked_key(case_key)
+        try:
+            status = ExecutionStatus(status)
+        except ValueError:
+            shown = _CONTROL.sub("", str(status))[:30]
+            raise PublishError(f"«{shown}» no es un resultado de ejecución.") from None
+        evidence = evidence_md.strip()
+        if status is ExecutionStatus.FAILED and not evidence:
+            raise PublishError("Un caso fallido necesita evidencia.")
+        if len(evidence) > MAX_EVIDENCE_CHARS:
+            raise PublishError(f"La evidencia supera los {MAX_EVIDENCE_CHARS} caracteres.")
+
+        fields = (
+            self._http.get(
+                f"/rest/api/3/issue/{key}", params={"fields": "labels,status,issuetype"}, key=key
+            )
+        ).get("fields") or {}
+        labels = [str(label) for label in fields.get("labels") or []]
+        issue_type = fields.get("issuetype")
+        # Nunca se escribe en una incidencia que no sea una subtarea CP.
+        if not isinstance(issue_type, dict) or issue_type.get("subtask") is not True:
+            raise PublishError(f"{key} no es una subtarea: solo se registra la ejecución de un CP.")
+        if CASE_LABEL not in labels:
+            raise PublishError(
+                f"{key} no es un caso de prueba (le falta la etiqueta «{CASE_LABEL}»)."
+            )
+
+        current = _name_of(fields.get("status"))
+        transitioned = self._transition(key, status, current)  # si falla, no se ha escrito nada
+        label = EXECUTION_LABELS[status]
+        changes = [{"remove": old} for old in labels if _is_execution_label(old) and old != label]
+        try:
+            self._http.send(
+                "PUT",
+                f"/rest/api/3/issue/{key}",
+                {"update": {"labels": [*changes, {"add": label}]}},
+                PublishError,
+                key,
+            )
+            self._http.send(
+                "POST",
+                f"/rest/api/3/issue/{key}/comment",
+                {"body": execution_comment(status, evidence)},
+                PublishError,
+                key,
+            )
+        except AgentError as exc:
+            state = "con el estado ya cambiado" if transitioned else "sin cambiar el estado"
+            raise PublishError(
+                f"Registro incompleto de la ejecución en {key} ({state}): {exc}"
+            ) from None
+        log.info(
+            "ejecución registrada en Jira",
+            action="record_execution",
+            jira_key=key,
+            status=status.value,
+            transitioned=transitioned,
+            duration_ms=round((time.perf_counter() - started) * 1000),
+        )
+
+    def _transition(self, key: str, status: ExecutionStatus, current: str) -> bool:
+        """Aplica la transición configurada; `False` si ya está en ese estado o no existe."""
+        names = self._transitions[status]
+        if current.casefold() in names:
+            return False
+        data = self._http.get(f"/rest/api/3/issue/{key}/transitions", key=key)
+        for transition in data.get("transitions") or []:
+            if not isinstance(transition, dict):
+                continue
+            target = _name_of(transition.get("to"))
+            if {str(transition.get("name") or "").casefold(), target.casefold()} & names:
+                transition_id = str(transition.get("id") or "")
+                if not _NUMERIC_ID.fullmatch(transition_id):
+                    continue
+                body = {"transition": {"id": transition_id}}
+                self._http.send(
+                    "POST", f"/rest/api/3/issue/{key}/transitions", body, PublishError, key
+                )
+                return True
+        # Sin transición en el flujo (p. ej. no hay estado «Falló»): manda la etiqueta.
+        log.info(
+            "sin transición para el resultado",
+            action="record_execution",
+            jira_key=key,
+            status=status.value,
+        )
+        return False
+
     def _attachment_names(self, story: str) -> set[str]:
         data = self._http.get(
             f"/rest/api/3/issue/{story}", params={"fields": "attachment"}, key=story
@@ -266,6 +410,46 @@ def case_to_adf(case: TestCase, story: str) -> Node:
     if case.gherkin and case.gherkin.strip():
         content += [heading("Escenario Gherkin", 2), code_block(case.gherkin.strip(), "gherkin")]
     return doc(content)
+
+
+def execution_comment(status: ExecutionStatus, evidence: str) -> Node:
+    """Comentario del registro: resultado (texto literal) y evidencia (Markdown → ADF)."""
+    content: list[Node] = [
+        paragraph([*text("Resultado de la ejecución: ", strong=True), *text(STATUS_TEXT[status])])
+    ]
+    if evidence:
+        content += [
+            paragraph(text("Evidencia:", strong=True)),
+            *markdown_to_adf(evidence)["content"],
+        ]
+    else:
+        content.append(paragraph(text("Sin evidencia.")))
+    return doc(content)
+
+
+def _name_of(field: Any) -> str:
+    """`name` de un objeto de Jira; cadena vacía si la respuesta no tiene la forma esperada."""
+    return str(field.get("name") or "") if isinstance(field, dict) else ""
+
+
+def _is_execution_label(label: str) -> bool:
+    return label.startswith(_EXECUTION_PREFIX)
+
+
+def _transition_names(
+    overrides: Mapping[ExecutionStatus, Sequence[str]] | None,
+) -> dict[ExecutionStatus, frozenset[str]]:
+    """Mapeo resultado → nombres de transición o de estado de destino (sin mayúsculas)."""
+    mapping = {**DEFAULT_EXECUTION_TRANSITIONS, **(overrides or {})}
+    if any(isinstance(value, str) for value in mapping.values()):
+        raise ValueError("Cada resultado necesita una lista de nombres de transición, no un texto.")
+    names: dict[ExecutionStatus, frozenset[str]] = {}
+    for status in ExecutionStatus:
+        cleaned = {n.strip().casefold() for n in mapping[status] if n.strip()}
+        if not cleaned or any(len(n) > _MAX_SUBTASK_TYPE or _CONTROL.search(n) for n in cleaned):
+            raise ValueError(f"Las transiciones de «{STATUS_TEXT[status]}» no son válidas.")
+        names[status] = frozenset(cleaned)
+    return names
 
 
 def _checked_key(key: str) -> str:

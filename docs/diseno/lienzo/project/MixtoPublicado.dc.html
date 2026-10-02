@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente mixto, resultado de la publicación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6}
+.event{align-self:center;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:#F4F6F8;font-size:13px;color:#5C6E7C}
+.op{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #E6EAEE;border-radius:10px;background:#FFFFFF;font-size:14px}
+.btn{height:44px;padding:0 16px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@keyframes phsim{from{transform:translateY(163px)}to{transform:translateY(81.5px)}}
+@keyframes phreal{from{transform:translateY(81.5px)}to{transform:translateY(0)}}
+.phsim{animation:phsim .42s cubic-bezier(.2,.7,.2,1) .25s both}
+.phreal{animation:phreal .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes fillq{from{transform:translateY(326px)}to{transform:translateY(0)}}
+.qfull{animation:fillq 1.2s cubic-bezier(.2,.7,.2,1) both}
+.qsim{transform:translateY(81.5px)}
+.d1{animation-delay:.3s}.d2{animation-delay:.45s}.d3{animation-delay:.6s}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Renovar un préstamo desde la app</h1>
+<div role="img" aria-label="{{phaseLabel}}" style="display: flex; align-items: center; gap: 8px; margin-right: 6px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="ph-4"><rect class="{{phCls}}" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#ph-4)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">{{phaseText}}</b></span></div>
+<span style="{{badgeStyle}}">{{badge}}</span>
+</header>
+<sc-if value="{{sim}}" hint-placeholder-val="{{ true }}">
+<div role="status" style="padding: 10px 20px; background: #FFF8E6; border-bottom: 1px solid #F0D48A; font-size: 14px; color: #6B4A00; display: flex; gap: 8px; align-items: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5 M12 16h.01 M12 3l9 16H3z"></path></svg>Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.</div>
+</sc-if>
+<div style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 28px 28px 0;">
+<div style="width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 18px;">
+<span class="event"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px;"><path d="M6 12.5l4 4 8-9"></path></svg>Versión 2 aprobada por af-demo a las 15:47</span>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<div style="display: flex; align-items: center; gap: 14px;"><svg viewBox="0 0 326 326" width="56" height="56" aria-hidden="true"><defs><clipPath id="big-q"><rect class="{{bigCls}}" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#big-q)"></path></svg><h2 style="margin: 0; font-size: 20px; font-weight: 700;">{{title}}</h2></div>
+<span>{{lead}}</span>
+<div role="list" aria-label="Operaciones en Jira" style="display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{ops}}" as="o" hint-placeholder-count="3">
+<div class="{{o.cls}}" role="listitem">
+<span aria-hidden="true" style="{{o.markStyle}}">{{o.mark}}</span>
+<span style="display: flex; flex-direction: column; gap: 2px;"><b>{{o.label}}</b><span style="font-size: 13px; color: #5C6E7C;">{{o.detail}}</span></span>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 14px; color: #5C6E7C;">{{note}}</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<sc-if value="{{sim}}" hint-placeholder-val="{{ true }}">
+<button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Ver el registro de auditoría</button>
+<button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Ir al historial</button>
+</sc-if>
+<sc-if value="{{live}}" hint-placeholder-val="{{ false }}">
+<button class="btn" style="border: 0; background: #FF7932; color: #233441; font-weight: 700;">Abrir DEMO-3 en Jira</button>
+<button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Ver la memoria</button>
+<button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Pedir sus pruebas a QA</button>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"modo":{"editor":"enum","options":["simulacion","real"],"default":"simulacion"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+const sim = (this.props.modo ?? 'simulacion') !== 'real';
+const base = [
+{ label: 'Actualizar DEMO-3 con la versión 2', detail: 'Título, CA-03 y RN-02 nuevos' },
+{ label: 'Añadir un comentario con los cambios', detail: 'Resumen del diff para quien siga la HU' },
+{ label: 'Vincular con DEMO-2 (relates to)', detail: 'Comparte la regla de reservas pendientes' },
+];
+const markBase = 'width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; ';
+const ops = base.map((o, i) => ({
+...o,
+cls: 'op rise d' + (i + 1),
+mark: sim ? String(i + 1) : '✓',
+markStyle: markBase + (sim ? 'background: #FFFFFF; color: #5C6E7C; border: 1.5px solid #C7CFD6; box-sizing: border-box;' : 'background: #FF7932; color: #233441;'),
+}));
+const badgeBase = 'font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 8px; ';
+return {
+sim,
+live: !sim,
+phCls: sim ? 'phsim' : 'phreal',
+bigCls: sim ? 'qsim' : 'qfull',
+phaseText: sim ? 'Fase 3 de 4 · Aprobada' : 'Fase 4 de 4 · Publicado',
+phaseLabel: sim ? 'Avance: fase 3 de 4, aprobada sin publicar' : 'Avance: fase 4 de 4, publicado',
+ops,
+q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z',
+badge: sim ? 'Aprobada · simulada' : 'Publicada',
+badgeStyle: badgeBase + (sim ? 'background: #FFF8E6; color: #6B4A00;' : 'background: #FFF3EC; color: #B23E00;'),
+title: sim ? 'Publicación simulada' : 'Publicado en Jira',
+lead: sim ? 'No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:' : 'Estas operaciones ya están en Jira:',
+note: sim ? 'La aprobación sigue vigente: cuando se active la publicación real se podrá publicar sin repetir la revisión. La memoria se genera al publicar de verdad.' : 'La memoria de DEMO-3 se ha generado e indexado; tendrá prioridad en las próximas propuestas.',
+};
+}
+}
+</script>
+</body>
+</html>

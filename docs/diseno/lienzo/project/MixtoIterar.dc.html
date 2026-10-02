@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente mixto, iterar la propuesta</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.me{align-self:flex-end;max-width:78%;background:#F4F6F8;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px;line-height:1.55}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.meta{font-size:12px;color:#5C6E7C}
+.art{display:flex;gap:12px;align-items:center;padding:10px 14px;border:1px solid #E6EAEE;background:#FFFFFF;border-radius:12px 12px 4px 12px;font:inherit;color:#233441;text-align:left}
+.art.on{border-color:#FF7932;background:#FFF3EC}
+.chip{min-height:40px;padding:8px 14px;border:1px solid #C7CFD6;border-radius:20px;background:#FFFFFF;font:inherit;font-size:14px;color:#233441}
+.chip:hover{border-color:#FF7932;background:#FFF3EC}
+.tool{height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:#5C6E7C;display:inline-flex;align-items:center;gap:6px}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.ic:hover{background:#F4F6F8;color:#233441}
+.tab{height:36px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:14px;color:#5C6E7C}
+.tab.on{background:#F4F6F8;color:#233441;font-weight:700}
+.ver{height:30px;min-width:36px;padding:0 10px;border:1px solid #E6EAEE;border-radius:8px;background:#FFFFFF;font:inherit;font-size:13px;font-weight:600;color:#5C6E7C}
+.ver.on{border-color:#233441;background:#233441;color:#FFFFFF}
+.cite{display:inline-flex;padding:1px 7px;border-radius:6px;background:#F4F6F8;border:1px solid #E6EAEE;font-size:12px;font-weight:600;color:#233441}
+.ca{border:1px solid #E6EAEE;border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:4px;background:#FFFFFF}
+.new{display:inline-flex;padding:1px 7px;border-radius:6px;background:#FFF3EC;color:#B23E00;font-size:12px;font-weight:700}
+.mini{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:12px;font-weight:600;color:#5C6E7C}
+.mini:hover{background:#F4F6F8;color:#233441}
+textarea:focus{outline:none}
+.composer:focus-within{border-color:#FF7932;box-shadow:0 0 0 3px #FFF3EC}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+.d1{animation-delay:.1s}.d2{animation-delay:.2s}
+@keyframes phin{from{transform:translateY(244.5px)}to{transform:translateY(163px)}}
+.phin{animation:phin .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes flash{0%{background:#FFE5D5}100%{background:#FFFFFF}}
+.flash{animation:rise .42s cubic-bezier(.2,.7,.2,1) .1s both,flash 1.6s cubic-bezier(.2,.7,.2,1) .5s both}
+.d3{animation-delay:.3s}.d4{animation-delay:.4s}
+@keyframes q4{from{transform:translateY(244.5px)}to{transform:translateY(0)}}
+.q4{animation:q4 4s steps(4, jump-none) infinite}
+@keyframes blink{50%{opacity:0}}
+.caret{display:inline-block;width:2px;height:1em;background:#233441;vertical-align:-2px;margin-left:1px;animation:blink 1s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Renovar un préstamo desde la app</h1>
+<div role="img" aria-label="Avance: fase 2 de 4, Generar e iterar" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="ph-2"><rect class="phin" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#ph-2)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">Fase 2 de 4</b> · Generar e iterar</span></div>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 24px 0;">
+<div style="width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 16px;">
+<div class="ai">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<span>Versión 1 lista. 4 de 5 criterios tienen fuente; el CA-04 no.</span>
+<button class="art"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg><span style="flex-grow: 1; font-size: 14px;">Propuesta de HU, versión 1</span></button>
+<span class="meta">groq · gpt-oss-120b · 5 fuentes</span>
+</div>
+</div>
+<div class="me">El CA-03 debe indicar que no se renueva si hay reservas pendientes.</div>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<sc-if value="{{typing}}" hint-placeholder-val="{{ false }}"><span>{{partial}}<span class="caret" aria-hidden="true"></span></span></sc-if>
+<sc-if value="{{done}}" hint-placeholder-val="{{ true }}">
+<span>Versión 2 lista. Cambié el CA-03 y añadí la RN-02. Afecta también a <b>DEMO-2</b>, que comparte la regla de reservas pendientes.</span>
+<button class="art on"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg><span style="flex-grow: 1; display: flex; flex-direction: column;"><b style="font-size: 14px;">Propuesta de HU, versión 2</b><span style="font-size: 13px; color: #5C6E7C;">Abierta en el panel · 3 cambios frente a Jira</span></span></button>
+<span class="meta">Groq llegó a su límite; se usó openrouter · qwen3.8-27b</span>
+</sc-if>
+</div>
+</div>
+<sc-if value="{{done}}" hint-placeholder-val="{{ true }}">
+<div class="rise d2" role="group" aria-label="Cambios sugeridos" style="padding-left: 40px; display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="chip">Busca la fuente del CA-04</button>
+<button class="chip">Añade un criterio de error</button>
+<button class="chip">Revisa INVEST</button>
+</div>
+</sc-if>
+</div>
+</div>
+<sc-if value="{{typing}}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5C6E7C; padding: 0 0 8px 4px;"><svg viewBox="0 0 326 326" width="18" height="18"><defs><clipPath id="type-hu"><rect class="q4" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#type-hu)"></path></svg>Escribiendo la respuesta</div>
+</sc-if>
+<div style="display: flex; justify-content: center; padding: 12px 24px 20px;">
+<div class="composer" style="width: 100%; max-width: 600px; border: 1px solid #93A0AB; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; flex-direction: column; gap: 4px;">
+<label for="m2" style="position: absolute; left: -9999px;">Pide un cambio</label>
+<textarea id="m2" rows="1" placeholder="Pide un cambio a la propuesta" style="border: 0; resize: none; font: inherit; font-size: 15px; line-height: 1.5; color: #233441;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button class="tool"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M9.5 9.5h5v5h-5z"></path></svg>Modelo automático</button>
+<span style="flex-grow: 1;"></span>
+<button aria-label="Enviar" style="width: 36px; height: 36px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; display: flex; align-items: center; justify-content: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6 M7 11l5-5 5 5"></path></svg></button>
+</div>
+</div>
+</div>
+</main>
+<aside aria-labelledby="art-t" style="width: 480px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<div style="flex-grow: 1; display: flex; flex-direction: column;"><h2 id="art-t" style="margin: 0; font-size: 15px; font-weight: 700;">Propuesta de HU</h2><span style="font-size: 12px; color: #5C6E7C;">Evolución de DEMO-3 · en revisión</span></div>
+<div role="group" aria-label="Versiones" style="display: flex; gap: 4px;"><button class="ver">Jira</button><button class="ver">v1</button><button class="ver on" aria-pressed="true">v2</button></div>
+</div>
+<div role="tablist" aria-label="Contenido del panel" style="padding: 10px 16px 0; display: flex; gap: 2px;">
+<button class="tab on" role="tab" aria-selected="true">Propuesta</button>
+<button class="tab" role="tab">Cambios (3)</button>
+<button class="tab" role="tab">Impacto (1)</button>
+<button class="tab" role="tab">Fuentes (4)</button>
+</div>
+<div style="flex-grow: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+<p class="rise" style="margin: 0; font-size: 14px; line-height: 1.55;"><b>Como</b> persona socia <b>quiero</b> renovar un préstamo desde la web o la app <b>para</b> no ir al mostrador.</p>
+<div class="ca rise d1"><span><b>CA-01</b> Renovación permitida</span><span style="color: #5C6E7C;">El vencimiento se amplía 21 días <span class="cite">DOC-01</span></span></div>
+<div class="ca flash" style="border-color: #FF7932;"><span style="display: flex; gap: 8px; align-items: center;"><b>CA-03</b> Renovación desde la app <span class="new">Cambiado en v2</span></span><span style="color: #5C6E7C;">No se renueva si hay reservas pendientes <span class="cite">DOC-02</span> <span class="cite">DEMO-3</span></span></div>
+<div class="ca rise d3" style="border-color: #F0D48A; background: #FFF8E6;"><span><b>CA-04</b> Aviso tras renovar</span><span style="color: #6B4A00;">Sin respaldo en las fuentes: confírmalo o pide que se busque.</span><span style="display: flex; gap: 4px;"><button class="mini">Confirmar</button><button class="mini">Pedir fuente</button></span></div>
+<div class="ca rise d4"><span style="font-size: 13px; color: #5C6E7C;">Reglas de negocio</span><span><b>RN-01</b> Máximo 2 renovaciones <span class="cite">DOC-01</span></span><span style="display: flex; gap: 8px; align-items: center;"><span><b>RN-02</b> No se renueva con reservas pendientes <span class="cite">DOC-02</span></span><span class="new">Nueva</span></span></div>
+</div>
+<div style="padding: 14px 16px; border-top: 1px solid #E6EAEE; background: #FFFFFF; display: flex; gap: 8px; align-items: center;">
+<button style="height: 44px; padding: 0 14px; border: 1px solid #93A0AB; border-radius: 10px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600;">Editar a mano</button>
+<button style="height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 14px; color: #5C6E7C;">Descartar</button>
+<span style="flex-grow: 1;"></span>
+<a href="TrabajoRevision.dc.html" style="height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none;">Revisar y aprobar</a>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.reply = 'Versión 2 lista. Cambié el CA-03 y añadí la RN-02. Afecta también a DEMO-2, que comparte la regla de reservas pendientes.';
+this.state = { typed: 0 };
+}
+componentDidMount() {
+// La respuesta se escribe letra a letra; al terminar aparecen la versión nueva y las sugerencias.
+this.timer = setInterval(() => {
+if (this.state.typed >= this.reply.length) { clearInterval(this.timer); return; }
+this.setState({ typed: Math.min(this.reply.length, this.state.typed + 2) });
+}, 35);
+}
+componentWillUnmount() {
+clearInterval(this.timer);
+}
+renderVals() {
+const typed = this.state.typed;
+const done = typed >= this.reply.length;
+return { typing: !done, done, partial: this.reply.slice(0, typed), q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+}
+}
+</script>
+</body>
+</html>

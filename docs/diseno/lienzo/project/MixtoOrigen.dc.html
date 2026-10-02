@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente mixto, origen y fuentes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.me{align-self:flex-end;max-width:72%;background:#F4F6F8;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px;line-height:1.55}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.tag{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:6px;background:#F4F6F8;font-size:12px;font-weight:600;color:#5C6E7C}
+.found{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid #E6EAEE;border-radius:12px 12px 4px 12px}
+.fixed{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid #FF7932;background:#FFF3EC;border-radius:12px 12px 4px 12px;font-size:14px}
+.sm{height:36px;padding:0 12px;border-radius:9px;font:inherit;font-size:13px;font-weight:600}
+.tool{height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:#5C6E7C;display:inline-flex;align-items:center;gap:6px}
+.tool:hover{background:#F4F6F8;color:#233441}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.ic:hover{background:#F4F6F8;color:#233441}
+.edit{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:12px;font-weight:600;color:#5C6E7C}
+.edit:hover{background:#F4F6F8;color:#233441}
+.src{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;font-size:14px;cursor:pointer}
+.src:hover{background:#F4F6F8}
+.src input{width:18px;height:18px;margin:2px 0 0;accent-color:#FF7932;flex-shrink:0}
+.code{font-size:12px;font-weight:600;color:#5C6E7C}
+textarea:focus{outline:none}
+.composer:focus-within{border-color:#FF7932;box-shadow:0 0 0 3px #FFF3EC}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@keyframes slidein{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+.panel{animation:slidein .42s cubic-bezier(.2,.7,.2,1) both}
+@keyframes phin{from{transform:translateY(326px)}to{transform:translateY(244.5px)}}
+.phin{animation:phin .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Renovar un préstamo desde la app</h1>
+<div role="img" aria-label="Avance: fase 1 de 4, Contexto" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="ph-1"><rect class="phin" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#ph-1)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">Fase 1 de 4</b> · Contexto</span></div>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 28px 0;">
+<div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 18px;">
+<div class="me">La persona socia debería poder ampliar el plazo de un préstamo desde la app.</div>
+<div class="ai">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<span class="tag"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px;"><path d="M10.5 13.5a2.5 2.5 0 1 0 3-3 M13.5 13.5l2 2"></path></svg>Búsqueda en Jira por texto · sin IA</span>
+<span>En el proyecto DEMO hay una HU que ya cubre la renovación desde la web. ¿La evolucionamos o creamos una nueva?</span>
+<div class="found">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 22px; height: 22px;"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column;"><b style="font-size: 14px;">DEMO-3, renovar un préstamo</b><span style="font-size: 13px; color: #5C6E7C;">Épica DEMO-1 · 2 criterios y 2 reglas</span></span>
+<button class="sm" style="border: 0; background: #FF7932; color: #233441; font-weight: 700;">Evolucionar DEMO-3</button>
+<button class="sm" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Crear HU nueva</button>
+</div>
+</div>
+</div>
+<div class="me">Evolucionar DEMO-3</div>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<div class="fixed">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="margin-top: 2px; color: #B23E00;"><path d="M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 2px;"><b>Operación fijada: evolucionar DEMO-3</b><span style="color: #5C6E7C;">No cambia durante la conversación; es lo único que se podrá aprobar y publicar.</span></span>
+</div>
+<span>He preparado el contexto. Revisa las fuentes en el panel, añade restricciones si las hay y genera cuando quieras.</span>
+</div>
+</div>
+</div>
+</div>
+<div style="display: flex; justify-content: center; padding: 12px 28px 20px;">
+<div class="composer" style="width: 100%; max-width: 640px; border: 1px solid #93A0AB; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; flex-direction: column; gap: 4px;">
+<label for="m1" style="position: absolute; left: -9999px;">Añade detalles</label>
+<textarea id="m1" rows="1" placeholder="Añade detalles a la necesidad (opcional)" style="border: 0; resize: none; font: inherit; font-size: 15px; line-height: 1.5; color: #233441;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button class="tool"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg>Elegir en Jira</button>
+<span style="flex-grow: 1;"></span>
+<button aria-label="Enviar" style="width: 36px; height: 36px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; display: flex; align-items: center; justify-content: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6 M7 11l5-5 5 5"></path></svg></button>
+</div>
+</div>
+</div>
+</main>
+<aside class="panel" aria-labelledby="ctx-t" style="width: 420px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<h2 id="ctx-t" style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Antes de generar</h2>
+<button class="ic" aria-label="Plegar panel"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M14 3v18"></path></svg></button>
+</div>
+<div style="flex-grow: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid #E6EAEE; border-radius: 12px 12px 4px 12px; background: #FFFFFF;">
+<div style="display: flex; align-items: center;"><span style="font-size: 12px; font-weight: 700; color: #5C6E7C; flex-grow: 1;">Operación</span><button class="edit">Cambiar</button></div>
+<span style="font-size: 14px; font-weight: 600;">Evolucionar DEMO-3 · Renovar un préstamo</span>
+<span style="font-size: 12px; color: #5C6E7C;">Se puede cambiar solo antes de generar.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="rx" style="font-size: 12px; font-weight: 700; color: #5C6E7C;">Restricciones (opcional)</label>
+<textarea id="rx" rows="2" style="border: 1px solid #93A0AB; border-radius: 8px; padding: 8px 10px; resize: none; font: inherit; font-size: 14px; color: #233441; background: #FFFFFF;">Mismas reglas que en la web.</textarea>
+</div>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 2px;">
+<legend style="font-size: 12px; font-weight: 700; color: #5C6E7C; padding: 0 0 6px;">Fuentes que se usarán</legend>
+<label class="src"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Reglamento de préstamo</span><span class="code">DOC-01 · Políticas y reglas operativas</span></span></label>
+<label class="src"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Especificación del préstamo digital</span><span class="code">DOC-08 · Documentación funcional</span></span></label>
+<label class="src"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>HU de origen: renovar un préstamo</span><span class="code">DEMO-3 · Jira</span></span></label>
+<label class="src"><input type="checkbox"><span style="display: flex; flex-direction: column;"><span>Acta de abril</span><span class="code">DOC-20 · No influirá en la propuesta</span></span></label>
+<label class="src"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Memoria validada de reservas</span><span class="code">DEMO-2 · Memoria, prioritaria</span></span></label>
+</fieldset>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="font-weight: 500;">Contexto</span><span>3.150 de 6.000 tokens</span></div>
+<div role="progressbar" aria-valuenow="53" aria-valuemin="0" aria-valuemax="100" aria-label="Contexto usado" style="height: 8px; background: #E6EAEE; border-radius: 4px; overflow: hidden;"><div style="height: 8px; width: 53%; background: #FF7932;"></div></div>
+</div>
+</div>
+<div style="padding: 16px 20px; border-top: 1px solid #E6EAEE; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF;">
+<a href="MixtoGenerando.dc.html" style="height: 44px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none;">Generar propuesta</a>
+<span style="font-size: 12px; color: #5C6E7C; text-align: center;">Una llamada al modelo. Después itera conversando.</span>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+}
+}
+</script>
+</body>
+</html>

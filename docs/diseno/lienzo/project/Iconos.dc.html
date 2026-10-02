@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Iconos</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</helmet>
+<div style="width: 1280px; height: 560px; box-sizing: border-box; padding: 40px; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700;">Iconos</h1>
+<p style="margin: 0; font-size: 15px; color: #5C6E7C; max-width: 760px;">Trazo de 1,75 px sobre una baldosa con tres esquinas redondeadas y una recta, la misma geometría que la Q del logo. Heredan el color del texto; el naranja solo marca la zona activa.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px;">
+<sc-for list="{{icons}}" as="ic" hint-placeholder-count="12">
+<div style="border: 1px solid #E6EAEE; border-radius: 16px 16px 4px 16px; padding: 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="{{ic.style}}"><path d="{{ic.d}}"></path></svg>
+<span style="font-size: 13px; font-weight: 600;">{{ic.name}}</span>
+<span style="font-size: 12px; color: #5C6E7C; text-align: center;">{{ic.use}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 12px; align-items: center; background: #1E2D3D; border-radius: 16px; padding: 14px 18px; color: #C9D2DB; font-size: 13px;">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; color: #FF7932;"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg>
+<span style="color: #FFFFFF; font-weight: 700;">Sobre navy</span>
+<span>gris claro en reposo, blanco al pasar el ratón y naranja en la zona activa.</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":560}}'>
+class Component extends DCLogic {
+renderVals() {
+const t = 'M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z';
+const icons = [
+{ name: 'Trabajo', use: 'Zona de trabajo', d: t + ' M8 10h8 M8 14h5' },
+{ name: 'Historial', use: 'Artefactos y memorias', d: t + ' M12 8v4l2.5 2' },
+{ name: 'Ajustes', use: 'Solo administración', d: t + ' M8 10h8 M8 14h8 M10.5 8.5v3 M13.5 12.5v3' },
+{ name: 'Nuevo', use: 'Necesidad nueva', d: t + ' M12 8.5v7 M8.5 12h7' },
+{ name: 'Modelo', use: 'Menú de modelo', d: t + ' M9.5 9.5h5v5h-5z' },
+{ name: 'Buscar fuente', use: 'Pedir fuente', d: t + ' M10.5 13.5a2.5 2.5 0 1 0 3-3 M13.5 13.5l2 2' },
+{ name: 'Incorrecto', use: 'Comentar un elemento', d: t + ' M9.5 9.5l5 5 M14.5 9.5l-5 5' },
+{ name: 'Aviso', use: 'Límite o sin respaldo', d: t + ' M12 8v5 M12 16v.01' },
+{ name: 'Subir', use: 'Añadir documentos', d: t + ' M12 15.5v-7 M8.5 12l3.5-3.5 3.5 3.5' },
+{ name: 'Hecho', use: 'Paso completado', d: 'M6 12.5l4 4 8-9', style: 'color: #1E7A46;' },
+{ name: 'Enviar', use: 'Mensaje al asistente', d: 'M5 12h13 M13 7l5 5-5 5' },
+{ name: 'Salir', use: 'Cerrar sesión', d: 'M12 21H9a6 6 0 0 1-6-6V9a6 6 0 0 1 6-6h3 M16 8l4 4-4 4 M20 12H10' },
+];
+return { icons: icons.map((i) => ({ style: '', ...i })) };
+}
+}
+</script>
+</body>
+</html>

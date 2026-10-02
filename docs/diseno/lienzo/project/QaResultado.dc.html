@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>QA, resultado de la publicación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6}
+.event{align-self:center;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:#F4F6F8;font-size:13px;color:#5C6E7C}
+.op{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid #E6EAEE;border-radius:10px;background:#FFFFFF;font-size:14px}
+.op.fail{border-color:#F1B8B2;background:#FDECEA}
+.btn{height:44px;padding:0 16px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@keyframes phsim{from{transform:translateY(163px)}to{transform:translateY(81.5px)}}
+@keyframes phreal{from{transform:translateY(81.5px)}to{transform:translateY(0)}}
+.phsim{animation:phsim .42s cubic-bezier(.2,.7,.2,1) .25s both}
+.phreal{animation:phreal .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes fillq{from{transform:translateY(326px)}to{transform:translateY(0)}}
+.qfull{animation:fillq 1.2s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fillpart{from{transform:translateY(326px)}to{transform:translateY(65px)}}
+.qpart{animation:fillpart 1.2s cubic-bezier(.2,.7,.2,1) both}
+.qsim{transform:translateY(81.5px)}
+.d1{animation-delay:.3s}.d2{animation-delay:.4s}.d3{animation-delay:.5s}.d4{animation-delay:.6s}.d5{animation-delay:.7s}.d6{animation-delay:.8s}.d7{animation-delay:.9s}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="qa" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Pruebas de DEMO-3</h1>
+<div role="img" aria-label="{{phaseText}}" style="display: flex; align-items: center; gap: 8px; margin-right: 6px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="qph-5"><rect class="{{phCls}}" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#qph-5)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">{{phaseText}}</b></span></div>
+<span style="{{badgeStyle}}">{{badge}}</span>
+</header>
+<sc-if value="{{sim}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="padding: 10px 20px; background: #FFF8E6; border-bottom: 1px solid #F0D48A; font-size: 14px; color: #6B4A00; display: flex; gap: 8px; align-items: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5 M12 16h.01 M12 3l9 16H3z"></path></svg>Modo de prueba activo: el agente no escribe en Jira.</div>
+</sc-if>
+<div style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 28px 0;">
+<div style="width: 100%; max-width: 700px; display: flex; flex-direction: column; gap: 16px;">
+<span class="event"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px;"><path d="M6 12.5l4 4 8-9"></path></svg>Suite versión 2 aprobada por qa-demo a las 11:24</span>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<div style="display: flex; align-items: center; gap: 14px;"><svg viewBox="0 0 326 326" width="56" height="56" aria-hidden="true"><defs><clipPath id="qbig"><rect class="{{bigCls}}" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#qbig)"></path></svg><span style="display: flex; flex-direction: column;"><h2 style="margin: 0; font-size: 20px; font-weight: 700;">{{title}}</h2><span style="font-size: 14px; color: #5C6E7C;">{{lead}}</span></span></div>
+<div role="list" aria-label="Operaciones en Jira" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+<sc-for list="{{ops}}" as="o" hint-placeholder-count="7">
+<div class="{{o.cls}}" role="listitem"><span aria-hidden="true" style="{{o.markStyle}}">{{o.mark}}</span><span style="display: flex; flex-direction: column;"><b>{{o.label}}</b><span style="font-size: 12px; color: #5C6E7C;">{{o.detail}}</span></span></div>
+</sc-for>
+</div>
+<span style="font-size: 14px; color: #5C6E7C;">{{note}}</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<sc-if value="{{partial}}" hint-placeholder-val="{{ false }}"><button class="btn" style="border: 0; background: #FF7932; color: #233441; font-weight: 700;">Reintentar solo CP-05</button></sc-if>
+<sc-if value="{{live}}" hint-placeholder-val="{{ false }}"><a href="QaEjecucion.dc.html" class="btn" style="border: 0; background: #FF7932; color: #233441; font-weight: 700;">Registrar la ejecución</a><button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Abrir DEMO-3 en Jira</button></sc-if>
+<sc-if value="{{sim}}" hint-placeholder-val="{{ false }}"><button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Ver el registro de auditoría</button></sc-if>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"modo":{"editor":"enum","options":["real","parcial","simulacion"],"default":"real"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+const modo = this.props.modo ?? 'real';
+const sim = modo === 'simulacion';
+const partial = modo === 'parcial';
+const base = [
+{ label: 'CP-01 · Renovar sin reservas', key: 'DEMO-21' },
+{ label: 'CP-02 · Rechazo con reserva', key: 'DEMO-22' },
+{ label: 'CP-03 · Tercera renovación', key: 'DEMO-23' },
+{ label: 'CP-04 · Desde la app', key: 'DEMO-24' },
+{ label: 'CP-05 · Aviso tras renovar', key: 'DEMO-25' },
+{ label: 'estrategia-DEMO-3.md', key: 'Adjunto' },
+{ label: 'matriz-DEMO-3.md', key: 'Adjunto' },
+];
+const markBase = 'width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; box-sizing: border-box; ';
+const ops = base.map((o, i) => {
+const failed = partial && i === 4;
+return {
+label: o.label,
+detail: sim ? (i < 5 ? 'Subtarea con «caso-prueba»' : 'Adjunto en DEMO-3') : failed ? 'Jira no respondió; no se creó' : (i < 5 ? o.key + ' creada' : 'Adjuntado en DEMO-3'),
+cls: (failed ? 'op fail' : 'op') + ' rise d' + (i + 1),
+mark: sim ? String(i + 1) : failed ? '!' : '✓',
+markStyle: markBase + (sim ? 'background: #FFFFFF; color: #5C6E7C; border: 1.5px solid #C7CFD6;' : failed ? 'background: #C9453C; color: #FFFFFF;' : 'background: #FF7932; color: #233441;'),
+};
+});
+const badgeBase = 'font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 8px; ';
+return {
+sim, partial, live: modo === 'real',
+ops,
+phCls: sim || partial ? 'phsim' : 'phreal',
+bigCls: sim ? 'qsim' : partial ? 'qpart' : 'qfull',
+phaseText: sim || partial ? 'Fase 3 de 4 · Aprobada' : 'Fase 4 de 4 · Publicado',
+badge: sim ? 'Aprobada · simulada' : partial ? 'Publicada en parte' : 'Publicada',
+badgeStyle: badgeBase + (sim ? 'background: #FFF8E6; color: #6B4A00;' : partial ? 'background: #FDECEA; color: #8C1D18;' : 'background: #FFF3EC; color: #B23E00;'),
+title: sim ? 'Publicación simulada' : partial ? 'Publicada en parte' : 'Suite publicada en Jira',
+lead: sim ? 'No se ha escrito nada; esto es lo que se habría hecho.' : partial ? '6 de 7 operaciones hechas · falló CP-05' : '5 subtareas y 2 adjuntos en DEMO-3',
+note: sim ? 'La aprobación sigue vigente para publicar cuando se active el modo real.' : partial ? 'Lo creado se mantiene. El reintento solo publica CP-05 y no duplica las subtareas que ya existen (RNF-13).' : 'Los casos ya están en Jira como subtareas de DEMO-3. Cuando ejecutes las pruebas, registra aquí el resultado.',
+q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z',
+};
+}
+}
+</script>
+</body>
+</html>

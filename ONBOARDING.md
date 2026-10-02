@@ -134,7 +134,7 @@ Python 3.12 · uv · LangGraph · SDK de OpenAI (proveedores compatibles: Ollama
 - la v1.1: T-39 a T-46 (Langfuse, lenguaje natural a JQL, ingesta automática, evaluación ampliada…).
 
 ## 7. Puesta en marcha
-**Requisito imprescindible:** poder ejecutar Python, `uv` y Docker en tu equipo. Sin pruebas ni `ruff` no se puede cerrar ninguna tarea.
+**Para el backend** (y para ejecutar la app completa) hace falta poder ejecutar Python, `uv` y Docker. **Para el frontend en React basta Node.js** y la API simulada (§8).
 
 ```bash
 git clone <repositorio> && cd agente-af-qa
@@ -151,58 +151,55 @@ uv run python -m core.seed_users          # usuarios de demo; las contraseñas s
 uv run streamlit run app/main.py
 ```
 
-## 8. Tu rol: responsable de producto y UI (área B)
-No entras como una línea más: **eres el dueño del área B, «Conocimiento y UI»**, la parte con más trabajo pendiente hasta la demo `v1.0`. Decides y entregas lo de tu área sin pedir permiso. La sesión principal mantiene el núcleo y los contratos, e integra.
+## 8. Tu rol: responsable de producto y frontend (área B)
+No entras como una línea más: **eres el dueño del área B, «Conocimiento y UI»**, y tu entrega principal hasta la demo es **el frontend propio en React (T-56)**. Tiene que verse como el lienzo «Propuesta mixta» (decisión del 2 de octubre: D-04 revisada).
 
 ### Qué es tuyo
 | Ámbito | Carpetas |
 |---|---|
-| **UI completa** («Propuesta mixta») | `app/`, `.streamlit/`, `docs/specs/UI.md`, `tests/unit/test_app_*.py` |
-| **Conocimiento (RAG)** | `adapters/embeddings/`, `adapters/vectorstore/`, `core/rag/`, `data/seed/corpus/` |
-| **Generación funcional, QA y memoria** | `core/functional/`, `core/qa/`, `core/memory/` |
+| **Frontend en React** (T-56) | `web/` (nuevo), `docs/specs/UI.md`, `docs/diseno/` |
+| **Conocimiento (RAG)**, cuando tengas Python | `adapters/embeddings/`, `adapters/vectorstore/`, `core/rag/`, `data/seed/corpus/` |
+| **Generación funcional, QA y memoria**, cuando tengas Python | `core/functional/`, `core/qa/`, `core/memory/` |
 | **Evaluación** | `eval/` |
 | **Prompts** | `prompts/`, compartida: avisa a la principal antes de cambiar un prompt que use el grafo |
 
-**Tareas del Kanban a tu cargo:**
-- T-31 (recibo de aprobación y resultado);
-- la pantalla de revisar la calidad (parte de UI de T-48);
-- T-28 (pantallas de QA);
-- la pestaña Memoria (cierre de T-33);
-- T-29 (Administración);
-- PA-70 y T-44 (evaluación);
-- y, en la v1.1, T-42, T-43 y T-45.
+**La UI en Streamlit (`app/`)** queda como **plan B**: la sigue una sesión de Claude Code (`ses-ui`, con T-31, revisar la calidad, T-28 y Memoria) hasta el punto de control **T-57**, en el que se decide con qué se hace la demo. Tú la supervisas como responsable de la UI.
 
 ### Qué sigue siendo de la sesión principal
 - **Contratos:** `schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`, `core/container.py`, `core/factories.py` y la SPEC.
 - **El grafo** (`core/graph/`), las aprobaciones y la auditoría.
 - **Jira:** el adaptador, `adapters/testmgmt/` y el modo `live`.
-- **El LLM** (`adapters/llm/`, T-32).
+- **El LLM** (`adapters/llm/`).
+- **La API HTTP para tu frontend (T-55):** el contrato OpenAPI y la API simulada primero, y después la API real.
+- **El flujo unido HU → QA (T-54).**
 - **La integración final en `PreProduccion`.**
 
-Si necesitas un cambio ahí, lo propones con una `PA` y una descripción del cambio, y la principal lo hace o lo autoriza.
+Si necesitas un cambio en el contrato de la API, lo propones con una `PA` y la principal lo incorpora.
+
+### Entorno: empiezas sin Python ni Docker
+- **Para el frontend te basta con Node.js (LTS) y Git.** Trabajas contra la **API simulada** que genera el contrato `docs/api/openapi.yaml` (T-55, lo deja la principal el primer día).
+- Hasta que esté el contrato, empieza por el **sistema de diseño**: colores, tipografía DM Sans, el carril, la barra de conversaciones, la Q animada y los estados. Todo está en `docs/diseno/lienzo/project/*.dc.html` y en el lienzo (https://claude.ai/artifact/PK7Mfx3z357t1x7e2hsSbB, página «Propuesta mixta»).
+- **Python, `uv` y Docker** te harán falta para la integración con la API real y para el resto del área B. Mientras tanto, la principal ejecuta las pruebas de la integración.
 
 ### Cómo trabajas
-- **Rama:** la tuya es `area-b`, creada desde `PreProduccion`. Dentro, puedes tener ramas o worktrees por tarea si te sirve.
-- **Tus sesiones de Claude Code:** diriges tus propias sesiones con el flujo `/tarea` y los subagentes `test-writer`, `spec-checker` y `security-reviewer`. Tu prompt de arranque es `docs/prompts/RESPONSABLE-AREA-B.md`.
-  - La sesión UI que hay ahora (`ses-ui`) **pasa a ser tuya**: recógela en el punto en que esté.
-- **Tú haces la primera revisión de tu área**, con las pruebas y los dos revisores. Cuando una entrega está lista, haces `git push origin area-b` y avisas; la principal solo valida la fusión con `PreProduccion` (pruebas sobre la fusión) e integra.
+- **Rama:** la tuya es `area-b`, creada desde `PreProduccion`.
+- **Tus sesiones de Claude Code:** las diriges tú, con el flujo `/tarea` y los revisores (`spec-checker` y `security-reviewer`). Tu prompt de arranque es `docs/prompts/RESPONSABLE-AREA-B.md`.
+- **Pruebas del frontend:** Vitest y Testing Library para los componentes, y un `lint` y un `build` sin errores antes de cada entrega.
+- **Entregas:** `git push origin area-b` y avisas. La principal valida la fusión e integra.
 - **Kanban:**
-  - mueves el estado de tus tareas;
+  - mueves tus tareas;
   - añades tu fila al registro diario;
-  - tus propuestas se numeran **PA-300…PA-399**;
-  - el tablero resumen lo actualiza la principal al integrar.
-- **Ritmo:** una sincronización diaria con la principal. Repasáis lo entregado, lo bloqueado y los cambios de contrato que necesites.
+  - tus propuestas se numeran **PA-300…PA-399**.
+- **Ritmo:** una sincronización diaria con la principal.
 
-### Primeros pasos
-1. **Días 1 y 2 · arranque:** entorno con las pruebas en verde (§7), una demo de la app con los modelos locales y lectura de `CLAUDE.md`, la SPEC (anexo §11) y `docs/specs/UI.md`.
-2. **Día 3 · recoger la UI:** revisa lo que haya entregado `ses-ui` (T-31 o lo que lleve) y sigue en este orden:
-   1. T-31;
-   2. la pantalla de revisar la calidad;
-   3. T-28;
-   4. la pestaña Memoria;
-   5. T-29.
-3. **En paralelo, cuando tengas hueco:** PA-70 y T-44 (evaluación), y las propuestas de tu área en el Kanban (PA-150…PA-199 de la sesión UI y PA-250…PA-299 de memoria).
-4. **Hacia la `v1.0`:** con la UI cerrada, prepara con la principal la demo (T-36) y la prueba cruzada del área A (T-35).
+### Plan de la ronda (≈10 días)
+| Días | Tú (React) | Principal |
+|---|---|---|
+| 1 | Proyecto `web/` (Vite, React y TypeScript), sistema de diseño, carril y barra de conversaciones | Contrato `docs/api/openapi.yaml` y API simulada |
+| 2–4 | Inicio, Elegir en Jira, Origen y fuentes, Generando, Iterar con la propuesta, contra la API simulada | Flujo unido HU → QA (T-54) y API real (T-55) |
+| **5** | **Punto de control T-57**: demo interna de lo hecho | **¿React o Streamlit para la demo?** |
+| 6–8 | Recibo y resultado, revisar la calidad, flujo de QA (con «Preparar pruebas» desde la HU aprobada) e integración con la API real | API real, seguridad (sesión, CORS) y pruebas sobre la fusión |
+| 9–10 | Pulido, accesibilidad y ensayo de la demo | Ensayo de la demo y `v1.0` (T-36) |
 
 ## 9. Documentos de referencia
 | Documento | Para qué |
@@ -215,3 +212,5 @@ Si necesitas un cambio ahí, lo propones con una `PA` y una descripción del cam
 | `docs/arquitectura.md`, `docs/arquitectura-c4.md` | Diagramas de arquitectura |
 | `docs/prompts/SESION-*.md` | Prompts de arranque de las sesiones en paralelo |
 | `docs/prompts/RESPONSABLE-AREA-B.md` | Tu prompt de arranque como responsable del área B |
+| `docs/diseno/lienzo/` | Las pantallas del lienzo «Propuesta mixta» (HTML y CSS de referencia para React) |
+| `docs/api/openapi.yaml` | Contrato de la API para el frontend (T-55) |

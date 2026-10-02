@@ -1,0 +1,586 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Administracion.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Administración (admin)",
+      "w": 1280,
+      "x": 4080,
+      "y": 1150
+    },
+    "AdministracionV2.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Ajustes (solo administrador)",
+      "w": 1280,
+      "x": 4080,
+      "y": 1150
+    },
+    "Animaciones.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "v2",
+      "title": "Animaciones (interactivo)",
+      "w": 1280,
+      "x": 0,
+      "y": 2300
+    },
+    "Brief.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Componente · panel lo que sé hasta ahora",
+      "w": 400,
+      "x": 1440,
+      "y": 3450
+    },
+    "Contexto.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Contexto · elección del origen",
+      "w": 1280,
+      "x": 1360,
+      "y": 0
+    },
+    "ContextoB.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Propuesta · Contexto con entrada guiada",
+      "w": 1280,
+      "x": 0,
+      "y": 4600
+    },
+    "ConvConfirmar.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Asistente 3 · Propuesta en el panel de artefacto",
+      "w": 1280,
+      "x": 2720,
+      "y": 4600
+    },
+    "ConvInicio.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Asistente 1 · Inicio centrado en escribir",
+      "w": 1280,
+      "x": 0,
+      "y": 4600
+    },
+    "ConvRecabando.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Asistente 2 · Recaba los datos (panel de lo que sé)",
+      "w": 1280,
+      "x": 1360,
+      "y": 4600
+    },
+    "Estados.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Estados vacío, cargando y error",
+      "w": 1280,
+      "x": 2720,
+      "y": 2300
+    },
+    "Historia.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Historia · generación y chat",
+      "w": 1280,
+      "x": 2720,
+      "y": 0
+    },
+    "HistoriaB.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Propuesta · Historia con asistente colaborativo",
+      "w": 1280,
+      "x": 1360,
+      "y": 4600
+    },
+    "Historial.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Historial",
+      "w": 1280,
+      "x": 2720,
+      "y": 1150
+    },
+    "Iconos.dc.html": {
+      "h": 560,
+      "page": "v2",
+      "title": "Iconos",
+      "w": 1280,
+      "x": 1360,
+      "y": 2300
+    },
+    "Main.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Login",
+      "w": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "Memoria.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Memoria",
+      "w": 1280,
+      "x": 2720,
+      "y": 1150
+    },
+    "MixtoElegirJira.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "Mixta 1b · Elegir en Jira: proyecto, épica y HU",
+      "w": 1280,
+      "x": 1360,
+      "y": 0
+    },
+    "MixtoGenerando.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "Mixta 2b · Generando: la Q se llena por procesos (interactivo)",
+      "w": 1280,
+      "x": 4080,
+      "y": 0
+    },
+    "MixtoInicio.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "Mixta 1 · Elegir flujo, proyecto y origen (interactivo)",
+      "w": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "MixtoIterar.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "Mixta 3 · Iterar conversando (versión nueva animada)",
+      "w": 1280,
+      "x": 5440,
+      "y": 0
+    },
+    "MixtoOrigen.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "Mixta 2 · Origen fijado y fuentes (sin IA)",
+      "w": 1280,
+      "x": 2720,
+      "y": 0
+    },
+    "MixtoPublicado.dc.html": {
+      "h": 800,
+      "page": "mixta",
+      "title": "Mixta 4 · Resultado: la Q se completa al publicar (tweak «modo»)",
+      "w": 1280,
+      "x": 0,
+      "y": 1150
+    },
+    "MixtoRevisar.dc.html": {
+      "h": 800,
+      "page": "mixta",
+      "title": "Mixta 5 · Revisar la calidad (flujo propio)",
+      "w": 1280,
+      "x": 1360,
+      "y": 1150
+    },
+    "QA.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "QA · casos y cobertura",
+      "w": 1280,
+      "x": 1360,
+      "y": 1150
+    },
+    "QaEjecucion.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 6 · Registrar la ejecución (R-01, opción A) (interactivo)",
+      "w": 1280,
+      "x": 0,
+      "y": 3450
+    },
+    "QaGenerando.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 2 · Generando la suite: la Q por procesos (interactivo)",
+      "w": 1280,
+      "x": 1360,
+      "y": 2300
+    },
+    "QaIterar.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 3 · Iterar la suite: casos, cobertura, datos y estrategia (interactivo)",
+      "w": 1280,
+      "x": 2720,
+      "y": 2300
+    },
+    "QaOrigen.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 1 · HU de origen, tipos de caso y fuentes",
+      "w": 1280,
+      "x": 0,
+      "y": 2300
+    },
+    "QaRecibo.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 4 · Recibo: subtareas y adjuntos (interactivo)",
+      "w": 1280,
+      "x": 4080,
+      "y": 2300
+    },
+    "QaResultado.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "mixta",
+      "title": "QA 5 · Resultado (tweak «modo»: real, parcial o simulación)",
+      "w": 1280,
+      "x": 5440,
+      "y": 2300
+    },
+    "Rail.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Componente · carril",
+      "w": 88,
+      "x": 0,
+      "y": 3450
+    },
+    "Revision.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Revisión y publicación",
+      "w": 1280,
+      "x": 0,
+      "y": 1150
+    },
+    "RevisionB.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Propuesta · Revisión como recibo",
+      "w": 1280,
+      "x": 2720,
+      "y": 4600
+    },
+    "RolDesactivado.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Opción B · pestañas desactivadas (rol QA)",
+      "w": 1280,
+      "x": 1360,
+      "y": 2300
+    },
+    "RolOculto.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Opción A · pestañas ocultas (rol QA)",
+      "w": 1280,
+      "x": 0,
+      "y": 2300
+    },
+    "Sidebar.dc.html": {
+      "h": 800,
+      "page": "archivo",
+      "title": "Componente · barra lateral",
+      "w": 260,
+      "x": 1360,
+      "y": 3450
+    },
+    "Stepper.dc.html": {
+      "h": 64,
+      "page": "v2",
+      "title": "Componente · avance con la Q",
+      "w": 1192,
+      "x": 168,
+      "y": 3450
+    },
+    "TrabajoContexto.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Trabajo 1 · Contexto",
+      "w": 1280,
+      "x": 1360,
+      "y": 0
+    },
+    "TrabajoGenerar.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Trabajo 2 · Generar (analista)",
+      "w": 1280,
+      "x": 2720,
+      "y": 0
+    },
+    "TrabajoGenerarQA.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Trabajo 2 · Generar (QA)",
+      "w": 1280,
+      "x": 4080,
+      "y": 0
+    },
+    "TrabajoPublicado.dc.html": {
+      "h": 800,
+      "page": "v2",
+      "title": "Trabajo 4 · Publicado",
+      "w": 1280,
+      "x": 1360,
+      "y": 1150
+    },
+    "TrabajoRevision.dc.html": {
+      "h": 800,
+      "is_interactive": true,
+      "page": "v2",
+      "title": "Trabajo 3 · Revisión (recibo)",
+      "w": 1280,
+      "x": 0,
+      "y": 1150
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-30T20:30:00Z",
+    "v": 1
+  },
+  "designSystems": [
+    {
+      "artifact": "https://claude.ai/artifact/38dWSnG7Uz4QFKYKFasiPz",
+      "copiedAt": "2026-09-30T21:00:00Z",
+      "namespace": "qaracter",
+      "title": "Qaracter Design System",
+      "version": "1789682224-ce69"
+    },
+    {
+      "artifact": "https://claude.ai/artifact/3T4eebQuRMK15nM6nkUZEz",
+      "copiedAt": "2026-09-30T21:10:00Z",
+      "namespace": "qaracter-frm",
+      "title": "Qaracter design FRM",
+      "version": "1790710976-e137"
+    }
+  ],
+  "launch": {
+    "page": "mixta",
+    "view": "canvas"
+  },
+  "notes": {
+    "m1": {
+      "kind": "title1",
+      "maxW": 6720,
+      "page": "mixta",
+      "text": "Asistente con arranque guiado: elegir, fijar el origen, iterar conversando",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "m2": {
+      "kind": "title1",
+      "maxW": 2640,
+      "page": "mixta",
+      "text": "Resultado de la publicación y flujo Revisar la calidad",
+      "w": 240,
+      "x": 0,
+      "y": 890
+    },
+    "m3": {
+      "fill": "orange",
+      "maxH": 800,
+      "page": "mixta",
+      "size": 24,
+      "text": "Qué cambia frente a la variante conversacional\n\n1. El modelo no hace preguntas para recoger datos: se elige el flujo (tarjetas) y el origen (selector de Jira o clave escrita).\n2. La HU parecida se busca en Jira por texto, sin IA: cero cuota.\n3. La operación queda fijada antes de generar; es lo único que se podrá aprobar.\n4. Las fuentes se pueden desmarcar antes de generar.\n5. La conversación sirve para iterar la propuesta y preguntar.\n6. El resultado distingue publicación simulada y real (tweak «modo»).\n7. Revisar la calidad es un flujo propio que no publica.\n8. El proyecto se elige al empezar cada conversación (todos los que ve la conexión) y queda fijo en ella; una clave de otro proyecto lo cambia sola.\n9. Animaciones de la v2: la Q de fase en la cabecera sube un cuarto por fase, la Q de carga se llena por procesos, la versión nueva entra escalonada con el cambio resaltado y la Q se completa al publicar.\n\nSe mantienen de la Propuesta v2: Trabajo 3 · Revisión (recibo), Generar (QA), Historial, Ajustes y Estados.",
+      "w": 600,
+      "x": 2720,
+      "y": 1150
+    },
+    "q1": {
+      "kind": "title1",
+      "maxW": 6720,
+      "page": "mixta",
+      "text": "Flujo de QA: elegir la HU, generar la suite, iterar, aprobar y publicar",
+      "w": 240,
+      "x": 0,
+      "y": 2040
+    },
+    "q2": {
+      "kind": "title1",
+      "maxW": 2640,
+      "page": "mixta",
+      "text": "Registro de la ejecución",
+      "w": 240,
+      "x": 0,
+      "y": 3190
+    },
+    "q3": {
+      "fill": "blue",
+      "maxH": 800,
+      "page": "mixta",
+      "size": 24,
+      "text": "Flujo de QA (rol QA)\n\n1. Se entra por «Preparar pruebas» en Mixta 1 (tweak «rol» = qa) y se parte de una HU de Jira, normalmente publicada por el agente.\n2. Antes de generar se eligen los tipos de caso, los extras (datos, riesgos y estrategia) y las fuentes.\n3. La suite se valida sola: cada CP referencia CA y RN que existen y todo CA tiene al menos un CP; si no, no se puede aprobar.\n4. Panel con pestañas: casos con su Gherkin, matriz de cobertura, datos sintéticos y riesgos, y estrategia (= plan de pruebas).\n5. El recibo muestra lo que se hará en Jira: subtareas con la etiqueta «caso-prueba» y la estrategia y la matriz como adjuntos.\n6. Si una subtarea falla, lo creado se mantiene y se reintenta solo la fallida (RNF-13).\n7. La ejecución la registra la persona de QA (Pasó, Falló, Bloqueado) con evidencia; también pasa por aprobación antes de escribir en Jira. Los defectos quedan para la v2.0.",
+      "w": 600,
+      "x": 1360,
+      "y": 3450
+    },
+    "t1": {
+      "kind": "title1",
+      "maxW": 4000,
+      "page": "archivo",
+      "text": "1 · Flujo del analista funcional",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 5360,
+      "page": "archivo",
+      "text": "2 · Revisión, QA, memoria y administración",
+      "w": 240,
+      "x": 0,
+      "y": 890
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 2640,
+      "page": "archivo",
+      "text": "3 · Decisión: ¿ocultar o desactivar lo que el rol no puede usar?",
+      "w": 240,
+      "x": 0,
+      "y": 2040
+    },
+    "t4": {
+      "kind": "title1",
+      "maxW": 2720,
+      "page": "archivo",
+      "text": "4 · Componentes de la v1",
+      "w": 240,
+      "x": 0,
+      "y": 3190
+    },
+    "t5": {
+      "kind": "title1",
+      "maxW": 4000,
+      "page": "archivo",
+      "text": "5 · Propuesta recomendada: aprobar con recibo + asistente colaborativo + identidad Qaracter",
+      "w": 240,
+      "x": 0,
+      "y": 4340
+    },
+    "v1": {
+      "kind": "title1",
+      "maxW": 5360,
+      "page": "v2",
+      "text": "Trabajo: contexto y generación",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "v2": {
+      "kind": "title1",
+      "maxW": 5360,
+      "page": "v2",
+      "text": "Revisión, publicación, historial y ajustes",
+      "w": 240,
+      "x": 0,
+      "y": 890
+    },
+    "v3": {
+      "kind": "title1",
+      "maxW": 4000,
+      "page": "v2",
+      "text": "Animaciones, iconos y estados",
+      "w": 240,
+      "x": 0,
+      "y": 2040
+    },
+    "v4": {
+      "kind": "title1",
+      "maxW": 1880,
+      "page": "v2",
+      "text": "Componentes",
+      "w": 240,
+      "x": 0,
+      "y": 3190
+    },
+    "v5": {
+      "kind": "title1",
+      "maxW": 4000,
+      "page": "v2",
+      "text": "Variante conversacional: pantalla de asistente (conversación + panel de artefacto)",
+      "w": 240,
+      "x": 0,
+      "y": 4340
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "TrabajoContexto.dc.html",
+    "TrabajoGenerar.dc.html",
+    "TrabajoGenerarQA.dc.html",
+    "TrabajoRevision.dc.html",
+    "TrabajoPublicado.dc.html",
+    "Historial.dc.html",
+    "AdministracionV2.dc.html",
+    "Animaciones.dc.html",
+    "Iconos.dc.html",
+    "Estados.dc.html",
+    "Rail.dc.html",
+    "Stepper.dc.html",
+    "Contexto.dc.html",
+    "Historia.dc.html",
+    "Revision.dc.html",
+    "QA.dc.html",
+    "Memoria.dc.html",
+    "Administracion.dc.html",
+    "RolOculto.dc.html",
+    "RolDesactivado.dc.html",
+    "Sidebar.dc.html",
+    "ContextoB.dc.html",
+    "HistoriaB.dc.html",
+    "RevisionB.dc.html",
+    "ConvInicio.dc.html",
+    "ConvRecabando.dc.html",
+    "ConvConfirmar.dc.html",
+    "Brief.dc.html",
+    "MixtoInicio.dc.html",
+    "MixtoElegirJira.dc.html",
+    "MixtoOrigen.dc.html",
+    "MixtoGenerando.dc.html",
+    "MixtoIterar.dc.html",
+    "MixtoPublicado.dc.html",
+    "MixtoRevisar.dc.html",
+    "QaOrigen.dc.html",
+    "QaGenerando.dc.html",
+    "QaIterar.dc.html",
+    "QaRecibo.dc.html",
+    "QaResultado.dc.html",
+    "QaEjecucion.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "mixta",
+      "name": "Propuesta mixta"
+    },
+    {
+      "id": "v2",
+      "name": "Propuesta v2"
+    },
+    {
+      "id": "archivo",
+      "name": "Archivo v1"
+    }
+  ],
+  "title": "Rediseño UI del agente AF y QA"
+}

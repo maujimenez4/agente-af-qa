@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente mixto, revisar la calidad</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.me{align-self:flex-end;max-width:78%;background:#F4F6F8;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px;line-height:1.55}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.art{display:flex;gap:12px;align-items:center;padding:10px 14px;border:1px solid #FF7932;background:#FFF3EC;border-radius:12px 12px 4px 12px;font:inherit;color:#233441;text-align:left}
+.chip{min-height:40px;padding:8px 14px;border:1px solid #C7CFD6;border-radius:20px;background:#FFFFFF;font:inherit;font-size:14px;color:#233441}
+.chip:hover{border-color:#FF7932;background:#FFF3EC}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.ic:hover{background:#F4F6F8;color:#233441}
+.tool{height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:#5C6E7C;display:inline-flex;align-items:center;gap:6px}
+.inv{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;border:1px solid #E6EAEE;background:#FFFFFF}
+.inv.warn{border-color:#F0D48A;background:#FFF8E6}
+.finding{border:1px solid #E6EAEE;border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:4px;background:#FFFFFF}
+.kind{align-self:flex-start;display:inline-flex;padding:1px 7px;border-radius:6px;font-size:12px;font-weight:700}
+textarea:focus{outline:none}
+.composer:focus-within{border-color:#FF7932;box-shadow:0 0 0 3px #FFF3EC}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Calidad de DEMO-4</h1>
+<span style="font-size: 13px; color: #5C6E7C;">Revisar la calidad · solo lectura</span>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 24px 0;">
+<div style="width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 16px;">
+<div class="me">Revisa la calidad de DEMO-4, aviso de reserva disponible.</div>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<span>He revisado DEMO-4 con INVEST y contra las fuentes. Hay 3 puntos a mejorar. No he cambiado nada en Jira.</span>
+<button class="art"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10.5 13.5a2.5 2.5 0 1 0 3-3 M13.5 13.5l2 2"></path></svg><span style="flex-grow: 1; display: flex; flex-direction: column;"><b style="font-size: 14px;">Informe de calidad de DEMO-4</b><span style="font-size: 13px; color: #5C6E7C;">Abierto en el panel</span></span></button>
+</div>
+</div>
+<div role="group" aria-label="Siguientes pasos" style="padding-left: 40px; display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="chip">Explícame el punto 2</button>
+<button class="chip">¿Qué fuente respalda el CA-01?</button>
+</div>
+</div>
+</div>
+<div style="display: flex; justify-content: center; padding: 12px 24px 20px;">
+<div class="composer" style="width: 100%; max-width: 600px; border: 1px solid #93A0AB; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; flex-direction: column; gap: 4px;">
+<label for="m3" style="position: absolute; left: -9999px;">Pregunta sobre el informe</label>
+<textarea id="m3" rows="1" placeholder="Pregunta sobre el informe" style="border: 0; resize: none; font: inherit; font-size: 15px; line-height: 1.5; color: #233441;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button class="tool"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M9.5 9.5h5v5h-5z"></path></svg>Modelo automático</button>
+<span style="flex-grow: 1;"></span>
+<button aria-label="Enviar" style="width: 36px; height: 36px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; display: flex; align-items: center; justify-content: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6 M7 11l5-5 5 5"></path></svg></button>
+</div>
+</div>
+</div>
+</main>
+<aside aria-labelledby="rep-t" style="width: 480px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<div style="flex-grow: 1; display: flex; flex-direction: column;"><h2 id="rep-t" style="margin: 0; font-size: 15px; font-weight: 700;">Informe de calidad</h2><span style="font-size: 12px; color: #5C6E7C;">DEMO-4 · aviso de reserva disponible</span></div>
+</div>
+<div style="flex-grow: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+<div role="list" aria-label="INVEST" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px;">
+<div class="inv" role="listitem"><b style="font-size: 16px;">I</b><span style="font-size: 11px; color: #5C6E7C;">Independiente</span><span style="font-size: 12px; font-weight: 700; color: #1E7A46;">Bien</span></div>
+<div class="inv" role="listitem"><b style="font-size: 16px;">N</b><span style="font-size: 11px; color: #5C6E7C;">Negociable</span><span style="font-size: 12px; font-weight: 700; color: #1E7A46;">Bien</span></div>
+<div class="inv" role="listitem"><b style="font-size: 16px;">V</b><span style="font-size: 11px; color: #5C6E7C;">Valiosa</span><span style="font-size: 12px; font-weight: 700; color: #1E7A46;">Bien</span></div>
+<div class="inv warn" role="listitem"><b style="font-size: 16px;">E</b><span style="font-size: 11px; color: #6B4A00;">Estimable</span><span style="font-size: 12px; font-weight: 700; color: #6B4A00;">Mejorable</span></div>
+<div class="inv" role="listitem"><b style="font-size: 16px;">S</b><span style="font-size: 11px; color: #5C6E7C;">Pequeña</span><span style="font-size: 12px; font-weight: 700; color: #1E7A46;">Bien</span></div>
+<div class="inv warn" role="listitem"><b style="font-size: 16px;">T</b><span style="font-size: 11px; color: #6B4A00;">Testable</span><span style="font-size: 12px; font-weight: 700; color: #6B4A00;">Mejorable</span></div>
+</div>
+<div class="finding"><span class="kind" style="background: #FFF8E6; color: #6B4A00;">Ambigüedad · CA-02</span><span>«Avisar pronto» no se puede probar.</span><span style="color: #5C6E7C;">Propuesta: avisar en menos de 15 minutos desde que el libro está disponible.</span></div>
+<div class="finding"><span class="kind" style="background: #F4F6F8; color: #5C6E7C;">Hueco · casos de error</span><span>No dice qué pasa si la persona socia no tiene email.</span><span style="color: #5C6E7C;">Propuesta: aviso en la app y en el mostrador como alternativa.</span></div>
+<div class="finding"><span class="kind" style="background: #FDECEA; color: #8C1D18;">Sin fuente · CA-01</span><span>El plazo de recogida de 48 horas no aparece en la normativa.</span><span style="color: #5C6E7C;">Revisar el acta de abril (DOC-20) o confirmarlo con negocio.</span></div>
+</div>
+<div style="padding: 14px 16px; border-top: 1px solid #E6EAEE; background: #FFFFFF; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; gap: 8px;">
+<button style="height: 44px; padding: 0 14px; border: 1px solid #93A0AB; border-radius: 10px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600;">Descargar informe</button>
+<span style="flex-grow: 1;"></span>
+<button style="height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; font: inherit; font-size: 14px; font-weight: 700;">Evolucionar DEMO-4 con esto</button>
+</div>
+<span style="font-size: 12px; color: #5C6E7C;">Este flujo no publica en Jira. Evolucionar abre una conversación nueva con estas mejoras como punto de partida.</span>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+}
+}
+</script>
+</body>
+</html>

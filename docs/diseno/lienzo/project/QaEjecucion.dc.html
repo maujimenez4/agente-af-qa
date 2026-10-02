@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>QA, registro de la ejecución</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.row{display:grid;grid-template-columns:200px minmax(0,1fr) 330px minmax(0,1fr);gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid #E6EAEE;font-size:14px}
+.seg{display:flex;border:1px solid #C7CFD6;border-radius:10px;overflow:hidden}
+.seg button{flex-grow:1;height:36px;border:0;border-right:1px solid #C7CFD6;background:#FFFFFF;font:inherit;font-size:13px;color:#233441;cursor:pointer;transition:background .22s cubic-bezier(.2,.7,.2,1)}
+.seg button:last-child{border-right:0}
+.ev{height:36px;border:1px solid #C7CFD6;border-radius:8px;padding:0 10px;font:inherit;font-size:13px;min-width:0}
+.sum{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;font-size:13px;font-weight:700}
+.btn{height:44px;padding:0 16px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="qa" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<a href="QaResultado.dc.html" class="ic" aria-label="Volver"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Ejecución de las pruebas de DEMO-3</h1>
+<span style="font-size: 13px; color: #5C6E7C;">Ronda 1 · entorno de preproducción</span>
+</header>
+<div style="flex-grow: 1; padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+<span class="sum" style="background: #E7F4EC; color: #1E5E38;">Pasó {{nPass}}</span>
+<span class="sum" style="background: #FDECEA; color: #8C1D18;">Falló {{nFail}}</span>
+<span class="sum" style="background: #FFF8E6; color: #6B4A00;">Bloqueado {{nBlock}}</span>
+<span class="sum" style="background: #E6EAEE; color: #5C6E7C;">Sin ejecutar {{nTodo}}</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 13px; color: #5C6E7C;">El resultado se registra en cada subtarea; no lo decide la IA.</span>
+</div>
+<section aria-label="Casos de prueba" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; overflow: hidden;">
+<div class="row" style="font-size: 12px; font-weight: 700; color: #5C6E7C; background: #FAFBFC;"><span>Subtarea</span><span>Caso</span><span>Resultado</span><span>Evidencia</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+<div class="row">
+<span style="display: flex; flex-direction: column;"><b>{{r.key}}</b><span style="font-size: 12px; color: #5C6E7C;">{{r.id}} · {{r.prio}}</span></span>
+<span>{{r.title}}</span>
+<div class="seg" role="radiogroup" aria-label="Resultado de {{r.id}}">
+<sc-for list="{{r.opts}}" as="o" hint-placeholder-count="4"><button role="radio" aria-checked="{{o.checked}}" style="{{o.style}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+</div>
+<label style="display: flex;"><span style="position: absolute; left: -9999px;">Evidencia de {{r.id}}</span><input class="ev" style="flex-grow: 1;" placeholder="{{r.evText}}"></label>
+</div>
+</sc-for>
+</section>
+<sc-if value="{{hasFail}}" hint-placeholder-val="{{ true }}">
+<div role="note" style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: #FDECEA; border: 1px solid #F1B8B2; font-size: 14px; color: #8C1D18;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="margin-top: 2px;"><path d="M12 8v5 M12 16h.01 M12 3l9 16H3z"></path></svg><span>Un caso fallido necesita evidencia. Proponer un defecto vinculado queda para la v2.0 (RF-29).</span></div>
+</sc-if>
+<span style="flex-grow: 1;"></span>
+<div style="display: flex; gap: 8px; align-items: center; background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 14px 16px;">
+<span style="flex-grow: 1; font-size: 14px; color: #5C6E7C;">Se cambiará el estado de {{nDone}} subtareas y se añadirá un comentario con la evidencia. Nada se escribe en Jira sin tu aprobación.</span>
+<button class="btn" style="border: 1px solid #93A0AB; background: #FFFFFF; color: #233441;">Guardar borrador</button>
+<button class="btn" style="border: 0; background: #FF7932; color: #233441; font-weight: 700;">Revisar y registrar en Jira</button>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { res: { 'CP-01': 'pass', 'CP-02': 'pass', 'CP-03': 'fail', 'CP-04': 'block', 'CP-05': 'todo' } };
+}
+renderVals() {
+const { res } = this.state;
+const cases = [
+{ id: 'CP-01', key: 'DEMO-21', title: 'Renovar sin reservas', prio: 'Must', ev: 'Captura renovacion-ok.png' },
+{ id: 'CP-02', key: 'DEMO-22', title: 'Rechazo con reserva pendiente', prio: 'Must', ev: 'Mensaje mostrado correctamente' },
+{ id: 'CP-03', key: 'DEMO-23', title: 'Tercera renovación', prio: 'Should', ev: 'La app permitió una tercera renovación' },
+{ id: 'CP-04', key: 'DEMO-24', title: 'Renovación desde la app', prio: 'Should', ev: 'Entorno de la app caído' },
+{ id: 'CP-05', key: 'DEMO-25', title: 'Aviso tras renovar', prio: 'Could', ev: '' },
+];
+const defs = [
+['pass', 'Pasó', 'background: #1E7A46; color: #FFFFFF; font-weight: 700;'],
+['fail', 'Falló', 'background: #C9453C; color: #FFFFFF; font-weight: 700;'],
+['block', 'Bloqueado', 'background: #B35C00; color: #FFFFFF; font-weight: 700;'],
+['todo', 'Sin ejecutar', 'background: #5C6E7C; color: #FFFFFF; font-weight: 700;'],
+];
+const rows = cases.map((c) => ({
+...c,
+evText: c.ev || (res[c.id] === 'fail' ? 'Obligatoria si falla' : 'Enlace o nota (opcional)'),
+opts: defs.map(([id, label, on]) => ({
+label,
+checked: res[c.id] === id ? 'true' : 'false',
+style: res[c.id] === id ? on : '',
+pick: () => this.setState({ res: { ...res, [c.id]: id } }),
+})),
+}));
+const count = (k) => Object.values(res).filter((v) => v === k).length;
+return {
+rows,
+nPass: count('pass'), nFail: count('fail'), nBlock: count('block'), nTodo: count('todo'),
+nDone: 5 - count('todo'),
+hasFail: count('fail') > 0,
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,90 +1,86 @@
-# RESPONSABLE DEL ÁREA B · Arranque de la sesión de producto y UI
+# RESPONSABLE DEL ÁREA B · Arranque de la sesión de frontend (React)
 
-Para la persona que se incorpora como **responsable del área B («Conocimiento y UI»)**. Antes, lee `ONBOARDING.md` (§7, puesta en marcha, y §8, tu rol). Prepara el repositorio y pega como primer mensaje en Claude Code todo lo que hay debajo de la línea.
+Para la persona que se incorpora como **responsable del área B («Conocimiento y UI»)**. Su entrega principal es **el frontend propio en React (T-56)**, que tiene que verse como el lienzo «Propuesta mixta». Antes, lee `ONBOARDING.md` (§8: tu rol, el entorno y el plan).
+
+**Requisitos:** Git y Node.js (LTS). No hace falta Python ni Docker para empezar.
 
 ```bash
 git clone <repositorio> agente-af-qa && cd agente-af-qa
 git fetch origin
 git switch -c area-b origin/PreProduccion
-# Si la sesión UI anterior dejó trabajo sin fusionar en origin/ses-ui, tráelo (pregunta antes a la principal):
-#   git merge origin/ses-ui
-uv sync
-cp .env.example .env                       # pide los valores al responsable del proyecto
-docker compose --profile local-llm up -d db ollama
-uv run alembic upgrade head
-uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
+
+Abre Claude Code en esa carpeta y pega como primer mensaje todo lo que hay debajo de la línea.
 
 ---
 
 Eres la sesión de Claude Code de la **persona responsable del área B («Conocimiento y UI»)** del proyecto "Agente de IA de Análisis Funcional y QA". Trabajas en la rama **`area-b`**, creada desde `PreProduccion`, la rama de integración (nunca `main`).
 
-**Qué es suyo** (`ONBOARDING.md` §8):
-- `app/`, `.streamlit/` y `docs/specs/UI.md`;
-- `adapters/embeddings/`, `adapters/vectorstore/`, `core/rag/` y `data/seed/corpus/`;
-- `core/functional/`, `core/qa/` y `core/memory/`;
-- `eval/`;
-- `prompts/`, compartido: avisa a la principal antes de cambiar un prompt que use el grafo.
-
-**Qué no es suyo.** La **sesión principal** es dueña de:
-- los contratos (`schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`, `core/container.py`, `core/factories.py`) y la SPEC;
-- el grafo (`core/graph/`), las aprobaciones y la auditoría;
-- Jira (`adapters/jira/`, `adapters/testmgmt/`) y el modo `live`;
-- el LLM (`adapters/llm/`);
-- la integración en `PreProduccion`.
-
-Si necesitas un cambio ahí, **para** y redacta la propuesta (`PA-3XX`) con el cambio exacto.
+**Tu entrega principal es T-56: el frontend propio en React** en la carpeta nueva **`web/`**. Tiene que verse como el lienzo «Propuesta mixta» y hablar con el backend solo a través de la API HTTP de T-55.
 
 Lee antes de nada:
 - `CLAUDE.md` y `ONBOARDING.md`;
-- el anexo §11 de `docs/specs/SPEC-00-fundacional.md`, donde está cada decisión de implementación;
-- `docs/specs/UI.md` completo;
-- en `docs/KANBAN.md`, las «Decisiones del día 6», el registro de los días 6 y 7, y las propuestas PA-150…PA-199 (de la sesión UI anterior) y PA-250…PA-299 (de memoria);
-- `docs/prompts/SESION-UI.md`: el encargo que tenía la sesión UI, que ahora es tuyo.
+- `docs/specs/UI.md` completo: pantallas, roles, contrato de aprobación con huella y errores;
+- las pantallas del lienzo en `docs/diseno/lienzo/project/*.dc.html` (Mixto*, Qa*, Rail, Sidebar, Animaciones, Estados e Iconos). Son HTML y CSS con un poco de lógica de ejemplo: úsalos como referencia visual y de estilos, **no** como código que se ejecuta. Las cadenas `{{…}}` son marcadores del lienzo;
+- `docs/api/openapi.yaml` cuando exista: lo deja la sesión principal (T-55) y es el contrato con el backend;
+- en `docs/KANBAN.md`, las decisiones del 2 de octubre (D-04 revisada, el flujo unido HU → QA y tu rol).
+
+## Qué es tuyo y qué no
+- **Tuyo:** `web/`, `docs/specs/UI.md` y `docs/diseno/`. Más adelante, el resto del área B (`core/rag/`, `core/functional/`, `core/qa/`, `core/memory/`, `eval/`), cuando tengas Python.
+- **De la sesión principal:**
+  - la API (`api/` o donde la ponga) y su contrato;
+  - el núcleo, los contratos, Jira, el LLM y la integración en `PreProduccion`.
+
+  Si necesitas otro dato o un endpoint distinto, **para** y redacta la propuesta (`PA-3XX`) con el cambio exacto del contrato.
+- **`app/` (Streamlit)** es el plan B y la lleva otra sesión. No la toques.
 
 ## Cómo trabajas
-- Una tarea cada vez, con la skill **`/tarea T-XX`**:
+- Una tarea cada vez, con la skill **`/tarea`**:
   1. leer;
   2. marcar 🔄;
   3. **plan y confirmación de la persona**;
-  4. implementar solo el alcance;
-  5. pruebas con el subagente `test-writer`;
-  6. `pytest` y `ruff` en verde;
-  7. `spec-checker` CONFORME y `security-reviewer` APTO;
-  8. marcar ✅;
-  9. commit `T-XX: … [RF-YY]`.
-- **Si la persona quiere paralelizar**, puede abrir más sesiones de Claude Code con worktrees desde `area-b`, por ejemplo `area-b-qa` para T-28. Ayúdala a escribir su prompt con las mismas reglas, y fusiona tú esas ramas en `area-b` con las pruebas en verde.
-- **Cuando una entrega esté lista:** `git push origin area-b`, y la persona avisa a la principal, que valida la fusión con `PreProduccion` y la integra.
+  4. implementar;
+  5. pruebas;
+  6. `spec-checker` y `security-reviewer`;
+  7. marcar ✅;
+  8. commit.
+
+  Divide T-56 en entregas pequeñas y haz un commit por cada una: `T-56: <pantalla o pieza> [RNF-15]`.
+- **Stack:** Vite, React y TypeScript. Estilos con CSS Modules o CSS con variables (los tokens del lienzo: colores, DM Sans, radios). Una API simulada a partir del OpenAPI (por ejemplo MSW o un mock generado). Vitest y Testing Library.
+- **Antes de cada commit:** `npm run lint`, `npm run test` y `npm run build` sin errores.
+- **Entregas:** `git push origin area-b` y la persona avisa a la sesión principal, que valida e integra.
 
 ## Orden de trabajo
-1. **Arranque:** el entorno en verde. Ayuda a la persona a recorrer la app con los modelos locales (`uv run streamlit run app/main.py`) y explícale el flujo de punta a punta con el código delante.
-2. **T-31:** recibo de aprobación y resultado (UI.md §4.6, §4.7 y §5), si la sesión UI no lo dejó terminado.
-3. **Pantalla «Revisar la calidad»** (UI.md §4.8):
-   - con `core/quality.QualityReviewer`;
-   - el informe se pinta campo a campo con `md_escape`, **nunca** `to_markdown()` con `st.markdown`; ese `.md` es solo para descargarlo.
-4. **T-28:** pantallas QA 1 … QA 3 (UI.md §6).
-5. **Pestaña Memoria:** cierra T-33.
-6. **T-29:** página de Administración.
-7. **Cuando haya hueco:** PA-70 y T-44 (`eval/`) y las propuestas de tu área.
+1. **Arranque (día 1):**
+   - crea `web/` con Vite, React y TypeScript;
+   - **sistema de diseño:** tokens, tipografía, botones, tarjetas, el carril (`Rail`), la barra de conversaciones (`Sidebar`), la Q animada de fase, carga y escritura (`Animaciones`), y los estados vacío, cargando y error (`Estados`);
+   - todo respeta `prefers-reduced-motion`.
+2. **Con el contrato y la API simulada (días 2 a 4):**
+   - Inicio: flujos por rol, proyecto, recientes y aviso de simulación;
+   - Elegir en Jira;
+   - Origen y fuentes: arranque guiado, HU parecida y fuentes con casillas;
+   - Generando: progreso por pasos;
+   - Iterar: chat, versiones, propuesta, cambios, impacto, fuentes y editar a mano.
+3. **Día 5 · punto de control T-57:** demo de lo hecho a la persona y a la principal.
+4. **Días 6 a 8:**
+   - recibo de aprobación y resultado (simulado, real y parcial);
+   - revisar la calidad (Mixta 5);
+   - flujo de QA con «Preparar pruebas» desde la HU aprobada (T-54);
+   - después, la integración con la API real.
+5. **Días 9 y 10:** pulido, accesibilidad y ensayo de la demo.
 
 ## Reglas
-- **Seguridad:**
-  - Invoca el grafo siempre con `new_conversation_config` o `resume_config`.
-  - El contenido de Jira, del RAG y del LLM nunca va a `st.html` ni a `unsafe_allow_html`.
-  - Solo el nodo `publish` escribe en Jira, y la UI nunca llama a métodos de escritura.
-  - Deja `JIRA_PUBLISH_MODE=simulation`.
-  - No leas ni muestres el `.env`.
-  - Ni secretos ni datos personales reales: solo datos sintéticos.
-  - Los logs no registran prompts ni contenido.
-- **LLM:**
-  - Solo modelos locales de Ollama (`config/models.yaml`), lentos en CPU.
-  - Las pruebas automáticas usan fakes.
-  - Pregunta antes de lanzar pruebas reales con el LLM.
+- **Seguridad del frontend:**
+  - El contenido que llega de la API (texto de Jira, del RAG y del LLM) **nunca** se inserta como HTML: nada de `dangerouslySetInnerHTML` ni de librerías que pinten Markdown con HTML. Se muestra como texto.
+  - Ni secretos ni claves en el frontend.
+  - La sesión, con lo que defina el contrato (cookie o token); nunca la guardes en `localStorage`.
+  - Para aprobar se devuelve **exactamente la huella** del último payload.
+  - El frontend nunca habla con Jira ni con el LLM directamente: solo con la API.
+- **Datos:** en mocks y pruebas, solo datos sintéticos (`DEMO-3`, `af-demo`, textos ficticios).
 - **Kanban:**
-  - Cambia el estado de tus tareas y de tus propuestas.
-  - Añade tu fila al registro diario.
+  - Cambia el estado de tus tareas y añade tu fila al registro diario.
   - **Tus propuestas son PA-300…PA-399.**
   - El tablero resumen lo actualiza la principal.
-- **Subagentes:** pídeles que no maten procesos globales (nada de `taskkill` ni `pkill`).
+- **Subagentes:** pídeles que no maten procesos globales.
 
-Empieza por el punto 1: comprueba el entorno y preséntale a la persona un resumen de 10 líneas del sistema y del estado del área B antes de proponer la primera tarea.
+Empieza por el punto 1: dale a la persona un resumen de 10 líneas del sistema y del plan de T-56, y preséntale el plan del día 1 antes de crear nada.

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Trabajo, revisión</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.btn{height:44px;padding:0 16px;border-radius:10px;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;transition:background .32s cubic-bezier(.2,.7,.2,1),color .32s cubic-bezier(.2,.7,.2,1)}
+.btn:active{filter:brightness(.94)}
+.pri{border:0;background:#FF7932;color:#233441;font-weight:700}
+.pri:disabled{background:#E6EAEE;color:#5C6E7C;cursor:not-allowed}
+.sec{border:1px solid #93A0AB;background:#FFFFFF;color:#233441}
+.danger{border:1px solid #C9453C;background:#FFFFFF;color:#8C1D18}
+.op{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #E6EAEE;border-radius:12px;cursor:pointer;transition:border-color .32s cubic-bezier(.2,.7,.2,1),background .32s cubic-bezier(.2,.7,.2,1)}
+.op.ok{border-color:#A7D3B8;background:#F3FAF6}
+.op input{width:20px;height:20px;margin:1px 0 0;accent-color:#1E7A46}
+.del{background:#FDECEA;color:#8C1D18;text-decoration:line-through;border-radius:4px;padding:0 3px}
+.add{background:#E7F4EC;color:#14532D;border-radius:4px;padding:0 3px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; padding: 0 32px; display: flex; align-items: center; gap: 12px; background: #FFFFFF; border-bottom: 1px solid #E6EAEE;">
+<div style="flex-grow: 1; display: flex; flex-direction: column;">
+<h1 style="margin: 0; font-size: 18px; font-weight: 700;">Renovar un préstamo desde la web o la app</h1>
+<span style="font-size: 13px; color: #5C6E7C;">Versión 3 lista para revisar</span>
+</div>
+</header>
+<dc-import name="Stepper" step="{{three}}" hint-size="1192px,64px"></dc-import>
+<div style="flex-grow: 1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; padding: 20px 32px; min-height: 0;">
+<section aria-labelledby="rc" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 10px;">
+<h2 id="rc" style="margin: 0; font-size: 20px; font-weight: 700; flex-grow: 1;">Qué se hará en Jira</h2>
+<span aria-live="polite" style="font-size: 14px; font-weight: 700; color: {{counterColor}};">{{counter}}</span>
+</div>
+<label class="{{op1}}"><input type="checkbox" checked="{{c1}}" onChange="{{t1}}"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px; font-size: 14px;"><b>Actualizar DEMO-3 con la versión 3</b><span><span class="del">Renovar un préstamo</span> <span class="add">Renovar un préstamo desde la web o la app</span></span><span><span class="add">CA-03 nuevo</span> no se renueva si hay reservas pendientes</span></span></label>
+<label class="{{op2}}"><input type="checkbox" checked="{{c2}}" onChange="{{t2}}"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px;"><b>Añadir un comentario con los cambios</b><span style="color: #5C6E7C;">Resumen del diff para quien siga la HU.</span></span></label>
+<label class="{{op3}}"><input type="checkbox" checked="{{c3}}" onChange="{{t3}}"><span style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px;"><b>Vincular con DEMO-2</b><span style="color: #5C6E7C;">Comparte la regla de reservas pendientes (RN-02).</span></span></label>
+<p style="margin: auto 0 0; background: #F4F6F8; border-radius: 10px; padding: 10px 12px; font-size: 13px;">Generado con IA a partir de 5 fuentes. Revisa cada operación antes de aprobar.</p>
+<div style="display: flex; gap: 10px; align-items: center;">
+<button class="btn danger">Descartar</button>
+<button class="btn sec">Volver a generar</button>
+<span style="flex-grow: 1;"></span>
+<button class="btn pri" disabled="{{locked}}"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"></path></svg>Aprobar y publicar</button>
+</div>
+</section>
+<section aria-labelledby="hist" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+<h2 id="hist" style="margin: 0; font-size: 16px; font-weight: 700;">Historial de DEMO-3</h2>
+<ol style="margin: 0; padding: 0 0 0 16px; list-style: none; border-left: 2px solid #E6EAEE; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+<li style="display: flex; flex-direction: column; gap: 2px;"><b style="font-size: 14px;">Versión 3 generada</b><span style="color: #5C6E7C;">OpenRouter (respaldo), prompt de evolución v2, 15:42</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px;"><b style="font-size: 14px;">Iterada por af-demo</b><span style="color: #5C6E7C;">«El CA-03 debe indicar…», 15:40</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px;"><b style="font-size: 14px;">Versión 2 generada</b><span style="color: #5C6E7C;">Groq, gpt-oss-120b, 15:31</span></li>
+<li style="display: flex; flex-direction: column; gap: 2px;"><b style="font-size: 14px;">Versión 1 desde Jira</b><span style="color: #5C6E7C;">Estructurada a partir de DEMO-3, 15:28</span></li>
+</ol>
+<p style="margin: auto 0 0; font-size: 13px; color: #5C6E7C;">Al publicar quedará registrado quién aprobó, cuándo y qué claves se crearon.</p>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+constructor(props) { super(props); this.state = { c: [true, true, false] }; }
+renderVals() {
+const c = this.state.c;
+const n = c.filter(Boolean).length;
+const toggle = (i) => () => { const next = c.slice(); next[i] = !next[i]; this.setState({ c: next }); };
+return {
+three: 3,
+c1: c[0], c2: c[1], c3: c[2],
+t1: toggle(0), t2: toggle(1), t3: toggle(2),
+op1: c[0] ? 'op ok' : 'op', op2: c[1] ? 'op ok' : 'op', op3: c[2] ? 'op ok' : 'op',
+counter: n === 3 ? 'Todo revisado' : n + ' de 3 revisadas',
+counterColor: n === 3 ? '#1E7A46' : '#B23E00',
+locked: n < 3,
+};
+}
+}
+</script>
+</body>
+</html>

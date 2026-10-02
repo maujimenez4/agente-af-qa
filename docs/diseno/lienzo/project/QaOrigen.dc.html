@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>QA, HU de origen y alcance</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.me{align-self:flex-end;max-width:72%;background:#F4F6F8;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px;line-height:1.55}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.tag{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:6px;background:#F4F6F8;font-size:12px;font-weight:600;color:#5C6E7C}
+.found{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid #E6EAEE;border-radius:12px 12px 4px 12px}
+.fixed{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid #FF7932;background:#FFF3EC;border-radius:12px 12px 4px 12px;font-size:14px}
+.ok{display:inline-flex;padding:1px 7px;border-radius:6px;background:#E7F4EC;color:#1E5E38;font-size:12px;font-weight:700}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.ic:hover{background:#F4F6F8;color:#233441}
+.tool{height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:#5C6E7C;display:inline-flex;align-items:center;gap:6px}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-radius:8px;font-size:14px;cursor:pointer}
+.chk:hover{background:#F4F6F8}
+.chk input{width:18px;height:18px;margin:2px 0 0;accent-color:#FF7932;flex-shrink:0}
+.code{font-size:12px;font-weight:600;color:#5C6E7C}
+.grp{font-size:12px;font-weight:700;color:#5C6E7C;padding:0 0 4px}
+textarea:focus{outline:none}
+.composer:focus-within{border-color:#FF7932;box-shadow:0 0 0 3px #FFF3EC}
+@keyframes phin{from{transform:translateY(326px)}to{transform:translateY(244.5px)}}
+.phin{animation:phin .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="qa" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Pruebas de DEMO-3</h1>
+<div role="img" aria-label="Avance: fase 1 de 4, contexto" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="qph-1"><rect class="phin" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#qph-1)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">Fase 1 de 4</b> · Contexto</span></div>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 28px 0;">
+<div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 18px;">
+<div class="me">Casos para DEMO-3</div>
+<div class="ai">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<span class="tag"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px;"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg>Clave reconocida en Jira · sin IA</span>
+<div class="found">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 22px; height: 22px;"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M8 10h8 M8 14h5"></path></svg>
+<span style="flex-grow: 1; display: flex; flex-direction: column;"><b style="font-size: 14px;">DEMO-3, renovar un préstamo desde la web o la app</b><span style="font-size: 13px; color: #5C6E7C;">Épica DEMO-1 · 4 criterios y 2 reglas · sin casos de prueba en Jira</span></span>
+<span class="ok">Publicada por el agente</span>
+</div>
+</div>
+</div>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<div class="fixed">
+<svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="margin-top: 2px; color: #B23E00;"><path d="M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 2px;"><b>Operación fijada: suite de pruebas de DEMO-3</b><span style="color: #5C6E7C;">Los casos serán subtareas de DEMO-3 con la etiqueta «caso-prueba»; la estrategia y la matriz, adjuntos.</span></span>
+</div>
+<span>Elige en el panel qué tipos de caso quieres y qué fuentes uso. La HU y su memoria ya están incluidas.</span>
+</div>
+</div>
+</div>
+</div>
+<div style="display: flex; justify-content: center; padding: 12px 28px 20px;">
+<div class="composer" style="width: 100%; max-width: 640px; border: 1px solid #93A0AB; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; flex-direction: column; gap: 4px;">
+<label for="qa1" style="position: absolute; left: -9999px;">Indicaciones para QA</label>
+<textarea id="qa1" rows="1" placeholder="Indica prioridades o entornos (opcional)" style="border: 0; resize: none; font: inherit; font-size: 15px; line-height: 1.5; color: #233441;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button class="tool"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M9.5 9.5h5v5h-5z"></path></svg>Modelo automático</button>
+<span style="flex-grow: 1;"></span>
+<button aria-label="Enviar" style="width: 36px; height: 36px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; display: flex; align-items: center; justify-content: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6 M7 11l5-5 5 5"></path></svg></button>
+</div>
+</div>
+</div>
+</main>
+<aside aria-labelledby="qa-ctx" style="width: 420px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<h2 id="qa-ctx" style="margin: 0; font-size: 16px; font-weight: 700;">Antes de generar</h2>
+</div>
+<div style="flex-grow: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column;">
+<legend class="grp">Tipos de caso (RF-22)</legend>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;">
+<label class="chk"><input type="checkbox" checked>Positivos</label>
+<label class="chk"><input type="checkbox" checked>Negativos</label>
+<label class="chk"><input type="checkbox" checked>Alternos</label>
+<label class="chk"><input type="checkbox" checked>De excepción</label>
+</div>
+</fieldset>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column;">
+<legend class="grp">Incluir además</legend>
+<label class="chk"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Datos sintéticos</span><span class="code">Coherentes con RN-01 y RN-02 (RF-25)</span></span></label>
+<label class="chk"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Riesgos, dependencias e impacto</span><span class="code">RF-27</span></span></label>
+<label class="chk"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Estrategia de pruebas</span><span class="code">Alcance, niveles, entornos y criterios (RF-26)</span></span></label>
+</fieldset>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column;">
+<legend class="grp">Fuentes que se usarán</legend>
+<label class="chk"><input type="checkbox" checked disabled><span style="display: flex; flex-direction: column;"><span>HU DEMO-3, versión publicada</span><span class="code">Obligatoria</span></span></label>
+<label class="chk"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Memoria de DEMO-3</span><span class="code">Memoria, prioritaria</span></span></label>
+<label class="chk"><input type="checkbox" checked><span style="display: flex; flex-direction: column;"><span>Casos de DEMO-2 (reservas)</span><span class="code">Estrategias y casos de prueba · regresión</span></span></label>
+<label class="chk"><input type="checkbox"><span style="display: flex; flex-direction: column;"><span>Manual de la app de socios</span><span class="code">DOC-11 · No influirá</span></span></label>
+</fieldset>
+</div>
+<div style="padding: 16px 20px; border-top: 1px solid #E6EAEE; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF;">
+<a href="QaGenerando.dc.html" style="height: 44px; border-radius: 10px; background: #FF7932; color: #233441; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none;">Generar la suite</a>
+<span style="font-size: 12px; color: #5C6E7C; text-align: center;">Una llamada al modelo. Después itera conversando.</span>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return { q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+}
+}
+</script>
+</body>
+</html>

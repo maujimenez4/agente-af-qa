@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente mixto, generando la propuesta</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.event{align-self:flex-end;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:16px 16px 4px 16px;background:#F4F6F8;font-size:15px}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.sk{height:12px;border-radius:6px;background:#E6EAEE}
+.card{border:1px solid #E6EAEE;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;background:#FFFFFF}
+@keyframes q4{from{transform:translateY(244.5px)}to{transform:translateY(0)}}
+.q4{animation:q4 4s steps(4, jump-none) infinite}
+@keyframes fillq{from{transform:translateY(81.5px)}to{transform:translateY(0)}}
+.qfull{animation:fillq .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes phin{from{transform:translateY(244.5px)}to{transform:translateY(163px)}}
+.phin{animation:phin .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes shimmer{0%{opacity:.55}50%{opacity:1}100%{opacity:.55}}
+.sk{animation:shimmer 1.4s ease-in-out infinite}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}.q4{transform:translateY(163px)}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="functional" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Renovar un préstamo desde la app</h1>
+<div role="img" aria-label="Avance: fase 2 de 4, generar" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="ph-2"><rect class="phin" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#ph-2)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">Fase 2 de 4</b> · Generar</span></div>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 28px 0;">
+<div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 18px;">
+<span class="event"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px;"><path d="M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z"></path></svg>Generar propuesta · evolucionar DEMO-3 con 4 fuentes</span>
+<div class="ai">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<div style="display: flex; align-items: center; gap: 14px;">
+<sc-if value="{{working}}" hint-placeholder-val="{{ true }}">
+<svg viewBox="0 0 326 326" width="48" height="48" aria-hidden="true"><defs><clipPath id="g-load"><rect class="q4" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#g-load)"></path></svg>
+</sc-if>
+<sc-if value="{{ready}}" hint-placeholder-val="{{ false }}">
+<svg viewBox="0 0 326 326" width="48" height="48" aria-hidden="true"><defs><clipPath id="g-done"><rect class="qfull" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#g-done)"></path></svg>
+</sc-if>
+<span style="display: flex; flex-direction: column;"><b style="font-size: 17px;">{{headline}}</b><span style="font-size: 13px; color: #5C6E7C;">{{subline}}</span></span>
+</div>
+<ol aria-label="Procesos de la generación" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+<li aria-current="{{s.current}}" style="{{s.rowStyle}}"><span aria-hidden="true" style="{{s.markStyle}}">{{s.mark}}</span><span style="display: flex; flex-direction: column;"><span>{{s.label}}</span><span style="font-size: 12px; color: #5C6E7C;">{{s.detail}}</span></span></li>
+</sc-for>
+</ol>
+<sc-if value="{{ready}}" hint-placeholder-val="{{ false }}">
+<a href="MixtoIterar.dc.html" class="rise" style="align-self: flex-start; height: 44px; padding: 0 16px; border-radius: 10px; background: #FF7932; color: #233441; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none;">Ver la propuesta</a>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+<div style="display: flex; justify-content: center; padding: 12px 28px 20px;">
+<div style="width: 100%; max-width: 640px; border: 1px solid #C7CFD6; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; align-items: center; gap: 8px; background: #FAFBFC;">
+<span style="flex-grow: 1; font-size: 15px; color: #5C6E7C;">Espera a la propuesta para pedir cambios</span>
+<button aria-label="Detener la generación" style="width: 36px; height: 36px; border: 1px solid #93A0AB; border-radius: 10px; background: #FFFFFF; color: #233441; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor"></rect></svg></button>
+</div>
+</div>
+</main>
+<aside aria-label="Propuesta en preparación" style="width: 480px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<div style="display: flex; flex-direction: column;"><h2 style="margin: 0; font-size: 15px; font-weight: 700;">Propuesta de HU</h2><span style="font-size: 12px; color: #5C6E7C;">Evolución de DEMO-3 · generando</span></div>
+</div>
+<div style="flex-grow: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div class="sk" style="width: 92%;"></div><div class="sk" style="width: 70%;"></div>
+<div class="card"><div class="sk" style="width: 40%;"></div><div class="sk" style="width: 85%;"></div></div>
+<div class="card"><div class="sk" style="width: 46%;"></div><div class="sk" style="width: 78%;"></div></div>
+<div class="card"><div class="sk" style="width: 36%;"></div><div class="sk" style="width: 88%;"></div></div>
+<span style="font-size: 13px; color: #5C6E7C;">La propuesta aparece aquí cuando las citas están comprobadas.</span>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { step: 0 };
+}
+componentDidMount() {
+// Un proceso por segundo, como la Q (4 s en cuatro cuartos); al terminar espera y vuelve a empezar.
+this.timer = setInterval(() => this.setState((s) => ({ step: s.step >= 6 ? 0 : s.step + 1 })), 1000);
+}
+componentWillUnmount() {
+clearInterval(this.timer);
+}
+renderVals() {
+const step = Math.min(this.state.step, 4);
+const base = [
+{ label: 'Recuperar contexto', detail: 'Jira, 3 documentos y 1 memoria · 3.150 tokens' },
+{ label: 'Generar la versión 1', detail: 'groq · gpt-oss-120b' },
+{ label: 'Validar citas y diff con Jira', detail: '4 de 5 criterios con fuente' },
+{ label: 'Analizar el impacto', detail: 'DEMO-2 comparte una regla' },
+];
+const markBase = 'width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; box-sizing: border-box; ';
+const steps = base.map((b, i) => {
+const done = i < step;
+const current = i === step;
+return {
+...b,
+current: current ? 'step' : 'false',
+mark: done ? '✓' : String(i + 1),
+markStyle: markBase + (done ? 'background: #FF7932; color: #233441;' : current ? 'background: #233441; color: #FFFFFF;' : 'background: #FFFFFF; color: #5C6E7C; border: 1.5px solid #C7CFD6;'),
+rowStyle: 'display: flex; gap: 10px; align-items: flex-start; ' + (current ? 'font-weight: 700;' : done ? '' : 'color: #5C6E7C;'),
+};
+});
+const ready = step >= 4;
+return {
+steps,
+ready,
+working: !ready,
+headline: ready ? 'Propuesta lista' : 'Generando la propuesta…',
+subline: ready ? 'Versión 1 · 3 cambios frente a Jira' : 'La Q se llena un cuarto por proceso. Suele tardar menos de 30 s.',
+q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z',
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Barra lateral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<aside style="width: 260px; height: 800px; box-sizing: border-box; background: #FFFFFF; border-right: 1px solid #E6EAEE; padding: 20px 18px; display: flex; flex-direction: column; gap: 22px; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<div style="margin: -20px -18px 0; padding: 16px 18px; background: #1E2D3D; display: flex; flex-direction: column; gap: 2px;">
+<img src="/_blob/bb06b97677655253392830ed15f4739a" alt="Qaracter" style="height: 26px; width: auto; align-self: flex-start;">
+<div style="margin-top: 8px; font-size: 13px; font-weight: 700; color: #FFFFFF;">Agente AF y QA</div>
+<div style="font-size: 12px; color: #C9D2DB;">Proyecto DEMO · Villaficticia</div>
+</div>
+<div style="display: flex; gap: 10px; align-items: center;">
+<div aria-hidden="true" style="width: 36px; height: 36px; border-radius: 50%; background: #FFF3EC; color: #B23E00; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px;">{{initial}}</div>
+<div style="display: flex; flex-direction: column;">
+<span style="font-size: 14px; font-weight: 600;">{{user}}</span>
+<span style="font-size: 13px; color: #5C6E7C;">{{roleLabel}}</span>
+</div>
+</div>
+<sc-if value="{{showModels}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<label for="model" style="font-size: 13px; font-weight: 500;">Modelo de {{taskLabel}}</label>
+<select id="model" style="height: 40px; border: 1px solid #93A0AB; border-radius: 8px; padding: 0 8px; font-size: 14px; font-family: inherit; background: #FFFFFF;">
+<option>groq · gpt-oss-120b (principal)</option>
+<option>openrouter · respaldo</option>
+</select>
+<span style="font-size: 12px; color: #5C6E7C;">Solo para esta sesión (RF-42).</span>
+</div>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; font-size: 13px;">
+<span style="font-weight: 500;">Tokens de hoy</span>
+<span style="font-family: 'IBM Plex Mono', monospace;">{{tokens}}</span>
+</div>
+<div role="progressbar" aria-valuenow="{{pct}}" aria-valuemin="0" aria-valuemax="100" aria-label="Consumo diario de tokens" style="height: 8px; background: #E6EAEE; border-radius: 4px; overflow: hidden;">
+<div style="height: 8px; width: {{pctWidth}}; background: {{barColor}};"></div>
+</div>
+<span style="font-size: 12px; color: #5C6E7C;">Aviso al llegar a 180.000 (RF-43, RNF-27).</span>
+</div>
+<div style="flex-grow: 1;"></div>
+<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5C6E7C;">
+<span>Jira: conectado · LLM: groq</span>
+<span>Nunca se escribe en Jira sin tu aprobación.</span>
+</div>
+<button style="height: 44px; border: 1px solid #93A0AB; border-radius: 8px; background: #FFFFFF; font-size: 14px; font-family: inherit; color: #233441;">Cerrar sesión</button>
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["functional","qa","admin"],"default":"functional"},"$preview":{"width":260,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+const role = this.props.role ?? 'functional';
+const data = {
+functional: { user: 'af-demo', roleLabel: 'Analista funcional', taskLabel: 'historias', showModels: true, tokens: '42.310', pct: 24 },
+qa: { user: 'qa-demo', roleLabel: 'QA', taskLabel: 'pruebas', showModels: true, tokens: '171.020', pct: 95 },
+admin: { user: 'admin-demo', roleLabel: 'Administrador', taskLabel: '', showModels: false, tokens: '3.200', pct: 2 },
+}[role] || {};
+return {
+...data,
+initial: (data.user || 'u').charAt(0).toUpperCase(),
+pctWidth: data.pct + '%',
+barColor: data.pct >= 90 ? '#B35C00' : '#FF7932',
+};
+}
+}
+</script>
+</body>
+</html>

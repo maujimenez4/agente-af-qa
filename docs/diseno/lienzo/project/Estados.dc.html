@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estados vacío, cargando y error</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}
+@keyframes qfill{from{transform:translateY(244.5px)}to{transform:translateY(0)}}
+.qfill{animation:qfill 4s steps(4, jump-none) infinite}
+@media (prefers-reduced-motion: reduce){.qfill{animation:none;transform:translateY(163px)}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 32px; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-content: start;">
+<section aria-label="Vacío" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;">
+<span style="font-size: 12px; font-weight: 600; color: #5C6E7C; text-transform: uppercase; letter-spacing: 0.04em;">Vacío</span>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600;">Aún no hay propuesta</h2>
+<p style="margin: 0; font-size: 14px; color: #5C6E7C;">Elige un origen en Contexto para generar la primera versión de la HU.</p>
+<button style="height: 44px; padding: 0 16px; border: 1px solid #93A0AB; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 14px;">Ir a Contexto</button>
+</section>
+<section aria-label="Cargando" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-size: 12px; font-weight: 600; color: #5C6E7C; text-transform: uppercase; letter-spacing: 0.04em;">Cargando</span>
+<div style="display: flex; gap: 10px; align-items: center;">
+<svg aria-hidden="true" viewBox="0 0 326 326" width="40" height="40" style="flex-shrink: 0;"><defs><clipPath id="q-load"><rect class="qfill" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z" fill="#E6EAEE"></path><path d="M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z" fill="#FF7932" clip-path="url(#q-load)"></path></svg>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600;">Generando la propuesta…</h2>
+</div>
+<ol aria-label="Procesos de la generación" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px;">
+<li style="display: flex; gap: 8px; align-items: center;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #FF7932; color: #233441; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">✓</span>Recuperar contexto, 5 fuentes</li>
+<li aria-current="step" style="display: flex; gap: 8px; align-items: center; font-weight: 700;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; background: #233441; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">2</span>Generar con groq, gpt-oss-120b</li>
+<li style="display: flex; gap: 8px; align-items: center; color: #5C6E7C;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #C7CFD6; box-sizing: border-box; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">3</span>Validar citas</li>
+<li style="display: flex; gap: 8px; align-items: center; color: #5C6E7C;"><span aria-hidden="true" style="width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #C7CFD6; box-sizing: border-box; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">4</span>Propuesta lista</li>
+</ol>
+<p style="margin: 0; font-size: 13px; color: #5C6E7C;">La Q se llena un cuarto por proceso. Suele tardar menos de 30 s.</p>
+</section>
+<section aria-label="Límite de uso" role="alert" style="background: #FFF3E0; border: 1px solid #F0C98A; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; color: #6B3A00;">
+<span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">RateLimitError</span>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600; color: #233441;">Límite de uso alcanzado</h2>
+<p style="margin: 0; font-size: 14px;">Todos los proveedores de la tarea «generate_story» han alcanzado su límite de uso. Espera unos minutos o elige otro modelo.</p>
+<span style="font-size: 13px;">Reintento disponible en 45 s (retry_after).</span>
+</section>
+<section aria-label="Credenciales" role="alert" style="background: #FDECEA; border: 1px solid #F1B8B2; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; color: #8C1D18;">
+<span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">AuthenticationError</span>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600; color: #233441;">Jira rechazó las credenciales</h2>
+<p style="margin: 0; font-size: 14px;">Jira ha rechazado las credenciales (HTTP 401). Revisa el email, el token y sus scopes.</p>
+</section>
+<section aria-label="No encontrado" role="alert" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-size: 12px; font-weight: 600; color: #5C6E7C; text-transform: uppercase; letter-spacing: 0.04em;">NotFoundError</span>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600;">No existe DEMO-99</h2>
+<p style="margin: 0; font-size: 14px; color: #5C6E7C;">La incidencia DEMO-99 no existe o no tienes permiso para verla.</p>
+</section>
+<section aria-label="Citas o cobertura" role="alert" style="background: #FDECEA; border: 1px solid #F1B8B2; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; color: #8C1D18;">
+<span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">CitationError · CoverageError</span>
+<h2 style="margin: 0; font-size: 17px; font-weight: 600; color: #233441;">La propuesta no es válida</h2>
+<p style="margin: 0; font-size: 14px;">La suite de pruebas no cubre la HU: algún criterio no tiene casos. Vuelve a generarla.</p>
+<button style="align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #C9453C; border-radius: 8px; background: #FFFFFF; color: #8C1D18; font: inherit; font-size: 14px;">Volver a generar</button>
+</section>
+<section aria-label="Publicación parcial" style="grid-column: span 3; background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 20px 24px; display: flex; gap: 16px; align-items: center;">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
+<span style="font-size: 12px; font-weight: 600; color: #5C6E7C; text-transform: uppercase; letter-spacing: 0.04em;">Publicación parcial (RNF-13)</span>
+<span style="font-size: 15px;">Creadas DEMO-21, DEMO-22 y DEMO-23 · falló CP-04 (Jira no respondió).</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border: 0; border-radius: 8px; background: #FF7932; color: #233441; font: inherit; font-size: 14px; font-weight: 600;">Reintentar solo los fallidos</button>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

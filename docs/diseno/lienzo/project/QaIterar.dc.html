@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>QA, iterar la suite</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.av{width:28px;height:28px;border-radius:9px 9px 3px 9px;background:#1E2D3D;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.me{align-self:flex-end;max-width:78%;background:#F4F6F8;border-radius:16px 16px 4px 16px;padding:10px 14px;font-size:15px;line-height:1.55}
+.ai{display:flex;gap:12px;align-items:flex-start}
+.ai .body{flex-grow:1;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.meta{font-size:12px;color:#5C6E7C}
+.art{display:flex;gap:12px;align-items:center;padding:10px 14px;border:1px solid #E6EAEE;background:#FFFFFF;border-radius:12px 12px 4px 12px;font:inherit;color:#233441;text-align:left}
+.art.on{border-color:#FF7932;background:#FFF3EC}
+.chip{min-height:40px;padding:8px 14px;border:1px solid #C7CFD6;border-radius:20px;background:#FFFFFF;font:inherit;font-size:14px;color:#233441}
+.chip:hover{border-color:#FF7932;background:#FFF3EC}
+.tool{height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;color:#5C6E7C;display:inline-flex;align-items:center;gap:6px}
+.ic{width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:#5C6E7C;display:flex;align-items:center;justify-content:center}
+.ic:hover{background:#F4F6F8;color:#233441}
+.tab{height:36px;padding:0 10px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:14px;color:#5C6E7C;cursor:pointer}
+.tab.on{background:#F4F6F8;color:#233441;font-weight:700}
+.ver{height:30px;min-width:36px;padding:0 10px;border:1px solid #E6EAEE;border-radius:8px;background:#FFFFFF;font:inherit;font-size:13px;font-weight:600;color:#5C6E7C}
+.ver.on{border-color:#233441;background:#233441;color:#FFFFFF}
+.case{border:1px solid #E6EAEE;border-radius:10px;padding:9px 12px;font-size:14px;display:flex;flex-direction:column;gap:4px;background:#FFFFFF;font-family:inherit;text-align:left;color:#233441;cursor:pointer}
+.case.open{border-color:#FF7932}
+.kind{display:inline-flex;padding:1px 7px;border-radius:6px;font-size:12px;font-weight:700}
+.prio{font-size:12px;font-weight:700;color:#5C6E7C}
+.new{display:inline-flex;padding:1px 7px;border-radius:6px;background:#FFF3EC;color:#B23E00;font-size:12px;font-weight:700}
+.ok{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:#E7F4EC;color:#1E5E38;font-size:13px;font-weight:700}
+.gh{display:block;margin:0;padding:8px 10px;border-radius:8px;background:#F4F6F8;font-size:13px;line-height:1.55;white-space:pre-line}
+.cell{height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:13px;font-weight:700}
+.sec{font-size:12px;font-weight:700;color:#5C6E7C}
+textarea:focus{outline:none}
+.composer:focus-within{border-color:#FF7932;box-shadow:0 0 0 3px #FFF3EC}
+@keyframes phin{from{transform:translateY(244.5px)}to{transform:translateY(163px)}}
+.phin{animation:phin .42s cubic-bezier(.2,.7,.2,1) .25s both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+@keyframes flash{0%{background:#FFE5D5}100%{background:#FFFFFF}}
+.flash{animation:rise .42s cubic-bezier(.2,.7,.2,1) .1s both,flash 1.6s cubic-bezier(.2,.7,.2,1) .5s both}
+@keyframes q4{from{transform:translateY(244.5px)}to{transform:translateY(0)}}
+.q4{animation:q4 4s steps(4, jump-none) infinite}
+@keyframes blink{50%{opacity:0}}
+.caret{display:inline-block;width:2px;height:1em;background:#233441;vertical-align:-2px;margin-left:1px;animation:blink 1s steps(1) infinite}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #FFFFFF; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="trabajo" role="qa" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E6EAEE;">
+<button class="ic" aria-label="Mostrar conversaciones"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M10 3v18"></path></svg></button>
+<h1 style="margin: 0; font-size: 16px; font-weight: 700; flex-grow: 1;">Pruebas de DEMO-3</h1>
+<div role="img" aria-label="Avance: fase 2 de 4, generar e iterar" style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 326 326" width="26" height="26" aria-hidden="true"><defs><clipPath id="qph-3"><rect class="phin" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#qph-3)"></path></svg><span style="font-size: 13px; color: #5C6E7C;"><b style="color: #233441;">Fase 2 de 4</b> · Generar e iterar</span></div>
+</header>
+<div aria-live="polite" style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center; padding: 24px 24px 0;">
+<div style="width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 16px;">
+<div class="ai">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<span>Suite lista: 4 casos y todos los CA cubiertos. Riesgo: la app podría no aplicar el límite de 2 renovaciones.</span>
+<button class="art"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M6 12.5l4 4 8-9"></path></svg><span style="flex-grow: 1; font-size: 14px;">Suite de pruebas, versión 1</span></button>
+</div>
+</div>
+<div class="me">Añade un caso para el aviso tras renovar (CA-04).</div>
+<div class="ai rise">
+<div class="av" aria-hidden="true"><svg viewBox="0 0 326 326" width="16" height="16"><path d="{{q}}" fill="#FF7932"></path></svg></div>
+<div class="body">
+<sc-if value="{{typing}}" hint-placeholder-val="{{ false }}"><span>{{partial}}<span class="caret" aria-hidden="true"></span></span></sc-if>
+<sc-if value="{{done}}" hint-placeholder-val="{{ true }}">
+<span>Versión 2: añadí el <b>CP-05</b>, positivo, para el CA-04. La matriz sigue completa.</span>
+<button class="art on"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M6 12.5l4 4 8-9"></path></svg><span style="flex-grow: 1; display: flex; flex-direction: column;"><b style="font-size: 14px;">Suite de pruebas, versión 2</b><span style="font-size: 13px; color: #5C6E7C;">Abierta en el panel · 5 casos</span></span></button>
+<span class="meta">groq · gpt-oss-120b · cobertura validada</span>
+</sc-if>
+</div>
+</div>
+<sc-if value="{{done}}" hint-placeholder-val="{{ true }}">
+<div role="group" aria-label="Cambios sugeridos" style="padding-left: 40px; display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="chip">Añade un caso de regresión de DEMO-2</button>
+<button class="chip">Más datos de borde</button>
+</div>
+</sc-if>
+</div>
+</div>
+<sc-if value="{{typing}}" hint-placeholder-val="{{ false }}">
+<div aria-hidden="true" style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5C6E7C; padding: 0 0 8px 4px;"><svg viewBox="0 0 326 326" width="18" height="18"><defs><clipPath id="type-qa"><rect class="q4" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#type-qa)"></path></svg>Escribiendo la respuesta</div>
+</sc-if>
+<div style="display: flex; justify-content: center; padding: 12px 24px 20px;">
+<div class="composer" style="width: 100%; max-width: 560px; border: 1px solid #93A0AB; border-radius: 16px; padding: 10px 10px 8px 14px; display: flex; flex-direction: column; gap: 4px;">
+<label for="qa3" style="position: absolute; left: -9999px;">Pide un cambio a la suite</label>
+<textarea id="qa3" rows="1" placeholder="Pide un cambio a la suite" style="border: 0; resize: none; font: inherit; font-size: 15px; line-height: 1.5; color: #233441;"></textarea>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button class="tool"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M9.5 9.5h5v5h-5z"></path></svg>Modelo automático</button>
+<span style="flex-grow: 1;"></span>
+<button aria-label="Enviar" style="width: 36px; height: 36px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; display: flex; align-items: center; justify-content: center;"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6 M7 11l5-5 5 5"></path></svg></button>
+</div>
+</div>
+</div>
+</main>
+<aside aria-labelledby="qa-art" style="width: 540px; flex-shrink: 0; box-sizing: border-box; background: #FAFBFC; border-left: 1px solid #E6EAEE; display: flex; flex-direction: column;">
+<div style="height: 64px; box-sizing: border-box; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #E6EAEE; background: #FFFFFF;">
+<div style="flex-grow: 1; display: flex; flex-direction: column;"><h2 id="qa-art" style="margin: 0; font-size: 15px; font-weight: 700;">Suite de pruebas</h2><span style="font-size: 12px; color: #5C6E7C;">DEMO-3 · en revisión</span></div>
+<span class="ok"><svg class="qi" viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px;"><path d="M6 12.5l4 4 8-9"></path></svg>Todos los CA cubiertos</span>
+<div role="group" aria-label="Versiones" style="display: flex; gap: 4px;"><button class="ver">v1</button><button class="ver on" aria-pressed="true">v2</button></div>
+</div>
+<div role="tablist" aria-label="Contenido de la suite" style="padding: 10px 16px 0; display: flex; gap: 2px;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button class="{{t.cls}}" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}">{{t.label}}</button>
+</sc-for>
+</div>
+<div style="flex-grow: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;">
+<sc-if value="{{showCases}}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{cases}}" as="c" hint-placeholder-count="5">
+<button class="{{c.cls}}" aria-expanded="{{c.expanded}}" onClick="{{c.toggle}}">
+<span style="display: flex; gap: 8px; align-items: center;"><b>{{c.id}}</b><span style="flex-grow: 1;">{{c.title}}</span><span class="kind" style="{{c.kindStyle}}">{{c.kind}}</span><span class="prio">{{c.prio}}</span></span>
+<span style="font-size: 12px; color: #5C6E7C;">Verifica {{c.refs}}{{c.badge}}</span>
+<sc-if value="{{c.open}}" hint-placeholder-val="{{ false }}"><span class="gh">{{c.gherkin}}</span></sc-if>
+</button>
+</sc-for>
+</sc-if>
+<sc-if value="{{showMatrix}}" hint-placeholder-val="{{ false }}">
+<span class="sec">Matriz de cobertura CA/RN ↔ CP (RF-24) · se adjunta como matriz-DEMO-3.md</span>
+<div role="table" aria-label="Matriz de cobertura" style="display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)); gap: 4px; font-size: 13px;">
+<span role="columnheader"></span>
+<sc-for list="{{caseIds}}" as="h" hint-placeholder-count="5"><span role="columnheader" style="text-align: center; font-weight: 700;">{{h}}</span></sc-for>
+<sc-for list="{{matrix}}" as="r" hint-placeholder-count="6">
+<span role="rowheader" style="display: flex; align-items: center; font-weight: 700;">{{r.id}}</span>
+<sc-for list="{{r.cells}}" as="x" hint-placeholder-count="5"><span role="cell" class="cell" style="{{x.style}}" aria-label="{{x.label}}">{{x.mark}}</span></sc-for>
+</sc-for>
+</div>
+<span style="font-size: 13px; color: #5C6E7C;">Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.</span>
+</sc-if>
+<sc-if value="{{showData}}" hint-placeholder-val="{{ false }}">
+<span class="sec">Datos sintéticos (RF-25) · ficticios, coherentes con las reglas</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; font-size: 13px;">
+<b>Socia</b><b>Préstamo</b><b>Renovaciones</b><b>Reserva pendiente</b>
+<span>SOC-0001</span><span>PR-501</span><span>0</span><span>No</span>
+<span>SOC-0002</span><span>PR-502</span><span>1</span><span>Sí</span>
+<span>SOC-0003</span><span>PR-503</span><span>2</span><span>No</span>
+</div>
+<span class="sec" style="margin-top: 8px;">Riesgos, dependencias e impacto (RF-27)</span>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; display: flex; flex-direction: column; gap: 4px;">
+<li>Riesgo alto: la app podría no aplicar el límite de 2 renovaciones.</li>
+<li>Dependencia: servicio de reservas, para el CA-02.</li>
+<li>Áreas de impacto: préstamos, reservas (DEMO-2) y avisos de la app.</li>
+</ul>
+</sc-if>
+<sc-if value="{{showStrategy}}" hint-placeholder-val="{{ false }}">
+<span class="sec">Estrategia de pruebas (RF-26) · se adjunta como estrategia-DEMO-3.md</span>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.5;">
+<span><b>Alcance:</b> renovación desde la web y la app; fuera, la gestión de multas.</span>
+<span><b>Niveles:</b> funcional de los 5 casos y regresión de las reservas de DEMO-2.</span>
+<span><b>Entornos:</b> preproducción con los datos sintéticos de la suite.</span>
+<span><b>Entrada:</b> HU publicada y servicio de reservas disponible.</span>
+<span><b>Salida:</b> los casos Must pasan y no hay defectos abiertos de prioridad alta.</span>
+<span><b>Prioridad:</b> CP-01 y CP-02 primero; después CP-03, CP-04 y CP-05.</span>
+</div>
+</sc-if>
+</div>
+<div style="padding: 14px 16px; border-top: 1px solid #E6EAEE; background: #FFFFFF; display: flex; gap: 8px; align-items: center;">
+<button style="height: 44px; padding: 0 14px; border: 1px solid #93A0AB; border-radius: 10px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600;">Editar a mano</button>
+<button style="height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 14px; color: #5C6E7C;">Descartar</button>
+<span style="flex-grow: 1;"></span>
+<a href="QaRecibo.dc.html" style="height: 44px; padding: 0 16px; border-radius: 10px; background: #FF7932; color: #233441; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none;">Revisar y aprobar</a>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+componentDidMount() {
+// La respuesta se escribe letra a letra; al terminar aparecen la versión nueva y las sugerencias.
+this.timer = setInterval(() => {
+if (this.state.typed >= this.reply.length) { clearInterval(this.timer); return; }
+this.setState({ typed: Math.min(this.reply.length, this.state.typed + 2) });
+}, 35);
+}
+componentWillUnmount() {
+clearInterval(this.timer);
+}
+constructor(props) {
+super(props);
+this.reply = 'Versión 2: añadí el CP-05, positivo, para el CA-04. La matriz sigue completa.';
+this.state = { tab: 'cases', open: 'CP-02', typed: 0 };
+}
+renderVals() {
+const { tab, open, typed } = this.state;
+const done = typed >= this.reply.length;
+const kinds = {
+Positivo: 'background: #E7F4EC; color: #1E5E38;',
+Negativo: 'background: #FDECEA; color: #8C1D18;',
+Alterno: 'background: #E8F0FB; color: #1D4F91;',
+'Excepción': 'background: #FFF8E6; color: #6B4A00;',
+};
+const base = [
+{ id: 'CP-01', title: 'Renovar sin reservas', kind: 'Positivo', prio: 'Must', ca: ['CA-01'], rn: ['RN-01'], gherkin: 'Dado un préstamo activo de SOC-0001 sin reservas\nCuando pulsa «Renovar»\nEntonces el vencimiento se amplía 21 días' },
+{ id: 'CP-02', title: 'Rechazo con reserva pendiente', kind: 'Negativo', prio: 'Must', ca: ['CA-02'], rn: ['RN-02'], gherkin: 'Dado un préstamo activo de SOC-0002 con una reserva pendiente\nCuando pulsa «Renovar»\nEntonces ve «El ejemplar tiene reservas pendientes» y el vencimiento no cambia' },
+{ id: 'CP-03', title: 'Tercera renovación', kind: 'Excepción', prio: 'Should', ca: ['CA-01'], rn: ['RN-01'], gherkin: 'Dado un préstamo de SOC-0003 ya renovado 2 veces\nCuando pulsa «Renovar»\nEntonces ve «Has alcanzado el máximo de renovaciones»' },
+{ id: 'CP-04', title: 'Renovación desde la app', kind: 'Alterno', prio: 'Should', ca: ['CA-03'], rn: [], gherkin: 'Dado un préstamo activo de SOC-0001 en la app\nCuando renueva desde la ficha del préstamo\nEntonces se aplica la misma regla que en la web' },
+{ id: 'CP-05', title: 'Aviso tras renovar', kind: 'Positivo', prio: 'Could', ca: ['CA-04'], rn: [], gherkin: 'Dado que SOC-0001 acaba de renovar\nCuando termina la operación\nEntonces recibe un aviso con el nuevo vencimiento', fresh: true },
+];
+const cases = base.map((c) => ({
+...c,
+refs: c.ca.concat(c.rn).join(', '),
+badge: c.fresh ? ' · nuevo en v2' : '',
+kindStyle: kinds[c.kind],
+open: c.id === open,
+expanded: c.id === open ? 'true' : 'false',
+cls: (c.id === open ? 'case open' : 'case') + (c.fresh ? ' flash' : ''),
+toggle: () => this.setState({ open: open === c.id ? null : c.id }),
+}));
+const rows = ['CA-01', 'CA-02', 'CA-03', 'CA-04', 'RN-01', 'RN-02'];
+const matrix = rows.map((id) => ({
+id,
+cells: base.map((c) => {
+const hit = c.ca.includes(id) || c.rn.includes(id);
+return {
+mark: hit ? '✓' : '',
+label: id + (hit ? ' cubierto por ' : ' no cubierto por ') + c.id,
+style: hit ? 'background: #FFF3EC; color: #B23E00;' : 'background: #F4F6F8;',
+};
+}),
+}));
+const tabDefs = [['cases', 'Casos (5)'], ['matrix', 'Cobertura'], ['data', 'Datos y riesgos'], ['strategy', 'Estrategia']];
+return {
+typing: !done,
+done,
+partial: this.reply.slice(0, typed),
+tabs: tabDefs.map(([id, label]) => ({ label, cls: id === tab ? 'tab on' : 'tab', selected: id === tab ? 'true' : 'false', pick: () => this.setState({ tab: id }) })),
+showCases: tab === 'cases',
+showMatrix: tab === 'matrix',
+showData: tab === 'data',
+showStrategy: tab === 'strategy',
+cases,
+caseIds: base.map((c) => c.id),
+matrix,
+q: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z',
+};
+}
+}
+</script>
+</body>
+</html>

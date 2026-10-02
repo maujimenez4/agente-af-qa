@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Animaciones</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.card{background:#FFFFFF;border:1px solid #E6EAEE;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:16px;font-weight:700}
+.card p{margin:0;font-size:13px;color:#5C6E7C}
+.btn{height:40px;padding:0 14px;border-radius:10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .32s cubic-bezier(.2,.7,.2,1),color .32s cubic-bezier(.2,.7,.2,1)}
+.btn:active{filter:brightness(.94)}
+.pri{border:0;background:#FF7932;color:#233441;font-weight:700}
+.pri:disabled{background:#E6EAEE;color:#5C6E7C;cursor:not-allowed}
+.sec{border:1px solid #93A0AB;background:#FFFFFF;color:#233441}
+.lvl{transition:transform .42s cubic-bezier(.2,.7,.2,1)}
+@keyframes q4{from{transform:translateY(244.5px)}to{transform:translateY(0)}}
+.q4{animation:q4 4s steps(4, jump-none) infinite}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rise{animation:rise .42s cubic-bezier(.2,.7,.2,1) both}
+.d1{animation-delay:.08s}.d2{animation-delay:.16s}.d3{animation-delay:.24s}
+@keyframes flash{0%{background:#FFE5D5}100%{background:#FFFFFF}}
+.flash{animation:flash 1.6s cubic-bezier(.2,.7,.2,1) .5s both}
+@keyframes fillq{from{transform:translateY(326px)}to{transform:translateY(0)}}
+.qfull{animation:fillq 1.2s cubic-bezier(.2,.7,.2,1) both}
+.op{display:flex;gap:10px;align-items:center;padding:9px 10px;border:1px solid #E6EAEE;border-radius:10px;font-size:13px;cursor:pointer;transition:border-color .32s cubic-bezier(.2,.7,.2,1),background .32s cubic-bezier(.2,.7,.2,1)}
+.op.ok{border-color:#A7D3B8;background:#F3FAF6}
+.op input{width:18px;height:18px;margin:0;accent-color:#1E7A46}
+.mini{border:1px solid #E6EAEE;border-radius:10px;padding:8px 10px;font-size:13px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 32px; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441; display: flex; flex-direction: column; gap: 20px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700;">Animaciones</h1>
+<p style="margin: 0; font-size: 15px; color: #5C6E7C;">Pulsa Reproducir en cada ejemplo. Todas responden a una acción o a un proceso real, duran menos de medio segundo salvo la carga, y se desactivan con «reducir movimiento».</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+<section class="card" aria-labelledby="a1">
+<h2 id="a1">1. Avance del trabajo</h2>
+<p>La Q sube un cuarto al pasar de fase (0,42 s).</p>
+<div style="display: flex; align-items: center; gap: 14px;">
+<svg viewBox="0 0 326 326" width="72" height="72" aria-hidden="true"><defs><clipPath id="a-lvl"><rect class="lvl" x="0" y="0" width="326" height="326" style="{{lvlStyle}}"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#a-lvl)"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 22px; font-weight: 700;">{{pct}}</span><span style="font-size: 13px; color: #5C6E7C;">{{phaseName}}</span></div>
+</div>
+<div style="display: flex; gap: 8px;"><button class="btn sec" onClick="{{prev}}">Fase anterior</button><button class="btn pri" onClick="{{next}}">Fase siguiente</button></div>
+</section>
+<section class="card" aria-labelledby="a2">
+<h2 id="a2">2. Carga por procesos</h2>
+<p>Un cuarto por proceso de la generación, en bucle mientras dura.</p>
+<div style="display: flex; align-items: center; gap: 14px;">
+<svg viewBox="0 0 326 326" width="72" height="72" aria-hidden="true"><defs><clipPath id="a-load"><rect class="q4" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#a-load)"></path></svg>
+<ol style="margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 2px;"><li>Recuperar contexto</li><li>Generar</li><li>Validar citas</li><li>Propuesta lista</li></ol>
+</div>
+</section>
+<section class="card" aria-labelledby="a3">
+<h2 id="a3">3. Llega una versión nueva</h2>
+<p>Los criterios entran escalonados y el cambiado se resalta un instante.</p>
+<div style="display: flex; flex-direction: column; gap: 6px; min-height: 112px;">
+<sc-if value="{{showVersion}}" hint-placeholder-val="{{ true }}">
+<div class="mini rise"><b>CA-01</b> Renovación permitida</div>
+<div class="mini rise d1 flash"><b>CA-03</b> Renovación desde la app <span style="color: #B23E00; font-weight: 700;">actualizado</span></div>
+<div class="mini rise d2"><b>RN-02</b> No con reservas pendientes</div>
+</sc-if>
+</div>
+<button class="btn sec" onClick="{{replayVersion}}">Reproducir</button>
+</section>
+<section class="card" aria-labelledby="a4">
+<h2 id="a4">4. Recibo de aprobación</h2>
+<p>Cada casilla confirma su operación; el botón se activa al completar.</p>
+<label class="{{r1}}"><input type="checkbox" checked="{{c1}}" onChange="{{t1}}">Actualizar DEMO-3</label>
+<label class="{{r2}}"><input type="checkbox" checked="{{c2}}" onChange="{{t2}}">Comentar el diff</label>
+<label class="{{r3}}"><input type="checkbox" checked="{{c3}}" onChange="{{t3}}">Vincular con DEMO-2</label>
+<button class="btn pri" disabled="{{locked}}">Aprobar y publicar</button>
+</section>
+<section class="card" aria-labelledby="a5">
+<h2 id="a5">5. Publicado</h2>
+<p>La Q se completa y aparecen las operaciones hechas.</p>
+<div style="display: flex; align-items: center; gap: 14px; min-height: 96px;">
+<sc-if value="{{showPublish}}" hint-placeholder-val="{{ true }}">
+<svg viewBox="0 0 326 326" width="72" height="72" aria-hidden="true"><defs><clipPath id="a-pub"><rect class="qfull" x="0" y="0" width="326" height="326"></rect></clipPath></defs><path d="{{q}}" fill="#E6EAEE"></path><path d="{{q}}" fill="#FF7932" clip-path="url(#a-pub)"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;"><span class="rise d2" style="font-weight: 700;">DEMO-3 actualizada</span><span class="rise d3">Memoria generada</span></div>
+</sc-if>
+</div>
+<button class="btn sec" onClick="{{replayPublish}}">Reproducir</button>
+</section>
+<section class="card" aria-labelledby="a6">
+<h2 id="a6">6. Microinteracciones</h2>
+<p>Solo cambian color o brillo, sin saltos ni rebotes (marca Qaracter).</p>
+<ul style="margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px;">
+<li>Botón: se oscurece un 6 % al pulsar.</li>
+<li>Zona del carril: fondo y color en 0,22 s.</li>
+<li>Tarjetas y filas: borde al pasar el ratón.</li>
+<li>Foco visible naranja de 2 px en todo control.</li>
+</ul>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { phase: 2, showVersion: true, showPublish: true, c: [true, false, false] };
+}
+replay(key) {
+this.setState({ [key]: false }, () => setTimeout(() => this.setState({ [key]: true }), 40));
+}
+renderVals() {
+const q = 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z';
+const { phase, c } = this.state;
+const names = ['Contexto', 'Generar', 'Revisión', 'Publicado'];
+const toggle = (i) => () => { const n = c.slice(); n[i] = !n[i]; this.setState({ c: n }); };
+return {
+q,
+pct: phase * 25 + ' %',
+phaseName: 'Fase ' + phase + ': ' + names[phase - 1],
+lvlStyle: 'transform: translateY(' + (326 * (1 - phase / 4)) + 'px);',
+prev: () => this.setState({ phase: Math.max(1, phase - 1) }),
+next: () => this.setState({ phase: Math.min(4, phase + 1) }),
+showVersion: this.state.showVersion,
+replayVersion: () => this.replay('showVersion'),
+showPublish: this.state.showPublish,
+replayPublish: () => this.replay('showPublish'),
+c1: c[0], c2: c[1], c3: c[2],
+t1: toggle(0), t2: toggle(1), t3: toggle(2),
+r1: c[0] ? 'op ok' : 'op', r2: c[1] ? 'op ok' : 'op', r3: c[2] ? 'op ok' : 'op',
+locked: c.filter(Boolean).length < 3,
+};
+}
+}
+</script>
+</body>
+</html>

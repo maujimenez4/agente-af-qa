@@ -216,15 +216,15 @@ def test_run_taken_keeps_handoff_if_state_cannot_be_read(monkeypatch: pytest.Mon
     """Criterio 7 (error): sin poder leer el estado no se libera; solo se registra el tipo."""
     monkeypatch.setattr(service, "_run_graph", lambda *_a, **_k: None)
     store = SpyStore()
-    secret = "detalle-interno-ficticio-0000"
+    internal_detail = "detalle-interno-ficticio-0000"
 
     with capture_logs() as logs:
-        service._run_taken(None, _ws(RuntimeError(secret)), _run(True), _start(), store)  # type: ignore[arg-type]
+        service._run_taken(None, _ws(RuntimeError(internal_detail)), _run(True), _start(), store)  # type: ignore[arg-type]
 
     assert store.released == []
     (entry,) = [e for e in logs if e.get("action") == "release_handoff"]
     assert entry["error_type"] == "RuntimeError"
-    assert secret not in str(logs)
+    assert internal_detail not in str(logs)
 
 
 def test_in_memory_store_type_is_used_by_fake_runtime(rt: Runtime) -> None:

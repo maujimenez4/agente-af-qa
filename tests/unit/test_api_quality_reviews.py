@@ -220,15 +220,15 @@ def test_llm_failure_leaves_review_in_error_with_spanish_body(
 
 def test_unexpected_failure_does_not_leak_exception_text(tmp_path: Path) -> None:
     """Criterio 4 (error): una excepción inesperada queda como `unexpected` sin su texto."""
-    secret = "detalle-interno-ficticio-0000"
-    rt = fake_runtime(tmp_path, llm=FakeLLMProvider(error=RuntimeError(secret)))
+    internal_detail = "detalle-interno-ficticio-0000"
+    rt = fake_runtime(tmp_path, llm=FakeLLMProvider(error=RuntimeError(internal_detail)))
     af = _login(rt)
 
     rid = af.post("/quality-reviews", {"issue_key": "DEMO-3"}).json()["id"]
 
     detail = af.get(f"/quality-reviews/{rid}")
     assert detail.json()["error"]["code"] == "unexpected"
-    assert secret not in detail.text
+    assert internal_detail not in detail.text
 
 
 def test_store_failure_when_saving_error_is_swallowed(tmp_path: Path) -> None:

@@ -124,6 +124,43 @@ describe('Iterar · acciones de la tarjeta de error (H-5)', () => {
   })
 })
 
+describe('Iterar · Reintentar repite la operación que falló (R-1) e Iniciar sesión (R-2)', () => {
+  it('tras un cambio que salió bien, si falla Descartar, «Reintentar» vuelve a descartar y no itera', async () => {
+    await openFromList()
+    await askFor('Cambio ficticio', 3)
+    const calls: string[] = []
+    mockServer.events.on('request:start', ({ request }) => {
+      const path = new URL(request.url).pathname
+      if (request.method === 'POST') calls.push(path.split('/').at(-1) ?? path)
+    })
+    mockServer.use(
+      http.post(
+        '/api/v1/conversations/:id/discard',
+        () => HttpResponse.json({ error: { code: 'service_unavailable', message: 'Servicio no disponible (ficticio).', retry_after: null } }, { status: 503 }),
+        { once: true },
+      ),
+    )
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Descartar' }))
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Sí, descartar' }))
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
+    expect(calls).toEqual(['discard', 'discard'])
+  })
+
+  it('«Iniciar sesión» (unauthenticated) cierra la sesión y lleva al inicio de sesión', async () => {
+    await openFromList()
+    mockServer.use(
+      http.post('/api/v1/conversations/:id/iterate', () =>
+        HttpResponse.json({ error: { code: 'unauthenticated', message: 'La sesión ha caducado.', retry_after: null } }, { status: 401 }),
+      ),
+    )
+    await userEvent.type(composer(), 'Cambio ficticio')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Iniciar sesión' }))
+    expect(await screen.findByLabelText(/usuario/i)).toBeInTheDocument()
+  })
+})
+
 describe('Iterar · HU nueva sin HU de Jira (H-9)', () => {
   it('no habla de cambios «frente a Jira» cuando el flujo no es evolucionar', async () => {
     mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json({ ...EXAMPLE, flow: 'need' })))

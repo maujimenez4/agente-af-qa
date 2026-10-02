@@ -10,6 +10,7 @@ import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts
 import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
+import { useSession } from '../../session/sessionContext.ts'
 import { useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
 import { modelLabel, proposalVersions, SUGGESTIONS } from './iterateText.ts'
@@ -69,7 +70,14 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
   // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
   const [earlierFeedback] = useState(initial.feedback)
   const [panelOpen, setPanelOpen] = useState(true)
-  const [lastFeedback, setLastFeedback] = useState<string | undefined>()
+  const { logout } = useSession()
+  // La operación que falló, para *Reintentar* o *Volver a generar*: repite esa y no otra.
+  const [retry, setRetry] = useState<{ run: () => void } | undefined>()
+
+  const fail = (failure: ApiError, again: () => void) => {
+    setError(failure)
+    setRetry({ run: again })
+  }
   // Solo al evolucionar hay una HU de Jira con la que comparar (DESIGN-DECISIONS.md §4 bis).
   const againstJira = conversation.flow === 'evolve'
   const versions = proposalVersions(conversation)
@@ -92,12 +100,11 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
     if (!text) return
     setError(undefined)
     setDraft('')
-    setLastFeedback(text)
     if (!repeat) setEntries((current) => [...current, { kind: 'user', text }])
     try {
       setIterating(await api.iterate(conversation.id, text))
     } catch (cause) {
-      setError(toApiError(cause))
+      fail(toApiError(cause), () => void send(text, { repeat: true }))
     }
   }
 
@@ -113,7 +120,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       setConversation(next)
       setSelected(proposalVersions(next).at(-1)?.version ?? selected)
     } catch (cause) {
-      setError(toApiError(cause))
+      fail(toApiError(cause), () => void refresh())
     }
   }
 
@@ -124,9 +131,11 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
         return onRestart
       case 'refresh':
         return () => void refresh()
+      case 'login':
+        return () => void logout()
       case 'regenerate':
       case 'retry':
-        return lastFeedback ? () => void send(lastFeedback, { repeat: true }) : () => setError(undefined)
+        return retry ? retry.run : () => setError(undefined)
       default:
         return () => setError(undefined)
     }
@@ -138,7 +147,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       await api.discard(conversation.id)
       onDiscarded()
     } catch (cause) {
-      setError(toApiError(cause))
+      fail(toApiError(cause), () => void discard())
     } finally {
       setBusy(false)
       setConfirmDiscard(false)
@@ -275,8 +284,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
                 setEntries((current) => [...current, { kind: 'assistant', version, animate: true }])
               }}
               onError={(failure) => {
+                const feedback = iterating.feedback.at(-1)
                 setIterating(undefined)
-                setError(failure)
+                if (feedback) fail(failure, () => void send(feedback, { repeat: true }))
+                else {
+                  setError(failure)
+                  setRetry(undefined)
+                }
               }}
             />
           </AssistantMessage>

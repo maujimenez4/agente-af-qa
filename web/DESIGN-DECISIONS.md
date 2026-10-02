@@ -138,7 +138,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Historial:** los cambios pedidos antes de retomar (`ConversationOut.feedback`) se pintan siempre al principio del chat.
   - **Sugerencias:** «Añade un criterio de error», «Aclara el alcance» y «Revisa INVEST». El lienzo trae «Busca la fuente del CA-04» en lugar de «Aclara el alcance», pero el contrato no da la cita de cada CA (PA-315) y no se puede saber qué CA no tiene fuente.
   - **Resumen del asistente:** además de lo que cambió y a qué afecta, «Queda 1 pregunta abierta» o «Quedan N preguntas abiertas» si `open_questions` no está vacío, para que no pasen desapercibidas (no está en el lienzo).
-  - **Tarjeta de error:** *Actualizar* vuelve a leer la conversación (si ya no está en revisión, vuelve a Inicio); *Volver a generar* y *Reintentar* reenvían el último cambio pedido sin repetirlo en el chat; *Empezar de nuevo* vuelve a Inicio.
+  - **Tarjeta de error:** *Actualizar* vuelve a leer la conversación (si ya no está en revisión, vuelve a Inicio); *Volver a generar* y *Reintentar* repiten **la operación que falló** (el cambio pedido, sin repetirlo en el chat; *Descartar*, o la relectura de *Actualizar*); *Empezar de nuevo* vuelve a Inicio; *Iniciar sesión* cierra la sesión y vuelve a la pantalla de inicio de sesión.
   - **Panel:** versiones v1…vN de `ConversationOut.versions` más la de la revisión; pestañas Propuesta, Cambios, Impacto y Fuentes.
   - **Lo que el contrato no da:**
     - la versión «Jira» del lienzo (la HU tal como está en Jira; PA-316);

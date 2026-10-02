@@ -555,14 +555,6 @@ def test_publish_suite_second_run_writes_nothing() -> None:
     assert len(site.writes()) == writes
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-190): `publish_suite` confía en que los IDs de la suite sean únicos; "
-        "si la suite se modifica tras validarse (`TestSuite` es mutable), un CP repetido crea "
-        "dos subtareas `[CP-01]` en la misma llamada (adapters/testmgmt/jira_native.py:165-180)"
-    ),
-)
 def test_publish_suite_creates_case_only_once_when_id_is_repeated_in_mutated_suite() -> None:
     """PA-05: un mismo `[CP-01]` nunca se crea dos veces en Jira."""
     suite = make_suite([make_case("CP-01")])
@@ -771,15 +763,6 @@ def test_record_execution_raises_auth_error_without_label_when_transition_is_for
     assert_safe(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-195): un 400 en la transición de `record_execution` muestra el mensaje "
-        "genérico de creación («Revisa el tipo de incidencia, la épica…»), que no aplica a una "
-        "transición (p. ej. con campos obligatorios en su pantalla) "
-        "(adapters/jira/http.py:242-246; adapters/testmgmt/jira_native.py:356-358)"
-    ),
-)
 def test_record_execution_transition_400_message_does_not_mention_epic() -> None:
     """§8: el mensaje en español debe orientar sobre la transición, no sobre la épica."""
     site = ExecutionSite(replies={("POST", TRANSITIONS_PATH): [error_response(400)]})

@@ -165,9 +165,13 @@ class JiraHttp:
         body: dict[str, Any],
         failure: type[AgentError],
         key: str | None = None,
+        bad_request: str | None = None,
     ) -> dict[str, Any]:
-        """Escritura JSON de un solo intento; la respuesta, como objeto (o `{}`)."""
-        data = self._write(method, path, failure, key, json=body)
+        """Escritura JSON de un solo intento; la respuesta, como objeto (o `{}`).
+
+        `bad_request` sustituye el mensaje genérico de un 400 (PA-195).
+        """
+        data = self._write(method, path, failure, key, json=body, bad_request=bad_request)
         return data if isinstance(data, dict) else {}
 
     def upload(
@@ -195,6 +199,7 @@ class JiraHttp:
         json: dict[str, Any] | None = None,
         files: dict[str, tuple[str, bytes, str]] | None = None,
         headers: dict[str, str] | None = None,
+        bad_request: str | None = None,
     ) -> Any:
         def fail(message: str) -> AgentError:
             if issubclass(failure, ExternalServiceError):
@@ -252,7 +257,8 @@ class JiraHttp:
             )
         if status == 400:
             raise fail(
-                "Jira ha rechazado los datos (HTTP 400). Revisa el tipo de incidencia, la épica "
+                bad_request
+                or "Jira ha rechazado los datos (HTTP 400). Revisa el tipo de incidencia, la épica "
                 "y los campos obligatorios del proyecto."
             )
         raise fail(f"Jira ha respondido con un error al escribir (HTTP {status}).")

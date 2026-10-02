@@ -175,7 +175,11 @@ class JiraNativeTests:
         existing = self._existing_cases(story)  # PA-05; si falla, no se escribe nada
         result = PublishResult()
         stopped = False
+        handled: set[str] = set()  # PA-190: un CP repetido en la suite se trata una sola vez
         for case in suite.cases:
+            if case.internal_id in handled:
+                continue
+            handled.add(case.internal_id)
             if case.internal_id in existing:
                 result.created.append(existing[case.internal_id])
             elif stopped:
@@ -364,7 +368,15 @@ class JiraNativeTests:
                     continue
                 body = {"transition": {"id": transition_id}}
                 self._http.send(
-                    "POST", f"/rest/api/3/issue/{key}/transitions", body, PublishError, key
+                    "POST",
+                    f"/rest/api/3/issue/{key}/transitions",
+                    body,
+                    PublishError,
+                    key,
+                    bad_request=(  # PA-195: mensaje propio, no el de creación
+                        f"Jira ha rechazado la transición de {key} (HTTP 400): puede que pida "
+                        "campos obligatorios o que el flujo de trabajo no la permita."
+                    ),
                 )
                 return True
         # Sin transición en el flujo (p. ej. no hay estado «Falló»): manda la etiqueta.

@@ -80,7 +80,6 @@ from api.security import (
     runtime,
     session_for,
 )
-from app.sources import issue_card as count_card
 from core.config import Settings
 from core.context.jql import text_search_jql
 from core.guided_start import GuidedStart
@@ -389,7 +388,7 @@ def issue_card(request: Request, key: str = Path(pattern=KEY_PATTERN)) -> IssueC
     _rt, _s, ws, user = _ctx(request)
     require(user, Permission.VIEW_CONTEXT)
     issue = ws.container.issue_tracker.get_issue(normalize_issue_key(key))
-    counted = count_card(issue)  # CA y RN contados en la descripción, sin IA
+    criteria, rules = service.count_ids(issue.description_text or "")  # sin IA
     return IssueCard(
         key=issue.key,
         project=project_of(issue.key),
@@ -397,8 +396,8 @@ def issue_card(request: Request, key: str = Path(pattern=KEY_PATTERN)) -> IssueC
         issue_type=issue.issue_type,
         status=issue.status,
         epic_key=issue.parent_key,
-        criteria_count=counted.criteria,
-        rules_count=counted.rules,
+        criteria_count=criteria,
+        rules_count=rules,
     )
 
 

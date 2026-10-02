@@ -7,6 +7,7 @@ propiedad, estado) son previas; las de verdad siguen en el grafo y en el registr
 aprobaciones.
 """
 
+import re
 import time
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
@@ -33,7 +34,6 @@ from api.models import (
     VersionOut,
 )
 from api.runtime import Run, Runtime, Workspace
-from app.progress import nodes_in_update
 from core.approvals import ApprovalError, PublishTarget
 from core.conversations import (
     NOT_YOURS,
@@ -77,6 +77,21 @@ OPERATION_NODES = {
     "approve": PUBLISH_NODES,
 }
 ENDED = ("approved", "simulated", "published", "discarded")
+# IDs de criterios y reglas en la descripción de una incidencia (plantilla de HU), sin IA.
+_CA_ID = re.compile(r"\bCA-\d+\b")
+_RN_ID = re.compile(r"\bRN-\d+\b")
+
+
+def nodes_in_update(update: object) -> list[str]:
+    """Nodos de un evento de `graph.stream(..., stream_mode="updates")` (sin los internos)."""
+    if not isinstance(update, dict):
+        return []
+    return [str(name) for name in update if not str(name).startswith("__")]
+
+
+def count_ids(text: str) -> tuple[int, int]:
+    """CA y RN distintos que aparecen en `text` (ficha de una incidencia)."""
+    return len(set(_CA_ID.findall(text))), len(set(_RN_ID.findall(text)))
 
 
 # --- Permisos y propiedad -------------------------------------------------------------------

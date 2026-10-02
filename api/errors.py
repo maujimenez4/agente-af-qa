@@ -27,8 +27,6 @@ SAFE_VALUE_ERROR_MODULES = frozenset(
         "core.projects",
         "core.graph.state",
         "core.guided_start",
-        "app.origin",
-        "app.review",
         "adapters.llm.router",
         "api.service",
     }

@@ -289,3 +289,20 @@ def test_chained_qa_routes_declare_501_until_t54(path: str, method: str) -> None
     response = DOC["paths"][path][method]["responses"]["501"]
     example = response["content"]["application/json"]["example"]
     assert example["error"]["code"] == "not_implemented"
+
+
+def test_api_never_imports_the_streamlit_ui() -> None:
+    """PA-106: la API no depende de `app/` (Streamlit es el plan B y puede retirarse en T-57)."""
+    import ast
+
+    api_dir = OPENAPI_PATH.parents[2] / "api"
+    for path in api_dir.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            elif isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            else:
+                continue
+            assert not any(n == "app" or n.startswith("app.") for n in names), path.name

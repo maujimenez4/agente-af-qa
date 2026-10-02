@@ -20,7 +20,6 @@ import hashlib
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
-from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -51,7 +50,10 @@ from adapters.jira.http import SERVICE, JiraHttp
 from adapters.jira.jql import CASE_LABEL, cases_jql
 from adapters.jira.story_template import prefixed_summary
 from adapters.jira.tracker import JIRA_KEY_RE, SEARCH_FIELDS, to_issue_summary
-from schemas.test_case import TestCase, TestSuite
+
+# PA-206: el resultado y el límite de la evidencia son del dominio (`schemas/`); se
+# reexportan aquí para quien los importaba de este módulo.
+from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus, TestCase, TestSuite
 
 log = structlog.get_logger(__name__)
 
@@ -61,22 +63,12 @@ _CASE_PREFIX = re.compile(r"^\[(CP-\d+)\]")
 _MAX_KEY_IN_MESSAGE = 50
 _MAX_SUBTASK_TYPE = 60
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")  # incluye `\r` y `\n`
-MAX_EVIDENCE_CHARS = 20_000
 COMMENTS_TO_CHECK = 20  # PA-208: comentarios recientes en los que se busca el último registro
 FINGERPRINT_CHARS = 12
 _RESULT_HEADING = "Resultado de la ejecución:"
 _FINGERPRINT_LABEL = "Huella:"
 _FINGERPRINT_LINE = re.compile(r"Huella: ([0-9a-f]{12})")  # solo en la última línea
 _NUMERIC_ID = re.compile(r"[0-9]{1,18}")  # ASCII: `isdigit` admite «²» o «١»
-
-
-class ExecutionStatus(StrEnum):
-    """Resultado de la ejecución de un CP (T-47). PA-206: pasará a `schemas/test_case.py`."""
-
-    PASSED = "paso"
-    FAILED = "fallo"
-    BLOCKED = "bloqueado"
-    NOT_RUN = "sin-ejecutar"
 
 
 STATUS_TEXT = {

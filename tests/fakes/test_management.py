@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 
 from adapters.base import IssueSummary, PublishResult
 from adapters.errors import PublishError
-from adapters.testmgmt.jira_native import MAX_EVIDENCE_CHARS, ExecutionStatus
-from schemas.test_case import TestSuite
+from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus, TestSuite
 
 EXECUTION_VALUES = {status.value for status in ExecutionStatus}
 

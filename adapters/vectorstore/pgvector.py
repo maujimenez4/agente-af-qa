@@ -143,7 +143,7 @@ class PgVectorStore:
 
         La categoría (`metadata["category"]`) es obligatoria; `title`, `source_path`,
         `related_key` y `content_hash` se toman de `metadata` si existen. Para reindexar un
-        documento sin dejar fragmentos antiguos: `delete_by_document` y después `upsert` (RF-38).
+        documento sin dejar fragmentos antiguos, `replace_document` (atómico, PA-216; RF-38).
         """
         by_document: dict[str, list[Chunk]] = {}
         for chunk in chunks:

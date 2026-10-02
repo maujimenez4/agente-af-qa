@@ -122,11 +122,8 @@ def test_ingest_dir_rejects_duplicate_header_ids(tmp_path: Path) -> None:
     _md(tmp_path / "a.md", "# A\n\nTexto a.", id="DOC-FIC-20", category="politicas")
     _md(tmp_path / "b.md", "# B\n\nTexto b.", id="DOC-FIC-20", category="politicas")
 
-    try:
-        docs = _ingestor().ingest_dir(tmp_path)
-    except IngestionError:
-        return
-    assert len({d.id for d in docs}) == 2
+    with pytest.raises(IngestionError, match="«DOC-FIC-20»"):  # PA-214: se rechaza
+        _ingestor().ingest_dir(tmp_path)
 
 
 def test_ingest_falls_back_to_stem_and_heading_when_header_id_and_title_are_empty(

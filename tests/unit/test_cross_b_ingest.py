@@ -54,14 +54,6 @@ def _md(path: Path, body: str, **header: str) -> Path:
 # --------------------------------------------------------------------------- BOM
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-213): un .md con BOM pierde la cabecera YAML; se lee con utf-8 (no "
-        "utf-8-sig) y split_front_matter exige '---' en la posición 0 "
-        "(core/rag/ingest.py:51-53, 166)"
-    ),
-)
 def test_ingest_md_uses_header_when_file_starts_with_bom(tmp_path: Path) -> None:
     """RF-12: la cabecera de un .md guardado con BOM se usa y no llega al texto."""
     path = _write(
@@ -83,13 +75,6 @@ def test_ingest_md_uses_header_when_file_starts_with_bom(tmp_path: Path) -> None
     assert llm.calls == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-213): el BOM de un .txt llega al texto normalizado; se lee con utf-8 y "
-        "normalize_text no lo quita (core/rag/ingest.py:83 y 41-46)"
-    ),
-)
 def test_ingest_txt_drops_bom_when_file_starts_with_bom(tmp_path: Path) -> None:
     """RF-08: el texto normalizado no empieza por '\\ufeff'."""
     path = _write(tmp_path / "nota-ficticia.txt", BOM + "# Nota ficticia\n\nTexto ficticio.")

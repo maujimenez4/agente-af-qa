@@ -1464,8 +1464,12 @@ def test_ledger_rejection_fails_closed_without_retry(tmp_path: Path) -> None:
     config = _config()
     first = _payload(_start(graph, config))
     artifact = Artifact.model_validate(first["artifact"])
-    # La oferta desaparece del registro (p. ej., otro proceso la consumió).
-    container.approvals._offers.pop(str(artifact.id))
+    # La oferta desaparece del registro guardado (p. ej., otro proceso la consumió). Desde
+    # PA-174 el registro se relee del almacén antes de decidir, así que se cambia el almacén.
+    state = container.state_store.load(str(artifact.id))
+    assert state is not None
+    state["ledger"]["offer"] = None
+    container.state_store.save(str(artifact.id), state)
 
     with pytest.raises(ApprovalError):
         graph.invoke(

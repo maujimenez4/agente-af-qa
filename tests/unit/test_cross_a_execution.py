@@ -3,7 +3,7 @@
 Cubre RF-28 (registrar el resultado y la evidencia por caso, R-01 opción A), el principio 1 de
 CLAUDE.md (nada se escribe en Jira sin aprobación humana y solo desde `publish`), RNF-13
 (publicación parcial sin dejar escrituras sin informar), RF-35 (auditoría sin contenido),
-UI.md §5 (aprobación con huella, un solo uso; en simulación sigue vigente) y §6.6 (QA 6), y la
+UI.md §5 (aprobación con huella, un solo uso; aquí también en simulación, PA-177) y §6.6, y la
 fila de T-47 del anexo §11 de SPEC-00. Se centra en los bordes que `test_execution_graph.py`
 no fija: los cuatro resultados, claves de otra HU o mal formadas, la huella frente a cada
 cambio, la aprobación ajena o repetida, datos personales en la evidencia, enlaces que no son
@@ -11,10 +11,13 @@ http(s), tamaños con caracteres de control, fallos del almacén y de la auditor
 registro, mensajes y registros (logs) sin datos internos.
 
 Solo fakes de `tests/fakes/`; nada de Jira ni LLM reales. Datos 100 % ficticios (claves
-DEMO-6xx, textos «ficticio», dominio example.com). Los defectos confirmados van como
-`xfail(strict=True)` con su PA provisional; el resto fija el comportamiento actual.
+DEMO-6xx, textos «ficticio», dominio example.com; la prueba de PA-178 usa a propósito un
+dominio inventado no reservado, porque el detector acepta example.com como ficticio). Los
+defectos confirmados de T-35 ya están corregidos (ronda 6); el resto fija el comportamiento.
 """
 
+import contextlib
+import time
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -520,17 +523,10 @@ def test_review_and_load_nodes_never_call_record_execution(
 # --- simulación (T-25, UI.md §5.6 y §6.5) ---------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-177): en `simulation` el registro de la ejecución consume la aprobación "
-        "(used=True), al contrario que el grafo de HU y que UI.md §5.6/§6.5 y SPEC-00 §11 (T-25: "
-        "«no consume la aprobación») (core/graph/execution.py:295-297)"
-    ),
-)
-def test_simulation_keeps_approval_valid_for_live(tmp_path: Path) -> None:
-    """UI.md §5.6 · SPEC-00 §11 (T-25): en simulación no se escribe y la aprobación sigue
-    vigente para publicar cuando se active el modo real."""
+def test_simulation_consumes_the_execution_approval(tmp_path: Path) -> None:
+    """PA-177 (decisión de la principal, comportamiento intencionado): el registro de la
+    ejecución termina en `publish`, así que en simulación no escribe nada en Jira pero sí
+    consume su aprobación; en `live` se registra de nuevo."""
     container = fake_container(tmp_path, publish_mode="simulation")
     _tm(container).cases[STORY] = list(CASES)
     g = build_execution_graph(container, checkpointer=memory_checkpointer())
@@ -538,7 +534,7 @@ def test_simulation_keeps_approval_valid_for_live(tmp_path: Path) -> None:
     _start(g, config)
     _approve(g, config, _save(g, config)["fingerprint"])
     assert _tm(container).executions == []
-    assert _stored(container, config).get("used") is False
+    assert _stored(container, config).get("used") is True
 
 
 def test_simulation_audit_plan_has_no_evidence_nor_environment(tmp_path: Path) -> None:
@@ -557,18 +553,10 @@ def test_simulation_audit_plan_has_no_evidence_nor_environment(tmp_path: Path) -
 # --- evidencia: datos personales, secretos y enlaces ---------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-178): la evidencia llega a Jira sin revisar datos que parecen personales "
-        "o secretos (email, DNI, cabecera Authorization), a diferencia de la suite (RF-25, "
-        "RNF-06, CLAUDE.md principios 2 y 3) (core/graph/execution.py:167-174)"
-    ),
-)
 @pytest.mark.parametrize(
     "evidence",
     [
-        "La persona usuaria escribió soporte.ficticio@example.com y falló.",
+        "La persona usuaria escribió soporte.ficticio@villaficticia.es y falló.",
         "Se introdujo el documento 12345678Z y la pantalla falló.",
         "Respuesta con Authorization: Bearer TOKEN_FICTICIO_0000000000000000",
     ],
@@ -776,23 +764,16 @@ def test_audit_failure_after_writing_never_repeats_writes(
         original(entry)
 
     monkeypatch.setattr(audit, "record", broken)
-    with pytest.raises(ExternalServiceError):
+    with pytest.raises(ExternalServiceError, match=r"Se registraron \d+ resultados en Jira"):
         _approve(graph, config, payload["fingerprint"])
     assert len(_tm(container).executions) == len(RESULTS)
+    assert _stored(container, config).get("recorded") == CASE_KEYS  # se guardó pese al fallo
     monkeypatch.setattr(audit, "record", original)
     with pytest.raises(PublishError, match="aprobación humana vigente"):
         graph.invoke(None, config)
     assert len(_tm(container).executions) == len(RESULTS)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-179): si falla el guardado final en `state_store` tras escribir en Jira, "
-        "la entrada `publish` de la auditoría no se registra: en el `finally` `_save` va antes que "
-        "`_audit` (el grafo de HU audita primero) (core/graph/execution.py:328-335)"
-    ),
-)
 def test_writes_are_audited_even_if_final_state_save_fails(
     graph: CompiledStateGraph, container: Container, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -812,7 +793,7 @@ def test_writes_are_audited_even_if_final_state_save_fails(
         original(thread_id, state)
 
     monkeypatch.setattr(store, "save", flaky)
-    with pytest.raises(ExternalServiceError):
+    with pytest.raises(ExternalServiceError, match=r"Se registraron \d+ resultados en Jira"):
         _approve(graph, config, payload["fingerprint"])
     assert len(_tm(container).executions) == len(RESULTS)
     publish = [e for e in _audit(container) if e.action == "publish"]
@@ -900,3 +881,75 @@ def test_review_errors_are_spanish_and_have_no_internal_data(
     assert error and error[0].isupper() and error.endswith(".")
     for internal in (_thread_id(config), "Traceback", "Error", "ExecutionStatus", "{", "'"):
         assert internal not in error
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["a.", "a", "1", "eyJ", "palabra "],
+    ids=["puntos", "letras", "cifras", "jwt", "palabras"],
+)
+def test_evidence_check_at_max_length_runs_in_milliseconds(pattern: str) -> None:
+    """PA-178 · revisión de seguridad: la evidencia más larga permitida se revisa sin coste
+    cuadrático (la escribe la persona y hay una por caso)."""
+    evidence = (pattern * MAX_EVIDENCE_CHARS)[:MAX_EVIDENCE_CHARS]
+    start = time.perf_counter()
+    validate_results(
+        [{"case_key": "DEMO-602", "status": "fallo", "evidence_md": evidence}],
+        _cases_rows(),  # type: ignore[arg-type]
+    )
+    assert time.perf_counter() - start < 0.5
+
+
+@pytest.mark.parametrize(
+    "sensitive",
+    ["ES91 2100 0418 4502 0005 1332", "600 123 456", "persona@villaficticia.es"],
+    ids=["iban", "telefono", "email"],
+)
+def test_sensitive_data_is_found_inside_long_evidence(sensitive: str) -> None:
+    """PA-178: un dato rodeado de mucho texto se detecta en cualquier posición."""
+    for padding in range(0, 320, 37):
+        evidence = "relleno " * 40 + "x" * padding + " " + sensitive + " " + "relleno " * 40
+        with pytest.raises(ExecutionRejectedError, match="dato personal"):
+            validate_results(
+                [{"case_key": "DEMO-602", "status": "fallo", "evidence_md": evidence}],
+                _cases_rows(),  # type: ignore[arg-type]
+            )
+
+
+@pytest.mark.parametrize(
+    ("evidence", "kind"),
+    [
+        ('{"campo":"' + "a" * 320 + '","email":"persona@villaficticia.es"}', "email"),
+        ("valor," * 70 + "12345678Z", "documento de identidad"),
+        ("https://app.example/" + "a" * 300 + "?tel=600123456", "teléfono"),
+        ("a" * 310 + ";persona@villaficticia.es", "email"),
+        ("cuenta:ES91 2100 0418 4502 0005 1332;" + "b" * 400, "IBAN"),
+    ],
+    ids=["json-minificado", "csv", "url-larga", "punto-y-coma", "iban"],
+)
+def test_sensitive_data_glued_to_long_runs_is_detected(evidence: str, kind: str) -> None:
+    """PA-178 · revisión (bloque 1): el dato pegado a un tramo largo sin espacios (JSON, CSV,
+    URL o un log) se detecta igual que en la validación de la suite."""
+    with pytest.raises(ExecutionRejectedError, match=kind):
+        validate_results(
+            [{"case_key": "DEMO-602", "status": "fallo", "evidence_md": evidence}],
+            _cases_rows(),  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["eyJ-", "a" * 300 + "@", "-" * 318 + "@", "a@"],
+    ids=["jwt-guiones", "arroba-cada-300", "guiones-y-arroba", "arrobas"],
+)
+def test_evidence_check_hostile_inputs_stay_fast(pattern: str) -> None:
+    """Revisión de seguridad (bloque 1): entradas hostiles del tamaño máximo sin coste
+    cuadrático (margen amplio para una máquina cargada)."""
+    evidence = (pattern * MAX_EVIDENCE_CHARS)[:MAX_EVIDENCE_CHARS]
+    start = time.perf_counter()
+    with contextlib.suppress(ExecutionRejectedError):
+        validate_results(
+            [{"case_key": "DEMO-602", "status": "fallo", "evidence_md": evidence}],
+            _cases_rows(),  # type: ignore[arg-type]
+        )
+    assert time.perf_counter() - start < 1.5

@@ -17,6 +17,7 @@ Un grafo propio y pequeño, separado del de HU y suites:
 import hashlib
 import json
 import re
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any, Literal, NotRequired, TypedDict
 
@@ -26,12 +27,13 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
-from adapters.errors import AgentError, NotFoundError, PublishError
+from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
 from core.audit import AuditEntry
 from core.container import Container
 from core.conversations import NOT_YOURS, THREAD_ID
 from core.logging import get_logger
 from core.projects import normalize_issue_key, project_of
+from core.qa import validation as suite_validation
 from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus
 
 log = get_logger("core.graph.execution")
@@ -47,6 +49,17 @@ STATUS_TEXT = {
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 # En la evidencia (varias líneas) se conservan el salto de línea y el tabulador.
 _EVIDENCE_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+# PA-178: formas habituales de secretos que no deben llegar a Jira como evidencia.
+_EVIDENCE_SECRET = re.compile(
+    r"(?i)\bauthorization\s*:"
+    r"|\bbearer\s+[\w.~+/-]{12,}"
+    r"|(?<![\w-])eyJ[\w-]{8,}\.[\w-]{8,}\."  # solo al inicio de un token: lineal
+    r"|\b(?:sk|gsk|ghp|xox[bp])[-_][\w-]{16,}"
+    r"|\bAKIA[0-9A-Z]{16}\b"
+    r"|\b[a-z][\w+.-]{0,30}://[^\s:/@]{1,200}:[^\s@]{1,200}@"  # acotado: sin coste
+    # cuadrático con evidencia no fiable (revisión de seguridad)
+    r"|\b(?:api[_ -]?key|token|password|contraseña|secret)\s*[:=]\s*\S{6,}"
+)
 NO_CASES = "La HU {key} no tiene casos de prueba publicados en Jira: publica antes su suite."
 MISMATCH = "La aprobación no corresponde al registro revisado; vuelve a revisarlo."
 ExecutionDecision = Literal["save", "approve", "discard"]
@@ -171,9 +184,63 @@ def validate_results(raw: object, cases: list[CaseRow]) -> list[ResultRow]:
             raise ExecutionRejectedError(
                 f"La evidencia de {key} supera los {MAX_EVIDENCE_CHARS} caracteres."
             )
+        _reject_sensitive_evidence(key, evidence)
         rows.append(ResultRow(case_key=key, status=status.value, evidence_md=evidence))
     order = {c["key"]: i for i, c in enumerate(cases)}
     return sorted(rows, key=lambda r: order[r["case_key"]])
+
+
+def _reject_sensitive_evidence(key: str, evidence: str) -> None:
+    """PA-178 (RF-25, CLAUDE.md principios 2 y 3): como en la suite, la evidencia que irá a
+    Jira no puede parecer un dato personal ni un secreto. El valor nunca se repite."""
+    if _EVIDENCE_SECRET.search(evidence):
+        raise ExecutionRejectedError(
+            f"La evidencia de {key} parece contener una credencial o un token; quítala antes "
+            "de registrarla."
+        )
+    if kind := _personal_data_kind(evidence):
+        raise ExecutionRejectedError(
+            f"La evidencia de {key} parece contener un dato personal ({kind}); usa datos ficticios."
+        )
+
+
+_EMAIL_BEFORE = 64  # parte local de un email realista
+_EMAIL_AFTER = 255  # dominio
+
+
+def _personal_data_kind(text: str) -> str | None:
+    """Mismos patrones y mismo orden que la validación de la suite, en tiempo lineal.
+
+    La evidencia la escribe la persona (hasta `MAX_EVIDENCE_CHARS` por caso) y el patrón de
+    email de la suite tiene coste cuadrático con tramos largos sin `@` (PA-142): aquí solo se
+    busca en tramos acotados alrededor de cada `@`. DNI, NIE, IBAN y teléfono son lineales y se
+    buscan en el texto completo, así que la cobertura es la misma que en la suite.
+    """
+    for span in _around_at(text):
+        for match in suite_validation._EMAIL.finditer(span):
+            if not suite_validation._FICTITIOUS_DOMAIN.search(match.group(1)):
+                return "email"
+    if suite_validation._DNI.search(text) or suite_validation._NIE.search(text):
+        return "documento de identidad"
+    if suite_validation._IBAN.search(text):
+        return "IBAN"
+    if suite_validation._PHONE.search(text):
+        return "teléfono"
+    return None
+
+
+def _around_at(text: str) -> Iterator[str]:
+    """Tramos alrededor de cada `@`, unidos si se solapan (sin tramos largos sin `@`)."""
+    begin = end = -1
+    for match in re.finditer("@", text):
+        lo, hi = max(0, match.start() - _EMAIL_BEFORE), match.end() + _EMAIL_AFTER
+        if lo > end:
+            if end >= 0:
+                yield text[begin:end]
+            begin = lo
+        end = max(end, hi)
+    if end >= 0:
+        yield text[begin:end]
 
 
 def _case_error(case_key: str, exc: Exception) -> str:
@@ -326,13 +393,36 @@ class ExecutionNodes:
                 else:
                     recorded.append(row["case_key"])
         finally:
-            self._save(thread_id, stored | {"used": True, "failed": failed})
-            self._audit(
-                "publish",
-                state,
-                jira_keys=recorded,
-                detail={"execution": True, "recorded": len(recorded), "failed": failed},
-            )
+            # PA-179: primero la auditoría de lo ya escrito en Jira (RF-35, RNF-13), como el
+            # grafo de HU; si después falla el guardado, lo escrito ya consta.
+            audit_failed = False
+            try:
+                self._audit(
+                    "publish",
+                    state,
+                    jira_keys=recorded,
+                    detail={"execution": True, "recorded": len(recorded), "failed": failed},
+                )
+            except AgentError:
+                audit_failed = True  # se guarda igualmente lo escrito y se avisa (abajo)
+            try:
+                # `recorded` deja constancia en el servidor de lo ya escrito (RNF-13).
+                self._save(
+                    thread_id, stored | {"used": True, "recorded": recorded, "failed": failed}
+                )
+            except AgentError:
+                # PA-179: la persona debe saber que Jira ya se escribió y no repetir el registro.
+                raise ExternalServiceError(
+                    f"Se registraron {len(recorded)} resultados en Jira, pero no se pudo guardar "
+                    "el estado del registro. No lo repitas: revisa la auditoría y Jira.",
+                    service="artifact_state",
+                ) from None
+            if audit_failed:
+                raise ExternalServiceError(
+                    f"Se registraron {len(recorded)} resultados en Jira, pero no se pudo "
+                    "auditar el registro. No lo repitas: revisa Jira.",
+                    service="audit",
+                ) from None
         log.info(
             "ejecución registrada",
             user=state["user"],

@@ -227,7 +227,9 @@ _FENCE = re.compile(r"^\s*```\s*([A-Za-z0-9_+-]{0,20})\s*$")
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 _LIST_ITEM = re.compile(r"^( *)([-*+]|\d{1,9}[.)])\s+(.*)$")
 _RULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
-_TABLE_SEPARATOR = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
+# Celda del separador de tabla (`---`, `:--`, `-:`); se valida celda a celda, sin `\s*`
+# contiguos que den backtracking cuadrático con texto no fiable (PA-187).
+_SEPARATOR_CELL = re.compile(r":?-+:?")
 _LINK = re.compile(rf"\[([^\]\n]{{1,500}})\]\(([^()\s]{{1,{MAX_URL_CHARS}}})\)")
 _ESCAPABLE = frozenset("\\`*_[]()#+-.!|>")
 _TAB_WIDTH = 4
@@ -351,7 +353,7 @@ def _list_level(items: list[_Item], pos: int) -> tuple[list[Node], int]:
 
 
 def _table(lines: list[str]) -> Node:
-    has_header = len(lines) > 1 and bool(_TABLE_SEPARATOR.match(lines[1]))
+    has_header = len(lines) > 1 and _is_table_separator(lines[1])
     # Solo la segunda línea puede ser el separador; `| - | - |` más abajo es una fila de datos.
     rows = [_split_cells(line) for n, line in enumerate(lines) if not (has_header and n == 1)]
     width = max(len(row) for row in rows)
@@ -368,6 +370,17 @@ def _table(lines: list[str]) -> Node:
             }
         )
     return {"type": "table", "content": content}
+
+
+def _is_table_separator(line: str) -> bool:
+    """`| --- | :-: |`: cada celda solo con guiones y dos puntos. Tiempo lineal (PA-187)."""
+    row = line.strip()
+    if row.startswith("|"):
+        row = row[1:]
+    if row.endswith("|"):
+        row = row[:-1]
+    cells = row.split("|")
+    return bool(cells) and all(_SEPARATOR_CELL.fullmatch(cell.strip()) for cell in cells)
 
 
 def _split_cells(line: str) -> list[str]:

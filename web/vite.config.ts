@@ -4,8 +4,8 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  // API simulada (MSW) solo con `npm run dev` y VITE_API_MOCK=1: mockServiceWorker.js nunca entra en el build.
-  const mockApi = command === 'serve' && env.VITE_API_MOCK === '1'
+  // API simulada (MSW) solo con `npm run dev:mock` (o VITE_API_MOCK=1): mockServiceWorker.js nunca entra en el build.
+  const mockApi = command === 'serve' && (mode === 'mock' || env.VITE_API_MOCK === '1')
 
   return {
     plugins: [react()],

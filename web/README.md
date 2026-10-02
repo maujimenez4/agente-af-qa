@@ -36,13 +36,18 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
 Vite, React y TypeScript; CSS con variables (los tokens del lienzo y DM Sans); Vitest y Testing Library; API simulada con MSW o similar (cuando exista el contrato de T-55). Versiones y motivos en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) §7.
 
 ## Cómo arrancar
-Requisito: Node.js 20.19 o superior.
+Requisito: Node.js 22.12 o superior (lo pide MSW).
 
 ```bash
 cd web
 npm ci            # instala exactamente lo del package-lock.json
-npm run dev       # servidor de desarrollo en http://localhost:5173
+npm run dev       # servidor de desarrollo en http://localhost:5173, contra la API real (proxy a 127.0.0.1:8000)
+npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Python ni Docker
 ```
+
+- **Usuarios de la API simulada:** `af-demo`, `qa-demo` y `admin-demo`, con la contraseña ficticia `demo` (solo existe en MSW).
+- **Catálogo del sistema de diseño:** `http://localhost:5173/?catalogo`, solo en desarrollo.
+- **API real:** `uv run python -m api` en la raíz del repo (ver `docs/api/README.md`). El destino del proxy se cambia con `API_PROXY_TARGET`.
 
 Antes de cada entrega: `npm run lint`, `npm run test` y `npm run build` sin errores.
 

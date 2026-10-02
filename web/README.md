@@ -33,7 +33,7 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
 - En mocks y pruebas, solo datos sintéticos.
 
 ## Stack
-Vite, React y TypeScript; CSS con variables (los tokens del lienzo y DM Sans); Vitest y Testing Library; API simulada con MSW o similar (cuando exista el contrato de T-55). Versiones y motivos en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) §3.
+Vite, React y TypeScript; CSS con variables (los tokens del lienzo y DM Sans); Vitest y Testing Library; API simulada con MSW o similar (cuando exista el contrato de T-55). Versiones y motivos en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) §7.
 
 ## Cómo arrancar
 Requisito: Node.js 20.19 o superior.

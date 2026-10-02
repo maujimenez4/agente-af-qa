@@ -11,9 +11,15 @@
     background var(--dur-fast) var(--ease);
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   border-color: var(--color-primary);
   background: var(--color-primary-tint);
+}
+
+.chip:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  cursor: not-allowed;
 }
 
 /* Sugerencia del chat (lienzo .chip): 40 px. */

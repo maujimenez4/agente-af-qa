@@ -38,20 +38,25 @@ export interface FlowCardProps {
 }
 
 // Tarjeta de flujo del inicio (UI.md §4.1): seleccionable con aria-pressed; desactivada con aria-disabled.
+// El nombre accesible es solo la etiqueta; la ayuda va como descripción (aria-describedby).
 export function FlowCard({ label, hint, icon, selected, onSelect, disabledHint }: FlowCardProps) {
   const disabled = disabledHint !== undefined
+  const hintId = useId()
   return (
     <button
       type="button"
       className={styles.flow}
       aria-pressed={disabled ? false : selected}
       aria-disabled={disabled ? true : undefined}
+      aria-describedby={hintId}
       onClick={disabled ? undefined : onSelect}
     >
       <Icon name={icon} className={styles.flowIcon} />
       <span className={styles.flowText}>
         <span className={styles.flowLabel}>{label}</span>
-        <span className={styles.flowHint}>{disabled ? disabledHint : hint}</span>
+        <span id={hintId} className={styles.flowHint} aria-hidden="true">
+          {disabled ? disabledHint : hint}
+        </span>
       </span>
     </button>
   )

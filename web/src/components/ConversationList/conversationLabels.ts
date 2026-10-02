@@ -23,7 +23,7 @@ export function flowLabel(conversation: ConversationSummaryView): string {
   return 'Nueva necesidad'
 }
 
-/** Estado legible (UI.md §9, T-52). Los que UI.md no nombra van en DESIGN-DECISIONS.md §4. */
+/** Estado legible (UI.md §9, T-52). Los que UI.md no nombra van en DESIGN-DECISIONS.md §5. */
 export function statusLabel(conversation: ConversationSummaryView): string {
   switch (conversation.status) {
     case 'started':
@@ -55,23 +55,39 @@ function dayKey(date: Date): string {
 }
 
 const DAY_FORMAT = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long' })
+const DAY_YEAR_FORMAT = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
 
-/** Agrupa por día de la última actualización (Hoy, Ayer, «30 de septiembre»), de la más reciente a la más antigua. */
+/** Grupo para fechas que no se pueden leer: no impiden pintar el resto de la lista. */
+export const UNDATED_LABEL = 'Sin fecha'
+
+function dayLabel(date: Date, now: Date): string {
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (dayKey(date) === dayKey(now)) return 'Hoy'
+  if (dayKey(date) === dayKey(yesterday)) return 'Ayer'
+  return date.getFullYear() === now.getFullYear() ? DAY_FORMAT.format(date) : DAY_YEAR_FORMAT.format(date)
+}
+
+/**
+ * Agrupa por día de la última actualización («Hoy», «Ayer», «30 de septiembre» o, de otro año,
+ * «30 de septiembre de 2025»), de la más reciente a la más antigua. Las fechas no válidas van al final.
+ */
 export function groupByDay(conversations: readonly ConversationSummaryView[], now: Date): ConversationGroup[] {
-  const today = dayKey(now)
-  const yesterday = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
-  const sorted = [...conversations].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+  const dated = conversations
+    .map((conversation) => ({ conversation, time: Date.parse(conversation.updated_at) }))
+    .filter((entry) => Number.isFinite(entry.time))
+    .sort((a, b) => b.time - a.time)
+  const undated = conversations.filter((conversation) => !Number.isFinite(Date.parse(conversation.updated_at)))
 
-  const groups: ConversationGroup[] = []
-  for (const conversation of sorted) {
-    const date = new Date(conversation.updated_at)
+  const groups: Array<ConversationGroup & { key: string }> = []
+  for (const { conversation, time } of dated) {
+    const date = new Date(time)
     const key = dayKey(date)
-    const label = key === today ? 'Hoy' : key === yesterday ? 'Ayer' : DAY_FORMAT.format(date)
     const last = groups.at(-1)
-    if (last?.label === label) last.items.push(conversation)
-    else groups.push({ label, items: [conversation] })
+    if (last?.key === key) last.items.push(conversation)
+    else groups.push({ key, label: dayLabel(date, now), items: [conversation] })
   }
-  return groups
+  if (undated.length > 0) groups.push({ key: 'undated', label: UNDATED_LABEL, items: [...undated] })
+  return groups.map(({ label, items }) => ({ label, items }))
 }
 
 function normalize(text: string): string {

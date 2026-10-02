@@ -35,7 +35,8 @@ const PRESENTATIONS: Record<string, ErrorPresentation> = {
 const FALLBACK: ErrorPresentation = { title: 'No se pudo completar la acción', tone: 'error' }
 
 export function presentError(error: ApiError): ErrorPresentation {
-  return PRESENTATIONS[error.code] ?? FALLBACK
+  // Object.hasOwn: «toString», «constructor» o «__proto__» no son códigos conocidos.
+  return Object.hasOwn(PRESENTATIONS, error.code) ? (PRESENTATIONS[error.code] ?? FALLBACK) : FALLBACK
 }
 
 export const ACTION_LABELS: Record<ErrorAction, string> = {
@@ -48,6 +49,6 @@ export const ACTION_LABELS: Record<ErrorAction, string> = {
 /** Segundos de espera acotados a 0–600 (el servidor ya los acota; esto evita valores absurdos en la UI). */
 export function retryDelay(error: ApiError): number {
   const seconds = error.retry_after ?? 0
-  if (!Number.isFinite(seconds)) return 0
+  if (Number.isNaN(seconds)) return 0
   return Math.min(Math.max(Math.ceil(seconds), 0), 600)
 }

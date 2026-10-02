@@ -9,7 +9,7 @@ export interface RailProps {
   active: Zone
   onNavigate: (zone: Zone) => void
   onLogout: () => void
-  /** Consumo diario de tokens en %. Opcional: el contrato aún no lo da (PA-305). Sin dato, no se pinta. */
+  /** Consumo diario de tokens en %. Opcional: el contrato aún no lo da (PA-305). Sin dato válido, no se pinta. */
   usagePercent?: number
 }
 
@@ -39,7 +39,7 @@ export function Rail({ userRole, username, active, onNavigate, onLogout, usagePe
 
       <div className={styles.spacer} />
 
-      {usagePercent !== undefined && <UsageRing percent={usagePercent} />}
+      {usagePercent !== undefined && Number.isFinite(usagePercent) && <UsageRing percent={usagePercent} />}
 
       <div className={styles.avatar} role="img" aria-label={`${username}, ${ROLE_NAMES[userRole]}`}>
         <span aria-hidden="true">{initial}</span>

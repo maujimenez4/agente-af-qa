@@ -12,9 +12,10 @@ export interface PhaseQProps {
 
 // Q de fase de la cabecera: sube un cuarto al pasar de fase (0,42 s con 0,25 s de retardo).
 export function PhaseQ({ phase, name, size = 26 }: PhaseQProps) {
-  // Al cambiar de fase se anima desde la fase que se veía; la primera vez, desde la anterior.
+  // Al subir de fase se anima desde la fase que se veía. La primera vez, o al bajar de fase
+  // (otra conversación con la cabecera montada), desde la anterior: nunca parte de una Q más llena.
   const [shown, setShown] = useState({ phase, from: phase - 1 })
-  if (shown.phase !== phase) setShown({ phase, from: shown.phase })
+  if (shown.phase !== phase) setShown({ phase, from: phase > shown.phase ? shown.phase : phase - 1 })
 
   const label = name ?? PHASE_NAMES[phase]
 

@@ -37,8 +37,12 @@ export function ErrorCard({ error, onAction }: ErrorCardProps) {
         {presentation.title}
       </h2>
       <p className={styles.errorMessage}>{error.message}</p>
+      {waitFor > 0 && <p className="visually-hidden">Podrás reintentar dentro de {waitFor} segundos.</p>}
       {remaining > 0 && (
-        <p className={`${styles.errorNote} tabular-nums`}>Reintento disponible en {remaining} s</p>
+        // Visual: la alerta no se vuelve a anunciar cada segundo; el aviso para lectores es la frase fija de arriba.
+        <p className={`${styles.errorNote} tabular-nums`} aria-hidden="true">
+          Reintento disponible en {remaining} s
+        </p>
       )}
       {onAction && actionLabel && (
         <div className={styles.errorActions}>

@@ -96,7 +96,12 @@ Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `
   - `simulated` → «Simulado»;
   - `published` → «Publicado»;
   - los tres que UI.md no nombra: `started` → «En curso», `approved` → «Aprobada» y `discarded` → «Descartada».
-- **Grupos:** por día de `updated_at`: «Hoy», «Ayer» y, si no, la fecha («30 de septiembre»).
+- **Grupos:** por día de `updated_at`:
+  - «Hoy» y «Ayer»;
+  - una fecha de este año, sin el año («30 de septiembre»);
+  - una de otro año, con él («30 de septiembre de 2025»).
+
+  Una fecha que no se puede leer no rompe la lista: va al final, en «Sin fecha».
 - **Buscador:** local, sin distinguir mayúsculas ni tildes.
 - Las revisiones de calidad («Informe listo») no están en la lista hasta que se decida PA-103.
 
@@ -119,7 +124,15 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 | `invalid_request` | Petición no válida | Error | — |
 | Cualquier otro | No se pudo completar la acción | Error | — |
 
-- `retry_after` se acota a 0–600 s en la UI. La acción solo aparece si la pantalla le da un manejador.
+- `retry_after` se acota a 0–600 s en la UI (un valor infinito vale 600). La acción solo aparece si la pantalla le da un manejador.
+- La cuenta atrás es solo visual (`aria-hidden`). Dentro de la alerta va una frase fija para lectores de pantalla («Podrás reintentar dentro de N segundos.»), así la alerta no se anuncia cada segundo.
+- Solo los códigos propios de la tabla cuentan como conocidos: `toString`, `__proto__` y otros nombres heredados usan el título genérico.
+
+## 6 bis. Accesibilidad de las piezas
+
+- **Tarjeta de flujo:** el nombre accesible es la etiqueta («Preparar pruebas»). La ayuda, o el motivo por el que está desactivada, va como descripción (`aria-describedby`), para que no se lea pegada al nombre.
+- **Q de fase:** al bajar de fase (otra conversación con la cabecera montada), anima desde la fase anterior a la nueva, nunca desde una Q más llena.
+- **Anillo de consumo:** un valor que no es un número se trata como ausente y el anillo no se pinta.
 - El contrato aún no enumera los códigos de los errores de generación (citas no válidas, cobertura, proveedores agotados): van con el título genérico hasta que se decida PA-306.
 
 ## 7. Herramientas
@@ -127,4 +140,7 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 - **Versiones exactas** (`.npmrc` con `save-exact`) y `package-lock.json` versionado.
 - **TypeScript 6.0**, no 7: `typescript-eslint` 8 solo admite `<6.1`.
 - **ESLint 9**, no 10: `eslint-plugin-jsx-a11y` 6 aún no admite ESLint 10. npm marca ESLint 9 como fuera de soporte; se subirá cuando jsx-a11y lo admita.
-- **Reglas de seguridad en ESLint** (`eslint.config.js`): error si aparece `dangerouslySetInnerHTML`, una asignación a `innerHTML`/`outerHTML`, `insertAdjacentHTML`, `localStorage` o `sessionStorage`.
+- **Reglas de seguridad en ESLint** (`eslint.config.js`). Dan error:
+  - inserción de HTML: `dangerouslySetInnerHTML`, una asignación a `innerHTML`/`outerHTML` (también con corchetes), `insertAdjacentHTML`, `document.write`/`writeln`;
+  - ejecución de código: `eval`, `new Function`, `setTimeout` con cadena;
+  - almacenamiento: `localStorage`, `sessionStorage` (también vía `window` y `globalThis`), `indexedDB` y `document.cookie`.

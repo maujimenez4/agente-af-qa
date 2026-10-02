@@ -1,0 +1,73 @@
+# API del agente para el frontend (T-55)
+
+`openapi.yaml` es el **contrato** entre el frontend en React (`web/`, T-56) y el backend. Se genera desde el código (`api/`) y no se edita a mano:
+
+```bash
+uv run python -m api.export_openapi
+```
+
+Si necesitas otro dato o un endpoint distinto, propónlo (`PA-3XX`) a la sesión principal: no lo inventes en el frontend.
+
+## API simulada (sin Python ni Docker)
+Con Node.js:
+
+```bash
+npx @stoplight/prism-cli mock docs/api/openapi.yaml -p 4010
+# http://127.0.0.1:4010/api/v1/...
+```
+
+**Comportamiento de Prism:**
+- Valida cada petición contra el contrato y responde con el **ejemplo** de cada respuesta.
+- **Respuestas de error:** se piden con la cabecera `Prefer`. Ejemplos: `Prefer: code=404` y `Prefer: code=429`.
+- **Sesión:** Prism exige la cookie `afqa_session` en todas las rutas salvo `POST /auth/login`, y además `X-CSRF-Token` en las que modifican algo (POST, PUT, DELETE). En desarrollo vale cualquier valor; por ejemplo, el `csrf_token` del ejemplo de `/auth/login`.
+- **Limitaciones:** no guarda estado ni emite eventos en vivo, así que lo que no simula se cubre así:
+  - **SSE** (`GET /conversations/{id}/events`): simúlalo en el frontend con MSW o con temporizadores, o usa el sondeo de `GET /conversations/{id}`.
+  - **Estado entre pasos** (generando → en revisión → simulado): los ejemplos son fijos. Para recorrer el flujo, MSW con un pequeño estado en memoria, construido con los ejemplos del contrato.
+
+## Reglas para el frontend
+- **Sesión:**
+  - `POST /auth/login` deja una **cookie HttpOnly** (`afqa_session`, SameSite=Strict) que el frontend no ve, y devuelve `csrf_token`.
+  - Toda petición que modifica algo (POST, PUT, DELETE) lleva la cabecera **`X-CSRF-Token`** con ese valor.
+  - Al recargar la página, `GET /auth/me` devuelve otro token.
+  - Nada de tokens en `localStorage`.
+- **Operaciones largas** (crear conversación, iterar, aprobar, revisar la calidad):
+  - responden **202** de inmediato;
+  - el avance llega por **SSE** (`/events`) o consultando el estado;
+  - con el modelo local en CPU pueden tardar minutos: enseña el progreso por pasos (`progress`).
+- **Aprobar:**
+  - se envía **exactamente** la `fingerprint` del último `review`;
+  - una respuesta no válida (huella antigua, edición inválida) **no da error HTTP**: la revisión sigue y trae el motivo en `review.error`;
+  - un **409** se distingue por `error.code`:
+    - `approval_rejected`: el registro de aprobaciones la rechazó; hay que ofrecer «empezar de nuevo»;
+    - `not_in_review`: la conversación no está en revisión; hay que actualizar el estado.
+- **Texto de Jira, del RAG y del LLM:** siempre como texto, nunca como HTML. `report_markdown` es solo para descargarlo.
+- **Errores:** siempre `{"error": {"code", "message", "retry_after"}}`, con `message` en español y listo para mostrar. Incluye el `422` de validación, que nunca devuelve lo enviado.
+- **Estados de una conversación:**
+  - **en la lista** (`ConversationSummary.status`): `started`, `in_review`, `approved`, `simulated`, `published` y `discarded`;
+  - **en el detalle** (`ConversationOut.state`): `generating` en lugar de `started` (el grafo está trabajando), los demás iguales, y además `error` (falló la última operación);
+  - una publicación parcial queda en `approved`, con `result.errors` y `result.failed_ids`.
+- **Flujo y origen:**
+  - `flow=need` admite un origen `need` o `epic`;
+  - `evolve` y `tests` admiten solo `story`;
+  - `tests` no admite texto libre.
+
+  Las opciones de `POST /start/propose` traen el `origin` listo.
+
+## Estado
+| Parte | Contenido | Estado |
+|---|---|---|
+| 1 | Contrato completo, ejemplos y API simulada | Hecho (las rutas reales responden 501) |
+| 2 | API real sobre el contenedor y el grafo, sesión, CSRF y SSE | En curso (sesión principal) |
+| QA encadenada | `/conversations/{id}/handoff` y `/qa/handoffs` | **Provisional** hasta que T-54 cierre su diseño |
+
+**Aún no están en el contrato.** Se añadirán con su tarea; mientras, la pantalla queda «disponible pronto»:
+- registro de la ejecución (QA 6, T-47);
+- reintentar solo los fallidos (PA-05);
+- auditoría e historial;
+- pestaña Memoria (T-33);
+- administración (T-29);
+- revisiones de calidad en la lista de conversaciones;
+- presupuesto de tokens del panel de fuentes;
+- si la HU ya tiene casos en Jira (tarjeta de QA 1).
+
+Requisitos de seguridad de la parte 2: `docs/api/requisitos-parte-2.md`.

@@ -119,7 +119,7 @@ Construir un **Producto Mínimo Funcional** de un agente de IA que apoye el Aná
 | D-01 | Hay tres tipos de usuario (Analista Funcional, QA y Administrador). Cada usuario completa el flujo completo sin cambiar de usuario. | ✅ Aprobada |
 | D-02 | No hay rol de "Gestor de conocimiento": el Administrador realiza la carga base y el aprendizaje continuo se produce mediante la memoria .md | ✅ Aprobada |
 | D-03 | Se usa Jira Cloud con un proyecto de pruebas propio | ✅ Aprobada |
-| D-04 | La interfaz es un chat sencillo con vista previa para las aprobaciones, hecho en Streamlit (sin frontend separado) | ✅ Aprobada |
+| D-04 | La interfaz es un chat sencillo con vista previa para las aprobaciones, hecho en Streamlit (sin frontend separado) | 🔁 Revisada el 2026-10-02: frontend propio en React (`web/`, T-56) sobre una API FastAPI (`api/`, T-55) para que se vea como el lienzo «Propuesta mixta»; Streamlit queda como plan B hasta el punto de control T-57 |
 | D-05 | La autenticación es simple (usuarios locales) en el MVP; SSO en versiones posteriores | ✅ Aprobada |
 | D-06 | El RAG base del MVP es un corpus sintético de un dominio ficticio | ✅ Aprobada |
 | D-07 | No se genera memoria .md para artefactos de QA en el MVP, pero la arquitectura lo permite | ✅ Aprobada |

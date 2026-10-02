@@ -46,7 +46,9 @@ uv run streamlit run app/main.py
 | `data/seed/jira/`, `migrations/` | **Área A** | |
 | `adapters/embeddings/`, `adapters/vectorstore/`, `core/rag/` | **Área B** · Conocimiento y UI | |
 | `prompts/`, `core/functional/`, `core/qa/`, `core/memory/` | **Área B** | |
-| `app/`, `data/seed/corpus/`, `eval/` | **Área B** | |
+| `app/`, `data/seed/corpus/`, `eval/` | **Área B** | `app/` (Streamlit) es el plan B desde la D-04 revisada |
+| `api/`, `docs/api/` | **Principal** | API HTTP y su contrato (T-55); el contrato se genera desde `api/` |
+| `web/`, `docs/diseno/`, `docs/specs/UI.md` | **Área B** (responsable del área B) | Frontend en React (T-56) |
 | `tests/fakes/` | Ambas (añadir, no romper) | Dobles de prueba de cada protocolo |
 
 Si tu tarea requiere tocar un directorio de la otra área: **para** y avisa.

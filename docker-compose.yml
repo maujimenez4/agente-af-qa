@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"        # solo en esta máquina (se aplica al recrear)
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,20 +20,30 @@ services:
     profiles: ["local-llm"]      # docker compose --profile local-llm up -d
     environment:
       OLLAMA_CONTEXT_LENGTH: "8192"   # 6000 de contexto RAG + instrucciones + salida
+      # PA-275: el modelo sigue cargado tras la última llamada (la app no envía keep_alive).
+      # Se aplica al recrear el contenedor: docker compose --profile local-llm up -d ollama
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-2h}
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"      # solo en esta máquina (se aplica al recrear)
     volumes:
       - ollama:/root/.ollama
 
+  # PA-273: la API (python -m api) en un contenedor, para quien no puede instalar Python.
+  # docker compose --profile full up -d app  (ver README, «API en Docker»)
   app:
     build: .
     profiles: ["full"]
-    env_file: .env
+    env_file: .env                   # Jira y el resto, en tiempo de ejecución (nunca en la imagen)
+    environment:
+      # Dentro de la red de Compose: los servicios db y ollama, no localhost. Sin contraseñas
+      # escritas aquí: se toman del .env al arrancar.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      OLLAMA_BASE_URL: http://ollama:11434/v1
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8000:8000"        # solo en esta máquina
 
 volumes:
   pgdata:

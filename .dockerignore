@@ -1,0 +1,23 @@
+# Secretos: nunca dentro de la imagen (llegan con env_file en docker-compose.yml).
+.env
+.env.*
+
+# Entornos, control de versiones y herramientas locales
+.venv/
+.git/
+.claude/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Lo que la API no necesita
+docs/
+tests/
+web/
+eval/
+data/memory/
+config/models.local.yaml
+Dockerfile
+docker-compose.yml

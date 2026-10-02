@@ -32,7 +32,7 @@ docker compose exec ollama ollama pull qwen3:1.7b
 docker compose exec ollama ollama pull phi4-mini
 docker compose exec ollama ollama pull bge-m3
 
-# 5. Base de datos: migraciones hasta la 0005 (qa_handoffs, T-54)
+# 5. Base de datos: migraciones hasta la 0006 (quality_reviews, PA-272)
 uv run alembic upgrade head
 
 # 6. Conocimiento: indexa el corpus sintético de data/seed/corpus (solo embeddings)
@@ -56,6 +56,29 @@ uv run ruff check . && uv run ruff format --check .
 - En CPU, una HU tarda unos 5–6 minutos con `qwen3:1.7b`. Para la demo hay conversaciones preparadas: `docs/demo/GUION.md`, `docs/demo/CHECKLIST.md` y `uv run python -m eval.demo_prepare`.
 
 **Comprobado en un clon limpio sin `.env`** (2026-10-02, Windows 11): `uv sync`, la migración en modo offline (`uv run alembic upgrade head --sql`, llega a `0005_qa_handoffs`) y `uv run pytest -m "not integration"` en verde. Los pasos 3–8 necesitan Docker, Jira y Ollama con un `.env` propio y no se probaron en ese clon.
+
+### Ollama: modelos cargados (`keep_alive`)
+El servicio `ollama` de `docker-compose.yml` mantiene el modelo en memoria **2 horas** después de la última llamada (`OLLAMA_KEEP_ALIVE`, PA-275); sin eso se descarga a los 5 minutos y la siguiente llamada paga la carga. Para otro valor, añade `OLLAMA_KEEP_ALIVE=30m` (o `-1`, siempre cargado) a tu `.env`. **Se aplica al recrear el contenedor**, no en caliente:
+```bash
+docker compose --profile local-llm up -d ollama     # lo recrea si cambió la configuración
+docker compose exec ollama ollama ps                 # modelos cargados y hasta cuándo (UNTIL)
+```
+Recrearlo corta las llamadas en curso: hazlo cuando nadie esté usando el modelo.
+
+### API en Docker (sin instalar Python)
+Para quien solo necesita la API (por ejemplo, el frontend en React), el perfil `full` la arranca en un contenedor (PA-273):
+```bash
+cp .env.example .env                                          # tus valores; nunca entra en la imagen
+docker compose --profile local-llm up -d db ollama            # pasos 3 y 4 de arriba
+docker compose --profile full build app                       # varios GB: torch y docling
+docker compose --profile full run --rm app alembic upgrade head
+docker compose --profile full run --rm app python -m core.rag.indexing
+docker compose --profile full run --rm app python -m core.seed_users
+docker compose --profile full up -d app                       # http://127.0.0.1:8000/api/v1
+```
+- La imagen se construye con el lockfile (`uv sync --frozen`), sin dependencias de desarrollo y con un usuario no root. El `.env` no se copia (`.dockerignore`): llega al arrancar con `env_file`.
+- Dentro de Compose, la API usa `db` y `ollama` en lugar de `localhost`: `docker-compose.yml` fija `DATABASE_URL` (con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de tu `.env`) y `OLLAMA_BASE_URL`. Si tu contraseña tiene caracteres especiales de URL (`@`, `/`, `:`), escápalos o usa otra.
+- El puerto solo se publica en `127.0.0.1`: la API no queda expuesta a la red.
 
 ## Contenido
 | Archivo | Para qué sirve |

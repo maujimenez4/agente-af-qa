@@ -2912,11 +2912,11 @@ paths:
         en `state=error` con `error` (consultando la revisión).
       operationId: create_quality_review_api_v1_quality_reviews_post
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/QualityReviewIn'
-        required: true
       responses:
         '202':
           description: Successful Response
@@ -3009,67 +3009,69 @@ paths:
                   - DOC-01
 
                   '
+                created_at: '2026-10-02T10:30:00Z'
+                updated_at: '2026-10-02T10:30:00Z'
         '401':
           description: Sin sesión o caducada.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: unauthenticated
                   message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Límite de un servicio externo (Jira o el LLM).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: rate_limited
                   message: Jira ha alcanzado su límite de peticiones.
                   retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '413':
           description: Cuerpo de más de 256 KB.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: payload_too_large
                   message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Error no previsto (sin detalles internos).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: unexpected
                   message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: Servicio externo caído (Jira, PostgreSQL, Ollama).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Petición no válida (sin devolver lo enviado).
           content:
@@ -3081,6 +3083,115 @@ paths:
                   code: invalid_request
                   message: 'La petición no es válida: revisa password.'
                   retry_after: null
+    get:
+      tags:
+      - Revisar la calidad
+      summary: Revisiones de calidad de la persona (más recientes primero)
+      description: 'Para la lista de conversaciones: `state=done` se muestra como «Informe listo». Solo
+        identificadores y estado; el informe se pide con `GET /quality-reviews/{id}`.'
+      operationId: list_quality_reviews_api_v1_quality_reviews_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 20
+          minimum: 1
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QualityReviewSummary'
+                title: Response List Quality Reviews Api V1 Quality Reviews Get
+              example:
+              - id: b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c
+                issue_key: DEMO-3
+                project: DEMO
+                title: Revisar la calidad de DEMO-3
+                state: done
+                created_at: '2026-10-02T10:30:00Z'
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
   /api/v1/quality-reviews/{review_id}:
     get:
       tags:
@@ -3188,6 +3299,8 @@ paths:
                   - DOC-01
 
                   '
+                created_at: '2026-10-02T10:30:00Z'
+                updated_at: '2026-10-02T10:30:00Z'
         '401':
           description: Sin sesión o caducada.
           content:
@@ -5833,12 +5946,63 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ErrorBody'
           - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
       type: object
       required:
       - id
       - issue_key
       - state
+      - created_at
+      - updated_at
       title: QualityReviewOut
+    QualityReviewSummary:
+      properties:
+        id:
+          type: string
+          title: Id
+        issue_key:
+          type: string
+          title: Issue Key
+        project:
+          type: string
+          title: Project
+        title:
+          type: string
+          title: Title
+          description: Solo el flujo y la clave («Revisar la calidad de DEMO-3»).
+        state:
+          type: string
+          enum:
+          - running
+          - done
+          - error
+          title: State
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - issue_key
+      - project
+      - title
+      - state
+      - created_at
+      - updated_at
+      title: QualityReviewSummary
+      description: 'Una revisión en la lista de la persona (PA-103): «Informe listo» si `state=done`.'
     ReviewPayload:
       properties:
         artifact:

@@ -19,6 +19,7 @@ import core.container
 import core.factories
 import core.graph
 import core.graph.execution
+import core.quality
 import core.usage
 from api.runtime import build_runtime
 from core.config import AppConfig, Settings, load_models_config
@@ -67,6 +68,12 @@ def test_build_runtime_passes_the_same_handoff_store_to_the_graph(
     monkeypatch.setattr(core.graph, "build_graph", fake_build_graph)
     monkeypatch.setattr(core.graph.execution, "build_execution_graph", lambda *_a, **_k: None)
     monkeypatch.setattr(core.usage.SqlUsageQueries, "from_url", classmethod(lambda _cls, _u: None))
+    # PA-272: las revisiones de calidad van a PostgreSQL; aquí, en memoria.
+    monkeypatch.setattr(
+        core.quality.SqlQualityReviewStore,
+        "from_url",
+        classmethod(lambda _cls, _u: core.quality.InMemoryQualityReviewStore()),
+    )
 
     rt = build_runtime()
     rt.workspace_factory()

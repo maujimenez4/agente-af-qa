@@ -310,6 +310,20 @@ class QualityReviewOut(BaseModel):
         default=None, description="Informe escapado, **solo para descargar** (no pintarlo)."
     )
     error: ErrorBody | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class QualityReviewSummary(BaseModel):
+    """Una revisión en la lista de la persona (PA-103): «Informe listo» si `state=done`."""
+
+    id: str
+    issue_key: str
+    project: str
+    title: str = Field(description="Solo el flujo y la clave («Revisar la calidad de DEMO-3»).")
+    state: Literal["running", "done", "error"]
+    created_at: datetime
+    updated_at: datetime
 
 
 # --- Registrar la ejecución (QA 6, T-47) ---------------------------------------------------------

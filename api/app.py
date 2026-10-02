@@ -16,7 +16,7 @@ import json
 import math
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, get_args
 from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, Path, Query, Request, Response, status
@@ -48,6 +48,8 @@ from api.models import (
     ConversationOut,
     ConversationSummary,
     EditIn,
+    ErrorBody,
+    ErrorCode,
     ErrorResponse,
     ExecutionCreateIn,
     ExecutionOut,
@@ -62,6 +64,7 @@ from api.models import (
     ProposeIn,
     QualityReviewIn,
     QualityReviewOut,
+    QualityReviewSummary,
     SessionOut,
     SettingsOut,
     SourcesIn,
@@ -71,7 +74,7 @@ from api.models import (
     UsageTodayOut,
     UserOut,
 )
-from api.runtime import QualityJob, Runtime, Workspace, build_runtime
+from api.runtime import Runtime, Workspace, build_runtime
 from api.security import (
     COOKIE,
     COOKIE_PATH,
@@ -94,14 +97,20 @@ from core.guided_start import GuidedStart
 from core.logging import get_logger
 from core.permissions import Permission, permissions_of, require
 from core.projects import ISSUE_KEY, normalize_issue_key, normalize_project_key, project_of
-from core.quality import REVIEW_PERMISSION, QualityReviewer
+from core.quality import (
+    MAX_REVIEWS_PER_PERSON,
+    REVIEW_PERMISSION,
+    QualityReviewer,
+    StoredQualityReview,
+    new_review,
+)
 
 log = get_logger("api")
 
 API_PREFIX = "/api/v1"
 LOGIN_PATH = f"{API_PREFIX}/auth/login"
 VERSION = "0.2.0"
-MAX_QUALITY_JOBS = 20  # por persona
+MAX_QUALITY_JOBS = MAX_REVIEWS_PER_PERSON  # por persona (PA-272)
 SSE_POLL_S = 0.5
 SSE_HEARTBEAT_S = 15.0
 # Tipos que no se buscan como origen (las épicas sí).
@@ -782,35 +791,26 @@ def create_quality_review(body: QualityReviewIn, request: Request) -> QualityRev
     require(user, REVIEW_PERMISSION)
     key = normalize_issue_key(body.issue_key)
     excluded = service.excluded_for(body.excluded_sources, key)
-    job = QualityJob(id=str(uuid4()), owner=user.username, issue_key=key)
-    _keep_quality_job(rt, job)
-    rt.submit(_quality_task(ws, user, job, excluded))
-    return _quality_out(job)
-
-
-def _keep_quality_job(rt: Runtime, job: QualityJob) -> None:
-    """Guarda la revisión; cada persona conserva sus `MAX_QUALITY_JOBS` más recientes."""
-    with rt.quality_lock:
-        rt.quality[job.id] = job
-        mine = [jid for jid, j in rt.quality.items() if j.owner == job.owner]
-        for old in mine[:-MAX_QUALITY_JOBS]:  # las más antiguas salen primero
-            del rt.quality[old]
-
-
-def _quality_job(rt: Runtime, review_id: str) -> QualityJob | None:
-    with rt.quality_lock:
-        return rt.quality.get(review_id)
+    review = new_review(str(uuid4()), user.username, key)
+    # Se guarda antes de lanzarla (cada persona conserva sus MAX_QUALITY_JOBS más recientes).
+    rt.quality.create(review)
+    rt.submit(_quality_task(rt, ws, user, review.id, key, excluded))
+    return _quality_out(rt.quality.get(review.id) or review)
 
 
 def _quality_task(
-    ws: Workspace, user: User, job: QualityJob, excluded: list[str]
+    rt: Runtime, ws: Workspace, user: User, review_id: str, key: str, excluded: list[str]
 ) -> Callable[[], None]:
     def task() -> None:
         try:
-            job.result = QualityReviewer(ws.container).review(user, job.issue_key, excluded)
-            job.state = "done"
+            result = QualityReviewer(ws.container).review(user, key, excluded)
+            rt.quality.finish(review_id, result)
         except Exception as exc:  # mensaje con lista blanca; el tipo va al log
-            job.error, job.state = to_api_error(exc).body, "error"
+            error = to_api_error(exc).body
+            try:
+                rt.quality.fail(review_id, error.code, error.message, error.retry_after)
+            except Exception:  # la BD también puede fallar: solo se registra el tipo
+                log.warning("revisión de calidad sin guardar", action="review_quality")
             log.warning(
                 "error al revisar la calidad",
                 user=user.username,
@@ -821,17 +821,56 @@ def _quality_task(
     return task
 
 
-def _quality_out(job: QualityJob) -> QualityReviewOut:
-    result = job.result
+def _quality_out(review: StoredQualityReview) -> QualityReviewOut:
+    report = review.report
+    error = None
+    if review.error_code:
+        # El código sale de la BD: uno desconocido se muestra como error no previsto.
+        known = review.error_code in get_args(ErrorCode)
+        error = ErrorBody(
+            code=review.error_code if known else "unexpected",  # type: ignore[arg-type]
+            message=review.error_message or "",
+            retry_after=review.retry_after,
+        )
     return QualityReviewOut(
-        id=job.id,
-        issue_key=job.issue_key,
-        state=job.state,  # type: ignore[arg-type]
-        report=result.report if result else None,
-        evolve_feedback=result.evolve_feedback() if result else [],
-        report_markdown=result.report.to_markdown(job.issue_key) if result else None,
-        error=job.error,
+        id=review.id,
+        issue_key=review.issue_key,
+        state=review.state,
+        report=report,
+        evolve_feedback=review.evolve_feedback(),
+        report_markdown=report.to_markdown(review.issue_key) if report else None,
+        error=error,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
     )
+
+
+def _quality_summary(review: StoredQualityReview) -> QualityReviewSummary:
+    return QualityReviewSummary(
+        id=review.id,
+        issue_key=review.issue_key,
+        project=review.project_key,
+        title=review.title,  # solo el flujo y la clave
+        state=review.state,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+    )
+
+
+@quality.get(
+    "",
+    response_model=list[QualityReviewSummary],
+    summary="Revisiones de calidad de la persona (más recientes primero)",
+    description="Para la lista de conversaciones: `state=done` se muestra como «Informe listo». "
+    "Solo identificadores y estado; el informe se pide con `GET /quality-reviews/{id}`.",
+    responses={200: _json(ex.dump(ex.QUALITY_LIST)), **AUTH},
+)
+def list_quality_reviews(
+    request: Request, limit: int = Query(default=MAX_QUALITY_JOBS, ge=1, le=MAX_QUALITY_JOBS)
+) -> list[QualityReviewSummary]:
+    rt, _s, _ws, user = _ctx(request)
+    require(user, REVIEW_PERMISSION)
+    return [_quality_summary(r) for r in rt.quality.list_for(user.username, limit)]
 
 
 @quality.get(
@@ -846,10 +885,12 @@ def get_quality_review(
     request: Request, review_id: str = Path(pattern=ID_PATTERN)
 ) -> QualityReviewOut:
     rt, _s, _ws, user = _ctx(request)
-    job = _quality_job(rt, review_id)
-    if job is None or job.owner != user.username:
+    # Sin `require`: el requisito 5 exige el mismo 404 para lo ajeno y lo inexistente, también
+    # para otro rol; la comprobación de propietario basta.
+    review = rt.quality.get(review_id)
+    if review is None or review.username != user.username:
         raise ApiError(404, "not_found", "No existe esa revisión o no es tuya.")
-    return _quality_out(job)
+    return _quality_out(review)
 
 
 # --- Registrar la ejecución (QA 6, T-47) ---------------------------------------------------------

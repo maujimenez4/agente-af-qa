@@ -27,6 +27,7 @@ TABLES = {
     "user_last_project",  # 0003 (T-50)
     "conversations",  # 0004 (T-52)
     "qa_handoffs",  # 0005 (T-54)
+    "quality_reviews",  # 0006 (PA-272)
 }
 
 OFFLINE_URL = URL.create("postgresql+psycopg", username="agente", host="localhost", database="x")
@@ -272,5 +273,160 @@ def test_migration_0005_constraints_against_postgres(database_url: URL) -> None:
         tables = set(sa.inspect(engine).get_table_names())
         assert "qa_handoffs" not in tables
         assert "conversations" in tables
+    finally:
+        engine.dispose()
+
+
+# --- 0006 · quality_reviews (PA-272, PA-103) ------------------------------------------------
+
+
+def _quality_reviews_sql(offline_sql: str) -> str:
+    start = offline_sql.index("CREATE TABLE quality_reviews")
+    return offline_sql[start : offline_sql.index(");", start)]
+
+
+def _columns(table: str) -> set[str]:
+    return set(re.findall(r"^\s{4}(\w+) [A-Z]", table, flags=re.MULTILINE)) - {
+        "PRIMARY",
+        "CONSTRAINT",
+    }
+
+
+def test_quality_reviews_table_columns_and_nullability(offline_sql: str) -> None:
+    """PA-272 · criterio 3: quality_reviews con el informe en JSONB y los opcionales nulos."""
+    table = _quality_reviews_sql(offline_sql)
+    for column in (
+        "id UUID NOT NULL",
+        "username VARCHAR NOT NULL",
+        "issue_key VARCHAR NOT NULL",
+        "project_key VARCHAR NOT NULL",
+        "state VARCHAR NOT NULL",
+        "input_tokens INTEGER DEFAULT '0' NOT NULL",
+        "output_tokens INTEGER DEFAULT '0' NOT NULL",
+        "created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",
+        "updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",
+    ):
+        assert column in table
+    for nullable in (
+        "report",
+        "model",
+        "prompt_version",
+        "error_code",
+        "error_message",
+        "retry_after",
+    ):
+        (line,) = [x for x in table.splitlines() if x.strip().startswith(nullable + " ")]
+        assert "NOT NULL" not in line
+    assert "report JSONB" in table
+    assert "PRIMARY KEY (id)" in table
+
+
+def test_quality_reviews_never_store_story_or_prompts(offline_sql: str) -> None:
+    """PA-272 · criterio 3: la tabla no tiene columnas para la HU ni para los prompts."""
+    columns = _columns(_quality_reviews_sql(offline_sql))
+    assert not columns & {"story", "prompt", "messages", "context", "description"}
+
+
+def test_quality_reviews_check_constraints_and_index(offline_sql: str) -> None:
+    """PA-272 · criterio 3: CHECK de state, de report (done) y de error; índice por persona."""
+    table = _quality_reviews_sql(offline_sql)
+    assert (
+        "CONSTRAINT ck_quality_reviews_state CHECK (state IN ('running', 'done', 'error'))" in table
+    )
+    assert (
+        "CONSTRAINT ck_quality_reviews_report CHECK ((state = 'done') = (report IS NOT NULL))"
+        in table
+    )
+    assert (
+        "CONSTRAINT ck_quality_reviews_error CHECK ((state = 'error') = "
+        "(error_code IS NOT NULL AND error_message IS NOT NULL))" in table
+    )
+    assert (
+        "CREATE INDEX ix_quality_reviews_username_updated ON quality_reviews "
+        "(username, updated_at)" in offline_sql
+    )
+
+
+def test_quality_reviews_migration_follows_qa_handoffs(offline_sql: str) -> None:
+    """PA-272 · criterio 3: 0006 se aplica justo después de 0005 y es la cabeza."""
+    from alembic.script import ScriptDirectory
+
+    assert "-- Running upgrade 0005_qa_handoffs -> 0006_quality_reviews" in offline_sql
+    assert offline_sql.index("CREATE TABLE qa_handoffs") < offline_sql.index(
+        "CREATE TABLE quality_reviews"
+    )
+    script = ScriptDirectory.from_config(_alembic_config(OFFLINE_URL))
+    revision = script.get_revision("0006_quality_reviews")
+    assert revision is not None and revision.down_revision == "0005_qa_handoffs"
+    assert script.get_heads() == ["0006_quality_reviews"]
+
+
+def test_quality_reviews_model_matches_migration_columns(offline_sql: str) -> None:
+    """PA-272 · criterio 3: la tabla de core/quality.py tiene las columnas de la migración."""
+    from core.quality import QUALITY_REVIEWS
+
+    migrated = _columns(_quality_reviews_sql(offline_sql))
+    assert {c.name for c in QUALITY_REVIEWS.columns} == migrated
+
+
+def _insert_review(conn: sa.Connection, **values: object) -> None:
+    row: dict[str, object] = {
+        "id": "00000000-0000-0000-0000-00000000000a",
+        "username": "ana-ficticia",
+        "issue_key": "DEMO-3",
+        "project_key": "DEMO",
+        "state": "running",
+        "report": None,
+        "error_code": None,
+        "error_message": None,
+    }
+    row |= values
+    conn.execute(
+        sa.text(
+            "INSERT INTO quality_reviews (id, username, issue_key, project_key, state, report, "
+            "error_code, error_message) VALUES (:id, :username, :issue_key, :project_key, "
+            ":state, CAST(:report AS JSONB), :error_code, :error_message)"
+        ),
+        row,
+    )
+
+
+@pytest.mark.integration
+def test_migration_0006_constraints_upgrade_and_downgrade(database_url: URL) -> None:
+    """PA-272 · criterio 3 (PostgreSQL): CHECKs de quality_reviews y downgrade a 0005."""
+    config = _alembic_config(database_url)
+    command.upgrade(config, "head")
+    engine = sa.create_engine(database_url, poolclass=sa.pool.NullPool)
+    try:
+        with engine.begin() as conn:
+            _insert_review(conn)
+            _insert_review(
+                conn, id="00000000-0000-0000-0000-00000000000b", state="done", report="{}"
+            )
+            _insert_review(
+                conn,
+                id="00000000-0000-0000-0000-00000000000c",
+                state="error",
+                error_code="operation_failed",
+                error_message="Error ficticio.",
+            )
+        bad_rows = [
+            {"state": "otro"},
+            {"state": "done"},  # terminada sin informe
+            {"state": "running", "report": "{}"},  # en marcha con informe
+            {"state": "error", "error_code": "operation_failed"},  # error sin mensaje
+            {"state": "running", "error_code": "x", "error_message": "y"},  # en marcha con error
+        ]
+        for number, bad in enumerate(bad_rows, start=1):
+            with pytest.raises(sa.exc.IntegrityError), engine.begin() as conn:
+                _insert_review(conn, id=f"00000000-0000-0000-0000-0000000001{number:02d}", **bad)
+        indexes = {ix["name"] for ix in sa.inspect(engine).get_indexes("quality_reviews")}
+        assert "ix_quality_reviews_username_updated" in indexes
+        command.downgrade(config, "0005_qa_handoffs")
+        tables = set(sa.inspect(engine).get_table_names())
+        assert "quality_reviews" not in tables
+        assert "qa_handoffs" in tables
+        command.upgrade(config, "head")
+        assert "quality_reviews" in set(sa.inspect(engine).get_table_names())
     finally:
         engine.dispose()

@@ -50,8 +50,10 @@ from core.handoff import (
     Handoff,
     HandoffError,
     HandoffStore,
+    QaStart,
     hand_off,
     list_handoffs,
+    release_failed_take,
     take_handoff,
 )
 from core.handoff import NOT_AVAILABLE as HANDOFF_NOT_AVAILABLE
@@ -342,8 +344,27 @@ def take(rt: Runtime, ws: Workspace, user: User, handoff_id: str) -> Run:
     )
     rt.runs.add(run)
     rt.runs.begin(run, "start")
-    rt.submit(lambda: _run_graph(rt, ws, run, start.state, start.config))
+    rt.submit(lambda: _run_taken(rt, ws, run, start, store))
     return run
+
+
+def _run_taken(rt: Runtime, ws: Workspace, run: Run, start: QaStart, store: HandoffStore) -> None:
+    """Genera la suite de la HU recogida; si falla antes de la primera versión, la HU vuelve a
+    la lista de QA (PA-113) en lugar de quedar bloqueada en una conversación con error."""
+    _run_graph(rt, ws, run, start.state, start.config)
+    if run.error is None:
+        return
+    try:
+        artifact = (ws.graph.get_state(start.config).values or {}).get("artifact")
+        if artifact is None:
+            release_failed_take(store, start.handoff.id, run.owner, run.thread_id)
+    except Exception as exc:  # la entrega queda recogida: solo se registra el tipo
+        log.warning(
+            "entrega sin devolver tras un fallo",
+            user=run.owner,
+            action="release_handoff",
+            error_type=type(exc).__name__,
+        )
 
 
 # --- Reanudar -------------------------------------------------------------------------------

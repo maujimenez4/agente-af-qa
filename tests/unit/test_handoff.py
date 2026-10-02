@@ -41,6 +41,7 @@ from core.handoff import (
     hand_off,
     list_handoffs,
     load_taken_handoff,
+    release_failed_take,
     take_handoff,
 )
 from schemas.artifact import Artifact
@@ -901,3 +902,151 @@ def test_sql_store_database_error_is_wrapped(sql_store: Any) -> None:
 
     assert "qa_handoffs" not in str(exc_info.value)
     assert exc_info.value.__cause__ is None
+
+
+# --- PA-113: devolver la entrega si la conversación de QA falla --------------------------------
+
+
+def _taken(store: InMemoryHandoffStore, thread: str = "hilo-qa-1") -> Handoff:
+    handoff = store.create(_handoff())
+    taken = store.take(handoff.id, QUIM.username, thread, datetime(2026, 10, 2, tzinfo=UTC))
+    assert taken is not None
+    return taken
+
+
+def test_in_memory_release_returns_taken_handoff_to_pending() -> None:
+    """PA-113 · criterio 7: release con quien la recogió y su hilo → pendiente y sin datos."""
+    store = InMemoryHandoffStore()
+    taken = _taken(store)
+
+    assert store.release(taken.id, QUIM.username, "hilo-qa-1") is True
+
+    row = store.get(taken.id)
+    assert row is not None
+    assert (row.status, row.taken_by, row.taken_at, row.qa_thread_id) == (
+        "pending",
+        None,
+        None,
+        None,
+    )
+    assert row.story == taken.story and row.created_at == taken.created_at
+    assert [h.id for h in store.list_pending()] == [taken.id]
+    assert store.take(taken.id, ROC.username, "hilo-qa-2", datetime.now(UTC)) is not None
+
+
+@pytest.mark.parametrize(
+    ("username", "thread"),
+    [("roc-ficticio", "hilo-qa-1"), ("quim-ficticio", "hilo-qa-otro"), ("roc-ficticio", "x")],
+    ids=["other-person", "other-thread", "both"],
+)
+def test_in_memory_release_requires_matching_person_and_thread(username: str, thread: str) -> None:
+    """PA-113 · criterio 7 (negativa): nadie libera la entrega de otra persona u otro hilo."""
+    store = InMemoryHandoffStore()
+    taken = _taken(store)
+
+    assert store.release(taken.id, username, thread) is False
+
+    assert store.get(taken.id) == taken
+
+
+def test_in_memory_release_of_pending_or_unknown_is_false() -> None:
+    """PA-113 · criterio 7 (límite): una entrega pendiente o inexistente no se libera."""
+    store = InMemoryHandoffStore()
+    pending = store.create(_handoff())
+
+    assert store.release(pending.id, QUIM.username, "hilo-qa-1") is False
+    assert store.release(secrets.token_hex(16), QUIM.username, "hilo-qa-1") is False
+    assert store.get(pending.id) == pending
+
+
+def test_in_memory_release_is_single_use() -> None:
+    """PA-113 · criterio 7: liberada una vez, el mismo hilo no puede liberarla otra vez."""
+    store = InMemoryHandoffStore()
+    taken = _taken(store)
+    assert store.release(taken.id, QUIM.username, "hilo-qa-1") is True
+
+    assert store.release(taken.id, QUIM.username, "hilo-qa-1") is False
+
+
+def test_released_handoff_is_not_available_to_failed_thread() -> None:
+    """PA-113 · criterio 7: tras liberarla, el hilo fallido ya no la carga."""
+    store = InMemoryHandoffStore()
+    taken = _taken(store)
+    assert load_taken_handoff(store, taken.id, QUIM.username, "hilo-qa-1") == taken
+
+    release_failed_take(store, taken.id, QUIM.username, "hilo-qa-1")
+
+    with pytest.raises(HandoffError, match=NOT_AVAILABLE):
+        load_taken_handoff(store, taken.id, QUIM.username, "hilo-qa-1")
+
+
+def test_release_failed_take_logs_without_story_content() -> None:
+    """PA-113 · criterio 7: se registra la acción y el id, nunca el texto de la HU."""
+    store = InMemoryHandoffStore()
+    taken = _taken(store)
+
+    with capture_logs() as logs:
+        assert release_failed_take(store, taken.id, QUIM.username, "hilo-qa-1") is True
+        assert release_failed_take(store, taken.id, QUIM.username, "hilo-qa-1") is False
+
+    (entry,) = [e for e in logs if e.get("action") == "release_handoff"]
+    assert entry["handoff_id"] == taken.id
+    assert entry["user"] == QUIM.username
+    assert taken.story.title not in str(logs)
+
+
+def test_sql_store_release_is_a_single_conditional_update() -> None:
+    """PA-113 · criterio 7: release es un UPDATE condicionado a taken, persona e hilo."""
+    engine = RecordingEngine()
+
+    assert SqlHandoffStore(engine).release("a" * 32, QUIM.username, "hilo-qa-1") is False  # type: ignore[arg-type]
+
+    (statement,) = engine.statements
+    sql = _sql(statement)
+    assert sql.startswith("UPDATE qa_handoffs SET")
+    for column in ("id", "status", "taken_by", "qa_thread_id"):
+        assert f"qa_handoffs.{column} = " in sql
+    assert "RETURNING" in sql
+    params = statement.compile().params
+    assert params["status_1"] == "taken"
+    assert params["taken_by_1"] == QUIM.username
+    assert params["qa_thread_id_1"] == "hilo-qa-1"
+    assert params["status"] == "pending"
+
+
+def test_sql_store_release_wraps_database_errors_without_details() -> None:
+    """PA-113 · criterio 7 (error): BD caída → ExternalServiceError en español."""
+    store = SqlHandoffStore(BrokenEngine())  # type: ignore[arg-type]
+
+    with pytest.raises(ExternalServiceError) as exc_info:
+        store.release(secrets.token_hex(16), QUIM.username, "hilo")
+
+    assert str(exc_info.value) == "No se pudo devolver la entrega a QA."
+    assert FAKE_PASSWORD not in str(exc_info.value)
+    assert exc_info.value.__cause__ is None
+
+
+@pytest.mark.integration
+def test_sql_store_release_against_postgres(sql_store: Any) -> None:
+    """PA-113 · criterio 7 (PostgreSQL): solo con persona e hilo; vuelve a la lista."""
+    store, _engine = sql_store
+    handoff = store.create(_handoff())
+    at = datetime(2026, 10, 2, tzinfo=UTC)
+    assert store.take(handoff.id, QUIM.username, "hilo-qa-1", at) is not None
+
+    assert store.release(handoff.id, ROC.username, "hilo-qa-1") is False
+    assert store.release(handoff.id, QUIM.username, "hilo-qa-otro") is False
+    assert store.get(handoff.id).status == "taken"
+
+    assert store.release(handoff.id, QUIM.username, "hilo-qa-1") is True
+
+    row = store.get(handoff.id)
+    assert (row.status, row.taken_by, row.taken_at, row.qa_thread_id) == (
+        "pending",
+        None,
+        None,
+        None,
+    )
+    assert [h.id for h in store.list_pending()] == [handoff.id]
+    assert store.release(handoff.id, QUIM.username, "hilo-qa-1") is False
+    assert store.take(handoff.id, ROC.username, "hilo-qa-2", at) is not None

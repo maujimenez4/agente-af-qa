@@ -101,6 +101,13 @@ class HandoffStore(Protocol):
         """Marca la entrega como recogida si sigue pendiente (una sola vez); si no, None."""
         ...
 
+    def release(self, handoff_id: str, username: str, qa_thread_id: str) -> bool:
+        """Vuelve a pendiente la entrega recogida por `username` para ese hilo (PA-113).
+
+        Solo si coinciden quien la recogió y la conversación: nadie libera la de otra persona.
+        """
+        ...
+
 
 class StateReader(Protocol):
     """Lo que `hand_off` necesita del grafo compilado: leer el estado de un hilo."""
@@ -208,6 +215,22 @@ def take_handoff(store: HandoffStore, user: User, handoff_id: str) -> QaStart:
     return QaStart(config=config, state=state, handoff=taken)
 
 
+def release_failed_take(
+    store: HandoffStore, handoff_id: str, username: str, qa_thread_id: str
+) -> bool:
+    """PA-113: si la conversación de QA falla antes de su primera versión, la HU vuelve a la
+    lista de QA (la puede recoger cualquiera) y ese hilo ya no puede usar la entrega."""
+    released = store.release(handoff_id, username, qa_thread_id)
+    if released:
+        log.info(
+            "entrega devuelta a QA tras un fallo",
+            user=username,
+            action="release_handoff",
+            handoff_id=handoff_id,
+        )
+    return released
+
+
 def load_taken_handoff(
     store: HandoffStore | None, handoff_id: str, user: str, thread_id: str
 ) -> Handoff:
@@ -303,6 +326,26 @@ class InMemoryHandoffStore:
             )
             self.rows[handoff_id] = taken
             return taken
+
+    def release(self, handoff_id: str, username: str, qa_thread_id: str) -> bool:
+        with self._lock:
+            row = self.rows.get(handoff_id)
+            if (
+                row is None
+                or row.status != "taken"
+                or row.taken_by != username
+                or row.qa_thread_id != qa_thread_id
+            ):
+                return False
+            self.rows[handoff_id] = row.model_copy(
+                update={
+                    "status": "pending",
+                    "taken_by": None,
+                    "taken_at": None,
+                    "qa_thread_id": None,
+                }
+            )
+            return True
 
 
 _METADATA = sa.MetaData()
@@ -413,6 +456,20 @@ class SqlHandoffStore:
         )
         rows = self._rows([update], "recoger la entrega a QA")
         return _from_row(rows[0]) if rows else None
+
+    def release(self, handoff_id: str, username: str, qa_thread_id: str) -> bool:
+        update = (
+            sa.update(QA_HANDOFFS)
+            .where(
+                QA_HANDOFFS.c.id == handoff_id,
+                QA_HANDOFFS.c.status == "taken",
+                QA_HANDOFFS.c.taken_by == username,
+                QA_HANDOFFS.c.qa_thread_id == qa_thread_id,
+            )
+            .values(status="pending", taken_by=None, taken_at=None, qa_thread_id=None)
+            .returning(QA_HANDOFFS.c.id)
+        )
+        return bool(self._rows([update], "devolver la entrega a QA"))
 
     def _rows(self, statements: list[Any], verb: str) -> list[Any]:
         """Ejecuta en una transacción; devuelve las filas de la última sentencia."""

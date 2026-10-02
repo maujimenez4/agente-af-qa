@@ -24,6 +24,7 @@ from core.config import Settings
 from core.container import Container
 from core.handoff import HandoffStore
 from core.logging import get_logger
+from core.quality import InMemoryQualityReviewStore, QualityReviewStore
 from core.usage import UsageQueries
 
 log = get_logger("api.runtime")
@@ -109,18 +110,6 @@ class RunRegistry:
 
 
 @dataclass
-class QualityJob:
-    """Revisión de calidad (T-48) lanzada desde la API; solo lectura, en memoria (PA-103)."""
-
-    id: str
-    owner: str
-    issue_key: str
-    state: str = "running"  # running | done | error
-    result: Any = None  # core.quality.QualityReview
-    error: ErrorBody | None = None
-
-
-@dataclass
 class Runtime:
     settings: Settings
     auth: AuthProvider
@@ -129,8 +118,8 @@ class Runtime:
     limiter: LoginLimiter
     runs: RunRegistry = field(default_factory=RunRegistry)
     execution_runs: RunRegistry = field(default_factory=RunRegistry)  # T-47
-    quality: dict[str, QualityJob] = field(default_factory=dict)
-    quality_lock: threading.Lock = field(default_factory=threading.Lock)
+    # Revisiones de calidad (PA-272): en PostgreSQL en la app; en memoria en las pruebas.
+    quality: QualityReviewStore = field(default_factory=InMemoryQualityReviewStore)
     # T-54: entregas de HU a QA (compartidas en el proceso; también las usa el grafo).
     handoffs: HandoffStore | None = None
     executor: ThreadPoolExecutor | None = None
@@ -196,6 +185,7 @@ def build_runtime() -> Runtime:
     )
     from core.graph import build_graph
     from core.graph.execution import build_execution_graph
+    from core.quality import SqlQualityReviewStore
     from core.usage import SqlUsageQueries
 
     config = build_config()
@@ -224,5 +214,9 @@ def build_runtime() -> Runtime:
     rt = new_runtime(config.settings, base.auth, workspace)
     rt.usage = SqlUsageQueries.from_url(config.settings.sqlalchemy_url())
     rt.handoffs = handoffs
+    rt.quality = SqlQualityReviewStore.from_url(config.settings.sqlalchemy_url())
+    # Un solo proceso: lo que estaba en marcha al reiniciar ya no terminará (PA-272).
+    if interrupted := rt.quality.interrupt_running():
+        log.info("revisiones de calidad interrumpidas", action="review_quality", count=interrupted)
     rt.token_warning = config.models.limits.daily_token_warning
     return rt

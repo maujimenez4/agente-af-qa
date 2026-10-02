@@ -1491,9 +1491,10 @@ def test_quality_reviews_keep_only_latest_per_person(rt: Runtime) -> None:
         for _ in range(limit + 5)
     ]
     other_ids.append(other.post("/quality-reviews", {"issue_key": "DEMO-2"}).json()["id"])
-    kept = [jid for jid, job in rt.quality.items() if job.owner == "af-demo"]
+    rows = rt.quality.rows  # type: ignore[attr-defined]  # InMemoryQualityReviewStore
+    kept = [rid for rid, r in rows.items() if r.username == "af-demo"]
     assert kept == my_ids[-limit:]
-    assert [jid for jid, job in rt.quality.items() if job.owner == "af-ficticia-2"] == other_ids
+    assert [rid for rid, r in rows.items() if r.username == "af-ficticia-2"] == other_ids
     assert mine.get(f"/quality-reviews/{my_ids[0]}").status_code == 404
     assert mine.get(f"/quality-reviews/{my_ids[-1]}").status_code == 200
     assert other.get(f"/quality-reviews/{other_ids[0]}").status_code == 200

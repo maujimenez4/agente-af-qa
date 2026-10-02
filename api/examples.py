@@ -25,6 +25,7 @@ from api.models import (
     ProjectsOut,
     PublishOutcome,
     QualityReviewOut,
+    QualityReviewSummary,
     ReviewPayload,
     SessionOut,
     SettingsOut,
@@ -294,7 +295,20 @@ QUALITY = QualityReviewOut(
     report=QUALITY_REPORT,
     evolve_feedback=["CA-02: Avisar en menos de 15 minutos.", "Añadir un criterio de error."],
     report_markdown=QUALITY_REPORT.to_markdown("DEMO-3"),
+    created_at=NOW,
+    updated_at=NOW,
 )
+QUALITY_LIST = [
+    QualityReviewSummary(
+        id=QUALITY.id,
+        issue_key="DEMO-3",
+        project="DEMO",
+        title="Revisar la calidad de DEMO-3",
+        state="done",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+]
 EXECUTION_ID = "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b"
 EXECUTION_CASES = [
     ExecutionCaseOut(

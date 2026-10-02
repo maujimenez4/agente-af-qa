@@ -110,6 +110,19 @@ class StoryVersionStore:
                     "contenido; las versiones no se pueden modificar.",
                     service=SERVICE,
                 )
+            if existing is None:
+                # PA-199: el historial es cronológico; no se añade una versión anterior a la última.
+                latest = conn.execute(
+                    sa.select(sa.func.max(ARTIFACT_VERSIONS.c.version)).where(
+                        ARTIFACT_VERSIONS.c.artifact_id == artifact.id
+                    )
+                ).scalar_one_or_none()
+                if latest is not None and artifact.version < latest:
+                    raise VersionConflictError(
+                        f"No se puede añadir la versión {artifact.version}: ya existe la "
+                        f"versión {latest}, posterior.",
+                        service=SERVICE,
+                    )
             conn.execute(upsert)
             if existing is None:
                 conn.execute(

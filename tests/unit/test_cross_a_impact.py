@@ -362,14 +362,6 @@ def test_diff_is_deterministic_under_random_reordering_of_criteria() -> None:
     assert [d.field for d in expected][:1] == ["acceptance_criteria[CA-01]"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-198): `_render` une los elementos de una lista con «\\n- » sin escapar "
-        "los saltos de línea, así que ['a\\n- b'] y ['a', 'b'] dan el mismo texto y el cambio no "
-        "aparece en el diff (core/impact/diff.py:71-81)"
-    ),
-)
 def test_diff_detects_list_item_split_when_item_contains_newline() -> None:
     """RF-19 / RNF-16: partir un elemento con salto de línea en dos es un cambio visible."""
     joined = _story(scope_includes=["Renovación desde la ficha\n- Cancelación de la renovación"])
@@ -377,14 +369,6 @@ def test_diff_detects_list_item_split_when_item_contains_newline() -> None:
     assert diff_stories(joined, split) != []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-198): `_criterion_text` une los pasos con «\\nY » sin escapar los saltos "
-        "de línea, así que given=['a\\nY b'] y given=['a', 'b'] son iguales para el diff "
-        "(core/impact/diff.py:56-64)"
-    ),
-)
 def test_diff_detects_criterion_step_split_when_step_contains_newline() -> None:
     """RF-19 / RNF-16: un paso Gherkin partido en dos es un cambio del CA."""
     one = _story(
@@ -396,13 +380,6 @@ def test_diff_detects_criterion_step_split_when_step_contains_newline() -> None:
     assert diff_stories(one, two) != []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-198): una fuente con salto de línea en `ref` se confunde con dos fuentes "
-        "(«- jira:DEMO-2\\n- rag:DOC-03»), y la diferencia no aparece (core/impact/diff.py:75-77)"
-    ),
-)
 def test_diff_detects_sources_change_when_ref_contains_newline() -> None:
     """RF-21: dos fuentes no son lo mismo que una con salto de línea en su referencia."""
     one = _story(sources=[SourceRef(kind="jira", ref="DEMO-2\n- rag:DOC-03")])
@@ -412,14 +389,6 @@ def test_diff_detects_sources_change_when_ref_contains_newline() -> None:
     assert diff_stories(one, two) != []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-198): por la colisión de `_render`, una evolución con un cambio real se "
-        "toma por «sin cambios» y `ImpactAnalyzer` no llama al LLM (core/impact/diff.py:71-81, "
-        "core/impact/analysis.py:181-183)"
-    ),
-)
 def test_analyze_calls_llm_when_only_change_is_list_item_split() -> None:
     """RF-19: una evolución con un cambio real siempre se analiza."""
     llm = _llm(_analysis([_item("DEMO-2")]))
@@ -592,7 +561,8 @@ def test_analyze_does_not_mutate_jira_context() -> None:
 
 
 def test_analyze_passes_reason_through_unchanged() -> None:
-    """RF-27 (fija el comportamiento): el motivo del LLM no se reescribe ni se filtra.
+    """RF-27 (fija el comportamiento): el motivo del LLM no se reescribe (solo se limpian
+    los espacios de los extremos y se descartan los vacíos, PA-182).
 
     Con datos personales ficticios: el analizador no anonimiza (no hay requisito); la revisión
     humana antes de publicar es la salvaguarda (principio 1).
@@ -603,15 +573,6 @@ def test_analyze_passes_reason_through_unchanged() -> None:
     assert item.reason == reason
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-182): las notas de regresión se limpian (`strip` y vacías fuera) pero "
-        "los "
-        "motivos no: un `reason` de solo espacios supera `min_length=1` y se publica como "
-        "comentario vacío del vínculo (core/impact/analysis.py:214-215, 227-240)"
-    ),
-)
 def test_analyze_drops_or_cleans_blank_reason() -> None:
     """RF-27: ninguna HU afectada llega con un motivo en blanco."""
     llm = _llm(_analysis([_item("DEMO-2", "rule", "   \n\t ")]))
@@ -869,15 +830,6 @@ def test_store_resaving_older_identical_version_does_not_regress_row(
     assert sqlite_store.latest(artifact_id).title == "Versión 2 ficticia"  # type: ignore[union-attr]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-199): `save` acepta una versión nueva menor que la última guardada "
-        "(v3 y después v2 inédita) y la inserta en el historial; las versiones dejan de ser "
-        "cronológicas y `diff(2, 3)` compara contenidos que nunca se sucedieron "
-        "(core/impact/versions.py:340-359)"
-    ),
-)
 def test_store_rejects_new_version_lower_than_latest(sqlite_store: StoryVersionStore) -> None:
     """RF-05 / RF-19: no se puede añadir al historial una versión anterior a la última."""
     artifact_id = uuid4()
@@ -889,10 +841,11 @@ def test_store_rejects_new_version_lower_than_latest(sqlite_store: StoryVersionS
 def test_store_lower_new_version_keeps_latest_and_row(
     sqlite_engine: Engine, sqlite_store: StoryVersionStore
 ) -> None:
-    """RF-05 (fija el comportamiento ligado a PA-199): la fila y `latest` siguen en la mayor."""
+    """RF-05 · PA-199: la versión menor se rechaza y la fila y `latest` siguen en la mayor."""
     artifact_id = uuid4()
     sqlite_store.save(_artifact(artifact_id, 3))
-    sqlite_store.save(_artifact(artifact_id, 2, _story(title="Versión 2 tardía")))
+    with pytest.raises(VersionConflictError):
+        sqlite_store.save(_artifact(artifact_id, 2, _story(title="Versión 2 tardía")))
     assert _row_version(sqlite_engine, artifact_id)[0] == 3
     assert sqlite_store.latest(artifact_id) == dataset.renewal_story()
 
@@ -991,13 +944,6 @@ def pg_engine() -> Iterator[Engine]:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-199): también en PostgreSQL, `save` inserta una versión nueva menor que "
-        "la última (core/impact/versions.py:340-359)"
-    ),
-)
 def test_pg_store_rejects_new_version_lower_than_latest(pg_engine: Engine) -> None:
     """RF-05 / RF-19: en PostgreSQL, una versión inédita menor que la última se rechaza."""
     store = StoryVersionStore(pg_engine)
@@ -1024,3 +970,11 @@ def test_fixture_context_has_expected_epic_and_parent() -> None:
     """Datos de prueba: DEMO-3 cuelga de la épica DEMO-1 (base de las pruebas de PA-38)."""
     assert dataset.EPIC.key == EPIC_KEY
     assert dataset.STORIES[ORIGIN_KEY].parent_key == EPIC_KEY
+
+
+@pytest.mark.parametrize("reason", ["\u200b", "\ufeff\u2060", " \u200b \t"])
+def test_analyze_drops_reason_made_of_invisible_characters(reason: str) -> None:
+    """PA-182 · revisión de seguridad: un motivo solo con caracteres invisibles es vacío."""
+    llm = _llm(_analysis([_item("DEMO-2", "rule", reason)]))
+    result = _evolve(llm)
+    assert result.affected == []

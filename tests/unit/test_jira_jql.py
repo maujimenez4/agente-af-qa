@@ -4,6 +4,8 @@ Cubre `adapters/jira/jql.py` (literales, épicas e hijas) y `core/context/jql.py
 texto libre y vínculos). Funciones puras: sin red. Claves y textos ficticios.
 """
 
+import re
+
 import pytest
 
 from adapters.jira.jql import ISSUE_KEY_RE, PROJECT_KEY_RE, children_jql, epics_jql, quote
@@ -186,10 +188,12 @@ def test_text_search_jql_round_trips_and_escapes_every_special_char(text: str) -
     ],
 )
 def test_text_search_jql_keeps_injection_inside_single_literal(text: str) -> None:
-    """RF-14 (seguridad): el texto no rompe el literal; la JQL sigue limitada al proyecto."""
+    """RF-14 (seguridad): el texto no rompe el literal; la JQL sigue limitada al proyecto.
+    Dentro del literal, «AND», «OR» y «NOT» quedan en minúsculas como palabras (PA-168)."""
     jql = text_search_jql("DEMO", text)
     lucene = decode_text_literal(jql)
-    assert lucene_unescape(lucene) == text
+    expected = re.sub(r"\b(AND|OR|NOT)\b", lambda m: m.group(1).lower(), text)
+    assert lucene_unescape(lucene) == expected
     assert jql.count('project = "DEMO"') == 1
     assert_all_special_escaped(lucene)
 

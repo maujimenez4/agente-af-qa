@@ -9,6 +9,7 @@
 """
 
 import json
+import unicodedata
 from collections.abc import Callable
 
 from adapters.base import IssueDetail, LLMProvider, Message, TaskType
@@ -130,12 +131,14 @@ class ImpactAnalyzer:
                 [*messages, answer, retry], ImpactAnalysis, TaskType.ANALYZE_IMPACT
             ).content
 
-        valid, dropped = _keep_valid(proposal.affected, allowed)
+        valid, dropped, blank = _keep_valid(proposal.affected, allowed)
         notes = [note.strip() for note in proposal.regression_notes if note.strip()]
         if dropped:
             notes.append(
                 f"Se descartaron {dropped} referencias a HU que no estaban en el contexto."
             )
+        if blank:  # PA-182: una HU afectada sin motivo no llega al comentario del vínculo
+            notes.append(f"Se descartaron {blank} HU afectadas sin motivo.")
         return ImpactAnalysis(diffs=diffs, affected=valid, regression_notes=notes)
 
 
@@ -143,17 +146,23 @@ def _invalid(items: list[ImpactItem], allowed: set[str]) -> list[str]:
     return sorted({item.jira_key for item in items if item.jira_key not in allowed})
 
 
-def _keep_valid(items: list[ImpactItem], allowed: set[str]) -> tuple[list[ImpactItem], int]:
-    """HU afectadas válidas, sin repetir (clave, tipo), y cuántas se descartaron."""
+def _keep_valid(items: list[ImpactItem], allowed: set[str]) -> tuple[list[ImpactItem], int, int]:
+    """HU afectadas válidas, sin repetir (clave, tipo) y con el motivo limpio; cuántas se
+    descartaron por no ser candidatas y cuántas por no tener motivo (PA-182)."""
     valid: list[ImpactItem] = []
     seen: set[tuple[str, str]] = set()
-    dropped = 0
+    dropped = blank = 0
     for item in items:
         if item.jira_key not in allowed:
             dropped += 1
             continue
+        reason = item.reason.strip()
+        # Un motivo hecho solo de caracteres invisibles (U+200B, U+FEFF…) también está vacío.
+        if not "".join(ch for ch in reason if unicodedata.category(ch) != "Cf").strip():
+            blank += 1
+            continue
         key = (item.jira_key, item.kind)
         if key not in seen:
             seen.add(key)
-            valid.append(item)
-    return valid, dropped
+            valid.append(item.model_copy(update={"reason": reason}))
+    return valid, dropped, blank

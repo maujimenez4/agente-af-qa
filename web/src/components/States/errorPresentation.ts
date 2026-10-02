@@ -1,12 +1,9 @@
 // Tarjeta de error por `error.code` del contrato (docs/api/openapi.yaml, ErrorBody).
 // El título, el tono y la acción salen de aquí; el MENSAJE se muestra siempre tal cual (UI.md §7).
 
-/** `ErrorBody` del contrato. Provisional hasta generar los tipos con openapi-typescript. */
-export interface ApiError {
-  code: string
-  message: string
-  retry_after?: number | null
-}
+import type { ApiError, ErrorCode } from '../../api/types.ts'
+
+export type { ApiError }
 
 export type ErrorTone = 'warning' | 'error' | 'neutral'
 
@@ -19,7 +16,7 @@ export interface ErrorPresentation {
 }
 
 // DESIGN-DECISIONS.md §6: los 25 valores de ErrorBody.code (lista cerrada del contrato, PA-306).
-const PRESENTATIONS: Record<string, ErrorPresentation> = {
+const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   // Sesión y permisos
   unauthenticated: { title: 'Sesión caducada', tone: 'neutral', action: 'login' },
   invalid_credentials: { title: 'No se pudo iniciar sesión', tone: 'error' },
@@ -61,7 +58,7 @@ const FALLBACK: ErrorPresentation = { title: 'No se pudo completar la acción', 
 
 export function presentError(error: ApiError): ErrorPresentation {
   // Object.hasOwn: «toString», «constructor» o «__proto__» no son códigos conocidos.
-  return Object.hasOwn(PRESENTATIONS, error.code) ? (PRESENTATIONS[error.code] ?? FALLBACK) : FALLBACK
+  return Object.hasOwn(PRESENTATIONS, error.code) ? PRESENTATIONS[error.code as ErrorCode] : FALLBACK
 }
 
 export const ACTION_LABELS: Record<ErrorAction, string> = {

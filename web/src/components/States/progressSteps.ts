@@ -1,11 +1,7 @@
-import type { StepNode, StepState } from '../QMark/index.ts'
+import type { ProgressStep, StepNode } from '../../api/types.ts'
 
 /** `ProgressStep` del contrato: nodo, texto del paso y estado. */
-export interface ProgressEvent {
-  node: StepNode
-  label: string
-  state: StepState
-}
+export type ProgressEvent = ProgressStep
 
 /** Un paso por nodo, en el orden en que apareció, con su último estado y texto. */
 export function latestSteps(events: readonly ProgressEvent[]): ProgressEvent[] {

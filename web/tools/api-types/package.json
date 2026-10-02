@@ -1,0 +1,10 @@
+{
+  "name": "agente-af-qa-api-types",
+  "private": true,
+  "description": "Generador de los tipos del contrato (openapi-typescript). Aislado porque pide TypeScript 5 y web/ usa la 6.",
+  "type": "module",
+  "dependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

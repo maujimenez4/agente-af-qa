@@ -1,19 +1,13 @@
 // Textos de la lista de conversaciones a partir de `ConversationSummary` (docs/api/openapi.yaml).
-// Tipo provisional con los campos que se usan: se sustituirá por el generado con openapi-typescript.
+import type { ConversationStatus, ConversationSummary } from '../../api/types.ts'
 
-export type ConversationStatus = 'started' | 'in_review' | 'approved' | 'published' | 'simulated' | 'discarded'
+export type { ConversationStatus }
 
-export interface ConversationSummaryView {
-  thread_id: string
-  project_key: string
-  mode: 'functional' | 'qa'
-  origin_kind: 'epic' | 'story' | 'need'
-  origin_key: string | null
-  title: string
-  status: ConversationStatus
-  version: number | null
-  updated_at: string
-}
+/** Los campos de `ConversationSummary` que usa la lista. */
+export type ConversationSummaryView = Pick<
+  ConversationSummary,
+  'thread_id' | 'project_key' | 'mode' | 'origin_kind' | 'origin_key' | 'title' | 'status' | 'version' | 'updated_at'
+>
 
 /** Flujo de la conversación («Evolucionar DEMO-3», «Nueva necesidad», «Pruebas de DEMO-3»). */
 export function flowLabel(conversation: ConversationSummaryView): string {

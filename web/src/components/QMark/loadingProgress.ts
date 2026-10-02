@@ -1,13 +1,11 @@
 // Cómo avanza la Q de carga con los eventos SSE de T-55 (DESIGN-DECISIONS.md §3, PA-303).
 
-export type StepNode = 'load_origin' | 'retrieve_context' | 'generate' | 'publish' | 'memorize'
-export type StepState = 'pending' | 'running' | 'done'
+import type { ProgressStep, StepNode, StepState } from '../../api/types.ts'
+
+export type { StepNode, StepState }
 
 /** Lo que usa la Q de un `ProgressStep` del contrato (`docs/api/openapi.yaml`). */
-export interface StepEvent {
-  node: StepNode
-  state: StepState
-}
+export type StepEvent = Pick<ProgressStep, 'node' | 'state'>
 
 export interface LoadingProgress {
   /** Cuartos llenos (0 a 4). */

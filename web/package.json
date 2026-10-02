@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "api:types": "npm --prefix tools/api-types ci --ignore-scripts --no-audit --no-fund && node tools/api-types/generate.mjs",
+    "api:check": "npm --prefix tools/api-types ci --ignore-scripts --no-audit --no-fund && node tools/api-types/generate.mjs --check"
   },
   "dependencies": {
     "@fontsource/dm-sans": "5.3.0",

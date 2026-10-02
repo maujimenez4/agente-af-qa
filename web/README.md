@@ -46,5 +46,15 @@ npm run dev       # servidor de desarrollo en http://localhost:5173
 
 Antes de cada entrega: `npm run lint`, `npm run test` y `npm run build` sin errores.
 
+## Tipos del contrato
+`src/api/schema.d.ts` se genera desde `docs/api/openapi.yaml` y se versiona. No se edita a mano.
+
+```bash
+npm run api:types   # regenera los tipos cuando cambia el contrato
+npm run api:check   # falla si los tipos no coinciden con el contrato
+```
+
+El generador (`openapi-typescript`) vive aislado en `tools/api-types/`, con su propio lockfile, porque pide TypeScript 5 y `web/` usa la 6. El resto del código importa los tipos desde `src/api/types.ts`.
+
 ## Decisiones de diseño
 Las incoherencias del lienzo y las demás decisiones (tokens, foco, fuentes, la Q) están resueltas en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md).

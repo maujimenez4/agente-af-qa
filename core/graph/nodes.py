@@ -23,6 +23,7 @@ from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_sum
 from core.functional.context import StoryContext
 from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
+from core.handoff import HandoffStore, load_taken_handoff
 from core.impact.analysis import ImpactAnalyzer
 from core.impact.diff import diff_stories
 from core.logging import get_logger
@@ -62,9 +63,17 @@ class ReviewRejectedError(ValueError):
     """
 
 
+# T-54: en simulación la HU encadenada no tiene clave; sus casos no se pueden publicar.
+UNPUBLISHED_STORY = (
+    "No se pueden publicar los casos: la HU de origen no está publicada en Jira (se aprobó en "
+    "simulación). Publica antes la HU y vuelve a pasarla a QA."
+)
+
+
 class GraphNodes:
-    def __init__(self, container: Container) -> None:
+    def __init__(self, container: Container, handoffs: HandoffStore | None = None) -> None:
         self.c = container
+        self.handoffs = handoffs  # T-54: entregas a QA (sin él, la QA encadenada falla cerrada)
 
     # --- 1 · load_origin -------------------------------------------------------------------
 
@@ -74,9 +83,14 @@ class GraphNodes:
         validate_origin(state)
         origin = state["origin"]
         key = origin.get("key")
-        jira_context = [self.c.issue_tracker.get_issue(key)] if key else []
-        # T-52: la conversación entra en la lista de su dueño (solo flujo y clave, sin texto).
         thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
+        update: dict[str, Any]
+        if (story := self._chained_story(state, config)) is not None:
+            # T-54: la HU aprobada sale del servidor, sin releer Jira ni volver a estructurarla.
+            update = {"jira_context": [], "source_story": story}
+        else:
+            update = {"jira_context": [self.c.issue_tracker.get_issue(key)] if key else []}
+        # T-52: la conversación entra en la lista de su dueño (solo flujo y clave, sin texto).
         if thread_id:
             if not THREAD_ID.fullmatch(str(thread_id)):
                 raise NotFoundError(NOT_YOURS, service="conversaciones")
@@ -94,16 +108,22 @@ class GraphNodes:
                     origin_key=key,
                 )
             )
-        return {"jira_context": jira_context}
+        return update
 
     # --- 2–3 · retrieve_context ------------------------------------------------------------
 
-    def retrieve_context(self, state: AgentState) -> dict[str, Any]:
+    def retrieve_context(
+        self, state: AgentState, config: RunnableConfig | None = None
+    ) -> dict[str, Any]:
         """Jira + RAG ajustados al presupuesto de tokens (T-18)."""
         started = time.perf_counter()
         origin_issue = state["jira_context"][0] if state["jira_context"] else None
+        origin: dict[str, Any] = dict(state["origin"])
+        if (story := self._chained_story(state, config)) is not None:
+            # T-54: sin incidencia de Jira, el RAG se consulta con el texto de la HU encadenada.
+            origin["text"] = f"{story.title}. {story.description}"
         gathered = self._context_service(state).gather(
-            state["origin"], origin_issue, excluded=state.get("excluded_sources") or []
+            origin, origin_issue, excluded=state.get("excluded_sources") or []
         )
         log.info(
             "contexto reunido",
@@ -135,7 +155,7 @@ class GraphNodes:
         content: UserStory | TestSuite
         try:
             if state["mode"] == "qa":
-                suite_draft = self._write_suite(state, str(artifact_id))
+                suite_draft = self._write_suite(state, str(artifact_id), config)
                 content, artifact_type = suite_draft.suite, ArtifactType.TEST_SUITE
                 model_used = f"{suite_draft.provider}/{suite_draft.model}"
                 prompt_version = suite_draft.prompt_version
@@ -187,6 +207,8 @@ class GraphNodes:
         detail: dict[str, Any] = {"prompt_version": artifact.prompt_version}
         if previous is None and (excluded := state.get("excluded_sources")):
             detail["excluded_sources"] = list(excluded)  # solo referencias (T-51)
+        if previous is None and (handoff_id := state.get("handoff_id")):
+            detail |= self._handoff_trace(handoff_id)  # T-54: HU de origen de la suite
         self._record("create" if previous is None else "iterate", state, artifact, detail=detail)
         log.info(
             "propuesta generada",
@@ -262,7 +284,30 @@ class GraphNodes:
         )
         return draft, impact
 
-    def _write_suite(self, state: AgentState, artifact_id: str) -> SuiteDraft:
+    def _chained_story(self, state: AgentState, config: RunnableConfig | None) -> UserStory | None:
+        """HU de la entrega a QA, recargada del almacén en cada uso (T-54).
+
+        Nunca se usa `source_story` del estado: un estado manipulado no inyecta una HU. Sin
+        `handoff_id` no hay QA encadenada.
+        """
+        handoff_id = state.get("handoff_id")
+        if handoff_id is None:
+            return None
+        thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
+        if not thread_id or not THREAD_ID.fullmatch(str(thread_id)):
+            raise NotFoundError(NOT_YOURS, service="conversaciones")
+        _check_actor(state, config, self.c.require_actor)
+        handoff = load_taken_handoff(self.handoffs, handoff_id, state["user"], str(thread_id))
+        # El destino que se aprobará (proyecto y clave del origen) es el de la entrega, también
+        # al iterar: el estado guardado puede alterarse.
+        origin = state["origin"]
+        if handoff.project_key != origin.get("project") or handoff.story_key != origin.get("key"):
+            raise NotFoundError(NOT_YOURS, service="conversaciones")
+        return handoff.story
+
+    def _write_suite(
+        self, state: AgentState, artifact_id: str, config: RunnableConfig | None = None
+    ) -> SuiteDraft:
         """Suite de QA con los prompts de T-26 sobre la HU de Jira estructurada (PA-61).
 
         La HU se estructura una sola vez por artefacto (versión de partida); al iterar, la suite
@@ -277,8 +322,27 @@ class GraphNodes:
             rag=list(state["rag_context"]),
             feedback=list(state["feedback"]),
         )
+        if (chained := self._chained_story(state, config)) is not None:
+            # T-54: la HU aprobada tal cual, sin `structure` (una llamada menos al LLM). Sin clave
+            # de origen, esa versión no está en Jira aunque la HU de partida tuviera clave.
+            unpublished = not origin.get("key")
+            if unpublished:
+                chained = chained.model_copy(update={"jira_key": None})
+            return TestWriter(self.c.llm).generate(chained, ctx, unpublished=unpublished)
         story = self._baseline(StoryWriter(self.c.llm), ctx, artifact_id)
         return TestWriter(self.c.llm).generate(story, ctx)
+
+    def _handoff_trace(self, handoff_id: str) -> dict[str, Any]:
+        """Referencias de la HU de origen para la auditoría (solo ids, nunca contenido)."""
+        handoff = self.handoffs.get(handoff_id) if self.handoffs is not None else None
+        if handoff is None:
+            return {"handoff_id": handoff_id}
+        return {
+            "handoff_id": handoff_id,
+            "source_artifact_id": str(handoff.artifact_id),
+            "source_version": handoff.version,
+            "source_story_key": handoff.story_key,
+        }
 
     def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
         """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37)."""
@@ -388,6 +452,8 @@ class GraphNodes:
             raise ReviewRejectedError(
                 "La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto."
             )
+        if decision == "approve" and target.mode == "qa" and not target.origin_key:
+            raise ReviewRejectedError(UNPUBLISHED_STORY)  # T-54: nada se registra
         if decision == "edit":
             if answer.get("fingerprint") != fingerprint:
                 raise ReviewRejectedError(
@@ -484,6 +550,8 @@ class GraphNodes:
             validate_origin(state)
         except ValueError as exc:
             raise PublishError(str(exc)) from None
+        if state["mode"] == "qa" and not state["origin"].get("key"):
+            raise PublishError(UNPUBLISHED_STORY)  # T-54: sin clave, nada se escribe
         # El estado del grafo puede alterarse: la aprobación y la operación salen del registro.
         approval = self.c.approvals.find(artifact, _target(state, config, self.c.require_actor))
         if approval is None:
@@ -572,6 +640,8 @@ class GraphNodes:
         _check_project(target)
         project = target.project_key
         if isinstance(artifact.content, TestSuite):
+            if target.mode == "qa" and not target.origin_key:
+                return []  # T-54: HU sin publicar, no hay operación posible (UNPUBLISHED_STORY)
             if (
                 target.mode != "qa"
                 or target.origin_kind != "story"
@@ -714,7 +784,11 @@ def validate_origin(state: AgentState) -> None:
     project = origin.get("project")
     if kind not in ("epic", "story", "need"):
         raise ValueError(f"Tipo de origen no válido: {kind!r}.")
-    if kind in ("epic", "story") and not key:
+    handoff_id = state.get("handoff_id")
+    if handoff_id is not None and (state["mode"] != "qa" or kind != "story"):
+        raise ValueError("Solo una conversación de QA parte de una HU entregada a QA.")
+    # T-54: una HU aprobada en simulación llega a QA sin clave de Jira.
+    if kind in ("epic", "story") and not key and handoff_id is None:
         raise ValueError(f"El origen '{kind}' necesita una clave de Jira.")
     if key is not None and not JIRA_KEY.fullmatch(key):
         raise ValueError(f"Clave de Jira no válida: {key!r} (formato esperado: PROYECTO-123).")

@@ -15,6 +15,7 @@ from adapters.errors import ExternalServiceError
 from core.container import Container
 from core.graph.nodes import GraphNodes
 from core.graph.state import AgentState
+from core.handoff import HandoffStore
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType, Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
@@ -88,9 +89,13 @@ def _after_review(state: AgentState) -> str:
 
 
 def build_graph(
-    container: Container, checkpointer: BaseCheckpointSaver | None = None
+    container: Container,
+    checkpointer: BaseCheckpointSaver | None = None,
+    *,
+    handoffs: HandoffStore | None = None,
 ) -> CompiledStateGraph:
-    nodes = GraphNodes(container)
+    """`handoffs`: entregas a QA (T-54); sin ellas, una conversación de QA encadenada falla."""
+    nodes = GraphNodes(container, handoffs)
     graph = StateGraph(AgentState)
     graph.add_node("load_origin", nodes.load_origin)
     graph.add_node("retrieve_context", nodes.retrieve_context)

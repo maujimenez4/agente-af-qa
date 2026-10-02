@@ -13,14 +13,21 @@ from contextlib import contextmanager
 from typing import Literal, cast, get_args
 
 import sqlalchemy as sa
+import structlog
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from argon2.exceptions import (
+    HashingError,
+    InvalidHashError,
+    VerificationError,
+    VerifyMismatchError,
+)
 from sqlalchemy.engine import Connection, Engine
 
 from adapters.base import User
 from adapters.errors import ExternalServiceError
 
 SERVICE = "postgres"
+log = structlog.get_logger(__name__)
 Role = Literal["functional", "qa", "admin"]
 ROLES: tuple[str, ...] = get_args(Role)
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,49}$")
@@ -53,7 +60,8 @@ class LocalAuthProvider:
 
     @classmethod
     def from_url(cls, url: sa.URL | str) -> "LocalAuthProvider":
-        return cls(sa.create_engine(url, pool_pre_ping=True))
+        # Sin parámetros en los errores de SQLAlchemy: no pueden llevar el hash (RNF-02).
+        return cls(sa.create_engine(url, pool_pre_ping=True, hide_parameters=True))
 
     def authenticate(self, username: str, password: str) -> User | None:
         password = password or ""  # la UI podría pasar None
@@ -64,6 +72,10 @@ class LocalAuthProvider:
         verified = self._verify(stored_hash, candidate)
         if row is None or not verified or not acceptable or not row["active"]:
             return None
+        if row["role"] not in ROLES:
+            # PA-196: un rol desconocido en la BD falla cerrado (sin acceso), sin datos en el log.
+            log.warning("auth_unknown_role", action="login")
+            return None
         if self._hasher.check_needs_rehash(stored_hash):
             try:
                 with self._connection() as conn:
@@ -71,7 +83,7 @@ class LocalAuthProvider:
                         _UPDATE_HASH,
                         {"hash": self._hasher.hash(password), "username": row["username"]},
                     )
-            except ExternalServiceError:
+            except (ExternalServiceError, HashingError):
                 pass  # el acceso es válido; el hash se recalculará en el próximo login
         return User(username=row["username"], role=cast(Role, row["role"]))
 
@@ -119,7 +131,7 @@ class LocalAuthProvider:
         try:
             with self._engine.begin() as conn:
                 yield conn
-        except sa.exc.DBAPIError:
+        except sa.exc.SQLAlchemyError:  # PA-164: también el agotamiento del pool, no solo DBAPI
             raise ExternalServiceError(
                 "No se pudo acceder a la base de datos de usuarios.", service=SERVICE
             ) from None

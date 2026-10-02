@@ -25,7 +25,7 @@ import structlog
 from pydantic import BaseModel, SecretStr, ValidationError
 
 from adapters.base import LLMResult, Message, StructuredResult, TaskType
-from adapters.errors import AuthenticationError, ExternalServiceError, RateLimitError
+from adapters.errors import AgentError, AuthenticationError, ExternalServiceError, RateLimitError
 from adapters.llm.repairs import repair_ids
 from adapters.llm.schema_hints import llm_json_schema
 
@@ -147,18 +147,25 @@ class OpenAICompatibleProvider:
                 {"role": "assistant", "content": shown},
                 {"role": "user", "content": self._prompts.retry.replace("{errors}", errors)},
             ]
-            content, extra_in, extra_out = self._complete_structured(
-                retry_payload, schema, max_tokens
-            )
+            try:
+                content, extra_in, extra_out = self._complete_structured(
+                    retry_payload, schema, max_tokens
+                )
+            except AgentError as exc:
+                raise with_spent_tokens(exc, input_tokens, output_tokens) from None
             input_tokens += extra_in
             output_tokens += extra_out
             parsed, _, _ = self._parse_or_repair(content, schema, task)
             if parsed is None:
-                raise StructuredOutputError(
-                    f"El modelo {self.model} de {self.provider} no devolvió una respuesta "
-                    f"válida para «{schema.__name__}» tras reintentarlo. Prueba de nuevo o "
-                    "elige otro modelo.",
-                    service=self.provider,
+                raise with_spent_tokens(
+                    StructuredOutputError(
+                        f"El modelo {self.model} de {self.provider} no devolvió una respuesta "
+                        f"válida para «{schema.__name__}» tras reintentarlo. Prueba de nuevo o "
+                        "elige otro modelo.",
+                        service=self.provider,
+                    ),
+                    input_tokens,
+                    output_tokens,
                 ) from None
         return StructuredResult[schema](
             content=parsed,
@@ -339,8 +346,39 @@ class OpenAICompatibleProvider:
         )
 
 
+def with_spent_tokens[E: BaseException](exc: E, input_tokens: int, output_tokens: int) -> E:
+    """Anota en el error los tokens ya consumidos (PA-191) para registrarlos en `llm_usage`."""
+    exc.spent_tokens = (input_tokens, output_tokens)  # type: ignore[attr-defined]
+    return exc
+
+
+def spent_tokens(exc: BaseException) -> tuple[int, int]:
+    """Tokens consumidos antes del error; (0, 0) si no los lleva."""
+    spent = getattr(exc, "spent_tokens", None)
+    if (
+        isinstance(spent, tuple)
+        and len(spent) == 2
+        and all(type(n) is int and n >= 0 for n in spent)
+    ):
+        return spent
+    return 0, 0
+
+
+def _token_count(value: object) -> int | None:
+    """Recuento válido de `usage`: entero no negativo (ni `bool`); None si falta."""
+    if value is None:
+        return None
+    if type(value) is not int or value < 0:
+        raise TypeError("usage")  # PA-193: incoherente → fallo del proveedor, con error seguro
+    return value
+
+
 def _read_completion(response: Any, payload: list[dict[str, str]]) -> tuple[str, int, int]:
-    """(contenido, tokens de entrada, de salida); `TypeError` si la respuesta está mal formada."""
+    """(contenido, tokens de entrada, de salida); `TypeError` si la respuesta está mal formada.
+
+    PA-192: con `usage` incompleto (sin recuentos o con `null`) se estiman los tokens, como sin
+    `usage`, en lugar de perder una respuesta válida.
+    """
     if not isinstance(response.choices, list):
         raise TypeError("choices")
     content = (response.choices[0].message.content or "") if response.choices else ""
@@ -348,10 +386,10 @@ def _read_completion(response: Any, payload: list[dict[str, str]]) -> tuple[str,
         raise TypeError("content")
     usage = response.usage
     if usage is not None:
-        prompt_tokens, completion_tokens = usage.prompt_tokens, usage.completion_tokens
-        if not (isinstance(prompt_tokens, int) and isinstance(completion_tokens, int)):
-            raise TypeError("usage")
-        return content, prompt_tokens, completion_tokens
+        prompt_tokens = _token_count(getattr(usage, "prompt_tokens", None))
+        completion_tokens = _token_count(getattr(usage, "completion_tokens", None))
+        if prompt_tokens is not None and completion_tokens is not None:
+            return content, prompt_tokens, completion_tokens
     prompt_text = " ".join(m["content"] for m in payload)
     return content, _estimate_tokens(prompt_text), _estimate_tokens(content)
 

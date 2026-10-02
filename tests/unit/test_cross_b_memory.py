@@ -163,14 +163,6 @@ POLICY_TEXTS = [
 ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-218): "
-        "_SECRET toma por secreto texto de negocio «contraseña:/clave:/password =» "
-        "seguido de una palabra de 6+ letras (core/memory/generator.py:46)"
-    ),
-)
 @pytest.mark.parametrize("rule", POLICY_TEXTS)
 def test_policy_text_is_not_a_secret_when_value_is_prose(rule: str) -> None:
     """RF-36 · Principio 2: una regla de política de contraseñas no es un secreto."""
@@ -179,13 +171,6 @@ def test_policy_text_is_not_a_secret_when_value_is_prose(rule: str) -> None:
     assert _errors(_password_memory(rule), artifact) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-218): una HU legítima de política de contraseñas acaba en "
-        "MemorySynthesisError por el falso positivo de _SECRET (core/memory/generator.py:46)"
-    ),
-)
 def test_generate_succeeds_when_story_is_about_password_policy() -> None:
     """RF-36: la memoria de una HU de contraseñas se genera a la primera, sin reintento."""
     llm = _llm(_password_memory("RN-01: La contraseña: mínimo ocho caracteres."))
@@ -512,3 +497,25 @@ def test_generator_does_not_check_status(status: ArtifactStatus) -> None:
 
     assert memory.jira_key == "DEMO-3"
     assert len(llm.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "RN-01: contraseña: Sup3rClaveFicticia",
+        "RN-01: clave=valor_ficticio",
+        "RN-01: secret: a1b2c3d4",
+    ],
+)
+def test_value_with_digits_or_symbols_is_still_a_secret(rule: str) -> None:
+    """PA-218 (negativo): un valor con dígitos o símbolos tras «contraseña:» sigue rechazándose."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(rule), artifact) == [
+        "«business_rules» parece contener un secreto"
+    ]
+
+
+def test_policy_word_followed_by_period_is_not_a_secret() -> None:
+    """PA-218 (límite): una palabra con punto final («obligatoria.») no es un secreto."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory("RN-01: La contraseña: obligatoria."), artifact) == []

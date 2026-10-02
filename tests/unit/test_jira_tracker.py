@@ -30,7 +30,6 @@ from adapters.jira.tracker import (
     SEARCH_FIELDS,
     JiraCloudTracker,
 )
-from tests.fakes import dataset
 
 BASE_URL = "https://villaficticia.example"
 EMAIL = "persona@example.com"
@@ -210,25 +209,7 @@ def test_tracker_implements_issue_tracker_protocol() -> None:
     assert isinstance(make_tracker(fail_if_called), IssueTracker)
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        pytest.param(
-            lambda t: t.create_story(dataset.renewal_story(None), "DEMO-1", "DEMO"), id="create"
-        ),
-        pytest.param(
-            lambda t: t.update_story("DEMO-3", dataset.renewal_story(), "Cambio ficticio"),
-            id="update_story",
-        ),
-        pytest.param(lambda t: t.link("DEMO-3", "DEMO-2", "relates to"), id="link"),
-    ],
-)
-def test_unimplemented_methods_raise_not_implemented_without_http(
-    call: Callable[[JiraCloudTracker], object],
-) -> None:
-    """T-27: las escrituras aún no existen y no tocan la red."""
-    with pytest.raises(NotImplementedError):
-        call(make_tracker(fail_if_called))
+# Las escrituras (T-27) se prueban en tests/unit/test_jira_write.py.
 
 
 # --- api_root (RF-01, RNF-04) ----------------------------------------------------------------

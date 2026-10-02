@@ -1,13 +1,18 @@
 """Conversión de ADF a texto plano para el LLM (T-11, RF-03; SPEC-00 §8 «ADF»).
 
+Escritura (T-27): `markdown_to_adf` (SPEC-00 §8, PA-49) e ida y vuelta con `adf_to_text`.
+
 Datos 100 % sintéticos del dominio ficticio de la Biblioteca de Villaficticia.
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 
-from adapters.jira.adf import adf_to_text
+from adapters.jira.adf import MAX_MARKDOWN_CHARS, adf_to_text, markdown_to_adf, table
+from core.graph.nodes import _diff_comment_md
+from schemas.impact import ImpactAnalysis, StoryDiff
 
 Node = dict[str, Any]
 
@@ -425,3 +430,559 @@ def test_adf_to_text_renders_all_parts_when_realistic_document() -> None:
     assert result == result.rstrip()
     assert result.startswith("## Descripción")
     assert result.index("### Reglas") < result.index("| Campo | Valor |")
+
+
+# =============================================================================================
+# Escritura: Markdown → ADF (T-27, SPEC-00 §8, PA-49)
+# =============================================================================================
+
+
+def walk(node: Node) -> Iterator[Node]:
+    """Todos los nodos del árbol ADF, en profundidad."""
+    yield node
+    for child in node.get("content") or []:
+        yield from walk(child)
+
+
+def blocks_of(md: str) -> list[Node]:
+    return markdown_to_adf(md)["content"]
+
+
+def text_nodes(node: Node) -> list[Node]:
+    return [n for n in walk(node) if n.get("type") == "text"]
+
+
+def mark_types(node: Node) -> list[str]:
+    return [mark["type"] for mark in node.get("marks", [])]
+
+
+def joined_text(node: Node) -> str:
+    return "".join(n["text"] for n in text_nodes(node))
+
+
+def table_rows(table: Node) -> list[list[str]]:
+    return [[joined_text(c) for c in r["content"]] for r in table["content"]]
+
+
+def assert_valid_doc(document: Node) -> None:
+    """Documento ADF raíz y sin nodos de texto vacíos (Jira los rechaza)."""
+    assert document["type"] == "doc"
+    assert document["version"] == 1
+    assert isinstance(document["content"], list)
+    for node in text_nodes(document):
+        assert node["text"], node
+
+
+# --- Documento raíz --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("md", ["", "   \n\n  ", "Texto ficticio"])
+def test_markdown_to_adf_returns_doc_version_1_when_any_input(md: str) -> None:
+    """§8: la salida es siempre un documento ADF `doc` con `version: 1`."""
+    assert_valid_doc(markdown_to_adf(md))
+
+
+def test_markdown_to_adf_returns_empty_content_when_only_blank_lines() -> None:
+    """§8: las líneas en blanco no generan bloques."""
+    assert blocks_of("\n\n   \n") == []
+
+
+# --- Títulos y párrafos ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("level", [1, 2, 3, 4, 5, 6])
+def test_markdown_to_adf_builds_heading_when_hashes_1_to_6(level: int) -> None:
+    """§8: `#`…`######` son títulos de nivel 1–6."""
+    [block] = blocks_of(f"{'#' * level} Plazo de préstamo")
+    assert block["type"] == "heading"
+    assert block["attrs"] == {"level": level}
+    assert joined_text(block) == "Plazo de préstamo"
+
+
+def test_markdown_to_adf_keeps_paragraph_when_seven_hashes() -> None:
+    """§8 (límite): `#######` no es un título válido; queda como párrafo literal."""
+    [block] = blocks_of("####### Demasiados")
+    assert block["type"] == "paragraph"
+    assert joined_text(block) == "####### Demasiados"
+
+
+def test_markdown_to_adf_keeps_paragraph_when_hash_without_space() -> None:
+    """§8 (negativa): `#etiqueta` sin espacio no es un título."""
+    [block] = blocks_of("#etiqueta")
+    assert block["type"] == "paragraph"
+
+
+def test_markdown_to_adf_joins_consecutive_lines_with_hard_break_when_paragraph() -> None:
+    """§8: las líneas seguidas forman un párrafo, separadas por `hardBreak`."""
+    [block] = blocks_of("Primera línea\nSegunda línea")
+    assert block["type"] == "paragraph"
+    assert [n["type"] for n in block["content"]] == ["text", "hardBreak", "text"]
+    assert joined_text(block) == "Primera líneaSegunda línea"
+
+
+def test_markdown_to_adf_splits_paragraphs_when_blank_line() -> None:
+    """§8: una línea en blanco separa párrafos."""
+    result = blocks_of("Uno\n\nDos")
+    assert [b["type"] for b in result] == ["paragraph", "paragraph"]
+    assert [joined_text(b) for b in result] == ["Uno", "Dos"]
+
+
+def test_markdown_to_adf_ends_paragraph_when_heading_follows() -> None:
+    """§8: un título sin línea en blanco previa corta el párrafo."""
+    assert [b["type"] for b in blocks_of("Texto\n## Título")] == ["paragraph", "heading"]
+
+
+# --- Listas ----------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("marker", ["-", "*", "+"])
+def test_markdown_to_adf_builds_bullet_list_when_dash_star_or_plus(marker: str) -> None:
+    """§8: listas con viñetas."""
+    [block] = blocks_of(f"{marker} Reservar\n{marker} Renovar")
+    assert block["type"] == "bulletList"
+    items = block["content"]
+    assert [i["type"] for i in items] == ["listItem", "listItem"]
+    assert [joined_text(i) for i in items] == ["Reservar", "Renovar"]
+    assert items[0]["content"][0]["type"] == "paragraph"
+
+
+@pytest.mark.parametrize("sep", [".", ")"])
+def test_markdown_to_adf_builds_ordered_list_when_numbered(sep: str) -> None:
+    """§8: listas numeradas `1.` y `1)`."""
+    [block] = blocks_of(f"1{sep} Abrir el préstamo\n2{sep} Pulsar «Renovar»")
+    assert block["type"] == "orderedList"
+    assert [joined_text(i) for i in block["content"]] == ["Abrir el préstamo", "Pulsar «Renovar»"]
+
+
+def test_markdown_to_adf_nests_list_when_item_indented() -> None:
+    """§8: una viñeta sangrada se anida en el elemento anterior."""
+    [block] = blocks_of("- Préstamos\n  - Renovar\n  - Devolver\n- Reservas")
+    assert block["type"] == "bulletList"
+    first, second = block["content"]
+    assert [c["type"] for c in first["content"]] == ["paragraph", "bulletList"]
+    assert [joined_text(i) for i in first["content"][1]["content"]] == ["Renovar", "Devolver"]
+    assert joined_text(second) == "Reservas"
+
+
+def test_markdown_to_adf_nests_bullets_inside_ordered_list_when_mixed() -> None:
+    """§8: anidación de tipos distintos (numerada con viñetas dentro)."""
+    [block] = blocks_of("1. Uno\n2. Dos\n   - Detalle")
+    assert block["type"] == "orderedList"
+    second = block["content"][1]
+    assert second["content"][1]["type"] == "bulletList"
+    assert joined_text(second["content"][1]) == "Detalle"
+
+
+def test_markdown_to_adf_nests_three_levels_when_deeper_indent() -> None:
+    """§8 (límite): tres niveles de anidación."""
+    [block] = blocks_of("- a\n  - b\n    - c")
+    level2 = block["content"][0]["content"][1]
+    level3 = level2["content"][0]["content"][1]
+    assert level3["type"] == "bulletList"
+    assert joined_text(level3) == "c"
+
+
+def test_markdown_to_adf_splits_lists_when_marker_type_changes() -> None:
+    """§8: una viñeta tras una numerada al mismo nivel abre otra lista."""
+    assert [b["type"] for b in blocks_of("1. Uno\n- Otro")] == ["orderedList", "bulletList"]
+
+
+def test_markdown_to_adf_appends_indented_continuation_to_item_when_list() -> None:
+    """§8: una línea sangrada continúa el elemento anterior con un `hardBreak`."""
+    [block] = blocks_of("- Primera parte\n  segunda parte")
+    [item] = block["content"]
+    assert [n["type"] for n in item["content"][0]["content"]] == ["text", "hardBreak", "text"]
+
+
+def test_markdown_to_adf_keeps_all_items_when_first_item_is_indented() -> None:
+    """§8: no se pierde contenido aunque la lista empiece sangrada."""
+    document = markdown_to_adf("  - Elemento sangrado\n- Elemento sin sangría")
+    assert "Elemento sin sangría" in joined_text(document)
+
+
+# --- Tablas ----------------------------------------------------------------------------------
+
+
+def test_markdown_to_adf_builds_table_with_header_cells_when_separator_row() -> None:
+    """§8: la fila separadora `|---|` convierte la primera en cabecera (`tableHeader`)."""
+    [block] = blocks_of("| Campo | Valor |\n|---|:---:|\n| Plazo | 21 días |")
+    assert block["type"] == "table"
+    header, body = block["content"]
+    assert [c["type"] for c in header["content"]] == ["tableHeader", "tableHeader"]
+    assert [c["type"] for c in body["content"]] == ["tableCell", "tableCell"]
+    assert table_rows(block) == [["Campo", "Valor"], ["Plazo", "21 días"]]
+    assert all(r["type"] == "tableRow" for r in block["content"])
+
+
+def test_markdown_to_adf_builds_table_without_header_when_no_separator() -> None:
+    """§8: sin fila separadora, todas las celdas son `tableCell`."""
+    [block] = blocks_of("| Plazo | 21 días |\n| Renovaciones | 2 |")
+    for r in block["content"]:
+        assert {c["type"] for c in r["content"]} == {"tableCell"}
+    assert table_rows(block) == [["Plazo", "21 días"], ["Renovaciones", "2"]]
+
+
+def test_markdown_to_adf_pads_rows_when_cell_counts_differ() -> None:
+    """§8: las filas con menos celdas se rellenan hasta el ancho de la tabla."""
+    [block] = blocks_of("| a | b | c |\n|---|---|---|\n| solo uno |")
+    assert [len(r["content"]) for r in block["content"]] == [3, 3]
+    assert table_rows(block)[1] == ["solo uno", "", ""]
+
+
+def test_markdown_to_adf_empty_cell_has_paragraph_without_text_node() -> None:
+    """§8: una celda vacía lleva un párrafo sin nodos de texto vacíos."""
+    [block] = blocks_of("| a |  |")
+    assert block["content"][0]["content"][1]["content"] == [{"type": "paragraph"}]
+
+
+def test_markdown_to_adf_treats_escaped_pipe_as_literal_when_in_cell() -> None:
+    """PA-49: `\\|` es una barra literal dentro de una sola celda."""
+    [block] = blocks_of("| a \\| b | c |")
+    assert table_rows(block) == [["a | b", "c"]]
+
+
+def test_markdown_to_adf_does_not_split_cell_when_line_break_follows_row() -> None:
+    """PA-49: un salto de línea termina la fila; no abre celdas ni pasa texto a la celda."""
+    table, paragraph_node = blocks_of("| Campo | Valor |\ntexto suelto")
+    assert table_rows(table) == [["Campo", "Valor"]]
+    assert paragraph_node["type"] == "paragraph"
+    assert joined_text(paragraph_node) == "texto suelto"
+
+
+def test_markdown_to_adf_applies_inline_marks_when_inside_cell() -> None:
+    """§8: la negrita funciona dentro de una celda."""
+    [node] = text_nodes(blocks_of("| **Plazo** |")[0])
+    assert mark_types(node) == ["strong"]
+
+
+def test_markdown_to_adf_keeps_data_row_when_cells_are_only_dashes() -> None:
+    """§8: no se pierde una fila de datos con valores «-»."""
+    [block] = blocks_of("| a | b |\n|---|---|\n| - | - |")
+    assert len(block["content"]) == 2
+
+
+# --- En línea: negrita, código y enlaces -----------------------------------------------------
+
+
+def test_markdown_to_adf_marks_strong_when_double_asterisks() -> None:
+    """§8: `**texto**` lleva el mark `strong`."""
+    [block] = blocks_of("Plazo de **21 días** fijo")
+    nodes = block["content"]
+    assert [n["text"] for n in nodes] == ["Plazo de ", "21 días", " fijo"]
+    assert [mark_types(n) for n in nodes] == [[], ["strong"], []]
+
+
+def test_markdown_to_adf_keeps_literal_when_bold_not_closed() -> None:
+    """§8 (negativa): `**` sin cerrar queda literal."""
+    [block] = blocks_of("**sin cerrar")
+    assert joined_text(block) == "**sin cerrar"
+    assert all(not mark_types(n) for n in text_nodes(block))
+
+
+def test_markdown_to_adf_marks_code_when_backticks() -> None:
+    """§8: `` `x` `` lleva el mark `code`."""
+    [block] = blocks_of("Llama a `renovar()` ahora")
+    code = [n for n in text_nodes(block) if "code" in mark_types(n)]
+    assert [n["text"] for n in code] == ["renovar()"]
+
+
+@pytest.mark.parametrize("md", ["**`renovar`**", "**antes `renovar` después**"])
+def test_markdown_to_adf_never_combines_code_with_strong_when_code_inside_bold(md: str) -> None:
+    """§8: ADF solo admite `code` junto a `link`; nunca `code` + `strong`."""
+    nodes = text_nodes(markdown_to_adf(md))
+    assert any("code" in mark_types(n) for n in nodes)
+    for node in nodes:
+        if "code" in mark_types(node):
+            assert mark_types(node) == ["code"]
+
+
+def test_markdown_to_adf_does_not_parse_bold_inside_code() -> None:
+    """§8: dentro de código en línea el Markdown es literal."""
+    [node] = text_nodes(markdown_to_adf("`**x**`"))
+    assert node["text"] == "**x**"
+    assert mark_types(node) == ["code"]
+
+
+def test_markdown_to_adf_resolves_backslash_escapes_when_escapable() -> None:
+    """§8: `\\*` es un asterisco literal, sin negrita."""
+    [block] = blocks_of("\\*\\*no negrita\\*\\*")
+    assert joined_text(block) == "**no negrita**"
+    assert all(not mark_types(n) for n in text_nodes(block))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://villaficticia.example/prestamos",
+        "http://villaficticia.example",
+        "HTTPS://villaficticia.example/x?y=1",
+    ],
+)
+def test_markdown_to_adf_marks_link_when_http_or_https_with_netloc(url: str) -> None:
+    """PA-49: solo los enlaces `http(s)` con dominio llevan el mark `link`."""
+    [block] = blocks_of(f"Ver [reglamento]({url})")
+    link_nodes = [n for n in text_nodes(block) if "link" in mark_types(n)]
+    assert [n["text"] for n in link_nodes] == ["reglamento"]
+    assert link_nodes[0]["marks"] == [{"type": "link", "attrs": {"href": url}}]
+
+
+def test_markdown_to_adf_combines_strong_and_link_when_bold_label() -> None:
+    """§8: una etiqueta en negrita conserva `strong` y añade `link`."""
+    [node] = text_nodes(markdown_to_adf("[**Ficha**](https://villaficticia.example)"))
+    assert mark_types(node) == ["strong", "link"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "javascript:alert(1)",
+        "JavaScript:void",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "file:///ruta/ficticia",
+        "/ruta/relativa",
+        "relativa.html",
+        "//villaficticia.example",
+        "mailto:persona@example.com",
+        "http://",
+        "ftp://villaficticia.example",
+    ],
+)
+def test_markdown_to_adf_keeps_link_as_literal_text_when_unsafe_url(url: str) -> None:
+    """PA-49: `javascript:`, `data:`, `file:`, relativos, `mailto:`… quedan como texto."""
+    document = markdown_to_adf(f"Ver [enlace]({url}) fin")
+    assert all("link" not in mark_types(n) for n in text_nodes(document))
+    assert "[enlace](" in joined_text(document)
+    assert_valid_doc(document)
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "<script>alert('ficticio')</script>",
+        "<b>negrita html</b>",
+        '<a href="javascript:alert(1)">x</a>',
+        "<img src=x onerror=alert(1)>",
+    ],
+)
+def test_markdown_to_adf_keeps_html_as_literal_text_when_html_tags(md: str) -> None:
+    """PA-49: el HTML nunca se interpreta; queda como texto literal en un párrafo."""
+    [block] = blocks_of(md)
+    assert block["type"] == "paragraph"
+    assert joined_text(block) == md
+    assert {n["type"] for n in walk(block)} <= {"paragraph", "text"}
+    assert all(not mark_types(n) for n in text_nodes(block))
+
+
+# --- Bloques de código y regla ---------------------------------------------------------------
+
+
+def test_markdown_to_adf_builds_code_block_with_language_when_fenced() -> None:
+    """§8: bloque de código con lenguaje; el contenido es literal."""
+    [block] = blocks_of("```gherkin\nDado **algo**\nCuando <b>x</b>\n```")
+    assert block["type"] == "codeBlock"
+    assert block["attrs"] == {"language": "gherkin"}
+    assert block["content"] == [{"type": "text", "text": "Dado **algo**\nCuando <b>x</b>"}]
+
+
+def test_markdown_to_adf_builds_code_block_without_attrs_when_no_language() -> None:
+    """§8: sin lenguaje no hay `attrs`."""
+    [block] = blocks_of("```\nGET /prestamos\n```")
+    assert block["type"] == "codeBlock"
+    assert "attrs" not in block
+
+
+def test_markdown_to_adf_takes_rest_as_code_when_fence_not_closed() -> None:
+    """§8 (límite): un bloque sin cerrar llega hasta el final del texto."""
+    [block] = blocks_of("```python\nlinea 1\n\n# no es título")
+    assert block["type"] == "codeBlock"
+    assert block["attrs"] == {"language": "python"}
+    assert block["content"][0]["text"] == "linea 1\n\n# no es título"
+
+
+def test_markdown_to_adf_omits_text_node_when_code_block_empty() -> None:
+    """§8: un bloque de código vacío no lleva nodos de texto vacíos."""
+    assert blocks_of("```\n```") == [{"type": "codeBlock"}]
+
+
+def test_markdown_to_adf_continues_after_closed_code_block() -> None:
+    """§8: tras cerrar el bloque se siguen leyendo bloques."""
+    assert [b["type"] for b in blocks_of("```\nx\n```\nDespués")] == ["codeBlock", "paragraph"]
+
+
+@pytest.mark.parametrize("md", ["---", "***", "___", "-----"])
+def test_markdown_to_adf_builds_rule_when_three_or_more_dashes(md: str) -> None:
+    """§8: `---` es una regla horizontal."""
+    assert blocks_of(f"Antes\n\n{md}\n\nDespués")[1] == {"type": "rule"}
+
+
+# --- PA-49: limpieza y límites ---------------------------------------------------------------
+
+
+def test_markdown_to_adf_removes_control_characters() -> None:
+    """PA-49: se eliminan los caracteres de control (salvo saltos de línea)."""
+    assert joined_text(markdown_to_adf("Pla\x00zo\x07 de\x1b préstamo\x7f")) == "Plazo de préstamo"
+
+
+def test_markdown_to_adf_normalises_crlf_line_endings() -> None:
+    """PA-49: `\\r\\n` y `\\r` se tratan como saltos de línea."""
+    result = blocks_of("# Título\r\nTexto\rMás")
+    assert [b["type"] for b in result] == ["heading", "paragraph"]
+    assert all("\r" not in n["text"] for b in result for n in text_nodes(b))
+
+
+def test_markdown_to_adf_truncates_input_when_longer_than_max() -> None:
+    """PA-49: la entrada de más de MAX_MARKDOWN_CHARS se trunca."""
+    document = markdown_to_adf("a" * (MAX_MARKDOWN_CHARS + 500))
+    assert len(joined_text(document)) == MAX_MARKDOWN_CHARS
+
+
+def test_markdown_to_adf_does_not_truncate_when_exactly_max() -> None:
+    """PA-49 (límite): exactamente MAX_MARKDOWN_CHARS no pierde nada."""
+    assert len(joined_text(markdown_to_adf("b" * MAX_MARKDOWN_CHARS))) == MAX_MARKDOWN_CHARS
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "****",
+        "** **",
+        "``",
+        "#  ",
+        "| |",
+        "- ",
+        "[]()",
+        "\\",
+        "**a**\n\n**b**",
+        "a\n\n\n\nb",
+        "| a | b |\n|---|---|\n|  |  |",
+        "[**](https://villaficticia.example)",
+        "\x00\x01\x02",
+    ],
+)
+def test_markdown_to_adf_never_emits_empty_text_nodes(md: str) -> None:
+    """PA-49 / §8: ningún nodo `text` vacío (Jira rechaza el documento)."""
+    assert_valid_doc(markdown_to_adf(md))
+
+
+# --- Ida y vuelta con adf_to_text ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "# Título 1",
+        "###### Título 6",
+        "Un párrafo de texto ficticio.",
+        "- Reservar\n- Renovar",
+        "1. Abrir\n2. Renovar",
+        "- Préstamos\n  - Renovar",
+        "| Campo | Valor |\n| Plazo | 21 días |",
+        "```\nGET /prestamos/ficticio\n```",
+        "---",
+    ],
+)
+def test_markdown_to_adf_round_trips_with_adf_to_text_per_block_type(md: str) -> None:
+    """§8: Markdown → ADF → texto devuelve el mismo bloque (sin marcas en línea)."""
+    assert adf_to_text(markdown_to_adf(md)) == md
+
+
+def test_markdown_to_adf_round_trip_drops_separator_row_when_table_with_header() -> None:
+    """§8: la fila separadora no se conserva en el texto (la cabecera sí)."""
+    result = adf_to_text(markdown_to_adf("| a | b |\n|---|---|\n| 1 | 2 |"))
+    assert result == "| a | b |\n| 1 | 2 |"
+
+
+def test_markdown_to_adf_round_trip_keeps_inline_text_without_marks() -> None:
+    """§8: la negrita, el código y los enlaces se leen como texto plano."""
+    md = "Plazo **21 días**, `renovar()` y [ficha](https://villaficticia.example)"
+    assert adf_to_text(markdown_to_adf(md)) == "Plazo 21 días, renovar() y ficha"
+
+
+def test_markdown_to_adf_round_trip_keeps_line_breaks_when_paragraph() -> None:
+    """§8: los `hardBreak` vuelven como saltos de línea."""
+    assert adf_to_text(markdown_to_adf("Uno\nDos")) == "Uno\nDos"
+
+
+def test_markdown_to_adf_round_trip_preserves_block_order_when_mixed_document() -> None:
+    """§8: un documento con todos los tipos de bloque conserva el orden."""
+    md = (
+        "## Cambios\n\nTexto\n\n- a\n- b\n\n1. uno\n\n| C | V |\n|---|---|\n| x | y |\n\n"
+        "```\ncodigo\n```\n\n---"
+    )
+    expected = (
+        "## Cambios\n\nTexto\n\n- a\n- b\n\n1. uno\n\n| C | V |\n| x | y |\n\n"
+        "```\ncodigo\n```\n\n---"
+    )
+    assert adf_to_text(markdown_to_adf(md)) == expected
+
+
+# --- Comentario de diff de core (core/graph/nodes.py `_diff_comment_md`) ---------------------
+
+
+def _impact(*diffs: StoryDiff) -> ImpactAnalysis:
+    return ImpactAnalysis(diffs=list(diffs), affected=[], regression_notes=[])
+
+
+def test_markdown_to_adf_builds_header_table_when_core_diff_comment() -> None:
+    """RF-05 / §8: el diff de core es una tabla ADF con cabecera Campo/Antes/Después."""
+    impact = _impact(
+        StoryDiff(field="title", before="Renovar", after="Renovar un préstamo"),
+        StoryDiff(field="business_goal", before=None, after="Menos visitas al mostrador"),
+    )
+    paragraph_node, table = blocks_of(_diff_comment_md(impact))
+    assert paragraph_node["type"] == "paragraph"
+    assert [mark_types(n) for n in text_nodes(paragraph_node)] == [["strong"]]
+    assert table["type"] == "table"
+    assert [c["type"] for c in table["content"][0]["content"]] == ["tableHeader"] * 3
+    assert table_rows(table) == [
+        ["Campo", "Antes", "Después"],
+        ["title", "Renovar", "Renovar un préstamo"],
+        ["business_goal", "—", "Menos visitas al mostrador"],
+    ]
+
+
+def test_markdown_to_adf_builds_header_only_table_when_core_diff_has_no_diffs() -> None:
+    """RF-05 (límite): sin diferencias queda la cabecera, sin filas de datos."""
+    _, table = blocks_of(_diff_comment_md(_impact()))
+    assert table_rows(table) == [["Campo", "Antes", "Después"]]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="PA-201 (principal): `_diff_comment_md` (core/graph/nodes.py) no escapa `|` ni los "
+    "saltos de línea de los valores; la tabla gana columnas y la fila se parte.",
+)
+def test_markdown_to_adf_keeps_three_cells_when_core_diff_values_have_pipe_and_newline() -> None:
+    """PA-49: `|` y saltos de línea de un valor no rompen la tabla del diff."""
+    impact = _impact(StoryDiff(field="title", before="a | b", after="línea 1\nlínea 2"))
+    result = blocks_of(_diff_comment_md(impact))
+    assert [b["type"] for b in result] == ["paragraph", "table"]
+    rows = table_rows(result[1])
+    assert [len(r) for r in rows] == [3, 3]
+    assert rows[1][1] == "a | b"
+
+
+@pytest.mark.parametrize("char", ["‮", "‪", "⁦", "⁩", "​", "﻿"])
+def test_markdown_to_adf_removes_bidi_and_zero_width_characters(char: str) -> None:
+    """PA-49: sin control bidireccional ni anchura cero (orden visual engañoso en Jira)."""
+    assert adf_to_text(markdown_to_adf(f"pago{char}seguro")) == "pagoseguro"
+
+
+def test_markdown_to_adf_keeps_zero_width_joiner_used_by_emojis() -> None:
+    """Las secuencias de emoji (U+200D) no se rompen."""
+    assert adf_to_text(markdown_to_adf("👩‍💻")) == "👩‍💻"
+
+
+# --- table (T-30) ----------------------------------------------------------------------------
+
+
+def test_table_builds_header_row_and_literal_cells() -> None:
+    """T-30: la tabla de pasos lleva cabecera y celdas de texto literal (sin Markdown)."""
+    node = table(["#", "Acción"], [["1", "**pulsa** <b>Renovar</b>"], ["2", ""]])
+    header, first, second = node["content"]
+    assert [c["type"] for c in header["content"]] == ["tableHeader", "tableHeader"]
+    assert [c["type"] for c in first["content"]] == ["tableCell", "tableCell"]
+    action = first["content"][1]["content"][0]["content"]
+    assert action == [{"type": "text", "text": "**pulsa** <b>Renovar</b>"}]
+    assert second["content"][1]["content"] == [{"type": "paragraph"}]  # sin texto vacío
+    assert adf_to_text({"type": "doc", "content": [node]}).splitlines()[0] == "| # | Acción |"

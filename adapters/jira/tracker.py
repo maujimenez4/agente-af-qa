@@ -1,11 +1,11 @@
 """Adaptador de Jira Cloud con httpx sobre la API REST v3 (RF-01, RF-03, D-09).
 
 T-11 implementa `test_connection` y `get_issue` (descripción ADF → texto y relaciones); T-14,
-la búsqueda JQL paginada con `nextPageToken` (`/search/jql`), las épicas y las HU hijas. La
-escritura, solo desde el nodo `publish`, llega en T-27.
+la búsqueda JQL paginada con `nextPageToken` (`/search/jql`), las épicas y las HU hijas; T-27,
+la escritura (`create_story`, `update_story`, `link`), solo desde el nodo `publish`.
 
 Con tokens con scopes (RNF-04), las peticiones van a `api.atlassian.com/ex/jira/{cloudId}`.
-Las lecturas se reintentan con backoff ante 429 y 5xx (SPEC-00 §8).
+El HTTP (lecturas con backoff, escrituras de un solo intento) está en `adapters/jira/http.py`.
 """
 
 import re
@@ -17,25 +17,28 @@ import httpx
 from pydantic import SecretStr
 
 from adapters.base import IssueDetail, IssueLink, IssueSummary, ProjectSummary
-from adapters.errors import (
-    AuthenticationError,
-    ExternalServiceError,
-    NotFoundError,
-    RateLimitError,
-)
-from adapters.jira.adf import adf_to_text
+from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
+from adapters.jira.adf import adf_to_text, markdown_to_adf
+from adapters.jira.http import SERVICE as _SERVICE
+from adapters.jira.http import JiraHttp
 from adapters.jira.jql import PROJECT_KEY_RE, children_jql, epics_jql
+from adapters.jira.story_template import story_summary, story_to_adf
 from schemas.user_story import UserStory
 
 JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
 ISSUE_FIELDS = "summary,issuetype,status,description,parent,subtasks,issuelinks,comment,labels"
-_GATEWAY = "https://api.atlassian.com/ex/jira"
-_CLOUD_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 _MAX_KEY_IN_MESSAGE = 50
 SEARCH_FIELDS = "summary,issuetype,status"
 PAGE_SIZE = 100
 MAX_RESULTS = 1000  # tope por búsqueda: el MVP trabaja con un proyecto pequeño
-_SERVICE = "jira"
+# PA-200: el nombre del tipo depende del sitio («Story» / «Historia»); hasta que exista en
+# `Settings`, constante.
+STORY_ISSUE_TYPE = "Story"
+LINK_TYPES = {"relates to": "Relates"}  # D-09: nombre del vínculo en la API de Jira
+
+
+def _project_of(key: str) -> str:
+    return key.rsplit("-", 1)[0]
 
 
 class JiraCloudTracker:
@@ -54,29 +57,23 @@ class JiraCloudTracker:
         sleep: Callable[[float], None] = time.sleep,
         timeout: float = 30.0,
     ) -> None:
-        if cloud_id is not None and cloud_id.get_secret_value():
-            if not _CLOUD_ID_RE.fullmatch(cloud_id.get_secret_value()):
-                raise AuthenticationError(
-                    "JIRA_CLOUD_ID no tiene un formato válido.", service=_SERVICE
-                )
-            self._api_root = f"{_GATEWAY}/{cloud_id.get_secret_value()}"
-        else:
-            # Basic auth: las credenciales solo pueden viajar cifradas.
-            if not base_url.lower().startswith("https://"):
-                raise AuthenticationError(
-                    "JIRA_BASE_URL debe empezar por https://.", service=_SERVICE
-                )
-            self._api_root = base_url.rstrip("/")
-        self._auth = httpx.BasicAuth(email.get_secret_value(), api_token.get_secret_value())
-        self._client = http_client or httpx.Client(timeout=timeout)
-        self._timeout = timeout
-        self._max_retries = max_retries
-        self._max_wait_s = max_wait_s
-        self._sleep = sleep
+        self._http = JiraHttp(
+            base_url,
+            email,
+            api_token,
+            cloud_id=cloud_id,
+            http_client=http_client,
+            max_retries=max_retries,
+            max_wait_s=max_wait_s,
+            sleep=sleep,
+            timeout=timeout,
+        )
+        self._get = self._http.get
+        self._send = self._http.send
 
     @property
     def api_root(self) -> str:
-        return self._api_root
+        return self._http.api_root
 
     # --- Lectura ---------------------------------------------------------------------------
 
@@ -112,7 +109,7 @@ class JiraCloudTracker:
                 params["nextPageToken"] = token
             page = self._get("/rest/api/3/search/jql", params=params, invalid="La consulta JQL")
             issues = page.get("issues") or []
-            results += [_to_summary(issue) for issue in issues[:remaining]]
+            results += [to_issue_summary(issue) for issue in issues[:remaining]]
             remaining = min(limit, MAX_RESULTS) - len(results)
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
@@ -152,108 +149,91 @@ class JiraCloudTracker:
         return self.search(children_jql(epic_key), limit=MAX_RESULTS)
 
     # --- ESCRITURA: solo desde el nodo publish (T-27) ---------------------------------------
+    # Sin reintentos (SPEC-00 §8): una escritura repetida podría duplicar la HU o el comentario.
 
     def create_story(self, story: UserStory, epic_key: str | None, project: str) -> str:
-        raise NotImplementedError("La creación de HU se implementa en T-27.")
+        """Crea la HU en `project` con la épica como `parent` (RF-04, R-05)."""
+        if not PROJECT_KEY_RE.fullmatch(project):
+            raise PublishError(
+                f"«{project[:_MAX_KEY_IN_MESSAGE]}» no es una clave de proyecto válida."
+            )
+        fields: dict[str, Any] = {
+            "project": {"key": project},
+            "issuetype": {"name": STORY_ISSUE_TYPE},
+            "summary": story_summary(story),
+            "description": story_to_adf(story),
+        }
+        if epic_key is not None:
+            if not JIRA_KEY_RE.fullmatch(epic_key) or _project_of(epic_key) != project:
+                raise PublishError(
+                    f"La épica «{epic_key[:_MAX_KEY_IN_MESSAGE]}» no es del proyecto {project}."
+                )
+            fields["parent"] = {"key": epic_key}
+        data = self._send("POST", "/rest/api/3/issue", {"fields": fields}, failure=PublishError)
+        key = data.get("key")
+        if not isinstance(key, str) or not JIRA_KEY_RE.fullmatch(key):
+            raise PublishError(
+                "Jira no ha devuelto la clave de la HU creada. Comprueba en Jira si se ha creado "
+                "antes de reintentar."
+            )
+        if _project_of(key) != project:  # PA-46
+            raise PublishError(
+                f"Jira ha creado la HU {key} fuera del proyecto {project}. Revísala en Jira."
+            )
+        return key
 
     def update_story(self, key: str, story: UserStory, diff_comment_md: str) -> None:
-        raise NotImplementedError("La actualización de HU se implementa en T-27.")
+        """Actualiza título y descripción y comenta el diff aprobado (RF-05)."""
+        if not JIRA_KEY_RE.fullmatch(key):
+            raise PublishError(f"«{key[:_MAX_KEY_IN_MESSAGE]}» no es una clave de Jira válida.")
+        fields = {"summary": story_summary(story), "description": story_to_adf(story)}
+        self._send("PUT", f"/rest/api/3/issue/{key}", {"fields": fields}, PublishError, key)
+        if not diff_comment_md.strip():
+            return
+        body = {"body": markdown_to_adf(diff_comment_md)}
+        try:
+            self._send("POST", f"/rest/api/3/issue/{key}/comment", body, PublishError, key)
+        except AgentError as exc:
+            raise PublishError(
+                f"La HU {key} se ha actualizado, pero no se pudo añadir el comentario con el "
+                f"diff: {exc}"
+            ) from None
 
     def link(
         self, from_key: str, to_key: str, link_type: str, comment_md: str | None = None
     ) -> None:
-        raise NotImplementedError("Los vínculos se implementan en T-27.")
+        """Vínculo «relates to» con comentario opcional (RF-06).
 
-    # --- HTTP --------------------------------------------------------------------------------
-
-    def _get(
-        self,
-        path: str,
-        params: dict[str, str] | None = None,
-        key: str | None = None,
-        invalid: str | None = None,
-    ) -> dict[str, Any]:
-        attempt = 0
-        while True:
-            try:
-                response = self._client.get(
-                    f"{self._api_root}{path}",
-                    params=params,
-                    auth=self._auth,
-                    headers={"Accept": "application/json"},
-                    timeout=self._timeout,
-                )
-            except httpx.HTTPError:
-                if attempt < self._max_retries:
-                    self._sleep(min(float(2**attempt), self._max_wait_s))
-                    attempt += 1
-                    continue
-                raise ExternalServiceError(
-                    "No se pudo conectar con Jira. Revisa la URL del sitio y la red.",
-                    service=_SERVICE,
-                ) from None
-
-            status = response.status_code
-            if status < 400:
-                if not response.content:
-                    return {}
-                try:
-                    return response.json()
-                except ValueError:
-                    raise ExternalServiceError(
-                        "Jira ha devuelto una respuesta no válida.", service=_SERVICE
-                    ) from None
-            if status in (401, 403):
-                raise AuthenticationError(
-                    f"Jira ha rechazado las credenciales (HTTP {status}). Revisa el email, "
-                    "el token y sus scopes.",
-                    service=_SERVICE,
-                )
-            if status == 400 and invalid:
-                raise ExternalServiceError(
-                    f"{invalid} no es válida para Jira (HTTP 400).", service=_SERVICE
-                )
-            if status == 404:
-                target = f"La incidencia {key}" if key else "El recurso solicitado"
-                raise NotFoundError(
-                    f"{target} no existe o no tienes permiso para verla.", service=_SERVICE
-                )
-            if status == 429:
-                retry_after = _retry_after(response)
-                wait = retry_after if retry_after is not None else float(2**attempt)
-                if attempt >= self._max_retries or wait > self._max_wait_s:
-                    raise RateLimitError(
-                        "Jira ha alcanzado su límite de peticiones. Inténtalo más tarde.",
-                        service=_SERVICE,
-                        retry_after=retry_after,
-                    )
-                self._sleep(wait)
-                attempt += 1
-                continue
-            if status >= 500 and attempt < self._max_retries:
-                self._sleep(min(float(2**attempt), self._max_wait_s))
-                attempt += 1
-                continue
+        Los fallos al vincular son `ExternalServiceError` (y sus subclases): el nodo `publish`
+        los informa sin perder la HU ya publicada (RNF-13). Un `link_type` no permitido es un
+        error de programación y lanza `PublishError` antes de cualquier petición.
+        """
+        jira_link = LINK_TYPES.get(link_type)
+        if jira_link is None:
+            raise PublishError(f"El tipo de vínculo «{link_type[:50]}» no está permitido.")
+        for issue_key in (from_key, to_key):
+            if not JIRA_KEY_RE.fullmatch(issue_key):
+                shown = issue_key[:_MAX_KEY_IN_MESSAGE]
+                raise NotFoundError(f"«{shown}» no es una clave de Jira válida.", service=_SERVICE)
+        if from_key == to_key:
             raise ExternalServiceError(
-                f"Jira ha respondido con un error (HTTP {status}).", service=_SERVICE
+                f"No se puede vincular {from_key} consigo misma.", service=_SERVICE
             )
-
-
-def _retry_after(response: httpx.Response) -> float | None:
-    value = response.headers.get("Retry-After")
-    if value is None:
-        return None
-    try:
-        return max(0.0, float(value))
-    except ValueError:
-        return None
+        body: dict[str, Any] = {
+            "type": {"name": jira_link},
+            "outwardIssue": {"key": from_key},
+            "inwardIssue": {"key": to_key},
+        }
+        if comment_md and comment_md.strip():
+            body["comment"] = {"body": markdown_to_adf(comment_md)}
+        self._send("POST", "/rest/api/3/issueLink", body, ExternalServiceError)
 
 
 def _name(field: Any) -> str:
     return str(field.get("name", "")) if isinstance(field, dict) else ""
 
 
-def _to_summary(issue: dict[str, Any]) -> IssueSummary:
+def to_issue_summary(issue: dict[str, Any]) -> IssueSummary:
     fields = issue.get("fields") or {}
     return IssueSummary(
         key=str(issue.get("key", "")),
@@ -278,10 +258,10 @@ def _to_issue_detail(data: dict[str, Any]) -> IssueDetail:
     comments = (fields.get("comment") or {}).get("comments") or []
     links = [_to_link(link) for link in fields.get("issuelinks") or []]
     return IssueDetail(
-        **_to_summary(data).model_dump(),
+        **to_issue_summary(data).model_dump(),
         description_text=adf_to_text(fields.get("description")),
         parent_key=str(parent["key"]) if isinstance(parent, dict) and "key" in parent else None,
-        subtasks=[_to_summary(s) for s in fields.get("subtasks") or []],
+        subtasks=[to_issue_summary(s) for s in fields.get("subtasks") or []],
         links=[link for link in links if link is not None],
         comments=[adf_to_text(c.get("body")) for c in comments if isinstance(c, dict)],
         labels=[str(label) for label in fields.get("labels") or []],

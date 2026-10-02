@@ -10,6 +10,7 @@ llamadas del proveedor compuesto.
 """
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -237,3 +238,13 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
         conversations=build_conversations(config),
         require_actor=True,  # T-52: sin persona autenticada en la config no se actúa
     )
+
+
+def build_session_container(config: AppConfig, base: Container, router: ModelRouter) -> Container:
+    """Contenedor de una sesión de la API (T-55): los adaptadores de `base` y un LLM propio.
+
+    Cada sesión tiene su router para que el selector de modelo (RF-42) no afecte a las demás;
+    Jira, la base de datos, el registro de aprobaciones y el resto se comparten en el proceso.
+    """
+    llm = build_llm_provider(config, router=router)
+    return replace(base, llm=llm, memory_generator=LLMMemoryGenerator(llm))

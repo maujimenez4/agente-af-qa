@@ -31,6 +31,8 @@ from adapters.base import TaskType
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_MODELS_PATH = ROOT_DIR / "config" / "models.yaml"
+# Origen explícito para la API (T-55): esquema, host sin comodines y puerto opcional.
+_ORIGIN = re.compile(r"^https?://[A-Za-z0-9.-]+(:\d{1,5})?$")
 
 _PLACEHOLDER = re.compile(r"^TU_[A-ZÑÁÉÍÓÚ0-9_]+$")
 
@@ -184,6 +186,44 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     models_config_path: Path = DEFAULT_MODELS_PATH
+
+    # API HTTP para el frontend (T-55, `docs/api/requisitos-parte-2.md`)
+    # Orígenes permitidos (`Origin`/`Referer` y CORS), separados por comas. Vacío: solo el
+    # mismo origen (el frontend llega por el proxy de Vite o del servidor web).
+    api_allowed_origins: str = ""
+    # Cookie sin `Secure`: solo con este indicador y `APP_ENV=development` (localhost ya la acepta).
+    api_insecure_dev_cookie: bool = False
+    api_session_idle_minutes: PositiveInt = 30
+    api_session_max_hours: PositiveInt = 12
+    api_login_max_attempts: PositiveInt = 5
+    api_login_lock_seconds: PositiveInt = 300
+    api_max_body_bytes: PositiveInt = 262_144
+    api_max_streams_per_user: PositiveInt = 3
+    # Hilos de las operaciones largas (no son workers de uvicorn: la API va en un solo proceso).
+    api_workers: PositiveInt = 4
+
+    @field_validator("api_allowed_origins")
+    @classmethod
+    def _explicit_origins(cls, value: str) -> str:
+        """Solo orígenes explícitos `http(s)://host[:puerto]`: nunca `*` con credenciales."""
+        for origin in (o.strip() for o in value.split(",")):
+            if origin and not _ORIGIN.fullmatch(origin.rstrip("/")):
+                raise ValueError(
+                    "API_ALLOWED_ORIGINS solo admite orígenes http(s)://host[:puerto]."
+                )
+        return value
+
+    @property
+    def is_development(self) -> bool:
+        return self.app_env.strip().lower() == "development"
+
+    @property
+    def api_origins(self) -> list[str]:
+        return [o.strip().rstrip("/") for o in self.api_allowed_origins.split(",") if o.strip()]
+
+    @property
+    def api_cookie_secure(self) -> bool:
+        return not (self.api_insecure_dev_cookie and self.is_development)
 
     @field_validator(
         "jira_base_url",

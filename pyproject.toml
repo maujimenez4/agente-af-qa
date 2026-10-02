@@ -23,6 +23,7 @@ dependencies = [
     "structlog>=26.1.0",
     "torch>=2.14.0",
     "torchvision>=0.29.0",
+    "uvicorn>=0.30,<0.55",
 ]
 
 [dependency-groups]

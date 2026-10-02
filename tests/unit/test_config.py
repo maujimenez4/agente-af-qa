@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from adapters.base import TaskType
 from core.config import (
@@ -299,3 +299,46 @@ def test_provider_sends_max_tokens_only_for_tasks_with_a_cap() -> None:
     assert client.chat.completions.create.call_args.kwargs["max_tokens"] == 200
     provider.generate([Message(role="user", content="x")], TaskType.NL_TO_JQL)
     assert "max_tokens" not in client.chat.completions.create.call_args.kwargs
+
+
+# --- API_ALLOWED_ORIGINS (T-55, H2) ---------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "*",
+        "localhost:5173",
+        "https://*.example",
+        "http://localhost:5173, *",
+        "https://app.example/ruta",
+        "ftp://app.example",
+        "https://app.example:8443:1",
+    ],
+)
+def test_api_allowed_origins_rejects_wildcards_and_non_origins(
+    clean_env: pytest.MonkeyPatch, raw: str
+) -> None:
+    """Req. 3 / H2: nunca `*`, comodines, rutas ni orígenes sin esquema http(s)."""
+    clean_env.setenv("API_ALLOWED_ORIGINS", raw)
+    with pytest.raises(ValidationError) as info:
+        Settings(_env_file=None)
+    assert "API_ALLOWED_ORIGINS" in str(info.value)
+
+
+def test_api_allowed_origins_accepts_explicit_list_and_normalizes(
+    clean_env: pytest.MonkeyPatch,
+) -> None:
+    """Req. 3 / H2: lista explícita con espacios y barra final -> orígenes limpios."""
+    clean_env.setenv("API_ALLOWED_ORIGINS", "http://localhost:5173, https://app.example:8443/ ,")
+    settings = Settings(_env_file=None)
+    assert settings.api_origins == ["http://localhost:5173", "https://app.example:8443"]
+
+
+@pytest.mark.parametrize("raw", ["", " ", ","])
+def test_api_allowed_origins_empty_means_same_origin_only(
+    clean_env: pytest.MonkeyPatch, raw: str
+) -> None:
+    """Req. 3 (límite): vacío -> sin orígenes extra (solo el mismo origen, sin CORS)."""
+    clean_env.setenv("API_ALLOWED_ORIGINS", raw)
+    assert Settings(_env_file=None).api_origins == []

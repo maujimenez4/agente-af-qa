@@ -5,7 +5,7 @@ info:
   title: Agente de IA de Análisis Funcional y QA
   description: API para el frontend propio (T-55). Sesión con cookie HttpOnly `afqa_session` y cabecera
     `X-CSRF-Token` en las peticiones que modifican algo.
-  version: 0.1.0
+  version: 0.2.0
 paths:
   /api/v1/auth/login:
     post:
@@ -47,6 +47,16 @@ paths:
                 error:
                   code: invalid_credentials
                   message: Usuario o contraseña incorrectos.
+        '403':
+          description: '`Origin`/`Referer` que no es el mismo origen ni está en la lista permitida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: La petición no viene de un origen permitido.
         '429':
           description: Intentos.
           content:
@@ -57,6 +67,36 @@ paths:
                 error:
                   code: too_many_attempts
                   message: Demasiados intentos; espera unos minutos.
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
         '422':
           description: Petición no válida (sin devolver lo enviado).
           content:
@@ -98,12 +138,53 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
   /api/v1/auth/me:
     get:
       tags:
       - Sesión
       summary: Sesión actual
-      description: 'Al recargar la página: usuario y un token anti-CSRF nuevo.'
+      description: 'Al recargar la página: usuario y el token anti-CSRF de la sesión.'
       operationId: me_api_v1_auth_me_get
       responses:
         '200':
@@ -132,6 +213,36 @@ paths:
                 error:
                   code: unauthenticated
                   message: Inicia sesión para continuar.
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
       security:
       - sessionCookie: []
   /api/v1/projects:
@@ -174,6 +285,37 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
         '503':
           description: Servicio externo caído (Jira, PostgreSQL, Ollama).
           content:
@@ -227,6 +369,47 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
         '404':
           description: Proyecto que no ve la conexión de Jira.
           content:
@@ -297,14 +480,35 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
           content:
             application/json:
               example:
                 error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
@@ -315,6 +519,16 @@ paths:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -402,6 +616,37 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: Servicio externo caído (Jira, PostgreSQL, Ollama).
           content:
@@ -478,14 +723,35 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
           content:
             application/json:
               example:
                 error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
@@ -496,6 +762,16 @@ paths:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -561,14 +837,35 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
           content:
             application/json:
               example:
                 error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
@@ -579,6 +876,16 @@ paths:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -663,6 +970,37 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
         '503':
           description: Servicio externo caído (Jira, PostgreSQL, Ollama).
           content:
@@ -744,6 +1082,37 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
         '503':
           description: Servicio externo caído (Jira, PostgreSQL, Ollama).
           content:
@@ -754,6 +1123,16 @@ paths:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+        '404':
+          description: Incidencia de origen que no existe o no ve la conexión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: not_found
+                  message: La incidencia DEMO-999 no existe.
         '422':
           description: Petición no válida (sin devolver lo enviado).
           content:
@@ -822,6 +1201,47 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -907,6 +1327,46 @@ paths:
                   code: rate_limited
                   message: Jira ha alcanzado su límite de peticiones.
                   retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Proyecto que no ve la conexión de Jira, o incidencia de origen que no existe.
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: El proyecto DEMO no existe o la conexión no tiene acceso a él.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -1179,6 +1639,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -1208,8 +1709,10 @@ paths:
       - Conversaciones
       summary: Eventos en vivo (SSE)
       description: '`text/event-stream`. Eventos: `progress` (`data`: nodo y estado del paso), `review_ready`,
-        `result` (publicación simulada, real o parcial) y `error` (`data`: la conversación completa, como
-        en `GET /conversations/{id}`). Si se corta, basta con consultar el estado.'
+        `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación
+        completa, como en `GET /conversations/{id}`). El servidor cierra el flujo tras `result` de una
+        conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay
+        un comentario `: ping` cada 15 s. Si se corta, basta con consultar el estado.'
       operationId: events_api_v1_conversations__conversation_id__events_get
       parameters:
       - name: conversation_id
@@ -1255,6 +1758,46 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de flujos SSE abiertos por persona (3).
+          content:
+            application/json:
+              example:
+                error:
+                  code: too_many_streams
+                  message: Tienes demasiadas pestañas siguiendo conversaciones.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
@@ -1350,6 +1893,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -1369,17 +1953,6 @@ paths:
                 error:
                   code: not_in_review
                   message: La conversación no tiene una propuesta en revisión (está generando o ya terminó).
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '429':
-          description: Límite de un servicio externo (Jira o el LLM).
-          content:
-            application/json:
-              example:
-                error:
-                  code: rate_limited
-                  message: Jira ha alcanzado su límite de peticiones.
-                  retry_after: 30.0
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -1658,6 +2231,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -1696,7 +2310,9 @@ paths:
       - Conversaciones
       summary: Aprobar y publicar (simulación o real)
       description: Con la `fingerprint` exacta del último payload. Si no casa, la revisión sigue con `review.error`.
-        Un rechazo del registro de aprobaciones da 409 y obliga a empezar de nuevo.
+        Un rechazo del registro de aprobaciones da 409 `approval_rejected` y obliga a empezar de nuevo;
+        si la conversación no está en revisión o ya hay una operación en curso, 409 `not_in_review` (como
+        en `iterate`).
       operationId: approve_api_v1_conversations__conversation_id__approve_post
       parameters:
       - name: conversation_id
@@ -1870,16 +2486,6 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
-          content:
-            application/json:
-              example:
-                error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Límite de un servicio externo (Jira o el LLM).
           content:
@@ -1889,6 +2495,46 @@ paths:
                   code: rate_limited
                   message: Jira ha alcanzado su límite de peticiones.
                   retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -2049,6 +2695,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -2132,6 +2819,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -2140,6 +2868,16 @@ paths:
                 error:
                   code: not_found
                   message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Pendiente del diseño de T-54 (PA-105).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_implemented
+                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -2158,6 +2896,8 @@ paths:
       tags:
       - Revisar la calidad
       summary: Revisar la calidad de una HU (T-48, no publica)
+      description: Responde 202 con `state=running`. Una HU que no existe o un límite del LLM llegan después
+        en `state=error` con `error` (consultando la revisión).
       operationId: create_quality_review_api_v1_quality_reviews_post
       requestBody:
         content:
@@ -2277,16 +3017,6 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
         '429':
           description: Límite de un servicio externo (Jira o el LLM).
           content:
@@ -2298,6 +3028,36 @@ paths:
                   code: rate_limited
                   message: Jira ha alcanzado su límite de peticiones.
                   retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
         '422':
           description: Petición no válida (sin devolver lo enviado).
           content:
@@ -2436,6 +3196,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -2503,6 +3304,57 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+        '501':
+          description: Pendiente del diseño de T-54 (PA-105).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: not_implemented
+                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
       security:
       - sessionCookie: []
   /api/v1/qa/handoffs/{handoff_id}/take:
@@ -2566,6 +3418,47 @@ paths:
                   message: No tienes permiso para realizar esta acción.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
           content:
@@ -2574,6 +3467,16 @@ paths:
                 error:
                   code: not_found
                   message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Pendiente del diseño de T-54 (PA-105).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_implemented
+                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -2627,6 +3530,47 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
       security:
       - sessionCookie: []
   /api/v1/settings/models/{task}:
@@ -2679,6 +3623,47 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
@@ -2745,6 +3730,47 @@ paths:
                 error:
                   code: forbidden
                   message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':

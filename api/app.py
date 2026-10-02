@@ -1,7 +1,9 @@
 """Aplicación FastAPI y rutas del contrato (T-55).
 
-Parte 1: el contrato completo (rutas, modelos, errores y ejemplos). Las rutas aún responden 501;
-la parte 2 las conecta al contenedor (`core/factories.build_app_container`) y al grafo.
+Parte 1: el contrato completo (rutas, modelos, errores y ejemplos). Parte 2: las rutas sobre el
+contenedor y el grafo (`api/service.py`), con sesión en el servidor (`api/sessions.py`) y las
+comprobaciones de `docs/api/requisitos-parte-2.md` (`api/security.py`). La QA encadenada
+(`/handoff`, `/qa/*`) responde 501 hasta que T-54 cierre su diseño.
 
 Sesión: cookie HttpOnly `afqa_session` (SameSite=Strict) que el frontend no ve; toda petición que
 modifica algo lleva además la cabecera `X-CSRF-Token` con el valor de `SessionOut.csrf_token`.
@@ -9,13 +11,29 @@ Las operaciones largas (generar, iterar, aprobar y publicar, revisar la calidad)
 y su avance se sigue con eventos SSE o consultando el estado.
 """
 
+import asyncio
+import json
+import math
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any
+from uuid import uuid4
 
-from fastapi import APIRouter, FastAPI, Path, Query, status
+from fastapi import APIRouter, FastAPI, Path, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import ClientDisconnect
+from starlette.types import Receive, Scope, Send
 
+from adapters.base import TaskType, User
+from adapters.errors import AgentError, NotFoundError
+from adapters.llm.router import ModelChoice
 from api import examples as ex
+from api import service
+from api.errors import UNEXPECTED, ApiError, to_api_error
 from api.models import (
     ID_PATTERN,
     KEY_PATTERN,
@@ -44,15 +62,47 @@ from api.models import (
     SourcesIn,
     StartProposal,
     TaskModelsOut,
+    UserOut,
 )
+from api.runtime import QualityJob, Runtime, Workspace, build_runtime
+from api.security import (
+    COOKIE,
+    COOKIE_PATH,
+    BodyLimitMiddleware,
+    CatchAllMiddleware,
+    RequestLogMiddleware,
+    RuntimeHolder,
+    SecurityHeadersMiddleware,
+    Session,
+    check_origin,
+    client_ip,
+    current_session,
+    runtime,
+    session_for,
+)
+from app.sources import issue_card as count_card
+from core.config import Settings
+from core.context.jql import text_search_jql
+from core.guided_start import GuidedStart
+from core.logging import get_logger
+from core.permissions import Permission, permissions_of, require
+from core.projects import ISSUE_KEY, normalize_issue_key, normalize_project_key, project_of
+from core.quality import REVIEW_PERMISSION, QualityReviewer
+
+log = get_logger("api")
 
 API_PREFIX = "/api/v1"
-VERSION = "0.1.0"
-NOT_YET = "Disponible en la parte 2 de T-55 (API real)."
+VERSION = "0.2.0"
+NOT_YET = "Disponible cuando T-54 (QA encadenada) cierre su diseño."
+MAX_QUALITY_JOBS = 20  # por persona
+SSE_POLL_S = 0.5
+SSE_HEARTBEAT_S = 15.0
+# Tipos que no se buscan como origen (las épicas sí).
+NOT_SEARCHABLE = frozenset({"subtarea", "sub-task", "subtask", "task", "tarea"})
 
 
 class NotImplementedYetError(Exception):
-    """Ruta del contrato aún sin implementar (parte 1)."""
+    """Ruta del contrato aún sin implementar (QA encadenada, T-54)."""
 
 
 def _json(example: Any) -> dict[str, Any]:
@@ -102,7 +152,22 @@ UNAVAILABLE = {
         "Servicio externo caído (Jira, PostgreSQL, Ollama).",
     ),
 }
-AUTH = {**UNAUTHORIZED, **FORBIDDEN}
+# Respuestas que puede dar cualquier ruta (cuerpo demasiado grande, error inesperado y la API
+# sin poder arrancar: BD caída o `.env` inválido).
+COMMON = {
+    413: _err("payload_too_large", "La petición es demasiado grande.", "Cuerpo de más de 256 KB."),
+    500: _err(
+        "unexpected",
+        "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.",
+        "Error no previsto (sin detalles internos).",
+    ),
+    **UNAVAILABLE,
+}
+# Toda ruta con sesión puede leer de Jira o llamar al LLM: también puede dar 429.
+AUTH = {**UNAUTHORIZED, **FORBIDDEN, **RATE_LIMITED, **COMMON}
+NOT_YET_RESPONSE = {
+    501: _err("not_implemented", NOT_YET, "Pendiente del diseño de T-54 (PA-105)."),
+}
 
 auth = APIRouter(prefix="/auth", tags=["Sesión"])
 projects = APIRouter(tags=["Proyectos y Jira"])
@@ -110,9 +175,40 @@ start = APIRouter(prefix="/start", tags=["Arranque guiado"])
 conversations = APIRouter(prefix="/conversations", tags=["Conversaciones"])
 quality = APIRouter(prefix="/quality-reviews", tags=["Revisar la calidad"])
 qa = APIRouter(prefix="/qa", tags=["QA encadenada (provisional, T-54)"])
-settings = APIRouter(prefix="/settings", tags=["Ajustes de la sesión"])
+settings_router = APIRouter(prefix="/settings", tags=["Ajustes de la sesión"])
 
 ConversationId = Path(description="Identificador de la conversación.", pattern=ID_PATTERN)
+
+
+def _ctx(request: Request) -> tuple[Runtime, Session, Workspace, User]:
+    """Runtime, sesión (con CSRF si modifica algo), espacio de trabajo y persona."""
+    session = session_for(request)
+    return runtime(request), session, session.workspace, session.user
+
+
+def _session_out(session: Session) -> SessionOut:
+    user = session.user
+    return SessionOut(
+        user=UserOut(
+            username=user.username,
+            role=user.role,
+            permissions=sorted(p.value for p in permissions_of(user)),
+        ),
+        csrf_token=session.csrf_token,
+    )
+
+
+def _set_cookie(response: Response, session_id: str, settings: Settings) -> None:
+    response.set_cookie(
+        COOKIE,
+        session_id,
+        max_age=settings.api_session_max_hours * 3600,
+        path=COOKIE_PATH,
+        secure=settings.api_cookie_secure,
+        httponly=True,
+        samesite="strict",
+    )
+
 
 # --- Sesión -------------------------------------------------------------------------------------
 
@@ -125,27 +221,59 @@ ConversationId = Path(description="Identificador de la conversación.", pattern=
     responses={
         200: _json(ex.dump(ex.SESSION)),
         401: _err("invalid_credentials", "Usuario o contraseña incorrectos.", "Credenciales."),
+        403: _err(
+            "forbidden",
+            "La petición no viene de un origen permitido.",
+            "`Origin`/`Referer` que no es el mismo origen ni está en la lista permitida.",
+        ),
         429: _err("too_many_attempts", "Demasiados intentos; espera unos minutos.", "Intentos."),
+        **COMMON,
     },
 )
-def login(body: LoginIn) -> SessionOut:
-    raise NotImplementedYetError
+def login(body: LoginIn, request: Request, response: Response) -> SessionOut:
+    rt = runtime(request)
+    check_origin(request, rt.settings.api_origins)
+    user_key, ip_key = f"user:{body.username.strip().lower()}", f"ip:{client_ip(request)}"
+    if (wait := rt.limiter.retry_after(user_key, ip_key)) is not None:
+        raise ApiError(429, "too_many_attempts", "Demasiados intentos; espera unos minutos.", wait)
+    user = rt.auth.authenticate(body.username, body.password)
+    if user is None:
+        rt.limiter.failure(user_key, ip_key)
+        log.info("login fallido", action="login_failed")
+        raise ApiError(401, "invalid_credentials", "Usuario o contraseña incorrectos.")
+    rt.limiter.success(user_key)
+    if previous := request.cookies.get(COOKIE):
+        rt.sessions.drop(previous)  # rotación: nunca se reutiliza un identificador anterior
+    session = rt.sessions.create(user, rt.workspace_factory())
+    _set_cookie(response, session.id, rt.settings)
+    request.state.user = user.username
+    log.info("login", user=user.username, action="login")
+    return _session_out(session)
 
 
 @auth.post("/logout", status_code=204, summary="Cerrar sesión", responses=AUTH)
-def logout() -> None:
-    raise NotImplementedYetError
+def logout(request: Request, response: Response) -> None:
+    rt, session, _ws, user = _ctx(request)
+    rt.sessions.drop(session.id)
+    response.delete_cookie(
+        COOKIE,
+        path=COOKIE_PATH,
+        secure=runtime(request).settings.api_cookie_secure,
+        httponly=True,
+        samesite="strict",
+    )
+    log.info("logout", user=user.username, action="logout")
 
 
 @auth.get(
     "/me",
     response_model=SessionOut,
     summary="Sesión actual",
-    description="Al recargar la página: usuario y un token anti-CSRF nuevo.",
-    responses={200: _json(ex.dump(ex.SESSION)), **UNAUTHORIZED},
+    description="Al recargar la página: usuario y el token anti-CSRF de la sesión.",
+    responses={200: _json(ex.dump(ex.SESSION)), **UNAUTHORIZED, **COMMON},
 )
-def me() -> SessionOut:
-    raise NotImplementedYetError
+def me(request: Request) -> SessionOut:
+    return _session_out(current_session(request))
 
 
 # --- Proyectos y Jira ----------------------------------------------------------------------------
@@ -157,8 +285,11 @@ def me() -> SessionOut:
     summary="Proyectos que ve la conexión y el preseleccionado (T-50)",
     responses={200: _json(ex.dump(ex.PROJECTS)), **AUTH, **UNAVAILABLE},
 )
-def list_projects() -> ProjectsOut:
-    raise NotImplementedYetError
+def list_projects(request: Request) -> ProjectsOut:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    choice = ws.container.projects.available(user.username)
+    return ProjectsOut(projects=choice.projects, preselected=choice.preselected)
 
 
 @projects.post(
@@ -175,8 +306,14 @@ def list_projects() -> ProjectsOut:
         ),
     },
 )
-def choose_project(body: ChooseProjectIn) -> ChooseProjectOut:
-    raise NotImplementedYetError
+def choose_project(body: ChooseProjectIn, request: Request) -> ChooseProjectOut:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    try:
+        project = ws.container.projects.choose(user.username, body.project)
+    except NotFoundError as exc:
+        raise ApiError(404, "project_not_found", str(exc)) from None
+    return ChooseProjectOut(project=project)
 
 
 @projects.get(
@@ -185,8 +322,12 @@ def choose_project(body: ChooseProjectIn) -> ChooseProjectOut:
     summary="Épicas del proyecto (Elegir en Jira)",
     responses={200: _json(ex.dump(ex.EPICS)), **AUTH, **NOT_FOUND, **UNAVAILABLE},
 )
-def list_epics(project: str = Path(pattern=PROJECT_PATTERN)) -> list[IssueSummary]:
-    raise NotImplementedYetError
+def list_epics(
+    request: Request, project: str = Path(pattern=PROJECT_PATTERN)
+) -> list[IssueSummary]:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    return ws.container.issue_tracker.list_epics(normalize_project_key(project))
 
 
 @projects.get(
@@ -199,8 +340,31 @@ def search(
     project: str = Path(pattern=PROJECT_PATTERN),
     q: str | None = Query(default=None, min_length=1, max_length=200),
     limit: int = Query(default=10, ge=1, le=50),
+    *,
+    request: Request,
 ) -> list[IssueSummary]:
-    raise NotImplementedYetError
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    project = normalize_project_key(project)
+    tracker = ws.container.issue_tracker
+    text = (q or "").strip()
+    if text and ISSUE_KEY.fullmatch(text.upper()):
+        key = normalize_issue_key(text)
+        if project_of(key) != project:
+            return []
+        try:
+            issue = tracker.get_issue(key)
+        except NotFoundError:
+            return []
+        found = [
+            IssueSummary.model_validate(issue.model_dump(include=set(IssueSummary.model_fields)))
+        ]
+    elif text:
+        found = tracker.search(text_search_jql(project, text), limit=limit)  # texto escapado
+    else:
+        # `project` ya está validado (`normalize_project_key`): no hay texto libre en la JQL.
+        found = tracker.search(f'project = "{project}" ORDER BY updated DESC', limit=limit)
+    return [i for i in found if i.issue_type.strip().lower() not in NOT_SEARCHABLE][:limit]
 
 
 @projects.get(
@@ -209,8 +373,10 @@ def search(
     summary="HU de una épica",
     responses={200: _json(ex.dump(ex.STORIES)), **AUTH, **NOT_FOUND, **UNAVAILABLE},
 )
-def list_children(key: str = Path(pattern=KEY_PATTERN)) -> list[IssueSummary]:
-    raise NotImplementedYetError
+def list_children(request: Request, key: str = Path(pattern=KEY_PATTERN)) -> list[IssueSummary]:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    return ws.container.issue_tracker.list_children(normalize_issue_key(key))
 
 
 @projects.get(
@@ -219,8 +385,21 @@ def list_children(key: str = Path(pattern=KEY_PATTERN)) -> list[IssueSummary]:
     summary="Ficha de una incidencia (tarjetas de HU parecida o clave reconocida)",
     responses={200: _json(ex.dump(ex.CARD)), **AUTH, **NOT_FOUND, **UNAVAILABLE},
 )
-def issue_card(key: str = Path(pattern=KEY_PATTERN)) -> IssueCard:
-    raise NotImplementedYetError
+def issue_card(request: Request, key: str = Path(pattern=KEY_PATTERN)) -> IssueCard:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    issue = ws.container.issue_tracker.get_issue(normalize_issue_key(key))
+    counted = count_card(issue)  # CA y RN contados en la descripción, sin IA
+    return IssueCard(
+        key=issue.key,
+        project=project_of(issue.key),
+        summary=issue.summary,
+        issue_type=issue.issue_type,
+        status=issue.status,
+        epic_key=issue.parent_key,
+        criteria_count=counted.criteria,
+        rules_count=counted.rules,
+    )
 
 
 # --- Arranque guiado -----------------------------------------------------------------------------
@@ -234,8 +413,10 @@ def issue_card(key: str = Path(pattern=KEY_PATTERN)) -> IssueCard:
     "Si `project_changed`, avisar; si `ignored_projects` no está vacío, avisar también.",
     responses={200: _json(ex.dump(ex.PROPOSAL)), **AUTH, **UNAVAILABLE},
 )
-def propose(body: ProposeIn) -> StartProposal:
-    raise NotImplementedYetError
+def propose(body: ProposeIn, request: Request) -> StartProposal:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, service.generate_permission(body.mode))
+    return GuidedStart(ws.container).propose(body.text, body.project, body.mode)
 
 
 @start.post(
@@ -244,10 +425,22 @@ def propose(body: ProposeIn) -> StartProposal:
     summary="Fuentes que usaría la propuesta (panel «Antes de generar»)",
     description="Las desmarcadas van en `excluded_sources` al crear la conversación; la fila "
     "`required` (la incidencia de origen) no se puede desmarcar.",
-    responses={200: _json(ex.dump(ex.SOURCES)), **AUTH, **UNAVAILABLE},
+    responses={
+        200: _json(ex.dump(ex.SOURCES)),
+        **AUTH,
+        404: _err(
+            "not_found",
+            "La incidencia DEMO-999 no existe.",
+            "Incidencia de origen que no existe o no ve la conexión.",
+        ),
+    },
 )
-def sources(body: SourcesIn) -> list[SourcePreview]:
-    raise NotImplementedYetError
+def sources(body: SourcesIn, request: Request) -> list[SourcePreview]:
+    _rt, _s, ws, user = _ctx(request)
+    require(user, Permission.VIEW_CONTEXT)
+    origin = service.preview_origin(body.origin)
+    excluded = service.excluded_for(body.excluded_sources, origin.get("key"))
+    return GuidedStart(ws.container).preview_sources(origin, excluded)
 
 
 # --- Conversaciones ------------------------------------------------------------------------------
@@ -259,8 +452,11 @@ def sources(body: SourcesIn) -> list[SourcePreview]:
     summary="Conversaciones de la persona (más recientes primero)",
     responses={200: _json(ex.dump(ex.CONVERSATIONS)), **AUTH},
 )
-def list_conversations(limit: int = Query(default=50, ge=1, le=100)) -> list[ConversationSummary]:
-    raise NotImplementedYetError
+def list_conversations(
+    request: Request, limit: int = Query(default=50, ge=1, le=100)
+) -> list[ConversationSummary]:
+    _rt, _s, ws, user = _ctx(request)
+    return ws.container.conversations.list_for(user.username, limit)
 
 
 @conversations.post(
@@ -270,10 +466,21 @@ def list_conversations(limit: int = Query(default=50, ge=1, le=100)) -> list[Con
     summary="Crear una conversación y empezar a generar",
     description="Responde 202 con `state=generating`; el avance llega por `/events` o "
     "consultando la conversación. El `id` lo genera el servidor.",
-    responses={202: _json(ex.dump(ex.CONVERSATION_GENERATING)), **AUTH, **RATE_LIMITED},
+    responses={
+        202: _json(ex.dump(ex.CONVERSATION_GENERATING)),
+        **AUTH,
+        404: _err(
+            "not_found",
+            "El proyecto DEMO no existe o la conexión no tiene acceso a él.",
+            "Proyecto que no ve la conexión de Jira, o incidencia de origen que no existe.",
+        ),
+        **RATE_LIMITED,
+    },
 )
-def create_conversation(body: ConversationCreateIn) -> ConversationOut:
-    raise NotImplementedYetError
+def create_conversation(body: ConversationCreateIn, request: Request) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    run = service.create_conversation(rt, ws, user, body)
+    return service.conversation_out(rt, ws, user, run.thread_id)
 
 
 @conversations.get(
@@ -284,8 +491,9 @@ def create_conversation(body: ConversationCreateIn) -> ConversationOut:
     "versiones y resultado. Sirve también para retomarla.",
     responses={200: _json(ex.dump(ex.CONVERSATION)), **AUTH, **NOT_FOUND},
 )
-def get_conversation(conversation_id: str = ConversationId) -> ConversationOut:
-    raise NotImplementedYetError
+def get_conversation(request: Request, conversation_id: str = ConversationId) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    return service.conversation_out(rt, ws, user, conversation_id)
 
 
 @conversations.get(
@@ -293,9 +501,11 @@ def get_conversation(conversation_id: str = ConversationId) -> ConversationOut:
     response_class=StreamingResponse,
     summary="Eventos en vivo (SSE)",
     description="`text/event-stream`. Eventos: `progress` (`data`: nodo y estado del paso), "
-    "`review_ready`, `result` (publicación simulada, real o parcial) y `error` (`data`: la "
-    "conversación completa, como en `GET /conversations/{id}`). Si se corta, basta con "
-    "consultar el estado.",
+    "`review_ready`, `result` (publicación simulada, real o parcial, o descarte) y `error` "
+    "(`data`: la conversación completa, como en `GET /conversations/{id}`). El servidor cierra "
+    "el flujo tras `result` de una conversación terminada: ciérralo también en el cliente para "
+    "que `EventSource` no reconecte. Hay un comentario `: ping` cada 15 s. Si se corta, basta "
+    "con consultar el estado.",
     responses={
         200: {
             "content": {
@@ -308,10 +518,112 @@ def get_conversation(conversation_id: str = ConversationId) -> ConversationOut:
         },
         **AUTH,
         **NOT_FOUND,
+        429: _err(
+            "too_many_streams",
+            "Tienes demasiadas pestañas siguiendo conversaciones.",
+            "Límite de flujos SSE abiertos por persona (3).",
+        ),
     },
 )
-def events(conversation_id: str = ConversationId) -> None:
-    raise NotImplementedYetError
+async def events(request: Request, conversation_id: str = ConversationId) -> StreamingResponse:
+    rt, session, ws, user = _ctx(request)
+    # Propiedad comprobada antes de abrir el flujo (404 idéntico si no existe o no es suya).
+    first = await run_in_threadpool(service.conversation_out, rt, ws, user, conversation_id)
+    if not rt.sessions.open_stream(session, rt.settings.api_max_streams_per_user):
+        raise ApiError(
+            429, "too_many_streams", "Tienes demasiadas pestañas siguiendo conversaciones."
+        )
+    released = False
+
+    def release() -> None:
+        """Libera la plaza una sola vez: al acabar el flujo o, si el cliente se va antes de
+        que el generador arranque, en la tarea de fondo de la respuesta."""
+        nonlocal released
+        if not released:
+            released = True
+            rt.sessions.close_stream(session)
+
+    stream = _event_stream(request, rt, session, conversation_id, first, release)
+    return _ReleasingStream(stream, release)
+
+
+class _ReleasingStream(StreamingResponse):
+    """SSE que libera la plaza al terminar la respuesta pase lo que pase (también si el cliente
+    se va antes de que el generador arranque o si `send` falla con el socket cerrado)."""
+
+    def __init__(self, content: AsyncIterator[str], on_close: Callable[[], None]) -> None:
+        super().__init__(content, media_type="text/event-stream")
+        self._content, self._on_close = content, on_close
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        except ClientDisconnect:
+            pass  # la persona cerró la pestaña: no es un error
+        finally:
+            self._on_close()
+            aclose = getattr(self._content, "aclose", None)
+            if aclose is not None:
+                await aclose()  # cierra el generador aunque no haya llegado a arrancar
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+async def _event_stream(
+    request: Request,
+    rt: Runtime,
+    session: Session,
+    thread_id: str,
+    first: ConversationOut,
+    release: Callable[[], None],
+) -> AsyncIterator[str]:
+    """Eventos SSE: `progress` por paso que cambia y uno final (`review_ready`, `result`, `error`).
+
+    Se cierra al desconectarse, al caducar la sesión o cuando la conversación termina.
+    """
+    ws, user = session.workspace, session.user
+    steps: dict[str, str] = {}
+    last_seq, last_final, waited = -1, "", 0.0
+    out: ConversationOut | None = first
+    try:
+        while True:
+            if await request.is_disconnected() or not rt.sessions.alive(session):
+                return
+            run = rt.runs.get(thread_id)
+            seq = run.seq if run else 0
+            if seq != last_seq:
+                last_seq, waited = seq, 0.0
+                if out is None:
+                    try:
+                        out = await run_in_threadpool(
+                            service.conversation_out, rt, ws, user, thread_id
+                        )
+                    except Exception as exc:  # mensaje con lista blanca, sin trazas
+                        yield _sse("error", {"error": to_api_error(exc).body.model_dump()})
+                        return
+                for step in out.progress:
+                    if steps.get(step.node) != step.state:
+                        steps[step.node] = step.state
+                        yield _sse("progress", {"node": step.node, "state": step.state})
+                final = {"in_review": "review_ready", "error": "error"}.get(out.state)
+                if out.state in ("simulated", "published", "discarded") or out.result:
+                    final = "result"
+                marker = f"{final}:{out.updated_at.isoformat()}"
+                if final and out.state != "generating" and marker != last_final:
+                    last_final = marker
+                    yield _sse(final, out.model_dump(mode="json"))
+                if out.state in ("simulated", "published", "discarded"):
+                    return
+                out = None
+            elif waited >= SSE_HEARTBEAT_S:
+                waited = 0.0
+                yield ": ping\n\n"
+            await asyncio.sleep(SSE_POLL_S)
+            waited += SSE_POLL_S
+    finally:
+        release()
 
 
 @conversations.post(
@@ -327,8 +639,18 @@ def events(conversation_id: str = ConversationId) -> None:
         **RATE_LIMITED,
     },
 )
-def iterate(body: IterateIn, conversation_id: str = ConversationId) -> ConversationOut:
-    raise NotImplementedYetError
+def iterate(
+    body: IterateIn, request: Request, conversation_id: str = ConversationId
+) -> ConversationOut:
+    return _resume(request, conversation_id, "iterate", service.iterate_answer(body.feedback))
+
+
+def _resume(
+    request: Request, conversation_id: str, operation: str, answer: dict[str, Any]
+) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    service.resume(rt, ws, user, conversation_id, operation, answer)
+    return service.conversation_out(rt, ws, user, conversation_id)
 
 
 @conversations.post(
@@ -339,8 +661,15 @@ def iterate(body: IterateIn, conversation_id: str = ConversationId) -> Conversat
     " la revisión sigue con `review.error` (UI.md §5).",
     responses={200: _json(ex.dump(ex.CONVERSATION)), **AUTH, **NOT_FOUND, **NOT_IN_REVIEW},
 )
-def edit(body: EditIn, conversation_id: str = ConversationId) -> ConversationOut:
-    raise NotImplementedYetError
+def edit(body: EditIn, request: Request, conversation_id: str = ConversationId) -> ConversationOut:
+    answer: dict[str, Any] = {
+        "decision": "edit",
+        "content": body.content.model_dump(mode="json"),
+        "fingerprint": body.fingerprint,
+    }
+    if body.feedback:
+        answer["feedback"] = body.feedback
+    return _resume(request, conversation_id, "edit", answer)
 
 
 @conversations.post(
@@ -349,8 +678,9 @@ def edit(body: EditIn, conversation_id: str = ConversationId) -> ConversationOut
     status_code=status.HTTP_202_ACCEPTED,
     summary="Aprobar y publicar (simulación o real)",
     description="Con la `fingerprint` exacta del último payload. Si no casa, la revisión sigue "
-    "con `review.error`. Un rechazo del registro de aprobaciones da 409 y obliga a empezar de "
-    "nuevo.",
+    "con `review.error`. Un rechazo del registro de aprobaciones da 409 `approval_rejected` y "
+    "obliga a empezar de nuevo; si la conversación no está en revisión o ya hay una operación "
+    "en curso, 409 `not_in_review` (como en `iterate`).",
     responses={
         202: _json(ex.dump(ex.CONVERSATION_SIMULATED)),
         409: _err(
@@ -363,8 +693,12 @@ def edit(body: EditIn, conversation_id: str = ConversationId) -> ConversationOut
         **RATE_LIMITED,
     },
 )
-def approve(body: ApproveIn, conversation_id: str = ConversationId) -> ConversationOut:
-    raise NotImplementedYetError
+def approve(
+    body: ApproveIn, request: Request, conversation_id: str = ConversationId
+) -> ConversationOut:
+    # Solo reanuda el grafo con la huella: `publish` comprueba la aprobación en el registro.
+    answer = {"decision": "approve", "fingerprint": body.fingerprint}
+    return _resume(request, conversation_id, "approve", answer)
 
 
 @conversations.post(
@@ -378,17 +712,18 @@ def approve(body: ApproveIn, conversation_id: str = ConversationId) -> Conversat
         **NOT_IN_REVIEW,
     },
 )
-def discard(conversation_id: str = ConversationId) -> ConversationOut:
-    raise NotImplementedYetError
+def discard(request: Request, conversation_id: str = ConversationId) -> ConversationOut:
+    return _resume(request, conversation_id, "discard", {"decision": "discard"})
 
 
 @conversations.post(
     "/{conversation_id}/handoff",
     response_model=HandoffOut,
     summary="Pasar la HU aprobada a QA (provisional, T-54)",
-    responses={200: _json(ex.dump(ex.HANDOFFS[0])), **AUTH, **NOT_FOUND},
+    responses={200: _json(ex.dump(ex.HANDOFFS[0])), **AUTH, **NOT_FOUND, **NOT_YET_RESPONSE},
 )
-def handoff(conversation_id: str = ConversationId) -> HandoffOut:
+def handoff(request: Request, conversation_id: str = ConversationId) -> HandoffOut:
+    _ctx(request)
     raise NotImplementedYetError
 
 
@@ -400,10 +735,65 @@ def handoff(conversation_id: str = ConversationId) -> HandoffOut:
     response_model=QualityReviewOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Revisar la calidad de una HU (T-48, no publica)",
-    responses={202: _json(ex.dump(ex.QUALITY)), **AUTH, **NOT_FOUND, **RATE_LIMITED},
+    description="Responde 202 con `state=running`. Una HU que no existe o un límite del LLM "
+    "llegan después en `state=error` con `error` (consultando la revisión).",
+    responses={202: _json(ex.dump(ex.QUALITY)), **AUTH},
 )
-def create_quality_review(body: QualityReviewIn) -> QualityReviewOut:
-    raise NotImplementedYetError
+def create_quality_review(body: QualityReviewIn, request: Request) -> QualityReviewOut:
+    rt, _s, ws, user = _ctx(request)
+    require(user, REVIEW_PERMISSION)
+    key = normalize_issue_key(body.issue_key)
+    excluded = service.excluded_for(body.excluded_sources, key)
+    job = QualityJob(id=str(uuid4()), owner=user.username, issue_key=key)
+    _keep_quality_job(rt, job)
+    rt.submit(_quality_task(ws, user, job, excluded))
+    return _quality_out(job)
+
+
+def _keep_quality_job(rt: Runtime, job: QualityJob) -> None:
+    """Guarda la revisión; cada persona conserva sus `MAX_QUALITY_JOBS` más recientes."""
+    with rt.quality_lock:
+        rt.quality[job.id] = job
+        mine = [jid for jid, j in rt.quality.items() if j.owner == job.owner]
+        for old in mine[:-MAX_QUALITY_JOBS]:  # las más antiguas salen primero
+            del rt.quality[old]
+
+
+def _quality_job(rt: Runtime, review_id: str) -> QualityJob | None:
+    with rt.quality_lock:
+        return rt.quality.get(review_id)
+
+
+def _quality_task(
+    ws: Workspace, user: User, job: QualityJob, excluded: list[str]
+) -> Callable[[], None]:
+    def task() -> None:
+        try:
+            job.result = QualityReviewer(ws.container).review(user, job.issue_key, excluded)
+            job.state = "done"
+        except Exception as exc:  # mensaje con lista blanca; el tipo va al log
+            job.error, job.state = to_api_error(exc).body, "error"
+            log.warning(
+                "error al revisar la calidad",
+                user=user.username,
+                action="review_quality",
+                error_type=type(exc).__name__,
+            )
+
+    return task
+
+
+def _quality_out(job: QualityJob) -> QualityReviewOut:
+    result = job.result
+    return QualityReviewOut(
+        id=job.id,
+        issue_key=job.issue_key,
+        state=job.state,  # type: ignore[arg-type]
+        report=result.report if result else None,
+        evolve_feedback=result.evolve_feedback() if result else [],
+        report_markdown=result.report.to_markdown(job.issue_key) if result else None,
+        error=job.error,
+    )
 
 
 @quality.get(
@@ -414,8 +804,14 @@ def create_quality_review(body: QualityReviewIn) -> QualityReviewOut:
     "descargarlo.",
     responses={200: _json(ex.dump(ex.QUALITY)), **AUTH, **NOT_FOUND},
 )
-def get_quality_review(review_id: str = Path(pattern=ID_PATTERN)) -> QualityReviewOut:
-    raise NotImplementedYetError
+def get_quality_review(
+    request: Request, review_id: str = Path(pattern=ID_PATTERN)
+) -> QualityReviewOut:
+    rt, _s, _ws, user = _ctx(request)
+    job = _quality_job(rt, review_id)
+    if job is None or job.owner != user.username:
+        raise ApiError(404, "not_found", "No existe esa revisión o no es tuya.")
+    return _quality_out(job)
 
 
 # --- QA encadenada (provisional) -----------------------------------------------------------------
@@ -425,9 +821,10 @@ def get_quality_review(review_id: str = Path(pattern=ID_PATTERN)) -> QualityRevi
     "/handoffs",
     response_model=list[HandoffOut],
     summary="HU aprobadas listas para preparar pruebas (rol QA)",
-    responses={200: _json(ex.dump(ex.HANDOFFS)), **AUTH},
+    responses={200: _json(ex.dump(ex.HANDOFFS)), **AUTH, **NOT_YET_RESPONSE},
 )
-def list_handoffs() -> list[HandoffOut]:
+def list_handoffs(request: Request) -> list[HandoffOut]:
+    _ctx(request)
     raise NotImplementedYetError
 
 
@@ -436,53 +833,118 @@ def list_handoffs() -> list[HandoffOut]:
     response_model=ConversationOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Recoger una HU y empezar su conversación de QA",
-    responses={202: _json(ex.dump(ex.CONVERSATION_QA)), **AUTH, **NOT_FOUND},
+    responses={202: _json(ex.dump(ex.CONVERSATION_QA)), **AUTH, **NOT_FOUND, **NOT_YET_RESPONSE},
 )
-def take_handoff(handoff_id: str = Path(pattern=ID_PATTERN)) -> ConversationOut:
+def take_handoff(request: Request, handoff_id: str = Path(pattern=ID_PATTERN)) -> ConversationOut:
+    _ctx(request)
     raise NotImplementedYetError
 
 
 # --- Ajustes de la sesión ------------------------------------------------------------------------
 
 
-@settings.get(
+@settings_router.get(
     "",
     response_model=SettingsOut,
     summary="Modo de publicación y modelos por tarea",
     responses={200: _json(ex.dump(ex.SETTINGS)), **AUTH},
 )
-def get_settings() -> SettingsOut:
-    raise NotImplementedYetError
+def get_settings(request: Request) -> SettingsOut:
+    _rt, _s, ws, _user = _ctx(request)
+    return SettingsOut(
+        publish_mode=ws.container.publish_mode,
+        tasks=[service.task_models(ws, task) for task in TaskType],
+    )
 
 
-@settings.put(
+@settings_router.put(
     "/models/{task}",
     response_model=TaskModelsOut,
     summary="Cambiar el modelo de una tarea en la sesión (RF-42)",
     responses={200: _json(ex.dump(ex.SETTINGS.tasks[0])), **AUTH, **NOT_FOUND},
 )
-def override_model(body: ModelOverrideIn, task: str = Path(max_length=50)) -> TaskModelsOut:
-    raise NotImplementedYetError
+def override_model(
+    body: ModelOverrideIn, request: Request, task: str = Path(max_length=50)
+) -> TaskModelsOut:
+    _rt, _s, ws, user = _ctx(request)
+    task_type = service.task_type(task)
+    choice = ModelChoice(body.provider, body.model)
+    service.set_override(ws, task_type, choice)
+    log.info(
+        "modelo elegido",
+        user=user.username,
+        action="override_model",
+        model=f"{choice.provider}/{choice.model}",
+    )
+    return service.task_models(ws, task_type)
 
 
-@settings.delete(
+@settings_router.delete(
     "/models/{task}",
     response_model=TaskModelsOut,
     summary="Volver a «Modelo automático» en una tarea (quita el cambio de la sesión)",
     responses={200: _json(ex.dump(ex.SETTINGS.tasks[0])), **AUTH, **NOT_FOUND},
 )
-def clear_model_override(task: str = Path(max_length=50)) -> TaskModelsOut:
-    raise NotImplementedYetError
+def clear_model_override(request: Request, task: str = Path(max_length=50)) -> TaskModelsOut:
+    _rt, _s, ws, _user = _ctx(request)
+    task_type = service.task_type(task)
+    service.clear_override(ws, task_type)
+    return service.task_models(ws, task_type)
 
 
-def create_app() -> FastAPI:
+def _error_response(error: ApiError) -> JSONResponse:
+    headers = {"Retry-After": str(math.ceil(error.retry_after))} if error.retry_after else None
+    return JSONResponse(
+        status_code=error.status,
+        content={"error": error.body.model_dump()},
+        headers=headers,
+    )
+
+
+async def _too_large(scope: Scope, receive: Receive, send: Send) -> None:
+    response = _error_response(
+        ApiError(413, "payload_too_large", "La petición es demasiado grande.")
+    )
+    await response(scope, receive, send)
+
+
+async def _unexpected(scope: Scope, receive: Receive, send: Send) -> None:
+    response = _error_response(ApiError(500, "unexpected", UNEXPECTED))
+    await response(scope, receive, send)
+
+
+def create_app(
+    runtime_factory: Callable[[], Runtime] = build_runtime,
+    *,
+    settings: Settings | None = None,
+    runtime_instance: Runtime | None = None,
+) -> FastAPI:
+    """Aplicación FastAPI. La composición real se hace en la primera petición (`build_runtime`).
+
+    Las pruebas pasan `runtime_instance` con fakes; `settings` decide `/docs` y CORS.
+    """
+    settings = settings or (runtime_instance.settings if runtime_instance else Settings())
+    development = settings.is_development
+    holder = RuntimeHolder(runtime_factory, runtime_instance)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        if (ready := holder.ready) is not None:
+            ready.shutdown()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Agente de IA de Análisis Funcional y QA",
         version=VERSION,
         description="API para el frontend propio (T-55). Sesión con cookie HttpOnly "
         "`afqa_session` y cabecera `X-CSRF-Token` en las peticiones que modifican algo.",
+        docs_url="/api/docs" if development else None,
+        redoc_url=None,
+        openapi_url="/api/openapi.json" if development else None,
     )
-    for router in (auth, projects, start, conversations, quality, qa, settings):
+    app.state.runtime = holder
+    for router in (auth, projects, start, conversations, quality, qa, settings_router):
         app.include_router(router, prefix=API_PREFIX)
 
     @app.exception_handler(RequestValidationError)
@@ -495,6 +957,43 @@ def create_app() -> FastAPI:
     async def _not_yet(_request: Any, _exc: NotImplementedYetError) -> JSONResponse:
         return JSONResponse(status_code=501, content=ex.error("not_implemented", NOT_YET))
 
+    @app.exception_handler(ApiError)
+    async def _api_error(_request: Any, exc: ApiError) -> JSONResponse:
+        return _error_response(exc)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(_request: Any, exc: StarletteHTTPException) -> JSONResponse:
+        codes = {
+            404: ("not_found", "No existe ese recurso."),
+            405: ("method_not_allowed", "Método no permitido."),
+            413: ("payload_too_large", "La petición es demasiado grande."),
+        }
+        code, message = codes.get(exc.status_code, ("http_error", "La petición no es válida."))
+        return _error_response(ApiError(exc.status_code, code, message))
+
+    async def _domain_error(_request: Any, exc: Exception) -> JSONResponse:
+        error = to_api_error(exc)
+        if error.status >= 500 and error.code == "unexpected":
+            log.error("error inesperado", error_type=type(exc).__name__)
+        return _error_response(error)
+
+    for exc_type in (AgentError, ValueError):
+        app.add_exception_handler(exc_type, _domain_error)
+
+    app.add_middleware(RequestLogMiddleware)
+    app.add_middleware(CatchAllMiddleware, on_error=_unexpected)
+    if settings.api_origins:  # sin orígenes: solo el mismo origen (proxy), sin CORS
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.api_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "DELETE"],
+            allow_headers=["Content-Type", "X-CSRF-Token"],
+        )
+    app.add_middleware(
+        BodyLimitMiddleware, max_bytes=settings.api_max_body_bytes, on_too_large=_too_large
+    )
+    app.add_middleware(SecurityHeadersMiddleware)
     return app
 
 

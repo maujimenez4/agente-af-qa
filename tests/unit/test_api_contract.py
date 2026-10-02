@@ -1,5 +1,6 @@
 """Contrato de la API para el frontend (T-55, parte 1)."""
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -7,6 +8,8 @@ from fastapi.testclient import TestClient
 
 from api.app import API_PREFIX, create_app
 from api.export_openapi import OPENAPI_PATH, openapi_document, render
+from tests.fakes import dataset
+from tests.fakes.api import fake_runtime
 
 DOC = openapi_document()
 OPERATIONS = [
@@ -74,14 +77,21 @@ def test_approve_requires_the_fingerprint() -> None:
     assert body["properties"]["fingerprint"]["minLength"] == 64
 
 
-def test_part_one_routes_answer_501_with_the_common_error() -> None:
-    client = TestClient(create_app())
-    response = client.get(f"{API_PREFIX}/projects")
+def test_qa_handoff_routes_answer_501_until_t54(tmp_path: Path) -> None:
+    """La QA encadenada (provisional) responde 501 con la forma común hasta que cierre T-54."""
+    app = create_app(runtime_instance=fake_runtime(tmp_path))
+    client = TestClient(app, base_url="https://testserver")  # la cookie es `Secure`
+    login = client.post(
+        f"{API_PREFIX}/auth/login",
+        json={"username": "qa-demo", "password": dataset.DEMO_USERS["qa-demo"][0]},
+    )
+    assert login.status_code == 200
+    response = client.get(f"{API_PREFIX}/qa/handoffs")
     assert response.status_code == 501
     assert response.json() == {
         "error": {
             "code": "not_implemented",
-            "message": "Disponible en la parte 2 de T-55 (API real).",
+            "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño.",
             "retry_after": None,
         }
     }
@@ -182,3 +192,100 @@ def test_validation_message_for_model_errors_and_bad_json() -> None:
     )
     assert broken.status_code == 422
     assert broken.json()["error"]["message"] == "El cuerpo de la petición no es un JSON válido."
+
+
+# --- Segunda ronda (T-55, parte 2): errores comunes y declarados por ruta ---------------------
+
+
+def _example_code(op: dict[str, Any], status: str) -> str:
+    return op["responses"][status]["content"]["application/json"]["example"]["error"]["code"]
+
+
+@pytest.mark.parametrize(("path", "method", "op"), OPERATIONS, ids=lambda v: str(v)[:40])
+def test_every_route_declares_413_500_and_503(path: str, method: str, op: dict[str, Any]) -> None:
+    """Req. 7 y 8: cualquier ruta puede dar 413, 500 o 503; el contrato lo declara."""
+    assert {"413", "500", "503"} <= set(op["responses"]), (method, path)
+    assert _example_code(op, "413") == "payload_too_large"
+    assert _example_code(op, "500") == "unexpected"
+    assert _example_code(op, "503") == "service_unavailable"
+
+
+@pytest.mark.parametrize(("path", "method", "op"), OPERATIONS, ids=lambda v: str(v)[:40])
+def test_routes_with_session_declare_401(path: str, method: str, op: dict[str, Any]) -> None:
+    """Req. 1: toda ruta con sesión declara el 401 `unauthenticated`."""
+    if "/auth/" in path:  # sesión: no leen de Jira ni llaman al LLM
+        return
+    assert _example_code(op, "401") == "unauthenticated", (method, path)
+
+
+def test_login_declares_origin_403_and_lockout_429() -> None:
+    """Req. 2 y 4: el login declara el 403 de origen y el 429 de intentos."""
+    op = DOC["paths"][f"{API_PREFIX}/auth/login"]["post"]
+    assert "403" in op["responses"]
+    assert _example_code(op, "429") == "too_many_attempts"
+    assert _example_code(op, "401") == "invalid_credentials"
+
+
+def test_events_declares_too_many_streams() -> None:
+    """Req. 6: `/events` declara el 429 `too_many_streams`."""
+    op = DOC["paths"][f"{API_PREFIX}/conversations/{{conversation_id}}/events"]["get"]
+    assert _example_code(op, "429") == "too_many_streams"
+    assert _example_code(op, "404") == "not_found"
+
+
+def test_create_conversation_declares_project_404() -> None:
+    """Crear: proyecto que no ve la conexión -> 404 declarado."""
+    op = DOC["paths"][f"{API_PREFIX}/conversations"]["post"]
+    assert "404" in op["responses"]
+
+
+def test_create_quality_review_does_not_declare_404() -> None:
+    """PA-103: la HU inexistente llega como `state=error`, no como 404 de la petición."""
+    op = DOC["paths"][f"{API_PREFIX}/quality-reviews"]["post"]
+    assert "404" not in op["responses"]
+    assert "202" in op["responses"]
+
+
+def test_quality_review_of_missing_issue_ends_in_error_state(tmp_path: Path) -> None:
+    """PA-103: revisar una HU inexistente responde 202 y la revisión queda en `error`."""
+    client = TestClient(
+        create_app(runtime_instance=fake_runtime(tmp_path)), base_url="https://testserver"
+    )
+    password = dataset.DEMO_USERS["af-demo"][0]
+    login = client.post(
+        f"{API_PREFIX}/auth/login", json={"username": "af-demo", "password": password}
+    )
+    response = client.post(
+        f"{API_PREFIX}/quality-reviews",
+        json={"issue_key": "DEMO-999"},
+        headers={"X-CSRF-Token": login.json()["csrf_token"]},
+    )
+    assert response.status_code == 202
+    body = response.json()
+    assert body["state"] == "error" and body["error"]["code"] == "not_found"
+
+
+@pytest.mark.parametrize(("path", "method", "op"), OPERATIONS, ids=lambda v: str(v)[:60])
+def test_routes_with_session_declare_rate_limited(path: str, method: str, op: Any) -> None:
+    """Cualquier ruta con sesión puede leer de Jira o llamar al LLM: declara 429."""
+    if "/auth/" in path:  # sesión: no leen de Jira ni llaman al LLM
+        return
+    assert "429" in op["responses"], (method, path)
+
+
+def test_sources_declares_missing_origin_404() -> None:
+    assert "404" in DOC["paths"][f"{API_PREFIX}/start/sources"]["post"]["responses"]
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        (f"{API_PREFIX}/conversations/{{conversation_id}}/handoff", "post"),
+        (f"{API_PREFIX}/qa/handoffs", "get"),
+        (f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take", "post"),
+    ],
+)
+def test_chained_qa_routes_declare_501_until_t54(path: str, method: str) -> None:
+    response = DOC["paths"][path][method]["responses"]["501"]
+    example = response["content"]["application/json"]["example"]
+    assert example["error"]["code"] == "not_implemented"

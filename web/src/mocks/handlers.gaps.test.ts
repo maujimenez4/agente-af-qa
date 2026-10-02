@@ -224,3 +224,30 @@ describe('API simulada: 404 para lo que aún no simula', () => {
     })
   })
 })
+
+describe('API simulada: título de la conversación como conversation_title() de core/conversations.py (PA-317)', () => {
+  it.each([
+    ['evolve', { kind: 'story', key: 'DEMO-3', project: 'DEMO' }, 'Evolucionar DEMO-3'],
+    ['need', { kind: 'epic', key: 'DEMO-1', project: 'DEMO' }, 'Nueva HU en DEMO-1'],
+    ['need', { kind: 'need', key: null, text: 'Necesidad ficticia', project: 'DEMO' }, 'Nueva necesidad · DEMO'],
+    ['tests', { kind: 'story', key: 'DEMO-3', project: 'DEMO' }, 'Preparar pruebas de DEMO-3'],
+  ] as const)('test_create_%s_%j_titles_like_backend', async (flow, origin, title) => {
+    /** Paridad con _FLOW_TITLES: «flujo clave» o «flujo · proyecto», sin texto libre; la lista lleva el mismo título. */
+    const csrf = await csrfOf()
+    const response = await send('POST', '/conversations', csrf, { flow, origin, excluded_sources: [], feedback: [] })
+    expect(response.status).toBe(202)
+    const created = (await response.json()) as { id: string; title: string }
+    expect(created.title).toBe(title)
+    expect(mockDb.conversations.find((item) => item.thread_id === created.id)?.title).toBe(title)
+  })
+
+  it('test_create_title_never_contains_free_text', async () => {
+    /** core/conversations.py: el título no incluye la necesidad ni las restricciones escritas. */
+    const csrf = await csrfOf()
+    const origin = { kind: 'need', key: null, text: 'Texto libre ficticio\n\nRestricciones: otra cosa', project: 'DEMO' }
+    const created = (await (await send('POST', '/conversations', csrf, { flow: 'need', origin, excluded_sources: [], feedback: [] })).json()) as {
+      title: string
+    }
+    expect(created.title).not.toMatch(/Texto libre|Restricciones/)
+  })
+})

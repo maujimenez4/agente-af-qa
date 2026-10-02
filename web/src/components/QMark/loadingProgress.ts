@@ -21,14 +21,15 @@ const GENERATION_NODES: readonly StepNode[] = ['load_origin', 'retrieve_context'
 /**
  * Cada nodo de generación hecho llena un cuarto y `review_ready` llena el último.
  * Los eventos llegan en orden: para cada nodo vale el último estado recibido.
+ * `review_ready` significa que la generación terminó: la Q se llena aunque se perdiera
+ * algún `progress` (por ejemplo, al reconectar el SSE).
  */
 export function loadingProgress(events: readonly StepEvent[], reviewReady: boolean): LoadingProgress {
+  if (reviewReady) return { done: 4, running: false }
+
   const latest = new Map<StepNode, StepState>()
   for (const event of events) latest.set(event.node, event.state)
 
   const doneNodes = GENERATION_NODES.filter((node) => latest.get(node) === 'done').length
-  return {
-    done: Math.min(doneNodes + (reviewReady ? 1 : 0), 4),
-    running: !reviewReady && latest.get('generate') === 'running',
-  }
+  return { done: doneNodes, running: latest.get('generate') === 'running' }
 }

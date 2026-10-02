@@ -168,6 +168,22 @@
   max-width: var(--panel-sm);
 }
 
+.statesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.stateCard {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
 .frame {
   height: 640px;
   display: flex;

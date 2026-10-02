@@ -44,6 +44,11 @@ describe('loadingProgress (PA-303)', () => {
     expect(loadingProgress(events, true)).toEqual({ done: 4, running: false })
   })
 
+  it('review_ready llena la Q aunque se perdiera algún progress (reconexión del SSE)', () => {
+    const events: StepEvent[] = [{ node: 'generate', state: 'running' }]
+    expect(loadingProgress(events, true)).toEqual({ done: 4, running: false })
+  })
+
   it('publish y memorize no cuentan para la Q de generación', () => {
     const events: StepEvent[] = [
       { node: 'publish', state: 'done' },

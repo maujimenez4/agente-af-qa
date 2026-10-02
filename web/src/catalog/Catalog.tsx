@@ -4,6 +4,7 @@ import { COLOR_GROUPS, TYPE_SCALE } from './catalogTokens.ts'
 import { ComponentsDemo } from './ComponentsDemo.tsx'
 import { QDemo } from './QDemo.tsx'
 import { ShellDemo } from './ShellDemo.tsx'
+import { StatesDemo } from './StatesDemo.tsx'
 
 // Catálogo del sistema de diseño (T-56): página de revisión visual de las piezas.
 export function Catalog() {
@@ -19,6 +20,8 @@ export function Catalog() {
       <ShellDemo />
 
       <ComponentsDemo />
+
+      <StatesDemo />
 
       <QDemo />
 

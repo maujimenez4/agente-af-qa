@@ -49,7 +49,7 @@ Acordado con la sesión principal en la PR #2 (PA-303).
 | `progress` de `retrieve_context` en `done` | Llena el 2.º cuarto |
 | `progress` de `generate` en `running` | Se anima **dentro del 3.er cuarto** (sube y baja entre el inicio y el final del cuarto, en bucle) para no parecer colgada. Con el modelo local en CPU puede durar minutos |
 | `progress` de `generate` en `done` | Llena el 3.er cuarto |
-| `review_ready` | Llena el 4.º cuarto y la pantalla pasa a la revisión |
+| `review_ready` | Llena el 4.º cuarto y la pantalla pasa a la revisión. Llena la Q entera aunque se haya perdido algún `progress` (por ejemplo, al reconectar el SSE) |
 | `error` | Se queda en el último cuarto hecho y aparece la tarjeta de error |
 
 - La lista de procesos usa el `label` de cada `ProgressStep` tal cual.
@@ -100,7 +100,29 @@ Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `
 - **Buscador:** local, sin distinguir mayúsculas ni tildes.
 - Las revisiones de calidad («Informe listo») no están en la lista hasta que se decida PA-103.
 
-## 6. Herramientas
+## 6. Tarjetas de error por `code`
+
+El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el frontend:
+
+| `code` | Título | Tono | Acción |
+|---|---|---|---|
+| `rate_limited` | Límite de uso alcanzado | Aviso | Reintentar, tras la cuenta atrás de `retry_after` |
+| `too_many_attempts` | Demasiados intentos | Aviso | Reintentar, tras `retry_after` |
+| `service_unavailable` | Servicio no disponible | Error | Reintentar |
+| `unauthenticated` | Sesión caducada | Neutro | Iniciar sesión |
+| `invalid_credentials` | No se pudo iniciar sesión | Error | — |
+| `forbidden` | Sin permiso | Neutro | — |
+| `not_found` | No se encuentra | Neutro | — |
+| `project_not_found` | No se encuentra el proyecto | Neutro | — |
+| `approval_rejected` | Aprobación rechazada | Error | Empezar de nuevo |
+| `not_in_review` | La revisión ya no está abierta | Aviso | Actualizar |
+| `invalid_request` | Petición no válida | Error | — |
+| Cualquier otro | No se pudo completar la acción | Error | — |
+
+- `retry_after` se acota a 0–600 s en la UI. La acción solo aparece si la pantalla le da un manejador.
+- El contrato aún no enumera los códigos de los errores de generación (citas no válidas, cobertura, proveedores agotados): van con el título genérico hasta que se decida PA-306.
+
+## 7. Herramientas
 
 - **Versiones exactas** (`.npmrc` con `save-exact`) y `package-lock.json` versionado.
 - **TypeScript 6.0**, no 7: `typescript-eslint` 8 solo admite `<6.1`.

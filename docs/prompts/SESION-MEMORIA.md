@@ -1,8 +1,8 @@
-# SESIÓN UI · Ronda 5: T-35, prueba cruzada (el área B prueba el área A)
+# SESIÓN UI · Ronda 6: corregir los defectos de la prueba cruzada T-35
 
-> Este archivo era el prompt de la sesión Memoria/Modelos (T-32, T-58, ya fusionadas). Ahora lo usa la **sesión UI**.
+> Este archivo era el prompt de la sesión Memoria/Modelos y después el de T-35. Ahora es el siguiente encargo de la **sesión UI**.
 
-Tu T-28 ya está fusionada en `PreProduccion`. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu T-35 ya está fusionada en `PreProduccion` (794 pruebas, 87 `xfail` estrictos, PA-161…PA-199). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
@@ -10,55 +10,69 @@ git fetch origin
 git -C .claude/worktrees/ses-ui switch -C ses-ui origin/PreProduccion
 cd .claude/worktrees/ses-ui
 uv sync
-uv run pytest -m "not integration"          # en verde, con 50 xfailed (los de T-34)
+uv run pytest -m "not integration"          # en verde, con 137 xfailed (T-34 y T-35)
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-ui`**, recién puesta al día desde `PreProduccion`. Tus T-28, T-31 y la pantalla de T-48 ya están fusionadas.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-ui`**, recién puesta al día desde `PreProduccion`. Tu T-35 ya está fusionada.
 
-**En esta ronda haces T-35: la prueba cruzada del área A, con mirada de fuera.** Es el espejo de T-34, que hizo la sesión Jira sobre el área B (mira `tests/unit/test_cross_b_*.py` y las PA-211…PA-224 como ejemplo del formato). La pestaña Memoria en Streamlit queda aparcada.
+**En esta ronda corriges los defectos que encontraste.** La principal te autoriza a tocar el código de esas PA, incluido `core/approvals.py`, que es de la principal.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`; contratos, API y composición.
-- **Modelos:** `ses-flujo`, con T-54, en `core/graph/`, `core/conversations.py`, `core/qa/` y una migración nueva.
-- **Jira:** `ses-jira`, corrigiendo los defectos de T-34 en `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py` y `adapters/embeddings|vectorstore/`.
-- **Ollama:** medición de modelos y `config/models.yaml`.
+- **Principal:** `PreProduccion`; la API (`api/`). **PA-161, PA-162 y PA-163 las hace la principal:** no las toques.
+- **Jira:** `ses-jira`, corrigiendo los defectos de T-34 en `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py`, `adapters/embeddings|vectorstore/` y **`core/context/service.py`** (solo `NOT_STORIES`).
+- **Modelos:** `ses-demo`, con el README y el guion de la demo (solo documentación y `eval/`).
+- **Ollama:** fase 3, la prueba real de punta a punta. **Usa el LLM en esta misma máquina:** ejecuta la suite completa pocas veces.
 
-## `/tarea T-35` [RNF-19]
-**Solo pruebas nuevas e informe: no cambies el código del área A.**
+## Orden de trabajo
+**Bloque 1 · aprobación humana y seguridad (principio 1), lo primero:**
+- **Registro de aprobaciones** (`core/approvals.py`):
+  - PA-171 (registro que no es un objeto: falla cerrado con `ApprovalError`);
+  - **PA-172** (reabrir una aprobación consumida);
+  - **PA-173** (segundo `consume`);
+  - **PA-174** (dos instancias sobre el mismo almacén: releer antes de decidir o una comprobación atómica);
+  - PA-175 (`offer` fija el destino antes de validar).
 
-- **Alcance:**
-  - `adapters/jira/` (búsqueda con `nextPageToken`, ADF, escritura, errores y reintentos);
-  - `adapters/testmgmt/` (subtareas, adjuntos, idempotencia, `record_execution`);
-  - `adapters/llm/` (salida estructurada, reparación de IDs de T-58, `schema_hints`, respaldo y 429, tiempo de espera);
-  - `adapters/auth/` (contraseñas, tiempo constante);
-  - `core/context/` (JQL seguro, presupuesto de contexto);
-  - `core/state_machine.py`, `core/audit.py`, `core/artifact_state.py` y `core/approvals.py` (registro de aprobaciones);
-  - `core/impact/` (diff y análisis de impacto);
-  - `core/graph/execution.py` (T-47);
-  - `api/` (sesión, CSRF, propiedad, SSE, `/executions`).
-- **Fuera del alcance:** `core/graph/nodes.py`, `core/graph/state.py` y `core/conversations.py` (los está cambiando T-54).
-- **Cómo:**
-  - `test-writer` para las pruebas que falten frente a los RF, RNF y requisitos (en `api/`, también `docs/api/requisitos-parte-2.md`);
-  - `spec-checker` para comparar con la SPEC-00 y el contrato `docs/api/openapi.yaml`;
-  - las pruebas van en archivos nuevos `tests/unit/test_cross_a_*.py`.
-- **Si encuentras un fallo:**
-  - marca la prueba con `xfail(strict=True)`, con el archivo y la línea;
-  - anótalo como propuesta.
+  **Todo debe fallar cerrado.**
+- PA-176: `transition` con tipos inválidos da `InvalidTransitionError`.
+- **PA-187:** ReDoS en `_TABLE_SEPARATOR` del ADF. Comprueba que el texto más largo permitido se procesa en milisegundos.
+- **PA-178:** evidencia de la ejecución con datos que parecen personales o secretos. Recházala en la revisión con un mensaje claro, como hace la validación de la suite con los datos personales.
+- PA-179: auditar el `publish` de la ejecución aunque falle el guardado final.
+- **PA-177 no es un defecto:** es una decisión de diseño de la principal. El registro de la ejecución termina en `publish`, así que en simulación consume su aprobación (en `live` se registra de nuevo). **Invierte esa prueba** para que fije este comportamiento, y cierra la PA como «Decisión: comportamiento intencionado».
 
-  No lo corrijas: lo decide la principal.
-- **Informe** en tu fila del registro diario: qué cubriste, los fallos (con su PA) y lo que queda sin cubrir.
+**Bloque 2 · errores en español y robustez de los adaptadores:**
+- Jira: PA-183, PA-184, PA-185, PA-186, PA-188, PA-189, PA-190 y PA-195.
+- LLM: PA-191, PA-192, PA-193 y PA-194.
+- Autenticación: PA-164 y PA-196.
+
+**Bloque 3 · contexto, impacto y versiones:**
+- PA-165, PA-167 y PA-197: `core/context/`. **Ojo:** la sesión Jira toca `NOT_STORIES` en `core/context/service.py` por PA-223. Para no pisaros, haz PA-166 en último lugar y, si coincidís en el archivo, avísame.
+- PA-168, PA-169, PA-170, PA-180 y PA-181: `core/context/jql.py`.
+- PA-182, PA-198 y PA-199: `core/impact/`.
+
+## Cómo
+- Por cada PA, quita el `xfail` de sus pruebas (o inviértelas si fijaban un comportamiento) y corrige el código hasta que pasen.
+- Si una corrección necesita cambiar un contrato (`schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`), **para y escríbelo como propuesta**.
+- Un commit por bloque: `T-35: corrige PA-1XX… [RF-YY]`.
+- Cierra cada PA en el Kanban con la fecha.
 
 ## Reglas
-- **Solo creas:** `tests/unit/test_cross_a_*.py` (y, para añadir, `tests/fakes/`). No toques código de producción, `app/`, `web/`, los contratos ni la SPEC.
-- **Kanban:** cambia solo T-35 (a 🔄 y luego ✅) y añade tu fila al registro. No toques el tablero. **Propuestas en PA-161…PA-199.**
-- **Seguridad:** no leas el `.env`; datos ficticios; nada contra Jira ni LLM reales (las pruebas `integration` que añadas se saltan sin credenciales).
-- **Cuidado con los hilos:** cierra los `graph.stream` y no dejes generadores abiertos (ya viste el bloqueo en `test_graph.py`).
-- **Antes del commit:**
-  - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
-  - `spec-checker` CONFORME y `security-reviewer` APTO.
-  - Pide a los subagentes que no maten procesos globales.
-- **Commit:** `T-35: prueba cruzada del área A por el área B [RNF-19]`. **Sin fusionar:** `git push origin ses-ui` y avísame.
+- **Puedes tocar:**
+  - `core/approvals.py`, `core/state_machine.py`, `core/graph/execution.py` y `core/artifact_state.py`;
+  - `core/context/` (con la salvedad de arriba) y `core/impact/`;
+  - `adapters/jira/`, `adapters/testmgmt/`, `adapters/llm/` y `adapters/auth/`;
+  - sus pruebas y `tests/unit/test_cross_a_*.py`.
 
-Empieza por `/tarea T-35` y preséntame el plan antes de escribir pruebas.
+  No toques `api/`, `app/`, `web/`, `core/graph/nodes.py`, `core/handoff.py`, `config/` ni los contratos.
+- **Kanban:** cambia solo las PA que cierres y añade tu fila al registro. No toques el tablero. **Propuestas nuevas en PA-140…PA-149** (el rango PA-161…PA-199 está lleno).
+- **Seguridad:** no leas el `.env`; datos ficticios; los logs no llevan contenido ni secretos.
+- **LLM:** solo fakes.
+- **Antes de cada commit:**
+  - pruebas de los módulos tocados, y la suite completa solo al cerrar cada bloque;
+  - `ruff check` y `ruff format --check` en verde;
+  - `spec-checker` CONFORME y `security-reviewer` APTO al terminar cada bloque.
+  - Pide a los subagentes que no maten procesos globales y que lancen pytest de uno en uno.
+- **Sin fusionar.** Haz `git push origin ses-ui` al terminar cada bloque y avísame.
+
+Empieza por el bloque 1 y preséntame el plan breve antes de tocar código.

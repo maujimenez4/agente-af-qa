@@ -203,15 +203,6 @@ def test_index_dir_keeps_orphan_chunks_when_document_removed_from_corpus(tmp_pat
     assert _doc_ids(store) == {"DOC-81", "DOC-82"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos archivos con el mismo nombre en carpetas distintas comparten id; "
-        "el segundo borra los fragmentos del primero (core/rag/ingest.py:137, "
-        "core/rag/indexing.py:91)"
-    ),
-)
 def test_index_dir_keeps_both_documents_when_same_name_in_different_folders(
     tmp_path: Path,
 ) -> None:

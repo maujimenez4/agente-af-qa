@@ -103,14 +103,6 @@ def test_ingest_txt_drops_bom_when_file_starts_with_bom(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- ids
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos archivos con el mismo nombre en carpetas distintas reciben el mismo "
-        "id (path.stem) y en la indexación el segundo borra al primero (core/rag/ingest.py:137)"
-    ),
-)
 def test_ingest_dir_gives_distinct_ids_when_same_name_in_different_folders(
     tmp_path: Path,
 ) -> None:
@@ -125,14 +117,6 @@ def test_ingest_dir_gives_distinct_ids_when_same_name_in_different_folders(
     assert len({d.id for d in docs}) == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos cabeceras con el mismo id se aceptan sin aviso y en la indexación "
-        "el segundo documento borra al primero (core/rag/ingest.py:137)"
-    ),
-)
 def test_ingest_dir_rejects_duplicate_header_ids(tmp_path: Path) -> None:
     """RF-07: un id de cabecera repetido en el corpus se detecta."""
     _md(tmp_path / "a.md", "# A\n\nTexto a.", id="DOC-FIC-20", category="politicas")
@@ -290,3 +274,14 @@ def test_classification_message_escapes_delimiters_when_text_contains_them(
     user = llm.calls[0]["messages"][1].content
     assert user.count("</documento>") == 1
     assert user.count("<documento>") == 1
+
+
+def test_duplicate_id_error_names_both_files_and_the_id(tmp_path: Path) -> None:
+    """PA-214: el error dice qué archivos chocan, con qué id y cómo resolverlo."""
+    _md(tmp_path / "politicas" / "nota.md", "# Uno\n\nTexto uno.", category="politicas")
+    _md(tmp_path / "procesos" / "nota.md", "# Dos\n\nTexto dos.", category="procesos")
+    with pytest.raises(IngestionError) as info:
+        _ingestor().ingest_dir(tmp_path)
+    message = str(info.value)
+    assert "politicas/nota.md" in message and "procesos/nota.md" in message
+    assert "«nota»" in message and "id:" in message

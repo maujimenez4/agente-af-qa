@@ -155,7 +155,9 @@ class Ingestor:
             and p.suffix.lower() in SUPPORTED_EXTENSIONS
             and p.name not in INDEX_FILENAMES
         )
-        return [self.ingest(p) for p in paths]
+        documents = [self.ingest(p) for p in paths]
+        _check_unique_ids(documents, base)  # PA-214: un id repetido borraría otro documento
+        return documents
 
     # --- Internos ------------------------------------------------------------------------
 
@@ -212,6 +214,27 @@ def _markdown_stream(name: str, body: str) -> Any:
     from docling.datamodel.base_models import DocumentStream
 
     return DocumentStream(name=name, stream=io.BytesIO(body.encode("utf-8")))
+
+
+def _check_unique_ids(documents: list[IngestedDocument], base: Path) -> None:
+    """Rechaza dos documentos con el mismo id (PA-214): al indexar, uno borraría al otro."""
+    seen: dict[str, IngestedDocument] = {}
+    for doc in documents:
+        first = seen.setdefault(doc.id, doc)
+        if first is not doc:
+            raise IngestionError(
+                f"«{_relative(first, base)}» y «{_relative(doc, base)}» tienen el mismo id "
+                f"«{doc.id[:80]}». Pon un «id:» distinto en la cabecera de uno de ellos o "
+                "cámbiale el nombre al archivo."
+            )
+
+
+def _relative(doc: IngestedDocument, base: Path) -> str:
+    path = Path(doc.source_path)
+    try:
+        return path.resolve().relative_to(base).as_posix()
+    except ValueError:
+        return path.name
 
 
 def _first_heading(text: str) -> str | None:

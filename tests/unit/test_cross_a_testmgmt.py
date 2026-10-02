@@ -555,14 +555,6 @@ def test_publish_suite_second_run_writes_nothing() -> None:
     assert len(site.writes()) == writes
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-190): `publish_suite` confía en que los IDs de la suite sean únicos; "
-        "si la suite se modifica tras validarse (`TestSuite` es mutable), un CP repetido crea "
-        "dos subtareas `[CP-01]` en la misma llamada (adapters/testmgmt/jira_native.py:165-180)"
-    ),
-)
 def test_publish_suite_creates_case_only_once_when_id_is_repeated_in_mutated_suite() -> None:
     """PA-05: un mismo `[CP-01]` nunca se crea dos veces en Jira."""
     suite = make_suite([make_case("CP-01")])
@@ -597,15 +589,6 @@ def test_publish_suite_retries_list_cases_429_with_injected_sleep_then_publishes
     assert result.created == ["DEMO-101"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-188): si la consulta de adjuntos responde 200 con JSON que no es un "
-        "objeto (lista o `fields` no objeto), `_attachment_names` lanza `AttributeError` "
-        "después de crear los CP y se pierde el `PublishResult` (RNF-13) "
-        "(adapters/testmgmt/jira_native.py:231-234, 369-374; adapters/jira/http.py:107-108)"
-    ),
-)
 @pytest.mark.parametrize("payload", [[], {"fields": "x"}], ids=["lista", "fields-texto"])
 def test_publish_suite_reports_attachments_failed_when_attachment_query_has_unexpected_shape(
     payload: Any,
@@ -618,15 +601,6 @@ def test_publish_suite_reports_attachments_failed_when_attachment_query_has_unex
     assert result.failed == [STRATEGY_FILE, MATRIX_FILE]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-189): las lecturas asumen objetos JSON; un 200 con una lista o con "
-        "incidencias que no son objetos lanza `AttributeError` en vez de un `ExternalServiceError` "
-        "en español (adapters/testmgmt/jira_native.py:151-153, 277-281; "
-        "adapters/jira/http.py:107-108; adapters/jira/tracker.py:236-237)"
-    ),
-)
 @pytest.mark.parametrize(
     "payload", [[], {"issues": ["DEMO-9"]}], ids=["pagina-lista", "incidencia-texto"]
 )
@@ -789,15 +763,6 @@ def test_record_execution_raises_auth_error_without_label_when_transition_is_for
     assert_safe(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-195): un 400 en la transición de `record_execution` muestra el mensaje "
-        "genérico de creación («Revisa el tipo de incidencia, la épica…»), que no aplica a una "
-        "transición (p. ej. con campos obligatorios en su pantalla) "
-        "(adapters/jira/http.py:242-246; adapters/testmgmt/jira_native.py:356-358)"
-    ),
-)
 def test_record_execution_transition_400_message_does_not_mention_epic() -> None:
     """§8: el mensaje en español debe orientar sobre la transición, no sobre la épica."""
     site = ExecutionSite(replies={("POST", TRANSITIONS_PATH): [error_response(400)]})
@@ -807,14 +772,6 @@ def test_record_execution_transition_400_message_does_not_mention_epic() -> None
     assert "épica" not in str(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-189): `record_execution` asume que la incidencia leída es un objeto; "
-        "un 200 con una lista lanza `AttributeError` en vez de un `AgentError` en español "
-        "(adapters/testmgmt/jira_native.py:277-281; adapters/jira/http.py:107-108)"
-    ),
-)
 def test_record_execution_raises_agent_error_when_case_read_has_unexpected_shape() -> None:
     """§8: una respuesta con forma inesperada es un error de la familia `AgentError`."""
     site = ExecutionSite(replies={("GET", CASE_PATH): [httpx.Response(200, json=[])]})

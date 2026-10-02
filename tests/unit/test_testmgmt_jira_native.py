@@ -500,11 +500,13 @@ def test_list_cases_stops_when_page_is_empty_even_with_token() -> None:
 def test_list_cases_caps_results_at_max_cases() -> None:
     """D-09 (límite): como mucho MAX_CASES subtareas aunque Jira siga devolviendo páginas."""
     number = iter(range(1000, 10_000))
+    pages = iter(range(10_000))
 
     def endless(request: httpx.Request) -> httpx.Response:
         requested = int(request.url.params["maxResults"])
         issues = [subtask(f"DEMO-{next(number)}", "[CP-01] A") for _ in range(requested)]
-        return search_page(issues, token="tok-siguiente", is_last=False)
+        # Un token distinto por página: uno repetido detiene la paginación (PA-184).
+        return search_page(issues, token=f"tok-{next(pages)}", is_last=False)
 
     recorder = Recorder()
     recorder_handler: Handler = lambda r: (recorder.requests.append(r), endless(r))[1]  # noqa: E731
@@ -2106,3 +2108,13 @@ def test_record_execution_reads_fingerprint_only_from_last_line() -> None:
     jira, tests, _ = execution_setup(ExecutionJira(comments=[previous]))
     tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
     assert jira.count(POST_COMMENT) == 1
+
+
+def test_list_cases_stops_without_duplicates_when_next_page_token_repeats() -> None:
+    """PA-184 (también en `list_cases`): un token repetido detiene la paginación y no se
+    duplican subtareas."""
+    page = search_page([subtask("DEMO-501", "[CP-01] A")], token="tok-repetido", is_last=False)
+    recorder = Recorder(page)
+    cases = make_tests(recorder).list_cases(STORY)
+    assert [c.key for c in cases] == ["DEMO-501"]
+    assert len(recorder.requests) <= 2

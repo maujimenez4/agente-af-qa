@@ -26,6 +26,7 @@ from adapters.errors import (
 )
 
 SERVICE = "jira"
+UNEXPECTED_FORMAT = "Jira ha devuelto datos con un formato inesperado."  # PA-185
 _GATEWAY = "https://api.atlassian.com/ex/jira"
 _CLOUD_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 
@@ -89,6 +90,7 @@ class JiraHttp:
                     auth=self._auth,
                     headers={"Accept": "application/json"},
                     timeout=self._timeout,
+                    follow_redirects=False,  # PA-183: como en las escrituras
                 )
             except httpx.HTTPError:
                 if attempt < self._max_retries:
@@ -101,15 +103,24 @@ class JiraHttp:
                 ) from None
 
             status = response.status_code
-            if status < 400:
+            if status < 300:
                 if not response.content:
                     return {}
                 try:
-                    return response.json()
+                    data = response.json()
                 except ValueError:
                     raise ExternalServiceError(
                         "Jira ha devuelto una respuesta no válida.", service=SERVICE
                     ) from None
+                if not isinstance(data, dict):  # PA-185: las lecturas siempre son objetos
+                    raise ExternalServiceError(UNEXPECTED_FORMAT, service=SERVICE)
+                return data
+            if status < 400:  # PA-183: un 3xx (URL del sitio mal puesta) no es un éxito vacío
+                raise ExternalServiceError(
+                    f"Jira ha respondido con una redirección (HTTP {status}). Revisa la URL del "
+                    "sitio.",
+                    service=SERVICE,
+                )
             if status in (401, 403):
                 raise AuthenticationError(
                     f"Jira ha rechazado las credenciales (HTTP {status}). Revisa el email, "
@@ -154,9 +165,13 @@ class JiraHttp:
         body: dict[str, Any],
         failure: type[AgentError],
         key: str | None = None,
+        bad_request: str | None = None,
     ) -> dict[str, Any]:
-        """Escritura JSON de un solo intento; la respuesta, como objeto (o `{}`)."""
-        data = self._write(method, path, failure, key, json=body)
+        """Escritura JSON de un solo intento; la respuesta, como objeto (o `{}`).
+
+        `bad_request` sustituye el mensaje genérico de un 400 (PA-195).
+        """
+        data = self._write(method, path, failure, key, json=body, bad_request=bad_request)
         return data if isinstance(data, dict) else {}
 
     def upload(
@@ -184,6 +199,7 @@ class JiraHttp:
         json: dict[str, Any] | None = None,
         files: dict[str, tuple[str, bytes, str]] | None = None,
         headers: dict[str, str] | None = None,
+        bad_request: str | None = None,
     ) -> Any:
         def fail(message: str) -> AgentError:
             if issubclass(failure, ExternalServiceError):
@@ -241,7 +257,8 @@ class JiraHttp:
             )
         if status == 400:
             raise fail(
-                "Jira ha rechazado los datos (HTTP 400). Revisa el tipo de incidencia, la épica "
+                bad_request
+                or "Jira ha rechazado los datos (HTTP 400). Revisa el tipo de incidencia, la épica "
                 "y los campos obligatorios del proyecto."
             )
         raise fail(f"Jira ha respondido con un error al escribir (HTTP {status}).")

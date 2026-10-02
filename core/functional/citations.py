@@ -1,7 +1,8 @@
 """Validación de citas: solo se admiten fuentes recibidas en el contexto (RF-21, RNF-14)."""
 
 from adapters.errors import AgentError
-from core.functional.context import CitableSource, escape_data
+from core.functional.context import CitableSource
+from core.text import escape_data
 from schemas.common import SourceRef
 from schemas.quality import QualityReport
 from schemas.test_case import TestSuite

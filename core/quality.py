@@ -24,13 +24,14 @@ from core.functional.citations import (
     citation_errors,
     with_real_excerpts,
 )
-from core.functional.context import StoryContext, escape_data, render_context
+from core.functional.context import StoryContext, render_context
 from core.functional.writer import PromptLoader, StoryWriter, fill_placeholders
 from core.graph.state import normalize_excluded_sources
 from core.logging import get_logger
 from core.permissions import Permission, require
 from core.projects import normalize_issue_key, project_of
 from core.rag.prompts import load_prompt
+from core.text import escape_data
 from schemas.quality import QualityReport
 from schemas.user_story import UserStory
 

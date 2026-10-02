@@ -149,7 +149,10 @@ MAX_MARKDOWN_CHARS = 100_000  # por encima se trunca: Jira rechaza documentos en
 MAX_URL_CHARS = 2_000
 # C0 (salvo `\t` y `\n`), C1, control bidireccional y espacios de anchura cero (orden visual
 # engañoso); se conservan U+200C/U+200D, que usan los emojis y algunas escrituras.
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f​‪-‮⁦-⁩﻿]")
+_CONTROL = re.compile(
+    r"[\x00-\x08\x0b-\x1f\x7f-\x9f"  # C0 y C1
+    r"\u061c\u200b\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]"  # bidi (LRM/RLM/ALM: PA-186)
+)
 
 
 def clean_text(value: str) -> str:

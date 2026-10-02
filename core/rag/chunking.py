@@ -121,12 +121,17 @@ def _overlap(pieces: list[str], overlap_chars: int) -> list[str]:
     if kept:
         return kept
     last = pieces[-1]
-    if "\n" in last:
-        return []  # una línea (fila de tabla, párrafo) no se parte para solapar
-    # Frase o palabra larga: su final desde un límite de palabra.
-    tail = last[-overlap_chars:]
+    if last.lstrip().startswith("|"):
+        return []  # una fila de tabla no se parte para solapar
+    # Párrafo, frase o palabra larga: su final desde un límite de palabra (PA-211: antes un
+    # párrafo terminado en salto de línea dejaba el solapamiento vacío). Se conserva su
+    # separador final para que no se pegue con la pieza siguiente.
+    body = last.rstrip()
+    separator = last[len(body) :]
+    tail = body[-overlap_chars:]
     index = tail.find(" ")
-    return [tail[index + 1 :]] if 0 <= index < len(tail) - 1 else [tail]
+    tail = tail[index + 1 :] if 0 <= index < len(tail) - 1 else tail
+    return [tail + separator] if tail else []
 
 
 def chunk_document(doc: IngestedDocument, chunk_tokens: int, overlap_tokens: int) -> list[Chunk]:

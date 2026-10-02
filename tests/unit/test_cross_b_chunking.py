@@ -36,13 +36,6 @@ def _paragraphs(count: int, words: int = 20) -> list[str]:
 # --------------------------------------------------------------------------- solapamiento
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-211): sin solapamiento cuando los párrafos miden entre overlap y chunk; "
-        "_overlap devuelve [] si la última pieza contiene '\\n' (core/rag/chunking.py:123-125)"
-    ),
-)
 def test_split_recursive_overlaps_fragments_when_paragraphs_exceed_overlap() -> None:
     """RF-09: con overlap_tokens > 0, fragmentos consecutivos comparten texto.
 
@@ -227,3 +220,21 @@ def test_chunk_document_returns_single_chunk_over_limit_when_memory_is_huge() ->
     assert chunks[0].content == text
     assert estimate_tokens(chunks[0].content) > 100
     assert chunks[0].section is None
+
+
+def test_overlap_does_not_glue_words_across_paragraphs() -> None:
+    """PA-211: el solapamiento conserva el salto de párrafo; ninguna palabra sale pegada."""
+    paragraphs = _paragraphs(10)
+    valid = {word for paragraph in paragraphs for word in paragraph.split()}
+    fragments = split_recursive("\n\n".join(paragraphs), 100, 20)
+    assert len(fragments) >= 2
+    assert all(set(fragment.split()) <= valid for fragment in fragments)
+
+
+def test_table_rows_still_do_not_overlap_partially() -> None:
+    """PA-211 (límite): una fila de tabla nunca se parte para solapar."""
+    rows = [f"| f{n:02d} | " + " ".join(f"c{n}x{i}" for i in range(18)) + " |" for n in range(8)]
+    fragments = split_recursive("\n".join(rows), 100, 20)
+    for fragment in fragments:
+        for line in fragment.splitlines():
+            assert line.startswith("|") and line.endswith("|")

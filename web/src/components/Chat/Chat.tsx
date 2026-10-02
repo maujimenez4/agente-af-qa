@@ -71,3 +71,13 @@ export function FixedOperation({ title, children }: { title: string; children: R
     </div>
   )
 }
+
+/** Evento del sistema en la conversación (lienzo .event): «Generar propuesta · evolucionar DEMO-3». */
+export function ChatEvent({ icon = 'lock', children }: { icon?: IconName; children: ReactNode }) {
+  return (
+    <li className={styles.event}>
+      <Icon name={icon} size={16} />
+      <span>{children}</span>
+    </li>
+  )
+}

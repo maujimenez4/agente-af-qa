@@ -83,7 +83,7 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     await userEvent.click(await within(panel()).findByRole('checkbox', { name: /Acta de la comisión de abril/ }))
     await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Mismas reglas que en la web.')
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
-    expect(await screen.findByRole('heading', { name: 'Generando la propuesta' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Avance: fase 2 de 4, Generar' })).toBeInTheDocument()
     expect(bodies).toEqual([
       {
         flow: 'evolve',
@@ -102,7 +102,7 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     expect(screen.getByText('Operación fijada: HU nueva')).toBeInTheDocument()
     await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Solo socios con carné')
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
-    await screen.findByRole('heading', { name: 'Generando la propuesta' })
+    await screen.findByRole('img', { name: 'Avance: fase 2 de 4, Generar' })
     expect(bodies[0]).toMatchObject({
       flow: 'need',
       origin: { kind: 'need', text: 'Renovar un préstamo desde la app\n\nRestricciones: Solo socios con carné' },
@@ -119,7 +119,7 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     expect(within(screen.getByRole('log')).getByText('También desde el correo de aviso')).toBeInTheDocument()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
-    await screen.findByRole('heading', { name: 'Generando la propuesta' })
+    await screen.findByRole('img', { name: 'Avance: fase 2 de 4, Generar' })
     expect(bodies[0]?.feedback).toEqual(['También desde el correo de aviso'])
     mockServer.events.removeAllListeners()
   })
@@ -158,7 +158,7 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
     const alert = await screen.findByRole('alert')
     expect(within(alert).getByRole('heading', { name: 'Servicio no disponible' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Generando la propuesta' })).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Avance: fase 2 de 4, Generar' })).toBeNull()
   })
 
   it('un origen elegido en los recientes fija la operación directamente', async () => {

@@ -1,1 +1,1 @@
-export { AssistantMessage, ChatLog, FixedOperation, FoundIssue, UserMessage, type FoundIssueProps } from './Chat.tsx'
+export { AssistantMessage, ChatEvent, ChatLog, FixedOperation, FoundIssue, UserMessage, type FoundIssueProps } from './Chat.tsx'

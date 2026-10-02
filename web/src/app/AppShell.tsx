@@ -7,6 +7,8 @@ import { useUsage } from '../hooks/useUsage.ts'
 import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJira.tsx'
 import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
+import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
+import { readyHeadline } from '../screens/Generating/headline.ts'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -50,7 +52,8 @@ export function AppShell({ user }: AppShellProps) {
 type WorkView =
   | { name: 'home' }
   | { name: 'origin'; request: StartRequest }
-  | { name: 'generating'; conversation: ConversationOut }
+  | { name: 'generating'; conversation: ConversationOut; request: StartRequest }
+  | { name: 'ready'; conversation: ConversationOut }
 
 // Flujos fuera de la demo de T-57 (DESIGN-DECISIONS.md §4 bis).
 const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: string }>> = {
@@ -96,12 +99,32 @@ function WorkZone({ user }: { user: UserOut }) {
             pickedProject={picked?.project}
           />
         )}
-        {view.name === 'origin' && <OriginOrSoon request={view.request} onBack={() => setView({ name: 'home' })} onGenerating={(conversation) => {
-          setView({ name: 'generating', conversation })
-          reload()
-        }} />}
+        {view.name === 'origin' && (
+          <OriginOrSoon
+            request={view.request}
+            onBack={() => setView({ name: 'home' })}
+            onGenerating={(conversation) => {
+              setView({ name: 'generating', conversation, request: view.request })
+              reload()
+            }}
+          />
+        )}
         {view.name === 'generating' && (
-          <SoonScreen title="Generando la propuesta" text={`Conversación «${view.conversation.title}» creada. La pantalla Generando llega en el siguiente paso.`} />
+          <GeneratingScreen
+            key={view.conversation.id}
+            conversation={view.conversation}
+            onReady={(conversation) => {
+              setView({ name: 'ready', conversation })
+              reload()
+            }}
+            onRetry={() => setView({ name: 'origin', request: view.request })}
+          />
+        )}
+        {view.name === 'ready' && (
+          <SoonScreen
+            title={view.conversation.title}
+            text={`${readyHeadline(view.conversation)}. La pantalla Iterar llega en el siguiente paso.`}
+          />
         )}
       </main>
       {jira && (

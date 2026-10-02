@@ -1,0 +1,15 @@
+.note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.rise {
+  animation: rise var(--dur-slow) var(--ease) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

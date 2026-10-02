@@ -125,6 +125,12 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
     - la memoria sale como «prioritaria»;
     - una fuente desmarcada indica que no influirá en la propuesta y va en `excluded_sources`.
   - **Presupuesto de tokens** del panel: no está en el contrato (PA-102) y no se pinta.
+- **Generando** (Mixta 2b):
+  - **Pasos:** la Q de carga y la lista de pasos siguen los eventos `progress`.
+  - **Fin:** con `review_ready`, el titular pasa a «Propuesta lista · Versión N · M cambios frente a Jira» (los cambios son `impact.diffs`, solo al evolucionar) y aparece *Ver la propuesta*.
+  - **Si el SSE se corta** sin evento final, se consulta `GET /conversations/{id}` cada 2 s hasta que deja de generar.
+  - **Error:** sale su tarjeta y la acción (*Volver a generar*, …) vuelve a Origen y fuentes con la misma petición, porque el contrato no tiene un «regenerar» para una conversación fallida.
+  - **Detener:** el botón del lienzo no se pinta, porque el contrato no tiene cómo cancelar una generación (PA-314).
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Anillo de consumo:**

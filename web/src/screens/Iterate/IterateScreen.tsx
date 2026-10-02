@@ -7,7 +7,7 @@ import { Chip } from '../../components/Chip/index.ts'
 import { Composer, ModelTag } from '../../components/Composer/index.ts'
 import { ChangesView, changesLabel, ImpactView, SourcesView, StoryView, Tabs, VersionSelector, versionSummary } from '../../components/Proposal/index.ts'
 import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts'
-import { ErrorCard } from '../../components/States/index.ts'
+import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useGeneration } from '../Generating/useGeneration.ts'
@@ -66,6 +66,12 @@ function Iterating({
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
 export function IterateScreen({ conversation: initial, onDiscarded, onRestart }: IterateScreenProps) {
   const [conversation, setConversation] = useState(initial)
+  // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
+  const [earlierFeedback] = useState(initial.feedback)
+  const [panelOpen, setPanelOpen] = useState(true)
+  const [lastFeedback, setLastFeedback] = useState<string | undefined>()
+  // Solo al evolucionar hay una HU de Jira con la que comparar (DESIGN-DECISIONS.md §4 bis).
+  const againstJira = conversation.flow === 'evolve'
   const versions = proposalVersions(conversation)
   const latest = versions.at(-1)
   const [selected, setSelected] = useState(latest?.version ?? 1)
@@ -78,18 +84,51 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
   const [busy, setBusy] = useState(false)
 
   const shown = versions.find((item) => item.version === selected) ?? latest
+  const previous = shown ? versions[versions.indexOf(shown) - 1] : undefined
   const diffs = shown?.impact?.diffs ?? []
 
-  const send = async (feedback: string) => {
+  const send = async (feedback: string, { repeat = false } = {}) => {
     const text = feedback.trim()
     if (!text) return
     setError(undefined)
     setDraft('')
-    setEntries((current) => [...current, { kind: 'user', text }])
+    setLastFeedback(text)
+    if (!repeat) setEntries((current) => [...current, { kind: 'user', text }])
     try {
       setIterating(await api.iterate(conversation.id, text))
     } catch (cause) {
       setError(toApiError(cause))
+    }
+  }
+
+  // «Actualizar» (not_in_review, operation_failed…): vuelve a leer el estado de la conversación.
+  const refresh = async () => {
+    setError(undefined)
+    try {
+      const next = await api.conversation(conversation.id)
+      if (next.state !== 'in_review') {
+        onRestart()
+        return
+      }
+      setConversation(next)
+      setSelected(proposalVersions(next).at(-1)?.version ?? selected)
+    } catch (cause) {
+      setError(toApiError(cause))
+    }
+  }
+
+  // Acción de la tarjeta de error según su código (DESIGN-DECISIONS.md §6).
+  const errorAction = (failure: ApiError): (() => void) => {
+    switch (presentError(failure).action) {
+      case 'restart':
+        return onRestart
+      case 'refresh':
+        return () => void refresh()
+      case 'regenerate':
+      case 'retry':
+        return lastFeedback ? () => void send(lastFeedback, { repeat: true }) : () => setError(undefined)
+      default:
+        return () => setError(undefined)
     }
   }
 
@@ -108,7 +147,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
 
   const tabs = [
     { id: 'proposal' as const, label: 'Propuesta' },
-    { id: 'changes' as const, label: `Cambios (${diffs.length})` },
+    { id: 'changes' as const, label: againstJira ? `Cambios (${diffs.length})` : 'Cambios' },
     { id: 'impact' as const, label: `Impacto (${shown?.impact?.affected.length ?? 0})` },
     { id: 'sources' as const, label: `Fuentes (${shown?.story.sources.length ?? 0})` },
   ]
@@ -145,8 +184,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       }
     >
       <Tabs label="Contenido del panel" tabs={tabs} selected={tab} onSelect={setTab}>
-        {tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} diffs={diffs} />}
-        {tab === 'changes' && <ChangesView diffs={diffs} />}
+        {tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previous?.story} diffs={diffs} />}
+        {tab === 'changes' && <ChangesView diffs={diffs} againstJira={againstJira} />}
         {tab === 'impact' && <ImpactView impact={shown.impact} />}
         {tab === 'sources' && <SourcesView sources={shown.story.sources} />}
       </Tabs>
@@ -160,6 +199,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       title={conversationTitle(conversation.title)}
       phase={2}
       panel={panel}
+      panelOpen={panelOpen}
+      onPanelOpenChange={setPanelOpen}
       composer={
         <Composer
           placeholder={iterating ? 'Espera a la propuesta para pedir cambios' : 'Pide un cambio a la propuesta'}
@@ -174,13 +215,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       }
     >
       <ChatLog>
-        {conversation.feedback.length > 0 && entries.length === 1 && (
-          <>
-            {conversation.feedback.map((item, index) => (
-              <UserMessage key={`previo-${index}`}>{item}</UserMessage>
-            ))}
-          </>
-        )}
+        {earlierFeedback.map((item, index) => (
+          <UserMessage key={`previo-${index}`}>{item}</UserMessage>
+        ))}
         {entries.map((entry, index) => {
           if (entry.kind === 'user') return <UserMessage key={`u-${index}`}>{entry.text}</UserMessage>
           const item = versions.find((candidate) => candidate.version === entry.version)
@@ -193,15 +230,17 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
               <button
                 type="button"
                 className={styles.artifact}
-                aria-pressed={selected === item.version}
+                aria-pressed={panelOpen && selected === item.version}
                 onClick={() => {
                   setSelected(item.version)
                   setTab('proposal')
+                  setPanelOpen(true)
                 }}
               >
                 <span className={styles.artifactTitle}>Propuesta de HU, versión {item.version}</span>
                 <span className={styles.meta}>
-                  {selected === item.version ? 'Abierta en el panel' : 'Abrir en el panel'} · {changesLabel(item.impact?.diffs.length ?? 0)}
+                  {panelOpen && selected === item.version ? 'Abierta en el panel' : 'Abrir en el panel'}
+                  {againstJira && ` · ${changesLabel(item.impact?.diffs.length ?? 0)}`}
                 </span>
               </button>
               {model && (
@@ -248,7 +287,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
             <ErrorCard
               key={`${error.code}-${error.message}`}
               error={error}
-              onAction={error.code === 'restart' || error.code === 'approval_rejected' ? onRestart : () => setError(undefined)}
+              onAction={errorAction(error)}
             />
           </AssistantMessage>
         )}

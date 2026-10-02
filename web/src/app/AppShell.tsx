@@ -54,7 +54,8 @@ export function AppShell({ user }: AppShellProps) {
 type WorkView =
   | { name: 'home' }
   | { name: 'origin'; request: StartRequest }
-  | { name: 'generating'; conversation: ConversationOut; request: StartRequest }
+  // Sin `request` al retomar desde la lista: no hay una petición de Origen a la que volver.
+  | { name: 'generating'; conversation: ConversationOut; request?: StartRequest }
   | { name: 'ready'; conversation: ConversationOut }
   | { name: 'closed'; conversation: ConversationOut }
 
@@ -64,6 +65,7 @@ const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
   simulated: 'Publicación simulada. El resultado llega después del punto de control de la demo.',
   published: 'Publicada en Jira. El resultado llega después del punto de control de la demo.',
   discarded: 'Propuesta descartada: no se publicó nada en Jira.',
+  // Solo si la API no trae `error`: si lo trae, se muestra su mensaje tal cual (UI.md §7).
   error: 'Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira.',
 }
 
@@ -94,7 +96,7 @@ function WorkZone({ user }: { user: UserOut }) {
     try {
       const conversation = await api.conversation(threadId)
       if (conversation.state === 'generating') {
-        setView({ name: 'generating', conversation, request: { flow: conversation.flow, text: '', project: conversation.project } })
+        setView({ name: 'generating', conversation })
       } else if (conversation.state === 'in_review') {
         setView({ name: 'ready', conversation })
       } else {
@@ -155,7 +157,14 @@ function WorkZone({ user }: { user: UserOut }) {
               setView({ name: 'ready', conversation })
               reload()
             }}
-            onRetry={() => setView({ name: 'origin', request: view.request })}
+            onRetry={() => {
+              if (view.request) {
+                setView({ name: 'origin', request: view.request })
+              } else {
+                setCurrentId(undefined)
+                setView({ name: 'home' })
+              }
+            }}
           />
         )}
         {view.name === 'ready' && (
@@ -174,9 +183,12 @@ function WorkZone({ user }: { user: UserOut }) {
           />
         )}
         {view.name === 'closed' && (
-          <SoonScreen
-            title={conversationTitle(view.conversation.title)}
-            text={CLOSED_TEXT[view.conversation.state] ?? 'Esta conversación ya terminó.'}
+          <ClosedConversation
+            conversation={view.conversation}
+            onRestart={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+            }}
           />
         )}
       </main>
@@ -192,6 +204,21 @@ function WorkZone({ user }: { user: UserOut }) {
       )}
     </>
   )
+}
+
+// Conversación terminada: su aviso o, si acabó en error, la tarjeta con el mensaje de la API tal cual.
+function ClosedConversation({ conversation, onRestart }: { conversation: ConversationOut; onRestart: () => void }) {
+  const title = conversationTitle(conversation.title)
+  if (conversation.state === 'error' && conversation.error) {
+    return (
+      <SoonScreen title={title} text="Nada se ha escrito en Jira.">
+        {/* Sin acción en la tarjeta: una conversación terminada no se puede regenerar ni actualizar. */}
+        <ErrorCard error={conversation.error} />
+        <Button onClick={onRestart}>Empezar una conversación nueva</Button>
+      </SoonScreen>
+    )
+  }
+  return <SoonScreen title={title} text={CLOSED_TEXT[conversation.state] ?? 'Esta conversación ya terminó.'} />
 }
 
 function OriginOrSoon({

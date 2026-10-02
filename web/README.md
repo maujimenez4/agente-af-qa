@@ -7,7 +7,7 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
   - Inicio y Elegir en Jira;
   - Origen y fuentes;
   - Generando;
-  - Iterar: chat, versiones, propuesta, cambios, impacto, fuentes y editar a mano;
+  - Iterar: chat, versiones, propuesta, cambios, impacto y fuentes; *editar a mano*, en los días 6 a 8 (DESIGN-DECISIONS.md §4 bis);
   - Recibo de aprobación y Resultado;
   - Revisar la calidad.
 - Pantallas del flujo de QA (Qa*), incluido «Preparar pruebas» desde una HU aprobada (T-54).

@@ -13,6 +13,9 @@ export interface WorkspaceProps {
   children: ReactNode
   composer?: ReactNode
   panel?: ReactNode
+  /** Panel abierto o plegado, si lo controla la pantalla (p. ej. «Abrir en el panel» lo vuelve a abrir). */
+  panelOpen?: boolean
+  onPanelOpenChange?: (open: boolean) => void
 }
 
 // Estado del panel derecho: lo pliega el botón de la cabecera de la conversación.
@@ -21,8 +24,13 @@ const PanelContext = createContext<{ id: string; open: boolean } | null>(null)
 // Pantalla de trabajo (UI.md §2): cabecera con la Q de fase, conversación, compositor y panel derecho.
 // El botón para plegar el panel va siempre en el mismo sitio, arriba a la derecha y con texto
 // (DESIGN-DECISIONS.md §4 bis): plegado, el panel se oculta sin desmontarse y conserva su estado.
-export function Workspace({ title, phase, phaseName, children, composer, panel }: WorkspaceProps) {
-  const [open, setOpen] = useState(true)
+export function Workspace({ title, phase, phaseName, children, composer, panel, panelOpen, onPanelOpenChange }: WorkspaceProps) {
+  const [ownOpen, setOwnOpen] = useState(true)
+  const open = panelOpen ?? ownOpen
+  const setOpen = (next: boolean) => {
+    setOwnOpen(next)
+    onPanelOpenChange?.(next)
+  }
   const panelId = useId()
   return (
     <div className={styles.workspace}>

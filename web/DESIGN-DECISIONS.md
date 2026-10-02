@@ -132,7 +132,13 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Detener:** el botón del lienzo no se pinta, porque el contrato no tiene cómo cancelar una generación (PA-314).
 - **Iterar** (Mixta 3):
   - **Mensaje del asistente:** cada versión lleva un resumen compuesto en el frontend con `changes_from_previous` y el impacto («Versión 3 lista. CA-01: … Afecta también a DEMO-2 (…)»), porque el contrato no trae un mensaje. La versión nueva se escribe letra a letra.
-  - **Peticiones de cambio** (`POST /iterate`): vuelven a seguir el SSE con «Escribiendo la respuesta». La versión nueva se abre en el panel, con «Cambiado en vN» o «Nueva» según `impact.diffs`.
+  - **Peticiones de cambio** (`POST /iterate`): vuelven a seguir el SSE con «Escribiendo la respuesta». La versión nueva se abre en el panel (y lo vuelve a mostrar si estaba plegado).
+  - **Marcas «Cambiado en vN» y «Nueva»:** `impact.diffs` es el diff **acumulado frente a Jira** (`core/impact/analysis.py`), así que no dice qué cambió en cada versión. Desde la v2 las marcas comparan cada CA y RN con los de la versión anterior (`ConversationOut.versions`); en la v1, con los diffs. La pestaña *Cambios* y el recuento «N cambios frente a Jira» sí usan `impact.diffs`. La API simulada también acumula.
+  - **HU nueva** (flujo `need`): no hay HU en Jira, así que no se habla de «cambios frente a Jira». La pestaña *Cambios* va sin recuento y lo explica.
+  - **Historial:** los cambios pedidos antes de retomar (`ConversationOut.feedback`) se pintan siempre al principio del chat.
+  - **Sugerencias:** «Añade un criterio de error», «Aclara el alcance» y «Revisa INVEST». El lienzo trae «Busca la fuente del CA-04» en lugar de «Aclara el alcance», pero el contrato no da la cita de cada CA (PA-315) y no se puede saber qué CA no tiene fuente.
+  - **Resumen del asistente:** además de lo que cambió y a qué afecta, «Queda 1 pregunta abierta» o «Quedan N preguntas abiertas» si `open_questions` no está vacío, para que no pasen desapercibidas (no está en el lienzo).
+  - **Tarjeta de error:** *Actualizar* vuelve a leer la conversación (si ya no está en revisión, vuelve a Inicio); *Volver a generar* y *Reintentar* reenvían el último cambio pedido sin repetirlo en el chat; *Empezar de nuevo* vuelve a Inicio.
   - **Panel:** versiones v1…vN de `ConversationOut.versions` más la de la revisión; pestañas Propuesta, Cambios, Impacto y Fuentes.
   - **Lo que el contrato no da:**
     - la versión «Jira» del lienzo (la HU tal como está en Jira; PA-316);
@@ -140,13 +146,14 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Pie del panel:**
     - *Descartar* pide confirmación y llama a `POST /discard`;
     - *Editar a mano* y *Revisar y aprobar* son «disponible pronto»: se pueden enfocar, llevan su descripción y no hacen nada.
-  - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`.
+  - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`. El selector del compositor sigue en solo lectura («Modelo automático»): elegir modelo por petición (RF-42) llega con los ajustes, después de T-57.
+  - **Editar a mano:** aplazado a los días 6 a 8 por decisión de la persona responsable del área B (pulir el recorrido de la demo antes). `POST /conversations/{id}/edit` ya está en el contrato.
 - **Plegar el panel derecho** (fallo reportado en Origen: costaba encontrarlo):
   - un solo botón con texto, «Ocultar el panel» o «Mostrar el panel», siempre en la cabecera de la conversación, a la derecha de la Q de fase. Ya no hay un icono suelto en la cabecera del panel;
   - plegado, el panel se oculta (`hidden`) sin desmontarse: conserva la pestaña, las casillas y las restricciones;
   - el botón cambia de texto y no lleva `aria-pressed` ni `aria-expanded`, para no anunciar dos veces el estado. `aria-controls` apunta al panel;
   - en ventanas estrechas el panel encoge hasta 320 px antes que la conversación (mínimo 360 px). En la cabecera, la Q y el botón no encogen: se corta el título.
-- **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso).
+- **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso). Si terminó en `error`, se muestra `ConversationOut.error` tal cual (UI.md §7), sin acción en la tarjeta, y un botón para empezar otra. Si se retoma generando y falla, *Volver a generar* lleva a Inicio: no hay una petición de Origen a la que volver.
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Anillo de consumo:**

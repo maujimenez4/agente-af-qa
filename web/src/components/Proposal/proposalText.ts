@@ -15,9 +15,29 @@ function itemId(field: string): string | undefined {
   return match?.[1]
 }
 
-/** CA y RN nuevos (sin «before») o cambiados en esta versión. */
-export function changeMarks(diffs: readonly StoryDiff[]): Map<string, ChangeMark> {
+type Item = UserStory['acceptance_criteria'][number] | UserStory['business_rules'][number]
+
+function itemsById(story: UserStory): Map<string, string> {
+  const items: Item[] = [...story.acceptance_criteria, ...story.business_rules]
+  return new Map(items.map((item) => [item.id, JSON.stringify(item)]))
+}
+
+/**
+ * CA y RN nuevos o cambiados **en esta versión**. Con versión anterior se compara con ella, porque
+ * `impact.diffs` es siempre el diff acumulado frente a Jira (core/impact/analysis.py). Sin ella (v1),
+ * con los diffs: sin «before», nuevo; con él, cambiado frente a Jira.
+ */
+export function changeMarks(story: UserStory, previous: UserStory | undefined, diffs: readonly StoryDiff[]): Map<string, ChangeMark> {
   const marks = new Map<string, ChangeMark>()
+  if (previous) {
+    const before = itemsById(previous)
+    for (const [id, item] of itemsById(story)) {
+      const old = before.get(id)
+      if (old === undefined) marks.set(id, 'new')
+      else if (old !== item) marks.set(id, 'changed')
+    }
+    return marks
+  }
   for (const diff of diffs) {
     const id = itemId(diff.field)
     if (id && diff.after !== null) marks.set(id, diff.before == null ? 'new' : 'changed')
@@ -81,6 +101,7 @@ export function versionSummary(story: UserStory, version: number, impact: Impact
   if (affected.length > 0) {
     parts.push(`Afecta también a ${affected.map((item) => `${item.jira_key} (${item.reason.charAt(0).toLowerCase()}${item.reason.slice(1)})`).join(', ')}.`)
   }
-  if (story.open_questions.length > 0) parts.push(`Quedan ${story.open_questions.length} preguntas abiertas.`)
+  const questions = story.open_questions.length
+  if (questions > 0) parts.push(questions === 1 ? 'Queda 1 pregunta abierta.' : `Quedan ${questions} preguntas abiertas.`)
   return parts.join(' ')
 }

@@ -76,7 +76,8 @@ function generationScript(): ProgressStep[] {
 
 /**
  * Versión siguiente tras pedir un cambio: la HU simulada cambia el título del primer CA y lo anota en
- * `changes_from_previous` y en los diffs, para que se vea «Cambiado en vN».
+ * `changes_from_previous`. Como la API real, `impact.diffs` es el diff **acumulado frente a Jira**
+ * (core/impact/analysis.py): un campo ya cambiado conserva su «before» de Jira.
  */
 function nextVersion(previous: ConversationOut, feedback: string): ConversationOut {
   const next = structuredClone(previous)
@@ -88,7 +89,13 @@ function nextVersion(previous: ConversationOut, feedback: string): ConversationO
   const before = criterion?.title ?? null
   if (criterion) criterion.title = `${criterion.title} (revisado en v${version})`
   story.changes_from_previous = [`${criterion?.id ?? 'HU'}: ${feedback}`]
-  const impact = { ...(review.impact ?? { affected: [], regression_notes: [] }), diffs: criterion ? [{ field: `acceptance_criteria.${criterion.id}`, before, after: criterion.title }] : [] }
+  const previousDiffs = review.impact?.diffs ?? []
+  const field = criterion ? `acceptance_criteria.${criterion.id}` : undefined
+  const earlier = previousDiffs.find((diff) => diff.field === field)
+  const diffs = criterion
+    ? [...previousDiffs.filter((diff) => diff.field !== field), { field: field as string, before: earlier ? earlier.before : before, after: criterion.title }]
+    : previousDiffs
+  const impact = { ...(review.impact ?? { affected: [], regression_notes: [] }), diffs }
   review.version = version
   review.fingerprint = `huella-ficticia-${crypto.randomUUID()}`
   review.impact = impact

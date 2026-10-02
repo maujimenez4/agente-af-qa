@@ -68,12 +68,14 @@ function Bullets({ title, items }: { title: string; items: readonly string[] }) 
 export interface StoryViewProps {
   story: UserStory
   version: number
+  /** La versión anterior (vN-1), para marcar lo que cambió en esta. */
+  previous?: UserStory
   diffs: readonly StoryDiff[]
 }
 
 // Pestaña Propuesta (UI.md §4.5): como/quiero/para, CA en Gherkin y RN, con la marca de lo cambiado.
-export function StoryView({ story, version, diffs }: StoryViewProps) {
-  const marks = changeMarks(diffs)
+export function StoryView({ story, version, previous, diffs }: StoryViewProps) {
+  const marks = changeMarks(story, previous, diffs)
   const markLabel = (id: string) => {
     const mark = marks.get(id)
     if (!mark) return null
@@ -139,7 +141,8 @@ export function StoryView({ story, version, diffs }: StoryViewProps) {
 }
 
 // Pestaña Cambios: un elemento por campo cambiado, con lo de antes tachado y lo nuevo (StoryDiff).
-export function ChangesView({ diffs }: { diffs: readonly StoryDiff[] }) {
+export function ChangesView({ diffs, againstJira = true }: { diffs: readonly StoryDiff[]; againstJira?: boolean }) {
+  if (!againstJira) return <p className={styles.empty}>Es una HU nueva: no hay una versión en Jira con la que compararla.</p>
   if (diffs.length === 0) return <p className={styles.empty}>Esta versión no cambia nada frente a Jira.</p>
   return (
     <ol className={styles.list} aria-label="Cambios">

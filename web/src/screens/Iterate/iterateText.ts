@@ -30,5 +30,5 @@ export function modelLabel(modelUsed: string | null | undefined): string | undef
   return modelUsed ? modelUsed.replace('/', ' · ') : undefined
 }
 
-/** Sugerencias de cambio del lienzo (MixtoIterar), que rellenan el compositor. */
+/** Sugerencias de cambio que rellenan el compositor (lienzo MixtoIterar, salvo «Aclara el alcance»: DESIGN-DECISIONS.md §4 bis). */
 export const SUGGESTIONS = ['Añade un criterio de error', 'Aclara el alcance', 'Revisa INVEST'] as const

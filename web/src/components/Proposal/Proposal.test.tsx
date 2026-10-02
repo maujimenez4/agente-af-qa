@@ -13,8 +13,8 @@ const story = conversation.review?.artifact.content as UserStory
 const impact = conversation.review?.impact as ImpactAnalysis
 
 describe('textos de la propuesta', () => {
-  it('marca como nuevo un CA sin «before» y como cambiado uno con «before»', () => {
-    const marks = changeMarks([
+  it('v1 (sin versión anterior): marca como nuevo un CA sin «before» y como cambiado uno con «before»', () => {
+    const marks = changeMarks(story, undefined, [
       { field: 'acceptance_criteria.CA-02', before: null, after: 'x' },
       { field: 'business_rules.RN-01', before: 'a', after: 'b' },
       { field: 'acceptance_criteria.CA-09', before: 'a', after: null },
@@ -24,6 +24,44 @@ describe('textos de la propuesta', () => {
       ['CA-02', 'new'],
       ['RN-01', 'changed'],
     ])
+  })
+
+  it('con versión anterior marca solo lo que cambió en esta versión, aunque los diffs acumulen frente a Jira', () => {
+    const previous = structuredClone(story)
+    const current = structuredClone(story)
+    const [first, second] = current.acceptance_criteria
+    if (!first || !second) throw new Error('El ejemplo necesita dos CA')
+    first.then = [...first.then, 'se avisa por correo']
+    current.acceptance_criteria.push({ ...second, id: 'CA-09', title: 'Nuevo en esta versión' })
+    // Diffs acumulados frente a Jira: el segundo CA cambió en una versión anterior.
+    const diffs = [
+      { field: `acceptance_criteria.${second.id}`, before: 'antes', after: 'después' },
+      { field: `acceptance_criteria.${first.id}`, before: 'antes', after: 'después' },
+    ]
+    expect([...changeMarks(current, previous, diffs)]).toEqual([
+      [first.id, 'changed'],
+      ['CA-09', 'new'],
+    ])
+  })
+
+  it('una versión igual a la anterior no marca nada', () => {
+    expect(changeMarks(story, structuredClone(story), [{ field: 'acceptance_criteria.CA-01', before: 'a', after: 'b' }]).size).toBe(0)
+  })
+
+  it.each([
+    [0, ''],
+    [1, 'Queda 1 pregunta abierta.'],
+    [2, 'Quedan 2 preguntas abiertas.'],
+  ])('preguntas abiertas: %i → «%s»', (count, text) => {
+    const withQuestions = { ...story, open_questions: Array.from({ length: count }, (_, index) => `Pregunta ${index + 1}`) }
+    const summary = versionSummary(withQuestions, 1, null)
+    if (text) expect(summary).toContain(text)
+    else expect(summary).not.toMatch(/pregunta/)
+  })
+
+  it('en una HU nueva la pestaña Cambios no compara con Jira', () => {
+    render(<ChangesView diffs={[]} againstJira={false} />)
+    expect(screen.getByText('Es una HU nueva: no hay una versión en Jira con la que compararla.')).toBeInTheDocument()
   })
 
   it.each([

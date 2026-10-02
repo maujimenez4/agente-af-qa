@@ -86,7 +86,21 @@ Acordado con la sesión principal en la PR #2 (PA-303).
   - Los tipos se generan desde el contrato con **openapi-typescript**.
   - Se instalan en los días 2 a 4.
 
-## 5. Herramientas
+## 5. Textos de la lista de conversaciones
+
+Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `version`) con el formato «flujo · estado» del lienzo.
+
+- **Flujo:** `qa` → «Pruebas de DEMO-3»; `functional` con origen `story` → «Evolucionar DEMO-3»; con `need` o `epic` → «Nueva necesidad».
+- **Estado:**
+  - `in_review` → «Versión N»;
+  - `simulated` → «Simulado»;
+  - `published` → «Publicado»;
+  - los tres que UI.md no nombra: `started` → «En curso», `approved` → «Aprobada» y `discarded` → «Descartada».
+- **Grupos:** por día de `updated_at`: «Hoy», «Ayer» y, si no, la fecha («30 de septiembre»).
+- **Buscador:** local, sin distinguir mayúsculas ni tildes.
+- Las revisiones de calidad («Informe listo») no están en la lista hasta que se decida PA-103.
+
+## 6. Herramientas
 
 - **Versiones exactas** (`.npmrc` con `save-exact`) y `package-lock.json` versionado.
 - **TypeScript 6.0**, no 7: `typescript-eslint` 8 solo admite `<6.1`.

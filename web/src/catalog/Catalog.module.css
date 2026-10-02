@@ -157,6 +157,20 @@
   line-height: var(--leading-relaxed);
 }
 
+.frame {
+  height: 640px;
+  display: flex;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.frameMain {
+  flex-grow: 1;
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

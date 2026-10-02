@@ -2,6 +2,7 @@ import { Icon, ICON_NAMES } from '../components/Icon/index.ts'
 import styles from './Catalog.module.css'
 import { COLOR_GROUPS, TYPE_SCALE } from './catalogTokens.ts'
 import { QDemo } from './QDemo.tsx'
+import { ShellDemo } from './ShellDemo.tsx'
 
 // Catálogo del sistema de diseño (T-56): página de revisión visual de las piezas.
 export function Catalog() {
@@ -13,6 +14,8 @@ export function Catalog() {
           Piezas del frontend del Agente AF y QA. Decisiones en web/DESIGN-DECISIONS.md.
         </p>
       </header>
+
+      <ShellDemo />
 
       <QDemo />
 

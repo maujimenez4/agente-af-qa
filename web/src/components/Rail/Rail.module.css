@@ -1,0 +1,115 @@
+.rail {
+  width: var(--rail-width);
+  min-height: 100%;
+  padding: 18px var(--space-2) var(--space-4);
+  background: var(--color-navy);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.logo {
+  margin-bottom: 18px;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  width: 72px;
+  min-height: 60px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-on-navy);
+  font-size: var(--text-2xs);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: var(--color-navy-hover);
+  color: var(--color-surface);
+}
+
+.item[aria-current='page'] {
+  background: var(--color-navy-hover);
+  color: var(--color-surface);
+  font-weight: var(--weight-bold);
+}
+
+.item[aria-current='page'] svg {
+  color: var(--color-primary);
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+.usage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-on-navy);
+  font-size: var(--text-3xs);
+}
+
+.usageTrack {
+  stroke: var(--color-navy-hover);
+}
+
+.usageValue {
+  stroke: var(--color-primary);
+}
+
+.usageValue[data-warning] {
+  stroke: var(--color-warn-on-dark);
+}
+
+.avatar {
+  margin-top: var(--space-2);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-q-md);
+  background: var(--color-primary-tint);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout {
+  width: var(--control-lg);
+  height: var(--control-lg);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-on-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.logout:hover {
+  background: var(--color-navy-hover);
+  color: var(--color-surface);
+}

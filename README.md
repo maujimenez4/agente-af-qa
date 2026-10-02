@@ -2,6 +2,61 @@
 
 MVP de un agente que genera y evoluciona Historias de Usuario y artefactos de QA desde Jira Cloud y una base de conocimiento RAG, con aprobación humana antes de publicar en Jira.
 
+## Instalación desde cero
+
+### Requisitos
+- **Git** y **[uv](https://docs.astral.sh/uv/)** (instala Python 3.12 por su cuenta con `uv sync`).
+- **Docker** con Compose v2 (en Windows, Docker Desktop con WSL 2) para PostgreSQL + pgvector y Ollama.
+- Unos **10 GB de disco** (imágenes y modelos) y **16 GB de RAM** recomendados: los modelos locales corren en CPU.
+- Un proyecto de **Jira Cloud** de pruebas y un token de API (solo lectura basta en modo `simulation`).
+- **Windows: rutas cortas.** Algunas dependencias tienen nombres de archivo muy largos y, con el límite de 260 caracteres, la instalación queda rota sin avisar (`ModuleNotFoundError` en `langsmith`). Clona en una ruta corta (por ejemplo `C:\src\agente-af-qa`) o activa las rutas largas de Windows y `git config --global core.longpaths true`.
+
+### Pasos
+```bash
+# 1. Código y dependencias (crea .venv con el lockfile)
+git clone <repositorio> agente-af-qa && cd agente-af-qa
+uv sync
+
+# 2. Configuración: copia la plantilla y rellena TUS valores (nunca se versiona)
+cp .env.example .env
+#    JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY  → tu Jira de pruebas
+#    JIRA_PUBLISH_MODE=simulation                                → nada se escribe en Jira
+#    OLLAMA_BASE_URL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DATABASE_URL
+#    Sin claves de Groq ni OpenRouter: config/models.yaml usa solo modelos locales (D-14).
+
+# 3. Servicios: PostgreSQL + pgvector y Ollama (perfil local-llm)
+docker compose --profile local-llm up -d db ollama
+
+# 4. Modelos de config/models.yaml (generación, respaldo y embeddings)
+docker compose exec ollama ollama pull qwen3:1.7b
+docker compose exec ollama ollama pull phi4-mini
+docker compose exec ollama ollama pull bge-m3
+
+# 5. Base de datos: migraciones hasta la 0005 (qa_handoffs, T-54)
+uv run alembic upgrade head
+
+# 6. Conocimiento: indexa el corpus sintético de data/seed/corpus (solo embeddings)
+uv run python -m core.rag.indexing
+
+# 7. Usuarios locales af-demo, qa-demo y admin-demo
+uv run python -m core.seed_users        # las contraseñas se muestran UNA vez: guárdalas
+
+# 8. Arrancar: API para el frontend (http://127.0.0.1:8000/api/v1) y/o la UI en Streamlit
+uv run python -m api                    # un solo proceso: las sesiones viven en memoria
+uv run streamlit run app/main.py        # http://localhost:8501
+
+# 9. Pruebas
+uv run pytest -m "not integration"      # sin servicios externos
+uv run pytest -m integration            # contra PostgreSQL, Jira y Ollama reales (requiere .env)
+uv run ruff check . && uv run ruff format --check .
+```
+
+- El proyecto de Jira se siembra a mano desde el navegador con `data/seed/jira/seed-villaficticia.csv` (ver su `README.md`); el agente nunca escribe en Jira salvo al publicar lo aprobado y solo en `JIRA_PUBLISH_MODE=live`.
+- Volver a ejecutar `core.seed_users` cambia las contraseñas de los usuarios de demo.
+- En CPU, una HU tarda unos 5–6 minutos con `qwen3:1.7b`. Para la demo hay conversaciones preparadas: `docs/demo/GUION.md`, `docs/demo/CHECKLIST.md` y `uv run python -m eval.demo_prepare`.
+
+**Comprobado en un clon limpio sin `.env`** (2026-10-02, Windows 11): `uv sync`, la migración en modo offline (`uv run alembic upgrade head --sql`, llega a `0005_qa_handoffs`) y `uv run pytest -m "not integration"` en verde. Los pasos 3–8 necesitan Docker, Jira y Ollama con un `.env` propio y no se probaron en ese clon.
+
 ## Contenido
 | Archivo | Para qué sirve |
 |---|---|

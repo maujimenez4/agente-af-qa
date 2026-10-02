@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { AppShell } from './app/AppShell.tsx'
 import styles from './app/AppShell.module.css'
 import { LoadingQ } from './components/QMark/index.ts'
+import { LoginScreen } from './screens/Login/LoginScreen.tsx'
 import { useSession } from './session/sessionContext.ts'
 import { SessionProvider } from './session/SessionProvider.tsx'
 
@@ -39,12 +40,6 @@ function Root() {
       </div>
     )
   }
-  if (state.status === 'anonymous') {
-    return (
-      <main className={styles.loading}>
-        <h1>Inicia sesión</h1>
-      </main>
-    )
-  }
+  if (state.status === 'anonymous') return <LoginScreen />
   return <AppShell user={state.user} />
 }

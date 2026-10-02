@@ -14,7 +14,7 @@ describe('App', () => {
 
   it('sin sesión pide iniciar sesión', async () => {
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Inicia sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Agente AF y QA' })).toBeInTheDocument()
   })
 
   it('con sesión de analista muestra el carril, sus conversaciones y la zona de trabajo', async () => {
@@ -45,7 +45,7 @@ describe('App', () => {
     render(<App />)
     const logout = await screen.findByRole('button', { name: 'Cerrar sesión' })
     logout.click()
-    expect(await screen.findByRole('heading', { name: 'Inicia sesión' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Agente AF y QA' })).toBeInTheDocument()
   })
 
   it('en desarrollo, ?catalogo abre el catálogo del sistema de diseño (PA-309)', async () => {

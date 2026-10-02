@@ -118,7 +118,8 @@ describe('API simulada (MSW) con los ejemplos del contrato', () => {
       'generate:done',
     ])
     expect(progress.every((step) => step.label.length > 0)).toBe(true)
-    expect(events.at(-1)).toEqual({ event: 'review_ready', data: { id: conversation.id, state: 'in_review' } })
+    expect(events.at(-1)?.event).toBe('review_ready')
+    expect(events.at(-1)?.data).toMatchObject({ id: conversation.id, state: 'in_review' })
 
     const after = (await (await fetch(url(`/conversations/${conversation.id}`))).json()) as ConversationOut
     expect(after.state).toBe('in_review')

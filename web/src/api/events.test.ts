@@ -51,7 +51,7 @@ describe('subscribeEvents', () => {
       'generate:done',
     ])
     expect(steps[4]?.label).toBe('Generar la propuesta, validar las citas y analizar el impacto')
-    expect(reviewReady).toHaveBeenCalledWith({ id, state: 'in_review' })
+    expect(reviewReady).toHaveBeenCalledWith(expect.objectContaining({ id, state: 'in_review' }))
   })
 
   it('cierra el flujo tras result y no avisa de desconexión', async () => {

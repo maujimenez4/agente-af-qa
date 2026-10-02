@@ -1,5 +1,7 @@
 import { useId, useState } from 'react'
+import type { ApiError } from '../../api/types.ts'
 import { Icon } from '../Icon/index.ts'
+import { ErrorCard } from '../States/index.ts'
 import styles from './ConversationList.module.css'
 import { groupByDay, matchesSearch, subtitle, type ConversationSummaryView } from './conversationLabels.ts'
 
@@ -13,10 +15,13 @@ export interface ConversationListProps {
   onSelect: (threadId: string) => void
   /** Fecha de referencia para «Hoy» y «Ayer»; por defecto, ahora. */
   now?: Date
+  /** No se pudieron leer las conversaciones (UI.md §7): tarjeta de error en lugar de la lista. */
+  error?: ApiError
+  onRetry?: () => void
 }
 
 // Lista de conversaciones de 248 px (UI.md §2, T-52): nueva, buscador y conversaciones por día.
-export function ConversationList({ id, conversations, currentId, onNew, onSelect, now }: ConversationListProps) {
+export function ConversationList({ id, conversations, currentId, onNew, onSelect, now, error, onRetry }: ConversationListProps) {
   const [query, setQuery] = useState('')
   const searchId = useId()
   const visible = conversations.filter((conversation) => matchesSearch(conversation, query))
@@ -44,6 +49,8 @@ export function ConversationList({ id, conversations, currentId, onNew, onSelect
           />
         </>
       )}
+
+      {error && <ErrorCard key={`${error.code}-${error.message}`} error={error} onAction={onRetry} />}
 
       <div className={styles.groups}>
         {groups.map((group) => (

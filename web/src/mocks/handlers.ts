@@ -238,7 +238,7 @@ export function createHandlers(db: MockDb) {
               }
               const summary = db.conversations.find((item) => item.thread_id === run.conversation.id)
               if (summary) Object.assign(summary, { status: 'in_review', version: 1 })
-              controller.enqueue(encoder.encode(sse('review_ready', { id: run.conversation.id, state: 'in_review' })))
+              controller.enqueue(encoder.encode(sse('review_ready', run.conversation)))
             }
             controller.close()
           },

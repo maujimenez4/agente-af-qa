@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiRequestError } from '../../api/client.ts'
+import { api, ApiRequestError, isAbortError } from '../../api/client.ts'
 import type { ApiError, IssueSummary, ProjectSummary } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
 import { Listbox, type ListboxItem } from '../../components/Listbox/index.ts'
@@ -37,6 +37,8 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
   const [results, setResults] = useState<IssueSummary[] | undefined>()
   const [error, setError] = useState<ApiError | undefined>()
   const [choosing, setChoosing] = useState(false)
+  // Reintentar (UI.md §7) vuelve a pedir lo que falló.
+  const [round, setRound] = useState(0)
 
   const fail = (cause: unknown) => {
     if (cause instanceof ApiRequestError) setError(cause.error)
@@ -48,6 +50,7 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       .projects()
       .then((value) => {
         if (cancelled) return
+        setError(undefined)
         setProjects(value.projects)
         setProjectKey((current) => current ?? value.preselected ?? value.projects[0]?.key)
       })
@@ -55,31 +58,39 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [round])
 
   useEffect(() => {
     if (!projectKey) return
     let cancelled = false
     api
       .epics(projectKey)
-      .then((value) => !cancelled && setEpics(value))
+      .then((value) => {
+        if (cancelled) return
+        setError(undefined)
+        setEpics(value)
+      })
       .catch((cause: unknown) => !cancelled && fail(cause))
     return () => {
       cancelled = true
     }
-  }, [projectKey])
+  }, [projectKey, round])
 
   useEffect(() => {
     if (!epicKey) return
     let cancelled = false
     api
       .stories(epicKey)
-      .then((value) => !cancelled && setStories(value))
+      .then((value) => {
+        if (cancelled) return
+        setError(undefined)
+        setStories(value)
+      })
       .catch((cause: unknown) => !cancelled && fail(cause))
     return () => {
       cancelled = true
     }
-  }, [epicKey])
+  }, [epicKey, round])
 
   // Búsqueda por texto o clave en el proyecto, con espera entre pulsaciones.
   useEffect(() => {
@@ -89,16 +100,19 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
     const timer = window.setTimeout(() => {
       api
         .search(projectKey, q, controller.signal)
-        .then(setResults)
+        .then((items) => {
+          setError(undefined)
+          setResults(items)
+        })
         .catch((cause: unknown) => {
-          if (!(cause instanceof DOMException)) fail(cause)
+          if (!isAbortError(cause)) fail(cause)
         })
     }, SEARCH_DEBOUNCE_MS)
     return () => {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [projectKey, query])
+  }, [projectKey, query, round])
 
   const searching = query.trim().length > 0
   const visibleProjects = searching
@@ -197,7 +211,14 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       </div>
       {error && (
         <div className={styles.error}>
-          <ErrorCard key={`${error.code}-${error.message}`} error={error} />
+          <ErrorCard
+            key={`${error.code}-${error.message}`}
+            error={error}
+            onAction={() => {
+              setError(undefined)
+              setRound((current) => current + 1)
+            }}
+          />
         </div>
       )}
       <div className={styles.columns}>

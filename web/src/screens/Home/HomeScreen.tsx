@@ -52,6 +52,8 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
   const [origin, setOrigin] = useState<IssueSummary | undefined>(pickedOrigin)
   const [error, setError] = useState<ApiError | undefined>()
   const [sending, setSending] = useState(false)
+  // Reintentar (UI.md §7) vuelve a cargar proyectos y ajustes.
+  const [round, setRound] = useState(0)
 
   // Lo que llega de «Elegir en Jira» sustituye a lo elegido aquí.
   const [seenPick, setSeenPick] = useState({ origin: pickedOrigin, project: pickedProject })
@@ -71,6 +73,7 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
       .projects()
       .then((value) => {
         if (cancelled) return
+        setError(undefined)
         setProjects(value.projects)
         setProjectKey((current) => current ?? value.preselected ?? value.projects[0]?.key)
       })
@@ -84,7 +87,7 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [round])
 
   useEffect(() => {
     if (!projectKey) return
@@ -156,7 +159,16 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
           })}
         </div>
 
-        {error && <ErrorCard key={`${error.code}-${error.message}`} error={error} />}
+        {error && (
+          <ErrorCard
+            key={`${error.code}-${error.message}`}
+            error={error}
+            onAction={() => {
+              setError(undefined)
+              setRound((current) => current + 1)
+            }}
+          />
+        )}
 
         <div className={`${styles.rise} ${styles.d2}`}>
           <Composer

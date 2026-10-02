@@ -2,6 +2,7 @@
 // DESIGN-DECISIONS.md §4. Nunca guarda nada en el almacenamiento del navegador.
 import type {
   ApiError,
+  ChooseProjectOut,
   ConversationCreateIn,
   ConversationOut,
   ConversationSummary,
@@ -12,6 +13,8 @@ import type {
   ProposeIn,
   SessionOut,
   SettingsOut,
+  SourcePreview,
+  SourcesIn,
   StartProposal,
   UsageTodayOut,
 } from './types.ts'
@@ -31,6 +34,11 @@ export function setCsrfToken(token: string | null): void {
 
 export function hasCsrfToken(): boolean {
   return csrfToken !== null
+}
+
+/** La petición se canceló con su AbortSignal (por nombre: el DOMException puede venir de otro realm). */
+export function isAbortError(cause: unknown): boolean {
+  return typeof cause === 'object' && cause !== null && (cause as { name?: unknown }).name === 'AbortError'
 }
 
 /** Error de una petición, con el cuerpo `ErrorBody` de la API (o uno propio si no hubo respuesta). */
@@ -67,7 +75,7 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
       signal,
     })
   } catch (cause) {
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
+    if (isAbortError(cause)) throw cause
     throw new ApiRequestError(0, { code: 'service_unavailable', message: NETWORK_ERROR_MESSAGE })
   }
 
@@ -88,7 +96,7 @@ export const api = {
   me: () => request<SessionOut>('GET', '/auth/me'),
 
   projects: () => request<ProjectsOut>('GET', '/projects'),
-  chooseProject: (project: string) => request<{ project: string }>('POST', '/projects/choose', { project }),
+  chooseProject: (project: string) => request<ChooseProjectOut>('POST', '/projects/choose', { project }),
   epics: (project: string) => request<IssueSummary[]>('GET', `/projects/${enc(project)}/epics`),
   search: (project: string, q = '', signal?: AbortSignal) =>
     request<IssueSummary[]>('GET', `/projects/${enc(project)}/search${q ? `?q=${enc(q)}` : ''}`, undefined, signal),
@@ -97,7 +105,7 @@ export const api = {
 
   propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body),
   sources: (origin: OriginIn, excluded: string[] = []) =>
-    request<unknown>('POST', '/start/sources', { origin, excluded_sources: excluded }),
+    request<SourcePreview[]>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn),
 
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),

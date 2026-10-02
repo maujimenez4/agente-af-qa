@@ -49,7 +49,7 @@ export function AppShell({ user }: AppShellProps) {
 type WorkView = { name: 'home' } | { name: 'origin'; request: StartRequest }
 
 function WorkZone({ user }: { user: UserOut }) {
-  const { conversations } = useConversations()
+  const { conversations, error: conversationsError, reload } = useConversations()
   const [currentId, setCurrentId] = useState<string | undefined>()
   const [view, setView] = useState<WorkView>({ name: 'home' })
   // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
@@ -60,6 +60,8 @@ function WorkZone({ user }: { user: UserOut }) {
     <>
       <ConversationList
         conversations={conversations}
+        error={conversationsError}
+        onRetry={reload}
         currentId={currentId}
         onNew={() => {
           setCurrentId(undefined)

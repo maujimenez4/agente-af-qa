@@ -1,7 +1,7 @@
-import type { UsageTodayOut } from '../../api/types.ts'
+import type { Role, UsageTodayOut } from '../../api/types.ts'
 import type { IconName } from '../Icon/index.ts'
 
-export type Role = 'functional' | 'qa' | 'admin'
+export type { Role }
 export type Zone = 'work' | 'history' | 'settings'
 
 export const ROLE_NAMES: Record<Role, string> = {

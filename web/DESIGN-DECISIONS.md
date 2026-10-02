@@ -9,7 +9,7 @@ Decidido el 2 de octubre de 2026.
 | # | Tema | Decisión |
 |---|---|---|
 | 1 | Paleta de aviso o simulación | `#FFF8E6` fondo · `#F0D48A` borde · `#6B4A00` texto. La variante `#FFF3E0`/`#F0C98A`/`#6B3A00` de `Estados.dc.html` se descarta |
-| 2 | Aviso de consumo de tokens ≥ 90 % | Dos tokens según el fondo: `--color-warn-on-dark: #FFB48A` (carril navy) y `--color-warn: #B35C00` (fondos claros) |
+| 2 | Color del aviso de consumo de tokens | Cuándo avisa lo fija la decisión 17 (desde `warning_threshold`; el «≥ 90 %» del lienzo ya no aplica). Dos tokens según el fondo: `--color-warn-on-dark: #FFB48A` (carril navy) y `--color-warn: #B35C00` (fondos claros) |
 | 3 | Verdes | `--color-success-text: #1E5E38` para todo texto verde (chips y diff); `--color-success: #1E7A46` solo para sólidos (casillas del recibo, «Pasó», INVEST «Bien», icono Hecho). `#14532D` se descarta |
 | 4 | Radio de botón | 10 px |
 | 5 | Marcas de paso | 22 px |
@@ -24,7 +24,7 @@ Decidido el 2 de octubre de 2026.
 | 14 | Fuentes | Solo DM Sans. IBM Plex Mono no se usa. Cifras con `font-variant-numeric: tabular-nums` |
 | 15 | Casillas | Naranja (`accent-color`) para elegir fuentes y tipos de caso. Verde para confirmar operaciones del recibo |
 | 16 | Historial en el carril | **Solo `admin`**, como dice UI.md §3 (PA-62), aunque el lienzo lo muestre a todos. Confirmado por la principal (PA-302): en el carril aparece como **«disponible pronto»**, porque T-45 es Could y no está en el contrato |
-| 17 | Anillo de consumo de tokens del carril | Dato de `GET /api/v1/settings/usage` (`tokens_today`, `warning_threshold`, `scope: "global"`, PA-305). Es el consumo **de toda la instalación** en el día, no de la persona: el texto visible y el nombre accesible lo dicen («Consumo de hoy de la instalación»). Aviso desde `warning_threshold`. Con 503 u otro error, o sin dato, el anillo no se pinta |
+| 17 | Anillo de consumo de tokens del carril | Dato de `GET /api/v1/settings/usage` (`tokens_today`, `warning_threshold`, `scope: "global"`, PA-305). Es el consumo **de toda la instalación** en el día, no de la persona: el texto visible («24 %» con «instalación» debajo) y el nombre accesible («Consumo de tokens de hoy de toda la instalación: …») lo dicen (§4 bis). Aviso desde `warning_threshold`. Con 503 u otro error, o sin dato, el anillo no se pinta |
 
 ## 2. Otras decisiones
 
@@ -77,6 +77,13 @@ Acordado con la sesión principal en la PR #2 (PA-303).
   - **El SSE se lee con `fetch` y un `ReadableStream`, no con `EventSource`** (`src/api/events.ts`). Así se cierra con `AbortController`, no reconecta solo y se prueba con MSW en Vitest (jsdom no tiene `EventSource`). Si el flujo se corta sin `result`, quien escucha consulta `GET /conversations/{id}`.
   - Mientras hay una operación en curso, otra sobre la misma conversación da 409 `not_in_review`.
   - El cliente **cierra el flujo tras `result`** de una conversación terminada (simulada, publicada o descartada) y no entrega nada de lo que llegue después.
+  - **Forma de los eventos** (`api/app.py`):
+    - `progress` trae un `ProgressStep`;
+    - los finales (`review_ready`, `result`, `error`) traen la conversación completa, como `GET /conversations/{id}`;
+    - un fallo dentro del flujo llega como `error` con `{"error": ErrorBody}`.
+
+    `onError` recibe siempre un `ApiError`, junto con la conversación si llegó entera, también cuando falla la apertura del flujo.
+  - Una cancelación (búsqueda que se sustituye por otra) se reconoce por `name === 'AbortError'` y nunca se pinta como error.
   - Como mucho 3 flujos abiertos por persona: el cuarto da 429 `too_many_streams`.
 - **Errores:**
   - Siempre `{"error": {"code", "message", "retry_after"}}`. `code` es una lista cerrada (`ErrorBody.code`, PA-306).
@@ -101,10 +108,14 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Navegación por estado**, sin router: los `thread_id` nunca salen de la URL (T-52). El catálogo del sistema de diseño solo existe en desarrollo (`?catalogo`, PA-309).
 - **Login mínimo** con las piezas del sistema (PA-311, pendiente de validar por la principal).
 - **Admin:** una pantalla simple «Disponible pronto». Ajustes queda para después de T-57.
+- **Elegir en Jira:** además de *Usar la épica* y *Usar DEMO-3* (UI.md §4.2), si solo se cambia de proyecto aparece **«Usar el proyecto X»**: el selector de proyecto de Inicio abre este diálogo (UI.md §4.1) y hace falta poder cambiarlo sin fijar un origen. El buscador espera 300 ms entre pulsaciones.
+- **Lista de conversaciones con error:** si `GET /conversations` falla, la lista muestra la tarjeta de error con *Reintentar* (UI.md §7), no el estado vacío.
+- **Arranque guiado:** el aviso de `project_changed` e `ignored_projects` (T-53) se hace en Origen y fuentes, donde se fija la operación.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Anillo de consumo:**
   - en el carril, «24 %» y debajo «instalación». El porcentaje es `tokens_today / warning_threshold`, acotado a 100;
-  - nombre accesible: «Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 24 % del umbral de aviso».
+  - nombre accesible: «Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 25 % del umbral de aviso».
+  - se vuelve a pedir al cargar y cada 60 s (`USAGE_REFRESH_MS`): el consumo cambia despacio y no hace falta más precisión.
 
 ## 5. Textos de la lista de conversaciones
 

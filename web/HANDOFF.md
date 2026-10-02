@@ -16,30 +16,12 @@
 - **Verificación en navegador:** sin Playwright. Se usó Edge sin interfaz con CDP (scripts en el scratchpad, fuera del repo).
 
 ## PA pendientes de la principal
-- **PA-102:** presupuesto de tokens del panel de fuentes.
-- **PA-311:** validar el login.
-- **PA-314:** cancelar una generación (botón *Detener*).
-- **PA-315:** citas por CA y RN («CA sin fuente»).
-- **PA-316:** versión «Jira» en Iterar.
-
-Del área B quedan PA-300, PA-301, PA-304, PA-308, PA-310 y PA-312.
+PA-102 (presupuesto de tokens), PA-311 (validar el login), PA-314 (cancelar una generación), PA-315 (citas por CA y RN) y PA-316 (versión «Jira» en Iterar). Del área B quedan PA-300, 301, 304, 308, 310 y 312.
 
 ## Siguiente
 1. **Revisiones pendientes** sobre `b9e8585..HEAD` (Origen, Generando e Iterar): `test-writer`, `spec-checker` y `security-reviewer`. Corregir, añadir la fila al registro diario y hacer push.
-2. **Pulido para T-57:**
-   - recorrido Inicio → Elegir en Jira → Origen → Generando → Iterar con `af-demo`;
-   - teclado, foco y reducir movimiento;
-   - tamaños de ventana.
-3. **Guion de la demo (T-57):**
-   - login;
-   - Inicio con recientes;
-   - Elegir en Jira (DEMO-3);
-   - Origen (fuentes y restricciones);
-   - Generando (la Q por pasos);
-   - Iterar (pedir un cambio → v3 con «Cambiado en v3», pestañas Cambios e Impacto);
-   - descartar o retomar desde la lista.
-
-   Cerrar con: «aprobar y publicar llegan los días 6 a 8».
+2. **Pulido para T-57:** el recorrido completo con `af-demo`, teclado, foco, reducir movimiento y tamaños de ventana.
+3. **Guion de la demo (T-57):** login → Inicio con recientes → Elegir en Jira (DEMO-3) → Origen (fuentes y restricciones) → Generando (la Q por pasos) → Iterar (un cambio → v3 con «Cambiado en v3», pestañas Cambios e Impacto) → descartar o retomar desde la lista. Cerrar con «aprobar y publicar llegan los días 6 a 8».
 4. **Días 6 a 8, tras T-57:**
    - recibo de aprobación con la huella exacta (UI.md §5);
    - resultado simulado, real o parcial;

@@ -36,13 +36,19 @@ export function Workspace({ title, phase, phaseName, children, composer, panel }
 
 export interface SidePanelProps {
   title: string
+  /** Línea bajo el título («Evolución de DEMO-3 · en revisión»). */
+  subtitle?: string
+  /** Controles a la derecha de la cabecera (p. ej. las versiones). */
+  headerActions?: ReactNode
+  /** Contenido fijo entre la cabecera y el cuerpo (p. ej. las pestañas). */
+  toolbar?: ReactNode
   size?: 'sm' | 'md' | 'lg'
   children: ReactNode
   footer?: ReactNode
 }
 
 // Panel derecho (420/480/540 px, decisión 10) que se puede plegar (UI.md §2).
-export function SidePanel({ title, size = 'sm', children, footer }: SidePanelProps) {
+export function SidePanel({ title, subtitle, headerActions, toolbar, size = 'sm', children, footer }: SidePanelProps) {
   const [open, setOpen] = useState(true)
   const titleId = useId()
   const bodyId = useId()
@@ -58,11 +64,16 @@ export function SidePanel({ title, size = 'sm', children, footer }: SidePanelPro
   return (
     <aside className={styles.panel} data-size={size} aria-labelledby={titleId}>
       <div className={styles.panelHeader}>
-        <h2 id={titleId} className={styles.panelTitle}>
-          {title}
-        </h2>
+        <div className={styles.panelHeading}>
+          <h2 id={titleId} className={styles.panelTitle}>
+            {title}
+          </h2>
+          {subtitle && <span className={styles.panelSubtitle}>{subtitle}</span>}
+        </div>
+        {headerActions}
         <IconButton icon="panelRight" label="Plegar panel" aria-expanded aria-controls={bodyId} onClick={() => setOpen(false)} />
       </div>
+      {toolbar}
       <div id={bodyId} className={styles.panelBody}>
         {children}
       </div>

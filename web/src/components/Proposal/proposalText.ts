@@ -62,10 +62,21 @@ export const IMPACT_KIND: Record<ImpactItem['kind'], string> = {
   regression: 'Regresión',
 }
 
+function sentence(text: string): string {
+  const trimmed = text.trim()
+  return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`
+}
+
+/** «1 cambio», «3 cambios» frente a Jira. */
+export function changesLabel(count: number): string {
+  return `${count} ${count === 1 ? 'cambio' : 'cambios'} frente a Jira`
+}
+
 /** Resumen del asistente para una versión, sin LLM: lo que cambió y a qué afecta (UI.md §4.5). */
 export function versionSummary(story: UserStory, version: number, impact: ImpactAnalysis | null | undefined): string {
   const parts = [`Versión ${version} lista.`]
-  if (story.changes_from_previous.length > 0) parts.push(story.changes_from_previous.join(' '))
+  // Cada cambio como frase: el LLM no siempre termina en punto.
+  if (story.changes_from_previous.length > 0) parts.push(story.changes_from_previous.map(sentence).join(' '))
   const affected = impact?.affected ?? []
   if (affected.length > 0) {
     parts.push(`Afecta también a ${affected.map((item) => `${item.jira_key} (${item.reason.charAt(0).toLowerCase()}${item.reason.slice(1)})`).join(', ')}.`)

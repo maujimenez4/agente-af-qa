@@ -8,6 +8,7 @@ import type {
   ConversationSummary,
   IssueCard,
   IssueSummary,
+  IterateIn,
   OriginIn,
   ProjectsOut,
   ProposeIn,
@@ -110,6 +111,9 @@ export const api = {
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),
   conversation: (id: string) => request<ConversationOut>('GET', `/conversations/${enc(id)}`),
+  iterate: (id: string, feedback: string) =>
+    request<ConversationOut>('POST', `/conversations/${enc(id)}/iterate`, { feedback } satisfies IterateIn),
+  discard: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/discard`),
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),

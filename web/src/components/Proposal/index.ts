@@ -1,6 +1,7 @@
 export { ChangesView, ImpactView, SourcesView, StoryView, VersionSelector, type StoryViewProps } from './ProposalViews.tsx'
 export {
   changeMarks,
+  changesLabel,
   fieldLabel,
   IMPACT_KIND,
   versionSummary,

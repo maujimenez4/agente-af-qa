@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import type { ConversationOut, UserOut } from '../api/types.ts'
+import { api, ApiRequestError } from '../api/client.ts'
+import type { ApiError, ConversationOut, UserOut } from '../api/types.ts'
+import { ErrorCard } from '../components/States/index.ts'
 import { Button } from '../components/Button/index.ts'
 import { ConversationList } from '../components/ConversationList/index.ts'
 import { homeZone, Rail, type Zone } from '../components/Rail/index.ts'
@@ -8,7 +10,7 @@ import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJir
 import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
 import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
-import { readyHeadline } from '../screens/Generating/headline.ts'
+import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -54,6 +56,16 @@ type WorkView =
   | { name: 'origin'; request: StartRequest }
   | { name: 'generating'; conversation: ConversationOut; request: StartRequest }
   | { name: 'ready'; conversation: ConversationOut }
+  | { name: 'closed'; conversation: ConversationOut }
+
+// Conversaciones ya cerradas: aprobar y publicar llegan después de T-57 (recibo y resultado).
+const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
+  approved: 'Propuesta aprobada. El recibo y el resultado llegan después del punto de control de la demo.',
+  simulated: 'Publicación simulada. El resultado llega después del punto de control de la demo.',
+  published: 'Publicada en Jira. El resultado llega después del punto de control de la demo.',
+  discarded: 'Propuesta descartada: no se publicó nada en Jira.',
+  error: 'Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira.',
+}
 
 // Flujos fuera de la demo de T-57 (DESIGN-DECISIONS.md §4 bis).
 const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: string }>> = {
@@ -74,6 +86,25 @@ function WorkZone({ user }: { user: UserOut }) {
   // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
   const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
   const [picked, setPicked] = useState<JiraPick | undefined>()
+  const [openError, setOpenError] = useState<ApiError | undefined>()
+
+  // Retomar una conversación de la lista (T-52): según su estado, Generando, Iterar o un aviso.
+  const openConversation = async (threadId: string) => {
+    setOpenError(undefined)
+    try {
+      const conversation = await api.conversation(threadId)
+      if (conversation.state === 'generating') {
+        setView({ name: 'generating', conversation, request: { flow: conversation.flow, text: '', project: conversation.project } })
+      } else if (conversation.state === 'in_review') {
+        setView({ name: 'ready', conversation })
+      } else {
+        setView({ name: 'closed', conversation })
+      }
+    } catch (cause) {
+      if (cause instanceof ApiRequestError) setOpenError(cause.error)
+      else throw cause
+    }
+  }
 
   return (
     <>
@@ -87,9 +118,17 @@ function WorkZone({ user }: { user: UserOut }) {
           setPicked(undefined)
           setView({ name: 'home' })
         }}
-        onSelect={setCurrentId}
+        onSelect={(threadId) => {
+          setCurrentId(threadId)
+          void openConversation(threadId)
+        }}
       />
       <main className={styles.main}>
+        {openError && (
+          <div className={styles.banner}>
+            <ErrorCard key={`${openError.code}-${openError.message}`} error={openError} onAction={() => setOpenError(undefined)} />
+          </div>
+        )}
         {view.name === 'home' && (
           <HomeScreen
             user={user}
@@ -121,9 +160,24 @@ function WorkZone({ user }: { user: UserOut }) {
           />
         )}
         {view.name === 'ready' && (
+          <IterateScreen
+            key={view.conversation.id}
+            conversation={view.conversation}
+            onDiscarded={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+              reload()
+            }}
+            onRestart={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+            }}
+          />
+        )}
+        {view.name === 'closed' && (
           <SoonScreen
             title={view.conversation.title}
-            text={`${readyHeadline(view.conversation)}. La pantalla Iterar llega en el siguiente paso.`}
+            text={CLOSED_TEXT[view.conversation.state] ?? 'Esta conversación ya terminó.'}
           />
         )}
       </main>

@@ -100,10 +100,21 @@
   background: var(--color-surface);
 }
 
-.panelTitle {
+.panelHeading {
   flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panelTitle {
   font-size: var(--text-md);
   font-weight: var(--weight-bold);
+}
+
+.panelSubtitle {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
 }
 
 .panelBody {

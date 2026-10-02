@@ -40,3 +40,7 @@
   display: grid;
   place-items: center;
 }
+
+.banner {
+  padding: var(--space-4) var(--space-5) 0;
+}

@@ -54,7 +54,7 @@ describe('Generando (Mixta 2b, UI.md §4.4)', () => {
     ])
     expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'false')
     await userEvent.click(screen.getByRole('button', { name: 'Ver la propuesta' }))
-    expect(await screen.findByText(/La pantalla Iterar llega en el siguiente paso/)).toBeInTheDocument()
+    expect(await screen.findByRole('complementary', { name: 'Propuesta de HU' })).toHaveTextContent('Renovar un préstamo')
   })
 
   it('la lista de conversaciones incluye la nueva conversación', async () => {

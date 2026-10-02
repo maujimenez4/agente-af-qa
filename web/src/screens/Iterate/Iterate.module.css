@@ -1,0 +1,71 @@
+/* Tarjeta de la versión en la conversación (lienzo .art). */
+.artifact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q-md);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.artifact[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+.artifactTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.meta {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-left: 40px;
+  margin: 0;
+  list-style: none;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.confirmActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.soonNote {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+/* Acción que aún no está en la demo: atenuada y sin efecto (aria-disabled). */
+.soon[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

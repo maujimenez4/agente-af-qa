@@ -131,6 +131,18 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Si el SSE se corta** sin evento final, se consulta `GET /conversations/{id}` cada 2 s hasta que deja de generar.
   - **Error:** sale su tarjeta y la acción (*Volver a generar*, …) vuelve a Origen y fuentes con la misma petición, porque el contrato no tiene un «regenerar» para una conversación fallida.
   - **Detener:** el botón del lienzo no se pinta, porque el contrato no tiene cómo cancelar una generación (PA-314).
+- **Iterar** (Mixta 3):
+  - **Mensaje del asistente:** cada versión lleva un resumen compuesto en el frontend con `changes_from_previous` y el impacto («Versión 3 lista. CA-01: … Afecta también a DEMO-2 (…)»), porque el contrato no trae un mensaje. La versión nueva se escribe letra a letra.
+  - **Peticiones de cambio** (`POST /iterate`): vuelven a seguir el SSE con «Escribiendo la respuesta». La versión nueva se abre en el panel, con «Cambiado en vN» o «Nueva» según `impact.diffs`.
+  - **Panel:** versiones v1…vN de `ConversationOut.versions` más la de la revisión; pestañas Propuesta, Cambios, Impacto y Fuentes.
+  - **Lo que el contrato no da:**
+    - la versión «Jira» del lienzo (la HU tal como está en Jira; PA-316);
+    - el aviso «CA sin fuente», porque los CA no traen cita propia (PA-315).
+  - **Pie del panel:**
+    - *Descartar* pide confirmación y llama a `POST /discard`;
+    - *Editar a mano* y *Revisar y aprobar* son «disponible pronto»: se pueden enfocar, llevan su descripción y no hacen nada.
+  - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`.
+- **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso).
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Anillo de consumo:**

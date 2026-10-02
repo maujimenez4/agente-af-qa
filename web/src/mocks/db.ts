@@ -95,6 +95,9 @@ export interface MockRun {
   conversation: ConversationOut
   /** Pasos del SSE que quedan por emitir (DESIGN-DECISIONS.md §3). */
   script: ProgressStep[]
+  /** Al iterar: la conversación en revisión de la que parte la versión nueva y el cambio pedido. */
+  previous?: ConversationOut
+  pendingFeedback?: string
 }
 
 export interface MockDb {

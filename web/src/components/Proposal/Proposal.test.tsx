@@ -152,3 +152,17 @@ describe('Tabs', () => {
     expect(screen.getByRole('tab', { name: 'Fuentes (2)' })).toHaveFocus()
   })
 })
+
+describe('detalles de texto', () => {
+  it('cada cambio del resumen es una frase con su punto', () => {
+    const text = versionSummary({ ...story, changes_from_previous: ['CA-01: debe hablar de la app', 'RN-02: aclarada.'] }, 3, null)
+    expect(text).toBe('Versión 3 lista. CA-01: debe hablar de la app. RN-02: aclarada.')
+  })
+
+  it('«cambio» en singular y «cambios» en plural', async () => {
+    const { changesLabel } = await import('./proposalText.ts')
+    expect(changesLabel(1)).toBe('1 cambio frente a Jira')
+    expect(changesLabel(0)).toBe('0 cambios frente a Jira')
+    expect(changesLabel(3)).toBe('3 cambios frente a Jira')
+  })
+})

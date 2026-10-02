@@ -16,8 +16,10 @@ from adapters.base import Chunk
 from core.config import AppConfig
 from core.rag.documents import MEMORY_CATEGORY, IngestedDocument
 
-_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-_FENCE = re.compile(r"^\s*(```|~~~)")
+# PA-212: el «#» de cierre necesita un espacio delante («# C#» es el título «C#»).
+_HEADING = re.compile(r"^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$")
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")  # valla de código (CommonMark)
+_BOM = "﻿"
 _SEPARATORS = ("\n\n", "\n", ". ", " ")
 _CHARS_PER_TOKEN = 4
 
@@ -37,17 +39,16 @@ def split_sections(markdown: str) -> list[Section]:
     stack: list[tuple[int, str]] = []  # (nivel, título)
     current_path: tuple[str, ...] = ()
     buffer: list[str] = []
-    in_code = False
+    fence: str | None = None  # valla abierta (p. ej. «~~~»); solo la cierra otra igual
 
     def flush() -> None:
         text = "\n".join(buffer).strip("\n")
         if text.strip():
             sections.append(Section(path=current_path, text=text))
 
-    for line in markdown.split("\n"):
-        if _FENCE.match(line):
-            in_code = not in_code
-        match = None if in_code else _HEADING.match(line)
+    for line in markdown.removeprefix(_BOM).split("\n"):  # PA-212: sin BOM inicial
+        fence = _next_fence(fence, line)
+        match = None if fence or _FENCE.match(line) else _HEADING.match(line)
         if match:
             flush()
             buffer = []
@@ -59,6 +60,20 @@ def split_sections(markdown: str) -> list[Section]:
         buffer.append(line)
     flush()
     return sections
+
+
+def _next_fence(open_fence: str | None, line: str) -> str | None:
+    """Valla abierta tras `line` (PA-212): se cierra solo con el mismo carácter, al menos la
+    misma longitud y nada más en la línea; una valla sin cerrar llega hasta el final."""
+    match = _FENCE.match(line)
+    if not match:
+        return open_fence
+    marker, rest = match.groups()
+    if open_fence is None:
+        return marker
+    if marker[0] == open_fence[0] and len(marker) >= len(open_fence) and not rest.strip():
+        return None
+    return open_fence
 
 
 def split_recursive(text: str, chunk_tokens: int, overlap_tokens: int) -> list[str]:

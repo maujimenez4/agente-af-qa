@@ -10,8 +10,6 @@ Datos 100 % ficticios.
 import hashlib
 from itertools import pairwise
 
-import pytest
-
 from core.rag.chunking import chunk_document, estimate_tokens, split_recursive, split_sections
 from core.rag.documents import MEMORY_CATEGORY, IngestedDocument
 
@@ -96,13 +94,6 @@ def _shared_edge(previous: str, following: str) -> str:
 # --------------------------------------------------------------------------- vallas de código
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-212): un bloque ~~~ se cierra con ``` porque _FENCE alterna sin mirar el "
-        "tipo de valla (core/rag/chunking.py:20 y 48-49)"
-    ),
-)
 def test_split_sections_ignores_hash_lines_when_tilde_fence_contains_backticks() -> None:
     """RF-09: dentro de ~~~ … ~~~ una línea ``` no cierra el bloque ni hay encabezados."""
     md = "# A\n\n~~~\ncódigo ficticio\n```\n# comentario ficticio\n~~~\n\n## B\n\ntexto"
@@ -136,13 +127,6 @@ def test_split_sections_detects_heading_when_tilde_fence_is_closed_by_tilde() ->
 # --------------------------------------------------------------------------- títulos
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-212): '# C#' da el título 'C'; _HEADING quita '#' finales aunque no haya "
-        "espacio antes (core/rag/chunking.py:19)"
-    ),
-)
 def test_split_sections_keeps_trailing_hash_when_it_is_part_of_the_title() -> None:
     """RF-09: en CommonMark el cierre '#' necesita un espacio delante; '# C#' es «C#»."""
     assert [s.path for s in split_sections("# C#\n\ntexto ficticio")] == [("C#",)]
@@ -185,14 +169,6 @@ def test_split_sections_ignores_setext_headings() -> None:
     assert "===" in sections[0].text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-212): "
-        "un BOM inicial impide reconocer el primer encabezado; _HEADING exige "
-        "'#' en la columna 0 (core/rag/chunking.py:19)"
-    ),
-)
 def test_split_sections_recognizes_first_heading_when_text_starts_with_bom() -> None:
     """RF-09: '\\ufeff# Título' sigue siendo el encabezado «Título»."""
     assert split_sections("﻿# Título ficticio\n\ntexto")[0].path == ("Título ficticio",)

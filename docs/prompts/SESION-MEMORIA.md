@@ -1,11 +1,11 @@
-# SESIÓN MEMORIA → T-32 · Ronda 2: contador de tokens y endurecimiento del LLM (área A · `adapters/llm/`)
+# SESIÓN MODELOS (antes Memoria) · Ronda 3: T-58, ajustes para modelos locales pequeños
 
-Tu rama `ses-memoria` ya está fusionada (T-33, backend). En esta ronda la sesión cambia de tarea. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu T-32 ya está fusionada en `PreProduccion`. En esta ronda la sesión cambia de rama y de tarea. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-memoria origin/PreProduccion
+git -C .claude/worktrees/area-b switch -C ses-modelos origin/PreProduccion
 cd .claude/worktrees/area-b
 uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
@@ -13,78 +13,66 @@ uv run pytest -m "not integration"          # debe salir en verde antes de empez
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-memoria`**, recién puesta al día desde `PreProduccion`. Tu T-33 (backend) ya está fusionada: la app usa `LLMMemoryGenerator`. **En esta ronda haces T-32.**
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-modelos`**, creada desde `PreProduccion`. Tu T-32 ya está fusionada (el registro de uso también lo usa la API de T-55). **En esta ronda haces T-58: ajustes para que los modelos locales pequeños generen artefactos válidos a la primera.**
 
-Hay **otras sesiones de Claude Code trabajando a la vez**:
-- **Principal:** `PreProduccion`. Integra y es dueña de los contratos y del grafo.
-- **UI:** `ses-ui`, en `app/`.
-- **Jira:** `ses-jira`, en `adapters/jira/` y `adapters/testmgmt/`.
-- **Ollama:** la prueba real de punta a punta con los modelos locales.
+Hay **otras sesiones trabajando a la vez**:
+- **Principal:** `PreProduccion`. Integra; es dueña de los contratos, de la API (`api/`) y de la composición.
+- **Ollama:** mide `qwen3:1.7b` sin razonamiento y `phi4-mini` con dos instrucciones nuevas en su script. Sus datos te llegarán por el usuario.
+- **Flujo:** `ses-flujo`, con T-54, en `core/graph/` y `core/conversations.py`.
+- **Jira:** `ses-jira`, con PA-208 y la prueba cruzada T-34.
+- **Responsable del área B:** `web/` (React).
 
-**Solo tocas lo de esta sesión.**
+## De dónde sale T-58
+La sesión Ollama midió cinco modelos locales con `StoryWriter.generate` (misma necesidad y mismo RAG, CPU). **Ninguno generó una HU válida a la primera.** Causas comunes:
+1. **IDs de reglas:** 4 de los 5 modelos copian los identificadores del corpus (`RN-RES-01`), y el esquema exige `^RN-\d+$`. Cada fallo cuesta un reintento de 4–5 min.
+2. **`sources` vacío:** los modelos pequeños omiten las citas y salta `CitationError` (phi4-mini falló así en los dos intentos).
+3. **Razonamiento de `qwen3:1.7b`:** gasta ~40 % de los tokens de salida. Se desactiva con `reasoning_effort: "none"` o `think: false` en la petición (la sesión Ollama confirmará cuál funciona contra el endpoint OpenAI de Ollama).
 
-Lee antes:
-- `CLAUDE.md`;
-- `docs/specs/SPEC-00-fundacional.md`: §4 (`LLMProvider`, `LLMResult`/`StructuredResult`), §6 (tabla `llm_usage`), §7 (configuración y selector RF-42), §8 (LLM gratuitos, reintentos y logging) y el anexo §11;
-- en `docs/decisiones/01_declaraciones_proyecto.md`: RF-43, RF-44, RNF-02, RNF-12, RNF-27 y RNF-28;
-- en `docs/KANBAN.md`: PA-15, PA-16 y PA-67.
+Salidas en bruto: `docs/pruebas/salidas/generate_story-<modelo>.json`, en la carpeta principal, aún sin commit; pídeselas al usuario si las necesitas.
 
-## Estado de partida
-- **`adapters/llm/`:**
-  - `OpenAICompatibleProvider` (JSON Schema o modo JSON, validación pydantic y un reintento);
-  - `FallbackLLMProvider` (cadena por tarea y aviso diario de tokens);
-  - `ModelRouter` (selector RF-42);
-  - `usage.py`, con `UsageRecord`, `InMemoryUsageRecorder` y `SqlUsageRecorder` sobre `llm_usage`.
-- **El registro de uso no está conectado en la app:** `build_app_container` llama a `build_llm_provider(config, router=router)` **sin `recorder`**, así que no se guarda nada en `llm_usage`.
-- **Tiempo de espera:** desde hoy es configurable. Está en `limits.request_timeout_s` de `config/models.yaml` (600 s en local) y la principal ya lo pasa al cliente del SDK.
-- **Modelos:** solo locales de Ollama (`qwen3:4b-instruct`), lentos en CPU; el coste estimado es 0, pero los tokens y la latencia sí importan.
+## Tareas (con la skill `/tarea T-58`) [RNF-09, RNF-10, RNF-12]
+1. **Prompts** (`prompts/generate_story.md`, `evolve_story.md`, `structure_story.md`, `generate_tests.md`, `review_quality.md` y sus `*_retry.md`):
+   - IDs: «numera `RN-01`, `RN-02`… y `CA-01`, `CA-02`… (y `CP-01`… en las suites) aunque las fuentes usen otros; el identificador del documento va en la descripción»;
+   - citas: `sources` nunca vacío si el contexto trae fuentes;
+   - sube la cabecera `version:` de cada prompt que cambies;
+   - mide el efecto en tokens: los prompts largos cuestan ~1,5 min solo de lectura en CPU, así que no los alargues de más.
+2. **Reparación determinista antes del reintento:** si la salida solo falla por IDs con otro formato (`RN-RES-01`, `CA1`…), se renumeran en orden sin llamar otra vez al LLM. El identificador original se conserva en el texto y, en evoluciones, se respetan los IDs que ya existían (`evolve_story`).
+   - Diseña dónde va. Una opción es un registro de reparaciones por esquema en `adapters/llm/`, que importa `schemas/` pero no `core/`.
+   - **No cambies `adapters/base.py` ni `schemas/`:** si el diseño lo necesita, para y escríbelo como propuesta.
+   - Que la auditoría o el log digan cuándo se reparó.
+3. **Razonamiento desactivable por modelo:**
+   - **Autorizado por la principal** solo esto:
+     - en `core/config.py`, un campo opcional en `ModelRef` (por ejemplo `options` o `reasoning: off`) con validación estricta;
+     - en `core/factories.py`, pasarlo en `_openai_factory`.
+   - En `adapters/llm/openai_compatible.py`, enviarlo como `extra_body`.
+   - Sin el campo, todo sigue igual.
+   - **No cambies `config/models.yaml`:** lo hará la sesión Ollama en su fase 2. Documenta el formato en tu informe.
+4. **Cita vacía:** si una HU llega con `sources` vacío y el contexto tiene fuentes, el reintento de citas (`citation_retry.md`) debe pedirlo explícitamente. Revisa que ese camino existe y funciona.
 
-## Tareas (con la skill `/tarea T-32`) [RF-43, RNF-12, RNF-02]
-1. **Contador de tokens y coste (RF-43), parte de backend:**
-   - Conecta el registro de uso en la app. **Autorizado por la principal solo esto en `core/factories.py`:**
-     - una función `build_usage_recorder(config)` (`SqlUsageRecorder` sobre la BD del `.env`);
-     - pasarla a `build_llm_provider` dentro de `build_app_container`.
+Cuando la sesión Ollama entregue sus datos (vía el usuario), ajusta las prioridades.
 
-     El resto de `core/factories.py` no lo toques.
-   - Consultas de lectura para la UI en un módulo nuevo, **`core/usage.py`**: tokens y coste estimado por día, por tarea, por modelo y por proveedor, y las últimas llamadas.
-   - Si el registro puede llevar el `artifact_id` o el `thread_id` sin tocar los contratos, propón cómo; **no cambies `adapters/base.py`**.
-   - La parte visible es de la sesión UI: deja en tu informe la API exacta que debe usar.
-2. **Reintentos y cadena de respaldo (RNF-12, RNF-27, RNF-28):**
-   - revisa que un 429 respete `retry-after` y el umbral, y que se pase al siguiente de la cadena;
-   - que un tiempo de espera agotado se trate como fallo del proveedor y pase al siguiente, sin repetir en bucle;
-   - **PA-16:** desactivar JSON Schema solo ante un 400 por `response_format`, no ante cualquier 400;
-   - **PA-67:** exponer el motivo del cambio de proveedor (límite, tiempo de espera, error) para el aviso de la UI.
-3. **Mensajes de error:** todos los errores del LLM llegan a la UI en español y sin datos internos (cuerpos de respuesta, URLs con credenciales, `input_value` de pydantic).
-   - **PA-15:** proponer `StructuredOutputError` en `adapters/errors.py`. Ese archivo está congelado: escribe la propuesta y la principal lo mueve.
-4. **Revisión de logs (RNF-02):** recorre todo el repositorio buscando registros que puedan llevar prompts, contenido de HU o de documentos, cabeceras `Authorization` o secretos. Comprueba que el enmascarado de `core/logging.py` cubre los secretos de la configuración.
-   - Corrige lo que esté en tus archivos.
-   - Lo de otras áreas, anótalo como propuesta con el archivo y la línea.
-
-## Reglas comunes a todas las sesiones
+## Reglas
 - **Solo tus archivos:**
-  - `adapters/llm/`, `core/usage.py` (nuevo) y `tests/unit/test_llm*.py`, `tests/unit/test_usage*.py`;
-  - en `core/factories.py`, **solo** lo autorizado arriba;
-  - en `tests/fakes/`, solo añadir.
+  - `prompts/`;
+  - `core/functional/` y `core/qa/` (solo lo que T-58 necesite);
+  - `adapters/llm/`;
+  - en `core/config.py` y `core/factories.py`, **solo** lo autorizado arriba;
+  - `tests/unit/` de esos módulos; en `tests/fakes/`, solo añadir.
 
-  No toques `core/graph/`, `core/config.py`, `adapters/base.py`, `adapters/errors.py`, `app/`, `schemas/`, `config/` ni la SPEC.
+  No toques `core/graph/` ni `core/conversations.py` (T-54 está ahí), `api/`, `app/`, `web/`, `schemas/`, `adapters/base.py`, `adapters/errors.py`, `config/` ni la SPEC.
 - **Kanban:**
-  - Cambia solo el estado de tu fila (T-32) y de las PA que cierres (PA-16, PA-67).
+  - Cambia solo la fila de T-58 (a 🔄 y luego ✅) y las PA que cierres.
   - Añade tu fila al registro diario.
   - No toques el tablero resumen.
-  - **Propuestas en PA-253…PA-299.**
-- **Seguridad:**
-  - No leas ni muestres el `.env`.
-  - Los logs no llevan prompts, contenido ni secretos.
-  - Las claves, solo vía `SecretStr`.
-- **LLM:**
-  - Las pruebas usan fakes y `httpx.MockTransport` o un cliente simulado.
-  - No lances pruebas reales con el LLM sin preguntarme: el modelo local en CPU tarda minutos por llamada.
+  - **Propuestas en PA-262…PA-299.**
+- **Seguridad:** no leas ni muestres el `.env`; los logs no llevan prompts ni contenido.
+- **LLM:** pruebas con fakes. **No lances pruebas reales con el LLM sin preguntarme** (minutos por llamada en CPU).
 - **Antes de cada commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
-  - subagentes `spec-checker` CONFORME y `security-reviewer` APTO.
+  - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
 - **Commits:**
-  - Formato `T-32: descripción [RF-43, RNF-12, RNF-02]`.
-  - **Sin fusionar.** Haz `git push origin ses-memoria` y avísame.
+  - Formato `T-58: descripción [RNF-09, RNF-10, RNF-12]`.
+  - **Sin fusionar.** Haz `git push -u origin ses-modelos` y avísame.
 
-Empieza por `/tarea T-32` y preséntame el plan antes de escribir código.
+Empieza por `/tarea T-58` y preséntame el plan (sobre todo el punto 2) antes de escribir código.

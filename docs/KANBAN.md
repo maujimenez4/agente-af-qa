@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-28, T-29, T-34 … T-36, T-39 … T-46, T-54, T-56, T-57 | T-47 | T-33 | T-01 … T-27, T-30 … T-32, T-48 … T-53, T-55 | T-37, T-38 (R-01) |
+| T-08, T-28, T-29, T-34 … T-36, T-39 … T-46, T-54, T-56 … T-58 | T-47 | T-33 | T-01 … T-27, T-30 … T-32, T-48 … T-53, T-55 | T-37, T-38 (R-01) |
 
 ---
 
@@ -141,6 +141,7 @@
 | T-55 | **API HTTP (FastAPI) para el frontend**: primero el contrato OpenAPI y una API simulada; después la API real sobre el contenedor (sesión, proyectos, conversaciones, arranque guiado, fuentes, generar con progreso por SSE, iterar/editar/aprobar/descartar, revisar la calidad, QA encadenada) | P | T-48, T-50 … T-54 | D-04 (revisada) | ✅ |
 | T-56 | **Frontend propio en React** a partir del lienzo «Propuesta mixta», contra el contrato de T-55 (API simulada primero) | B (responsable del área B) | T-55 (contrato) | RNF-15, D-04 (revisada) | ⬜ |
 | T-57 | **Punto de control (día 5 de la ronda)**: la demo se hace con React o con Streamlit (plan B) | Tú | T-56 | — | ⬜ |
+| T-58 | **Ajustes para modelos locales pequeños** (medición de la sesión Ollama, 2026-10-02): prompts que fuerzan IDs `CA-NN`/`RN-NN` y citas no vacías; reparación determinista de IDs antes del reintento; opción por modelo para desactivar el razonamiento (`think`/`reasoning_effort`) | Modelos (sesión) | — | RNF-09, RNF-10, RNF-12 | ⬜ |
 
 ## Días 11–15 · v1.1 y demo final
 
@@ -204,6 +205,7 @@
 | 2026-10-02 | **Nuevo compañero como responsable del área B («Conocimiento y UI»)** (decisión del usuario): dueño de `app/`, `docs/specs/UI.md`, RAG (`core/rag/`, embeddings, vectorstore, corpus), `core/functional/`, `core/qa/`, `core/memory/` y `eval/`; recoge la sesión UI (T-31, revisar la calidad, T-28, pestaña Memoria, T-29) y dirige sus propias sesiones de Claude Code en la rama `area-b`. La principal conserva contratos, grafo, Jira, LLM e integración en `PreProduccion`. Primera revisión de su área la hace él; la principal valida la fusión. Propuestas **PA-300…PA-399**. Guía: `ONBOARDING.md` §8 · arranque: `docs/prompts/RESPONSABLE-AREA-B.md`. Requisito: Python, `uv` y Docker operativos en su equipo |
 | 2026-10-02 | **D-04 revisada: frontend propio en React** (decisión del usuario) para que la UI se vea como el lienzo «Propuesta mixta», sobre una API FastAPI (T-55); el responsable del área B lo construye (T-56) contra una API simulada desde el día 1, así que no necesita Python ni Docker para empezar. **Streamlit queda como plan B** (la sesión UI sigue con T-31) hasta el punto de control T-57 |
 | 2026-10-02 | **Flujo unido HU → QA** (petición de dirección, T-54): la HU aprobada o publicada es la entrada de QA sin volver a empezar. Se mantiene D-01: el analista **pasa la HU a QA**, que la encuentra lista en su lista de conversaciones. En simulación la HU no tiene clave de Jira: los casos se generan y revisan, pero publicarlos exige publicar antes la HU |
+| 2026-10-02 | **Ronda 3 de sesiones** (organización de la principal): **Ollama** mide `qwen3:1.7b` sin razonamiento y `phi4-mini` con los dos cambios de prompt aplicados solo en su script; **Modelos** (antes Memoria) hace T-58; **Flujo** (antes UI) hace T-54; **Jira** cierra PA-208 y hace la prueba cruzada T-34; la **principal** añade `record_execution` al protocolo (T-47), saca de `app/` lo que usa la API (PA-106) e integra. El modelo local se elige tras T-58 y la nueva medición (fase 2 de la sesión Ollama). T-28 y T-29 (pantallas de Streamlit) quedan en espera: con D-04 revisada, sus pantallas son de T-56 |
 
 ## Propuestas adicionales detectadas durante el desarrollo
 | ID | Propuesta | Origen (tarea) | Decisión |

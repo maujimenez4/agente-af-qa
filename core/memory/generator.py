@@ -33,7 +33,7 @@ PromptLoader = Callable[[str], Prompt]
 
 log = get_logger("core.memory")
 
-TRACE_ID = re.compile(r"\b(?:CA|RN)-\d+\b")
+TRACE_ID = re.compile(r"\b(?:CA|RN|CP)-\d+\b")  # PA-219: también los CP de una suite
 _HEADING = re.compile(r"^#+\s*")
 _RULE_LINE = re.compile(r"[-=*_~\s]+")
 # Formas habituales de secretos: no deben llegar a la memoria, que se reindexa en el RAG.
@@ -71,10 +71,11 @@ class ArtifactFacts:
     criteria: tuple[str, ...]  # CA del artefacto, en orden
     rules: tuple[str, ...]  # RN del artefacto, en orden
     references: tuple[str, ...]  # `ref` de las fuentes que cita
+    cases: tuple[str, ...] = ()  # CP de una suite (PA-219); vacío en una HU
 
     @property
     def ids(self) -> tuple[str, ...]:
-        return (*self.criteria, *self.rules)
+        return (*self.criteria, *self.rules, *self.cases)
 
 
 def artifact_facts(artifact: Artifact) -> ArtifactFacts:
@@ -97,6 +98,7 @@ def artifact_facts(artifact: Artifact) -> ArtifactFacts:
         criteria=tuple(i for i in ids if i.startswith("CA-")),
         rules=tuple(i for i in ids if i.startswith("RN-")),
         references=tuple(dict.fromkeys(s.ref for s in content.sources)),
+        cases=tuple(c.internal_id for c in content.cases) if isinstance(content, TestSuite) else (),
     )
 
 

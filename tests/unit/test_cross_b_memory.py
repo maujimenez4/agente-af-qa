@@ -261,14 +261,6 @@ def _suite_memory(**update: Any) -> Memory:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-219): "
-        "TRACE_ID solo reconoce CA y RN; un CP inventado (CP-99) en la memoria de "
-        "una TestSuite no se detecta (core/memory/generator.py:36)"
-    ),
-)
 def test_invented_case_id_triggers_retry_when_suite_memory() -> None:
     """Principio 4 · RNF-25 (negativo): un CP que no está en la suite provoca reintento."""
     bad = _suite_memory(decisions=["CP-99 cubre la renovación por correo (inventado)."])
@@ -290,12 +282,13 @@ def test_existing_case_id_is_accepted_when_suite_memory() -> None:
     assert len(llm.calls) == 1
 
 
-def test_suite_facts_do_not_include_case_ids() -> None:
-    """RNF-25 (comportamiento fijado): los hechos de una suite solo traen CA y RN."""
-    facts = artifact_facts(_artifact(renewal_test_suite()))
+def test_suite_facts_include_case_ids() -> None:
+    """RNF-25 · PA-219: los hechos de una suite traen sus CA, sus RN y también sus CP."""
+    suite = renewal_test_suite()
+    facts = artifact_facts(_artifact(suite))
 
-    assert facts.ids == ("CA-01", "CA-02", "RN-01", "RN-02")
-    assert not any(i.startswith("CP-") for i in facts.ids)
+    assert facts.cases == tuple(c.internal_id for c in suite.cases)
+    assert facts.ids == ("CA-01", "CA-02", "RN-01", "RN-02", *facts.cases)
 
 
 # --- 4 · formato de los IDs -----------------------------------------------------------------

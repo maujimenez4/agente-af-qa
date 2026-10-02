@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiRequestError } from '../../api/client.ts'
+import { api, ApiRequestError, toApiError } from '../../api/client.ts'
 import type { ApiError, IssueSummary, ProjectSummary, SettingsOut, StartProposal, UserOut } from '../../api/types.ts'
 import { IconButton } from '../../components/Button/index.ts'
 import { FlowCard } from '../../components/Card/index.ts'
@@ -121,8 +121,7 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
       const proposal = await api.propose({ text: text.trim(), project: projectKey, mode: flow === 'tests' ? 'qa' : 'functional' })
       onStart({ flow, text: text.trim(), project: projectKey, origin, proposal })
     } catch (cause) {
-      if (cause instanceof ApiRequestError) setError(cause.error)
-      else throw cause
+      setError(toApiError(cause))
     } finally {
       setSending(false)
     }

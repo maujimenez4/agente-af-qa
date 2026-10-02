@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, ApiRequestError } from '../api/client.ts'
+import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
 import { Button } from '../components/Button/index.ts'
@@ -101,8 +101,7 @@ function WorkZone({ user }: { user: UserOut }) {
         setView({ name: 'closed', conversation })
       }
     } catch (cause) {
-      if (cause instanceof ApiRequestError) setOpenError(cause.error)
-      else throw cause
+      setOpenError(toApiError(cause))
     }
   }
 

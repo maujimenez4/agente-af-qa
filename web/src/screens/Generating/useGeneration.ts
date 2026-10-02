@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiRequestError } from '../../api/client.ts'
+import { api, toApiError } from '../../api/client.ts'
 import { subscribeEvents } from '../../api/events.ts'
 import type { ApiError, ConversationOut, ProgressStep } from '../../api/types.ts'
 
@@ -55,7 +55,7 @@ export function useGeneration(initial: ConversationOut): GenerationState {
         .catch((cause: unknown) => {
           if (finished) return
           finished = true
-          const error = cause instanceof ApiRequestError ? cause.error : { code: 'unexpected', message: 'Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.' }
+          const error = toApiError(cause)
           setState((current) => ({ status: 'error', steps: current.steps, error }))
         })
     }

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { api, ApiRequestError } from '../../api/client.ts'
+import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, UserMessage } from '../../components/Chat/index.ts'
@@ -89,8 +89,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
     try {
       setIterating(await api.iterate(conversation.id, text))
     } catch (cause) {
-      if (cause instanceof ApiRequestError) setError(cause.error)
-      else throw cause
+      setError(toApiError(cause))
     }
   }
 
@@ -100,8 +99,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       await api.discard(conversation.id)
       onDiscarded()
     } catch (cause) {
-      if (cause instanceof ApiRequestError) setError(cause.error)
-      else throw cause
+      setError(toApiError(cause))
     } finally {
       setBusy(false)
       setConfirmDiscard(false)

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { DEMO_PASSWORD } from '../mocks/db.ts'
 import { mockServer } from '../mocks/node.ts'
-import { api, ApiRequestError, hasCsrfToken, NETWORK_ERROR_MESSAGE, setCsrfToken } from './client.ts'
+import { api, ApiRequestError, hasCsrfToken, NETWORK_ERROR_MESSAGE, setCsrfToken, toApiError, UNEXPECTED_ERROR } from './client.ts'
 
 async function loginAndKeepToken() {
   const session = await api.login('af-demo', DEMO_PASSWORD)
@@ -103,5 +103,18 @@ describe('cliente de la API', () => {
       feedback: [],
     })
     expect(conversation.state).toBe('generating')
+  })
+})
+
+describe('toApiError', () => {
+  it('devuelve el error de la API tal cual', () => {
+    const error = { code: 'not_in_review', message: 'La conversación no está en revisión.' } as const
+    expect(toApiError(new ApiRequestError(409, error))).toBe(error)
+  })
+
+  it.each([new TypeError('x is undefined'), 'texto', undefined])('un fallo que no es de la API da «unexpected» en español (%s)', (cause) => {
+    expect(toApiError(cause)).toEqual(UNEXPECTED_ERROR)
+    expect(UNEXPECTED_ERROR.code).toBe('unexpected')
+    expect(UNEXPECTED_ERROR.message).toMatch(/^Ha ocurrido un error inesperado/)
   })
 })

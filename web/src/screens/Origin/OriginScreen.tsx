@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, ApiRequestError } from '../../api/client.ts'
+import { api, ApiRequestError, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, IssueCard, IssueSummary, SourcePreview } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
 import { Button } from '../../components/Button/index.ts'
@@ -93,8 +93,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     try {
       onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded)))
     } catch (cause) {
-      if (cause instanceof ApiRequestError) setError(cause.error)
-      else throw cause
+      setError(toApiError(cause))
     } finally {
       setGenerating(false)
     }

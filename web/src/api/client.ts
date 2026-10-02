@@ -55,6 +55,17 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Mensaje para un fallo que no es de la API (red caída, respuesta ilegible…), como `unexpected`. */
+export const UNEXPECTED_ERROR: ApiError = {
+  code: 'unexpected',
+  message: 'Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.',
+}
+
+/** El `ApiError` de un fallo: el de la API o, si no lo es, `UNEXPECTED_ERROR` (nunca se relanza sin capturar). */
+export function toApiError(cause: unknown): ApiError {
+  return cause instanceof ApiRequestError ? cause.error : UNEXPECTED_ERROR
+}
+
 export function apiUrl(path: string): string {
   return new URL(`${BASE}${path}`, window.location.origin).toString()
 }

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from adapters.base import IssueDetail, RetrievedChunk
+from core.text import escape_data  # PA-227: se reexporta para `core/impact/` y `core/qa/`
 from schemas.user_story import UserStory
 
 SourceKind = Literal["jira", "rag", "memory"]
@@ -102,13 +103,6 @@ def _render_source(source: CitableSource) -> str:
     }
     rendered = " ".join(f'{name}="{escape_data(value)}"' for name, value in attrs.items() if value)
     return f"<fuente {rendered}>\n{escape_data(source.content)}\n</fuente>"
-
-
-def escape_data(text: str) -> str:
-    # Neutraliza los delimitadores dentro de los datos (inyección de prompt).
-    return (
-        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-    )
 
 
 def _jira_source(issue: IssueDetail) -> CitableSource:

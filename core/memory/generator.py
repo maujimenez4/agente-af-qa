@@ -18,12 +18,12 @@ from dataclasses import dataclass
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import AgentError
-from core.functional.context import escape_data
 from core.functional.writer import fill_placeholders
 from core.logging import get_logger
 from core.projects import ISSUE_KEY
 from core.qa.validation import _personal_data_kind  # PA-250: hacerlo público en core/qa
 from core.rag.prompts import Prompt, load_prompt
+from core.text import escape_data
 from schemas.artifact import Artifact
 from schemas.memory import Memory
 from schemas.test_case import TestSuite

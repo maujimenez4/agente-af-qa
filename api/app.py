@@ -2,8 +2,8 @@
 
 Parte 1: el contrato completo (rutas, modelos, errores y ejemplos). Parte 2: las rutas sobre el
 contenedor y el grafo (`api/service.py`), con sesión en el servidor (`api/sessions.py`) y las
-comprobaciones de `docs/api/requisitos-parte-2.md` (`api/security.py`). La QA encadenada
-(`/handoff`, `/qa/*`) responde 501 hasta que T-54 cierre su diseño.
+comprobaciones de `docs/api/requisitos-parte-2.md` (`api/security.py`). QA encadenada (T-54,
+PA-105): `/conversations/{id}/handoff` y `/qa/handoffs` sobre `core/handoff.py`.
 
 Sesión: cookie HttpOnly `afqa_session` (SameSite=Strict) que el frontend no ve; toda petición que
 modifica algo lleva además la cabecera `X-CSRF-Token` con el valor de `SessionOut.csrf_token`.
@@ -36,6 +36,7 @@ from api import examples as ex
 from api import executions, service
 from api.errors import UNEXPECTED, ApiError, to_api_error
 from api.models import (
+    HANDOFF_ID_PATTERN,
     ID_PATTERN,
     KEY_PATTERN,
     PROJECT_PATTERN,
@@ -97,16 +98,11 @@ log = get_logger("api")
 
 API_PREFIX = "/api/v1"
 VERSION = "0.2.0"
-NOT_YET = "Disponible cuando T-54 (QA encadenada) cierre su diseño."
 MAX_QUALITY_JOBS = 20  # por persona
 SSE_POLL_S = 0.5
 SSE_HEARTBEAT_S = 15.0
 # Tipos que no se buscan como origen (las épicas sí).
 NOT_SEARCHABLE = frozenset({"subtarea", "sub-task", "subtask", "task", "tarea"})
-
-
-class NotImplementedYetError(Exception):
-    """Ruta del contrato aún sin implementar (QA encadenada, T-54)."""
 
 
 def _json(example: Any) -> dict[str, Any]:
@@ -169,8 +165,12 @@ COMMON = {
 }
 # Toda ruta con sesión puede leer de Jira o llamar al LLM: también puede dar 429.
 AUTH = {**UNAUTHORIZED, **FORBIDDEN, **RATE_LIMITED, **COMMON}
-NOT_YET_RESPONSE = {
-    501: _err("not_implemented", NOT_YET, "Pendiente del diseño de T-54 (PA-105)."),
+HANDOFF_CONFLICT = {
+    409: _err(
+        "handoff_unavailable",
+        "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona.",
+        "Ya recogida por otra persona, o la HU no está aprobada o no coincide con la aprobada.",
+    ),
 }
 
 auth = APIRouter(prefix="/auth", tags=["Sesión"])
@@ -178,7 +178,7 @@ projects = APIRouter(tags=["Proyectos y Jira"])
 start = APIRouter(prefix="/start", tags=["Arranque guiado"])
 conversations = APIRouter(prefix="/conversations", tags=["Conversaciones"])
 quality = APIRouter(prefix="/quality-reviews", tags=["Revisar la calidad"])
-qa = APIRouter(prefix="/qa", tags=["QA encadenada (provisional, T-54)"])
+qa = APIRouter(prefix="/qa", tags=["QA encadenada (T-54)"])
 executions_router = APIRouter(prefix="/executions", tags=["Registrar la ejecución (QA 6)"])
 settings_router = APIRouter(prefix="/settings", tags=["Ajustes de la sesión"])
 
@@ -726,12 +726,21 @@ def discard(request: Request, conversation_id: str = ConversationId) -> Conversa
 @conversations.post(
     "/{conversation_id}/handoff",
     response_model=HandoffOut,
-    summary="Pasar la HU aprobada a QA (provisional, T-54)",
-    responses={200: _json(ex.dump(ex.HANDOFFS[0])), **AUTH, **NOT_FOUND, **NOT_YET_RESPONSE},
+    summary="Pasar la HU aprobada o publicada a QA (T-54)",
+    description="Deja la HU de esta conversación (aprobada, simulada o publicada) en la lista de "
+    "QA. La HU sale del servidor, nunca de la petición. Sin clave de Jira (aprobada en "
+    "simulación), QA puede generar y revisar casos pero no publicarlos. Repetirlo es idempotente. "
+    "Si la conversación tiene una operación en curso, 409 `not_in_review`.",
+    responses={
+        200: _json(ex.dump(ex.HANDOFFS[0])),
+        **AUTH,
+        **NOT_FOUND,
+        **HANDOFF_CONFLICT,
+    },
 )
 def handoff(request: Request, conversation_id: str = ConversationId) -> HandoffOut:
-    _ctx(request)
-    raise NotImplementedYetError
+    rt, _s, ws, user = _ctx(request)
+    return service.pass_to_qa(rt, ws, user, conversation_id)
 
 
 # --- Revisar la calidad --------------------------------------------------------------------------
@@ -941,18 +950,20 @@ def discard_execution(request: Request, execution_id: str = ExecutionId) -> Exec
     return executions.describe(rt, ws, user, execution_id)
 
 
-# --- QA encadenada (provisional) -----------------------------------------------------------------
+# --- QA encadenada (T-54) -----------------------------------------------------------------------
 
 
 @qa.get(
     "/handoffs",
     response_model=list[HandoffOut],
     summary="HU aprobadas listas para preparar pruebas (rol QA)",
-    responses={200: _json(ex.dump(ex.HANDOFFS)), **AUTH, **NOT_YET_RESPONSE},
+    description="Cualquier persona con rol QA las ve (D-01); solo las de los proyectos que ve la "
+    "conexión de Jira.",
+    responses={200: _json(ex.dump(ex.HANDOFFS)), **AUTH},
 )
 def list_handoffs(request: Request) -> list[HandoffOut]:
-    _ctx(request)
-    raise NotImplementedYetError
+    rt, _s, ws, user = _ctx(request)
+    return service.pending_handoffs(rt, ws, user)
 
 
 @qa.post(
@@ -960,11 +971,17 @@ def list_handoffs(request: Request) -> list[HandoffOut]:
     response_model=ConversationOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Recoger una HU y empezar su conversación de QA",
-    responses={202: _json(ex.dump(ex.CONVERSATION_QA)), **AUTH, **NOT_FOUND, **NOT_YET_RESPONSE},
+    description="Solo una persona puede recogerla: si ya la recogió otra, 409 "
+    "`handoff_unavailable`. Responde 202 con la conversación de QA generando; el avance llega "
+    "por `/conversations/{id}/events`. No relee Jira ni vuelve a estructurar la HU.",
+    responses={202: _json(ex.dump(ex.CONVERSATION_QA)), **AUTH, **HANDOFF_CONFLICT},
 )
-def take_handoff(request: Request, handoff_id: str = Path(pattern=ID_PATTERN)) -> ConversationOut:
-    _ctx(request)
-    raise NotImplementedYetError
+def take_handoff(
+    request: Request, handoff_id: str = Path(pattern=HANDOFF_ID_PATTERN)
+) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    run = service.take(rt, ws, user, handoff_id)
+    return service.conversation_out(rt, ws, user, run.thread_id)
 
 
 # --- Ajustes de la sesión ------------------------------------------------------------------------
@@ -1109,10 +1126,6 @@ def create_app(
         return JSONResponse(
             status_code=422, content=ex.error("invalid_request", _validation_message(exc))
         )
-
-    @app.exception_handler(NotImplementedYetError)
-    async def _not_yet(_request: Any, _exc: NotImplementedYetError) -> JSONResponse:
-        return JSONResponse(status_code=501, content=ex.error("not_implemented", NOT_YET))
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Any, exc: ApiError) -> JSONResponse:

@@ -2773,7 +2773,11 @@ paths:
     post:
       tags:
       - Conversaciones
-      summary: Pasar la HU aprobada a QA (provisional, T-54)
+      summary: Pasar la HU aprobada o publicada a QA (T-54)
+      description: Deja la HU de esta conversación (aprobada, simulada o publicada) en la lista de QA.
+        La HU sale del servidor, nunca de la petición. Sin clave de Jira (aprobada en simulación), QA
+        puede generar y revisar casos pero no publicarlos. Repetirlo es idempotente. Si la conversación
+        tiene una operación en curso, 409 `not_in_review`.
       operationId: handoff_api_v1_conversations__conversation_id__handoff_post
       parameters:
       - name: conversation_id
@@ -2793,7 +2797,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HandoffOut'
               example:
-                id: c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d
+                id: c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d
                 title: Renovar un préstamo
                 project: DEMO
                 story_key: DEMO-3
@@ -2871,14 +2875,14 @@ paths:
                   message: No existe esa conversación o no es tuya.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '501':
-          description: Pendiente del diseño de T-54 (PA-105).
+        '409':
+          description: Ya recogida por otra persona, o la HU no está aprobada o no coincide con la aprobada.
           content:
             application/json:
               example:
                 error:
-                  code: not_implemented
-                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
+                  code: handoff_unavailable
+                  message: 'Esa HU ya no está disponible para QA: puede que la haya recogido otra persona.'
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -3979,8 +3983,10 @@ paths:
   /api/v1/qa/handoffs:
     get:
       tags:
-      - QA encadenada (provisional, T-54)
+      - QA encadenada (T-54)
       summary: HU aprobadas listas para preparar pruebas (rol QA)
+      description: Cualquier persona con rol QA las ve (D-01); solo las de los proyectos que ve la conexión
+        de Jira.
       operationId: list_handoffs_api_v1_qa_handoffs_get
       responses:
         '200':
@@ -3993,7 +3999,7 @@ paths:
                 type: array
                 title: Response List Handoffs Api V1 Qa Handoffs Get
               example:
-              - id: c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d
+              - id: c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d
                 title: Renovar un préstamo
                 project: DEMO
                 story_key: DEMO-3
@@ -4061,23 +4067,16 @@ paths:
                 error:
                   code: service_unavailable
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
-        '501':
-          description: Pendiente del diseño de T-54 (PA-105).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error:
-                  code: not_implemented
-                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
       security:
       - sessionCookie: []
   /api/v1/qa/handoffs/{handoff_id}/take:
     post:
       tags:
-      - QA encadenada (provisional, T-54)
+      - QA encadenada (T-54)
       summary: Recoger una HU y empezar su conversación de QA
+      description: 'Solo una persona puede recogerla: si ya la recogió otra, 409 `handoff_unavailable`.
+        Responde 202 con la conversación de QA generando; el avance llega por `/conversations/{id}/events`.
+        No relee Jira ni vuelve a estructurar la HU.'
       operationId: take_handoff_api_v1_qa_handoffs__handoff_id__take_post
       parameters:
       - name: handoff_id
@@ -4085,7 +4084,7 @@ paths:
         required: true
         schema:
           type: string
-          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          pattern: ^[0-9a-f]{32}$
           title: Handoff Id
       responses:
         '202':
@@ -4175,24 +4174,14 @@ paths:
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+        '409':
+          description: Ya recogida por otra persona, o la HU no está aprobada o no coincide con la aprobada.
           content:
             application/json:
               example:
                 error:
-                  code: not_found
-                  message: No existe esa conversación o no es tuya.
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '501':
-          description: Pendiente del diseño de T-54 (PA-105).
-          content:
-            application/json:
-              example:
-                error:
-                  code: not_implemented
-                  message: Disponible cuando T-54 (QA encadenada) cierre su diseño.
+                  code: handoff_unavailable
+                  message: 'Esa HU ya no está disponible para QA: puede que la haya recogido otra persona.'
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -4983,6 +4972,7 @@ components:
           - http_error
           - not_in_review
           - approval_rejected
+          - handoff_unavailable
           - operation_failed
           - restart
           - too_many_streams
@@ -4994,7 +4984,6 @@ components:
           - coverage_failed
           - quality_failed
           - publish_failed
-          - not_implemented
           - unexpected
           title: Code
           description: Código estable para la UI. `message` ya está en español y listo para mostrar.
@@ -5243,6 +5232,7 @@ components:
       properties:
         id:
           type: string
+          pattern: ^[0-9a-f]{32}$
           title: Id
         title:
           type: string
@@ -5276,6 +5266,7 @@ components:
       - from_user
       - created_at
       title: HandoffOut
+      description: Una HU aprobada o publicada lista para preparar sus pruebas (T-54).
     ImpactAnalysis:
       properties:
         diffs:

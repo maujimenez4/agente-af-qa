@@ -50,6 +50,7 @@ ErrorCode = Literal[
     # estado de la conversación
     "not_in_review",
     "approval_rejected",
+    "handoff_unavailable",
     "operation_failed",
     "restart",
     "too_many_streams",
@@ -64,7 +65,6 @@ ErrorCode = Literal[
     "quality_failed",
     "publish_failed",
     # otros
-    "not_implemented",
     "unexpected",
 ]
 
@@ -360,11 +360,15 @@ class ExecutionOut(BaseModel):
     error: ErrorBody | None = None
 
 
-# --- QA encadenada (provisional: T-54) -----------------------------------------------------------
+# --- QA encadenada (T-54) -----------------------------------------------------------------------
+
+HANDOFF_ID_PATTERN = r"^[0-9a-f]{32}$"
 
 
 class HandoffOut(BaseModel):
-    id: str
+    """Una HU aprobada o publicada lista para preparar sus pruebas (T-54)."""
+
+    id: str = Field(pattern=HANDOFF_ID_PATTERN)
     title: str
     project: str
     story_key: str | None = Field(description="Sin clave si la HU solo se aprobó en simulación.")

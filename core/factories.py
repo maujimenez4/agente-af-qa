@@ -33,6 +33,7 @@ from core.config import AppConfig, ConfigError, Settings
 from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
+from core.handoff import SqlHandoffStore
 from core.impact.versions import StoryVersionStore
 from core.memory.generator import LLMMemoryGenerator
 from core.projects import SqlLastProjectStore
@@ -223,6 +224,11 @@ class PendingMemoryGenerator:
         raise ExternalServiceError(
             "La memoria de la HU publicada llega con T-33.", service="memoria"
         )
+
+
+def build_handoffs(config: AppConfig) -> SqlHandoffStore:
+    """Entregas de HU a QA en `qa_handoffs` (T-54, migración `0005`); va a `build_graph`."""
+    return SqlHandoffStore.from_url(config.settings.sqlalchemy_url())
 
 
 def build_conversations(config: AppConfig) -> SqlConversationStore:

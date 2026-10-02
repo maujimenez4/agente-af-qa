@@ -57,6 +57,11 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
   - un **409** se distingue por `error.code`:
     - `approval_rejected`: el registro de aprobaciones la rechazó; hay que ofrecer «empezar de nuevo»;
     - `not_in_review`: la conversación no está en revisión; hay que actualizar el estado.
+- **QA encadenada (T-54):**
+  - `POST /conversations/{id}/handoff` (analista): pasa a QA la HU aprobada, simulada o publicada; repetirlo es idempotente;
+  - `GET /qa/handoffs` (rol QA): HU pendientes, de cualquier analista, de los proyectos visibles;
+  - `POST /qa/handoffs/{id}/take` (rol QA, id de 32 hex): la recoge una sola persona (si no, 409 `handoff_unavailable`) y responde 202 con la conversación de QA generando;
+  - sin clave de Jira (HU aprobada en simulación), los casos se generan y revisan, pero aprobarlos deja `review.error`: hay que publicar antes la HU y volver a pasarla a QA.
 - **Registrar la ejecución (QA 6, T-47):**
   - `POST /executions` con la HU (su suite tiene que estar publicada en Jira) devuelve los casos y un registro vacío en revisión;
   - `PUT /executions/{id}/results` guarda el borrador (no escribe en Jira) y devuelve una `fingerprint` nueva;
@@ -88,7 +93,7 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
 |---|---|---|
 | 1 | Contrato completo, ejemplos y API simulada | Hecho (las rutas reales responden 501) |
 | 2 | API real sobre el contenedor y el grafo, sesión, CSRF y SSE | Hecha (las revisiones de calidad viven en memoria del proceso, PA-103) |
-| QA encadenada | `/conversations/{id}/handoff` y `/qa/handoffs` | **Provisional** hasta que T-54 cierre su diseño |
+| QA encadenada | `/conversations/{id}/handoff`, `/qa/handoffs` y `/qa/handoffs/{id}/take` | Hecha (T-54 y PA-105) |
 
 **Aún no están en el contrato.** Se añadirán con su tarea; mientras, la pantalla queda «disponible pronto»:
 - registro de la ejecución (QA 6, T-47);

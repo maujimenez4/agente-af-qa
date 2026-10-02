@@ -25,6 +25,7 @@ from core.approvals import ApprovalError
 from core.config import ROOT_DIR
 from core.container import Container
 from core.graph import memory_checkpointer
+from core.handoff import InMemoryHandoffStore
 from schemas.quality import INVEST_NAMES
 from schemas.test_case import TestSuite
 from tests.fakes import dataset
@@ -53,6 +54,7 @@ def composed(monkeypatch: pytest.MonkeyPatch, container: Container) -> Container
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
     return container
 
 
@@ -172,6 +174,7 @@ def test_smoke_compose_failure_shows_message_and_retry(monkeypatch: pytest.Monke
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", failing)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: memory_checkpointer())
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
 
     at = _app()
 
@@ -226,6 +229,7 @@ def qa_composed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Container:
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
     return container
 
 
@@ -357,6 +361,7 @@ def test_smoke_key_of_other_project_changes_and_remembers_project(
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _c: memory_checkpointer())
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
 
     at = _app()
     _login(at, "af-demo", _password("af-demo"))

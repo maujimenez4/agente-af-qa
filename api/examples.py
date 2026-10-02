@@ -342,7 +342,7 @@ EXECUTION_RECORDED = EXECUTION.model_copy(
 )
 HANDOFFS = [
     HandoffOut(
-        id="c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+        id="c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
         title="Renovar un préstamo",
         project="DEMO",
         story_key="DEMO-3",

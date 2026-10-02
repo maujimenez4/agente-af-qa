@@ -21,6 +21,7 @@ from api.models import ErrorBody, ErrorCode
 from core.approvals import ApprovalError
 from core.functional.citations import CitationError
 from core.graph.nodes import ReviewRejectedError
+from core.handoff import HandoffError
 from core.qa.validation import CoverageError
 from core.quality import QualityReviewError
 
@@ -98,6 +99,8 @@ def to_api_error(exc: BaseException) -> ApiError:
         return ApiError(503, "service_unavailable", message)
     if isinstance(exc, ApprovalError):
         return ApiError(409, "approval_rejected", message)
+    if isinstance(exc, HandoffError):
+        return ApiError(409, "handoff_unavailable", message)
     if isinstance(exc, CitationError):
         return ApiError(502, "citation_failed", message)
     if isinstance(exc, CoverageError):

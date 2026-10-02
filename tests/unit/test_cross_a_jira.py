@@ -660,14 +660,6 @@ def test_markdown_to_adf_removes_control_and_bidi_override_chars(char: str) -> N
     assert all(char not in h for h in _hrefs(adf))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-186): las marcas bidi LRM (U+200E), RLM (U+200F) y ALM (U+061C), "
-        "también Bidi_Control de Unicode, no se eliminan ni del ADF ni del título "
-        "(adapters/jira/adf.py:152)"
-    ),
-)
 @pytest.mark.parametrize("char", BIDI_MARKS, ids=[hex(ord(c)) for c in BIDI_MARKS])
 def test_bidi_marks_are_removed_from_adf_and_summary(char: str) -> None:
     """PA-49: ningún carácter Bidi_Control altera el orden visual de lo publicado."""

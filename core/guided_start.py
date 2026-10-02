@@ -19,8 +19,8 @@ from pydantic import BaseModel
 from adapters.base import IssueDetail, IssueSummary
 from adapters.errors import AuthenticationError, ExternalServiceError
 from core.container import Container
-from core.context.service import NOT_STORIES, build_context_service
-from core.graph.state import Origin
+from core.context.service import EPIC_TYPES, NOT_STORIES, build_context_service, type_key
+from core.graph.state import Origin, normalize_excluded_sources
 from core.projects import ISSUE_KEY, normalize_project_key, project_of
 
 MAX_KEYS = 5
@@ -127,9 +127,11 @@ class GuidedStart:
             raise ValueError(
                 f"La incidencia {key} no pertenece al proyecto {origin.get('project')}."
             )
+        # PA-223: mismas reglas que el grafo (limpieza, tope, formato y origen no excluible).
+        cleaned = normalize_excluded_sources(excluded, key)
         origin_issue = self.c.issue_tracker.get_issue(key) if key else None
         gathered = build_context_service(self.c, origin.get("project")).gather(
-            origin, origin_issue, excluded=excluded or []
+            origin, origin_issue, excluded=cleaned
         )
         rows: dict[str, SourcePreview] = {}
         for issue in gathered.jira:
@@ -182,9 +184,9 @@ def _summary(issue: IssueDetail) -> IssueSummary:
 
 def _option_for(issue: IssueDetail, mode: Mode) -> StartOption | None:
     """Opción para una clave reconocida; las subtareas y tareas no son origen."""
-    kind = issue.issue_type.strip().lower()
+    kind = type_key(issue.issue_type)  # PA-223: también «Épica» en NFD
     project = project_of(issue.key)
-    if kind in ("epic", "épica"):
+    if kind in EPIC_TYPES:
         if mode == "qa":
             return None  # «El modo QA parte siempre de una HU existente.»
         return StartOption(

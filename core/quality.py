@@ -10,13 +10,14 @@ aprobación ni publicación y nada se escribe en Jira. Pasos:
 """
 
 import json
+import re
 import time
 from dataclasses import dataclass
 
 from adapters.base import Message, TaskType, User
 from adapters.errors import AgentError
 from core.container import Container
-from core.context.service import build_context_service
+from core.context.service import build_context_service, is_story
 from core.functional.citations import (
     CitationError,
     allowed_refs_text,
@@ -80,6 +81,11 @@ class QualityReviewer:
         origin = {"kind": "story", "key": key, "project": project}
         excluded = normalize_excluded_sources(excluded_sources, key)  # mismas reglas que el grafo
         issue = self.c.issue_tracker.get_issue(key)
+        if not is_story(issue.issue_type):  # PA-222: antes de llamar al LLM
+            raise QualityReviewError(
+                f"{key} es de tipo «{issue.issue_type[:40]}»: la revisión de calidad solo se hace "
+                "sobre historias de usuario."
+            )
         gathered = build_context_service(self.c, project).gather(origin, issue, excluded=excluded)
         ctx = StoryContext(
             origin_kind="story",
@@ -164,6 +170,9 @@ class QualityReviewer:
         return report, result.provider, result.model, prompt.version, tokens_in, tokens_out
 
 
+_TRACE_ID = re.compile(r"\b(?:CA|RN)-\d+\b")  # IDs citados en el texto libre (PA-222)
+
+
 def report_errors(report: QualityReport, story: UserStory, sources: list) -> list[str]:
     """Problemas del informe; lista vacía si es válido (citas e IDs de la HU)."""
     ids = {c.id for c in story.acceptance_criteria} | {r.id for r in story.business_rules}
@@ -171,6 +180,12 @@ def report_errors(report: QualityReport, story: UserStory, sources: list) -> lis
     for finding in report.findings:
         if finding.target_id and finding.target_id not in ids:
             errors.append(f"«{finding.target_id}» no es un criterio ni una regla de la HU")
+    # PA-222: los CA y RN citados en el texto libre también deben existir en la HU.
+    texts = [report.summary, *report.open_questions]
+    texts += [t for f in report.findings for t in (f.explanation, f.proposal)]
+    cited = dict.fromkeys(m.group(0) for text in texts for m in _TRACE_ID.finditer(text))
+    unknown = [i for i in cited if i not in ids]
+    errors += [f"«{i}» se cita en el informe pero no existe en la HU" for i in unknown]
     return errors
 
 

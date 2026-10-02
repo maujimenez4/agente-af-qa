@@ -61,7 +61,7 @@ Acordado con la sesión principal en la PR #2 (PA-303).
 
 - 2 caracteres cada 35 ms, como en el lienzo, con el caret parpadeando. Si la respuesta es larga, se escriben más caracteres por paso para que la escritura no pase de 1,5 s.
 - Mientras tanto, la Q de 18 px con «Escribiendo la respuesta».
-- **Accesibilidad:** la animación es solo visual (`aria-hidden`). El texto completo se anuncia una sola vez en una región `aria-live="polite"`.
+- **Accesibilidad:** la animación es solo visual (`aria-hidden`). El texto completo está desde el principio en un nodo oculto para lectores de pantalla, y lo anuncia una sola vez el contenedor del chat (`role="log"`, que ya es `aria-live="polite"`) al añadirse el mensaje. «Escribiendo la respuesta» va en un `role="status"`.
 - **Reducir movimiento:** el texto aparece completo de inmediato, sin caret.
 
 ## 4. Cómo habla con la API (contrato de T-55, `docs/api/openapi.yaml`)

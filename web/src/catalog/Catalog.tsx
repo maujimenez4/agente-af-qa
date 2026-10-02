@@ -1,6 +1,7 @@
 import { Icon, ICON_NAMES } from '../components/Icon/index.ts'
 import styles from './Catalog.module.css'
 import { COLOR_GROUPS, TYPE_SCALE } from './catalogTokens.ts'
+import { QDemo } from './QDemo.tsx'
 
 // Catálogo del sistema de diseño (T-56): página de revisión visual de las piezas.
 export function Catalog() {
@@ -12,6 +13,8 @@ export function Catalog() {
           Piezas del frontend del Agente AF y QA. Decisiones en web/DESIGN-DECISIONS.md.
         </p>
       </header>
+
+      <QDemo />
 
       <section className={styles.section} aria-labelledby="colores">
         <h2 id="colores" className={styles.sectionTitle}>

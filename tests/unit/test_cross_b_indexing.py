@@ -281,3 +281,24 @@ def test_indexing_main_prints_spanish_error_when_external_service_fails(
 
     assert code != 0
     assert "No se pudo guardar" in capsys.readouterr().err
+
+
+def test_indexing_main_prints_spanish_error_when_config_is_invalid(
+    tmp_path: Path,
+    cli: dict[str, object],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-217: un `ConfigError` (no es `AgentError`) también sale como mensaje, sin traceback."""
+    import core.config
+    import core.rag.indexing as indexing
+
+    def broken() -> None:
+        raise core.config.ConfigError("Falta configurar el modelo de embeddings ficticio.")
+
+    monkeypatch.setattr(core.config, "build_config", broken)
+    code = indexing.main([str(_corpus(tmp_path / "corpus"))])
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Falta configurar" in err and "Traceback" not in err

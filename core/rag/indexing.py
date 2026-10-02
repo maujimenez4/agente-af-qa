@@ -126,7 +126,7 @@ class CorpusIndexer:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from core.config import build_config
+    from core.config import ConfigError, build_config
     from core.factories import build_embeddings, build_llm_provider, build_vector_store
     from core.rag.chunking import chunk_with_config
 
@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
             build_vector_store(config),
         )
         report = indexer.index_dir(root)
-    except AgentError as exc:  # PA-217: mensaje en español, sin traceback
+    except (AgentError, ConfigError) as exc:  # PA-217: mensaje en español, sin traceback
         print(f"No se ha completado la indexación: {exc}", file=sys.stderr)
         return 1
     categories = ", ".join(f"{k}: {v}" for k, v in sorted(report.by_category.items()))

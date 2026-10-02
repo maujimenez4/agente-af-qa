@@ -260,3 +260,42 @@ def test_request_timeout_reaches_the_sdk_client() -> None:
     config = AppConfig(Settings(_env_file=None), load_models_config())  # type: ignore[call-arg]
     provider = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
     assert provider._client.timeout == 600
+
+
+def test_max_output_tokens_per_task_reach_the_provider() -> None:
+    """Tope de salida por tarea: la HU acotada deja sitio al reintento en la ventana local."""
+    from adapters.base import TaskType
+    from adapters.llm.router import ModelChoice
+    from core.factories import _openai_factory
+
+    models = load_models_config()
+    assert models.limits.max_output_tokens[TaskType.GENERATE_STORY] == 2500
+    assert load_models_config(GROQ_MODELS).limits.max_output_tokens == {}  # sin tope
+    config = AppConfig(Settings(_env_file=None), models)  # type: ignore[call-arg]
+    provider = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
+    assert provider._max_output_tokens[TaskType.GENERATE_STORY] == 2500
+
+
+def test_provider_sends_max_tokens_only_for_tasks_with_a_cap() -> None:
+    from unittest.mock import MagicMock
+
+    from adapters.base import Message, TaskType
+    from adapters.llm.openai_compatible import OpenAICompatibleProvider
+    from core.factories import structured_prompts
+
+    client = MagicMock()
+    client.chat.completions.create.return_value.choices = [MagicMock()]
+    client.chat.completions.create.return_value.choices[0].message.content = "hola"
+    client.chat.completions.create.return_value.usage.prompt_tokens = 3
+    client.chat.completions.create.return_value.usage.completion_tokens = 1
+    provider = OpenAICompatibleProvider(
+        "local",
+        "m",
+        client,
+        prompts=structured_prompts(),
+        max_output_tokens={TaskType.CLASSIFY_SOURCE: 200},
+    )
+    provider.generate([Message(role="user", content="x")], TaskType.CLASSIFY_SOURCE)
+    assert client.chat.completions.create.call_args.kwargs["max_tokens"] == 200
+    provider.generate([Message(role="user", content="x")], TaskType.NL_TO_JQL)
+    assert "max_tokens" not in client.chat.completions.create.call_args.kwargs

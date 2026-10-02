@@ -6,7 +6,7 @@ import pytest
 
 from adapters.errors import AgentError, ExternalServiceError, PublishError
 from core import factories
-from core.config import ROOT_DIR, AppConfig, ConfigError, Settings, load_models_config
+from core.config import ROOT_DIR, AppConfig, Settings, load_models_config
 from core.container import Container
 from core.memory.generator import LLMMemoryGenerator
 from tests.fakes.llm import renewal_test_suite
@@ -24,12 +24,28 @@ def test_pending_test_management_does_not_pretend_there_are_no_cases() -> None:
         factories.PendingTestManagement().list_cases("DEMO-3")
 
 
-def test_build_app_container_refuses_live_mode_until_writes_are_validated() -> None:
-    """`live` queda bloqueado hasta validar la escritura real en el sandbox de Jira."""
+def test_build_app_container_allows_live_mode_since_writes_were_validated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Escritura validada en el sandbox (2026-10-02): `live` se compone si el `.env` lo pide."""
+    for name in (
+        "build_issue_tracker",
+        "build_llm_provider",
+        "build_embeddings",
+        "build_vector_store",
+        "build_auth",
+        "build_audit",
+        "build_versions",
+        "build_state_store",
+        "build_last_projects",
+        "build_conversations",
+        "build_test_management",
+    ):
+        monkeypatch.setattr(factories, name, lambda *a, **k: object())
+    monkeypatch.setattr("core.container.bootstrap_logging", lambda _config: None)
     settings = Settings(_env_file=None, jira_publish_mode="live")  # type: ignore[call-arg]
     config = AppConfig(settings, load_models_config(MODELS_FIXTURE))
-    with pytest.raises(ConfigError, match="sandbox"):
-        factories.build_app_container(config)
+    assert factories.build_app_container(config).publish_mode == "live"
 
 
 def test_pending_memory_generator_fails_as_agent_error() -> None:

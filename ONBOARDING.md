@@ -182,7 +182,7 @@ Si necesitas un cambio en el contrato de la API, lo propones con una `PA` y la p
 - **Python, `uv` y Docker** te harán falta para la integración con la API real y para el resto del área B. Mientras tanto, la principal ejecuta las pruebas de la integración.
 
 ### Cómo trabajas
-- **Rama:** la tuya es `area-b`, creada desde `PreProduccion`.
+- **Rama:** la tuya es `area-b`, ya creada en GitHub desde `PreProduccion`, con una **PR en borrador `area-b → PreProduccion`** donde vas subiendo el frontend y la principal lo revisa.
 - **Tus sesiones de Claude Code:** las diriges tú, con el flujo `/tarea` y los revisores (`spec-checker` y `security-reviewer`). Tu prompt de arranque es `docs/prompts/RESPONSABLE-AREA-B.md`.
 - **Pruebas del frontend:** Vitest y Testing Library para los componentes, y un `lint` y un `build` sin errores antes de cada entrega.
 - **Entregas:** `git push origin area-b` y avisas. La principal valida la fusión e integra.

@@ -1,71 +1,57 @@
-# SESIÓN OLLAMA · Prueba real de punta a punta con modelos locales
+# SESIÓN OLLAMA · Ronda 2: elegir un modelo local más rápido y repetir la prueba de punta a punta
 
-Pega como mensaje en la sesión de Ollama (trabaja en la carpeta principal, rama `PreProduccion`) todo lo que hay debajo de la línea.
+Pega como mensaje en la sesión de Ollama (carpeta principal, rama `PreProduccion`) todo lo que hay debajo de la línea. Antes, trae lo último: `git pull origin PreProduccion`.
 
 ---
 
-Ahora toca **la prueba real de punta a punta** del agente con los modelos locales de Ollama. Tu objetivo es **medir y documentar**, no arreglar: si algo falla, lo diagnosticas, lo anotas y me avisas; la sesión principal corrige el código.
+Tu diagnóstico fue muy útil: con `qwen3:4b-instruct` en CPU (~3,5 tokens/s) una HU tardó casi 19 min en una llamada y el reintento no cabía en 8192 de contexto.
 
-## Contexto (ya está en `PreProduccion`)
-- **`config/models.yaml` es ya la variante local:** `qwen3:4b-instruct` para todas las tareas y `bge-m3` para los embeddings, sin respaldo en la nube. La de Groq está en `config/models.groq.yaml`.
-  - Si el `.env` tiene `MODELS_CONFIG_PATH=config/models.local.yaml`, pídeme que quite esa línea (yo edito el `.env`, tú no lo leas).
-- **El grafo completo funciona con fakes:** origen, contexto, generación, revisión humana con huella, publicación (en `JIRA_PUBLISH_MODE=simulation` no escribe en Jira) y memoria.
-- **Ya hechos:**
-  - conversaciones persistentes (`core/factories.build_checkpointer`, `core/conversations`);
-  - arranque guiado (`core/guided_start`);
-  - revisión de calidad (`core/quality.QualityReviewer`);
-  - modo QA con `TestWriter`;
-  - generador de memoria (T-33, pendiente de fusionar).
-- **Sospecha principal:** `adapters/llm/openai_compatible.py` corta cada llamada a los **60 s** (`_DEFAULT_TIMEOUT_S`). Con `qwen3:4b-instruct` en CPU, una HU completa en JSON puede tardar más. Confírmalo o descártalo lo primero.
+**Ya está en `PreProduccion`:**
+- **`limits.request_timeout_s`** (600 s) en `config/models.yaml`.
+- **`limits.max_output_tokens`** por tarea: HU 2500, suite 3000, revisión 2000, impacto 800, memoria 1200, clasificar y JQL 200. Se envía como `max_tokens` a la API.
+- **`JIRA_PUBLISH_MODE=live`** ya no está bloqueado, pero seguimos en `simulation`.
 
-## Pasos (en orden; para en el primero que falle y avísame)
-1. **Entorno:**
-   - `docker compose --profile local-llm up -d db ollama`;
-   - comprueba que `docker compose exec ollama ollama list` muestra `qwen3:4b-instruct` y `bge-m3`;
-   - ejecuta `uv run alembic upgrade head` (debe llegar a `0004_conversations`) y `uv run pytest -m "not integration"` (en verde).
-2. **Una llamada mínima al LLM local:** `uv run pytest -m integration tests/integration/test_llm_live.py -s`. Anota el tiempo.
-   - Después mide **una salida estructurada grande** (una `UserStory`) con un script de un solo uso, sin guardarlo en el repo, y anota cuánto tarda.
-   - Si pasa de 60 s, **para y avísame**: haré configurable el tiempo de espera. No lo cambies tú.
-3. **Lecturas reales** (sin LLM): `uv run pytest -m integration tests/integration/test_jira_live.py tests/integration/test_context_live.py`.
-   - Si el sandbox de Jira no tiene el seed (T-15, importable por CSV desde `data/seed/jira/`), avísame.
-4. **Pruebas reales con LLM**, una a una, anotando el tiempo de cada una:
-   - `tests/integration/test_functional_live.py`;
-   - `tests/integration/test_impact_live.py`;
-   - `tests/integration/test_qa_live.py`.
-5. **Punta a punta con el grafo real:** crea `eval/e2e_local.py`, con `__main__` y un argumento para elegir el escenario.
-   - **Composición:** `build_config()`, `model_router(config)`, `build_app_container(config, router=router)`, `build_checkpointer(config)` y `build_graph(container, checkpointer=...)`, con `new_conversation_config(user)` y `initial_state(...)`. Usuarios: los de demo (`af-demo`, `qa-demo`); no hace falta login.
-   - **Escenarios:**
-     - (a) **necesidad nueva** en el proyecto de `JIRA_PROJECT_KEY`;
-     - (b) **evolucionar** una HU del seed;
-     - (c) **QA** sobre esa HU;
-     - (d) **iterar** una vez con feedback y aprobar;
-     - (e) **`QualityReviewer`** sobre una HU del seed;
-     - (f) **`GuidedStart.propose`** con un texto que nombre una clave en minúsculas.
-   - **Qué imprimir de cada escenario:**
-     - nodos recorridos y **tiempo por nodo**;
-     - versión, número de CA y RN, fuentes citadas, `plan` y tokens (`model_used`);
-     - aprobación con la huella del payload;
-     - en la auditoría, un `publish` con `simulated=true`;
-     - el estado en `container.conversations.list_for(user)`.
-   - **Prohibido:** nunca `live`. Ninguna escritura en Jira.
-6. **La UI a mano:** `uv run streamlit run app/main.py`. Recorre login → nueva necesidad → generar → iterar con el usuario `af-demo`; las contraseñas de demo las tengo yo. Anota lo que no funcione.
-7. **Informe:** escribe `docs/pruebas/E2E-local-2026-10-01.md` con:
-   - entorno (CPU, RAM, versión de Ollama);
-   - resultado y tiempo de cada paso;
-   - calidad de las salidas: si las HU citan bien, si el JSON es válido a la primera o necesita reintentos, y si hay errores de cobertura o de citas;
-   - los fallos con su traza resumida, sin secretos, y tu diagnóstico;
-   - propuestas de mejora.
+**Decisión del usuario:** **probar un modelo local más pequeño** para que la demo sea viable con CPU.
+
+## Fase 1 · Elegir el modelo (mide y documenta; no cambies código)
+1. **Candidatos** (ajusta según lo que haya en Ollama): `qwen3:1.7b`, `qwen2.5:3b-instruct`, `llama3.2:3b` y `phi4-mini`, más `qwen3:4b-instruct` como referencia con el tope nuevo. Descárgalos con `docker compose exec ollama ollama pull <modelo>`.
+2. **Mismo caso para todos:** `StoryWriter.generate` con la necesidad de ejemplo del corpus y su contexto real del RAG. Hazlo con un script de un solo uso que **guarde la salida en bruto** en `docs/pruebas/salidas/` (sin secretos) y lo apunte:
+   - tokens/s y tiempo total;
+   - tokens de salida;
+   - si el JSON es válido a la primera o necesita reintento;
+   - si las citas son correctas o salta `CitationError`;
+   - una valoración breve de la calidad en español: CA en Gherkin con sentido y sin repetirse.
+3. **Ventana de contexto:** si el reintento sigue sin caber, prueba `OLLAMA_CONTEXT_LENGTH=16384` en `docker-compose.yml` y anota la RAM.
+4. **Antes de cambiar nada, avísame con una tabla comparativa y tu recomendación.**
+
+## Fase 2 · Aplicar el modelo elegido (cuando yo lo confirme)
+- Cambia en `config/models.yaml` las cadenas de las tareas al modelo elegido. Puedes dejar `qwen3:4b-instruct` como respaldo en las tareas que lo necesiten.
+- Ajusta `request_timeout_s`, `max_output_tokens` y, si hace falta, `OLLAMA_CONTEXT_LENGTH`, con los valores medidos.
+- `uv run pytest -m "not integration"` debe seguir en verde: hay pruebas que leen `config/models.yaml`. Haz commit solo de `config/models.yaml` y `docker-compose.yml`.
+
+## Fase 3 · Prueba de punta a punta (como en la ronda anterior)
+Retoma los pasos 3 a 7 del encargo anterior:
+- lecturas reales;
+- pruebas `integration` con LLM;
+- `eval/e2e_local.py` con los escenarios (a) a (f);
+- la UI a mano;
+- el informe `docs/pruebas/E2E-local-2026-10-02.md`.
+
+Con el modelo nuevo debería llevar minutos por escenario, no horas.
 
 ## Reglas
-- **Trabajas en la carpeta principal, en `PreProduccion`, la misma que la sesión principal.** Solo creas `eval/e2e_local.py` y `docs/pruebas/E2E-local-2026-10-01.md`.
-  - No toques `core/`, `adapters/`, `app/`, `schemas/`, `prompts/`, `config/`, `migrations/` ni `docs/KANBAN.md`.
-  - Si una corrección es necesaria, descríbela en el informe y avísame.
-- No leas ni muestres el `.env`. En el informe no van claves, tokens ni URLs con credenciales.
-- `JIRA_PUBLISH_MODE=simulation` siempre: nada escribe en Jira.
-- No mates procesos globales (nada de `taskkill` ni `pkill`). Si Ollama se queda colgado, reinícialo con `docker compose restart ollama`.
-- **Al terminar:**
-  - `uv run ruff check eval/e2e_local.py` y `uv run ruff format eval/e2e_local.py`;
-  - commit **solo** de esos dos archivos, con el mensaje `E2E: prueba de punta a punta con modelos locales de Ollama [RNF-09, RNF-10]`;
-  - sin push. Avísame con el resumen.
+- **Solo creas o cambias:**
+  - `config/models.yaml` y `docker-compose.yml` (fase 2);
+  - `eval/e2e_local.py`;
+  - `docs/pruebas/` (informe y salidas en bruto).
 
-Empieza por los pasos 1 y 2 y dime los tiempos antes de seguir.
+  No toques `core/`, `adapters/`, `app/`, `web/`, `schemas/`, `prompts/` ni `docs/KANBAN.md`.
+- No leas ni muestres el `.env`.
+- `JIRA_PUBLISH_MODE=simulation` siempre.
+- No mates procesos globales: si Ollama se cuelga, `docker compose restart ollama`.
+- **Commits:**
+  - fase 2: `Modelos: <modelo elegido> en local con topes medidos [RNF-09, RNF-10]`;
+  - fase 3: `E2E: prueba de punta a punta con modelos locales [RNF-09, RNF-10]`;
+  - sin push. Avísame.
+
+Empieza por la fase 1 y dame la tabla comparativa antes de cambiar nada.

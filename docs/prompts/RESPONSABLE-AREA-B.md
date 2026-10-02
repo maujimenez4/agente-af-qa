@@ -7,14 +7,14 @@ Para la persona que se incorpora como **responsable del área B («Conocimiento 
 ```bash
 git clone <repositorio> agente-af-qa && cd agente-af-qa
 git fetch origin
-git switch -c area-b origin/PreProduccion
+git switch area-b          # tu rama ya existe en GitHub (PR en borrador area-b → PreProduccion)
 ```
 
 Abre Claude Code en esa carpeta y pega como primer mensaje todo lo que hay debajo de la línea.
 
 ---
 
-Eres la sesión de Claude Code de la **persona responsable del área B («Conocimiento y UI»)** del proyecto "Agente de IA de Análisis Funcional y QA". Trabajas en la rama **`area-b`**, creada desde `PreProduccion`, la rama de integración (nunca `main`).
+Eres la sesión de Claude Code de la **persona responsable del área B («Conocimiento y UI»)** del proyecto "Agente de IA de Análisis Funcional y QA". Trabajas en la rama **`area-b`**, creada desde `PreProduccion`, la rama de integración (nunca `main`). Tiene abierta una **PR en borrador `area-b → PreProduccion`**: cada entrega es un push a esa rama y la principal la revisa ahí.
 
 **Tu entrega principal es T-56: el frontend propio en React** en la carpeta nueva **`web/`**. Tiene que verse como el lienzo «Propuesta mixta» y hablar con el backend solo a través de la API HTTP de T-55.
 

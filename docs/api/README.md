@@ -57,6 +57,8 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
   - un **409** se distingue por `error.code`:
     - `approval_rejected`: el registro de aprobaciones la rechazó; hay que ofrecer «empezar de nuevo»;
     - `not_in_review`: la conversación no está en revisión; hay que actualizar el estado.
+- **Panel «Antes de generar» (PA-102):** `POST /start/sources` devuelve `{sources, budget}`; `budget.used`/`budget.limit` son tokens estimados frente a los disponibles, y `dropped_sources` las fuentes que no caben y no se enviarán al LLM.
+- **Ficha de una HU (PA-104):** `GET /issues/{key}` añade `test_cases` (subtareas CP en Jira; `null` si no se pudo consultar) y `published_by_agent` (`null` si no se sabe).
 - **QA encadenada (T-54):**
   - `POST /conversations/{id}/handoff` (analista): pasa a QA la HU aprobada, simulada o publicada; repetirlo es idempotente;
   - `GET /qa/handoffs` (rol QA): HU pendientes, de cualquier analista, de los proyectos visibles;
@@ -102,7 +104,5 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
 - pestaña Memoria (T-33);
 - administración (T-29);
 - revisiones de calidad en la lista de conversaciones;
-- presupuesto de tokens del panel de fuentes;
-- si la HU ya tiene casos en Jira (tarjeta de QA 1).
 
 Requisitos de seguridad de la parte 2: `docs/api/requisitos-parte-2.md`.

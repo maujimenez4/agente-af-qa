@@ -1331,7 +1331,7 @@ def test_issue_card_missing_issue_is_404(api: Api) -> None:
 def test_sources_marks_origin_row_as_required(api: Api) -> None:
     """T-51: la fila de la incidencia de origen es `required`; el resto se puede desmarcar."""
     body = {"origin": {"kind": "story", "key": "DEMO-3", "project": "DEMO"}}
-    rows = api.post("/start/sources", body).json()
+    rows = api.post("/start/sources", body).json()["sources"]
     required = [r for r in rows if r["required"]]
     assert [r["ref"] for r in required] == ["DEMO-3"]
     assert {"DEMO-2", "doc-reglamento"} <= {r["ref"] for r in rows}
@@ -1343,7 +1343,7 @@ def test_sources_excluded_rows_are_left_out(api: Api) -> None:
         "origin": {"kind": "story", "key": "DEMO-3", "project": "DEMO"},
         "excluded_sources": ["DEMO-2", "doc-glosario"],
     }
-    refs = {r["ref"] for r in api.post("/start/sources", body).json()}
+    refs = {r["ref"] for r in api.post("/start/sources", body).json()["sources"]}
     assert "DEMO-3" in refs and "DEMO-2" not in refs and "doc-glosario" not in refs
 
 
@@ -1609,3 +1609,78 @@ def test_usage_today_database_error_is_503(api: Api, rt: Runtime) -> None:
     response = api.get("/settings/usage")
     assert response.status_code == 503
     assert "detalle-interno-ficticio" not in response.text
+
+
+# --- PA-102 y PA-104 (para el frontend) --------------------------------------------------------
+
+
+def test_sources_include_the_context_budget(api: Api) -> None:
+    """PA-102: la vista previa trae el presupuesto de tokens (usado frente a disponible)."""
+    body = {"origin": {"kind": "story", "key": "DEMO-3", "project": "DEMO"}}
+    budget = api.post("/start/sources", body).json()["budget"]
+    assert set(budget) == {"used", "limit", "dropped_sources", "truncated_sources"}
+    assert 0 < budget["used"] <= budget["limit"]
+
+
+def test_issue_card_counts_test_cases_in_jira(tmp_path: Path) -> None:
+    """PA-104: la ficha indica cuántas subtareas CP tiene la HU en Jira."""
+    from adapters.base import IssueSummary
+    from tests.fakes.test_management import FakeTestManagement
+
+    testmgmt = FakeTestManagement()
+    testmgmt.cases["DEMO-3"] = [
+        IssueSummary(key="DEMO-901", summary="[CP-01] Ficticio", issue_type="Subtarea", status="x")
+    ]
+    a = Api(fake_runtime(tmp_path, test_management=testmgmt))
+    a.login()
+    card = a.get("/issues/DEMO-3").json()
+    assert card["test_cases"] == 1
+    assert card["published_by_agent"] is None  # sin almacén de versiones en los fakes
+
+
+def test_issue_card_test_cases_is_null_when_jira_fails(tmp_path: Path) -> None:
+    """PA-104 (error): si la consulta de casos falla, `test_cases` es null y la ficha sale igual."""
+    from adapters.errors import ExternalServiceError
+    from tests.fakes.test_management import FakeTestManagement
+
+    class Failing(FakeTestManagement):
+        def list_cases(self, story_key: str) -> list:  # type: ignore[override]
+            raise ExternalServiceError("Jira no responde (ficticio).", service="jira")
+
+    a = Api(fake_runtime(tmp_path, test_management=Failing()))
+    a.login()
+    response = a.get("/issues/DEMO-3")
+    assert response.status_code == 200
+    assert response.json()["test_cases"] is None
+
+
+def test_issue_card_published_by_agent_comes_from_the_version_store(tmp_path: Path) -> None:
+    """PA-104: «Publicada por el agente» sale del almacén de versiones (tabla `artifacts`)."""
+
+    class Versions:
+        def save(self, artifact: object) -> None: ...
+        def update_status(self, *_a: object, **_k: object) -> None: ...
+        def published_by_agent(self, jira_key: str) -> bool:
+            return jira_key == "DEMO-3"
+
+    a = Api(fake_runtime(tmp_path, versions=Versions()))
+    a.login()
+    assert a.get("/issues/DEMO-3").json()["published_by_agent"] is True
+    assert a.get("/issues/DEMO-4").json()["published_by_agent"] is False
+
+
+def test_issue_card_published_by_agent_is_null_when_the_store_fails(tmp_path: Path) -> None:
+    """PA-104 (error): si el almacén de versiones falla, `published_by_agent` es null."""
+    from adapters.errors import ExternalServiceError
+
+    class Broken:
+        def save(self, artifact: object) -> None: ...
+        def update_status(self, *_a: object, **_k: object) -> None: ...
+        def published_by_agent(self, jira_key: str) -> bool:
+            raise ExternalServiceError("Base de datos ficticia caída.", service="postgres")
+
+    a = Api(fake_runtime(tmp_path, versions=Broken()))
+    a.login()
+    response = a.get("/issues/DEMO-3")
+    assert response.status_code == 200
+    assert response.json()["published_by_agent"] is None

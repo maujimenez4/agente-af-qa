@@ -134,6 +134,16 @@ class IssueCard(BaseModel):
     epic_key: str | None = None
     criteria_count: int = Field(ge=0, description="CA contados en la descripción, sin IA.")
     rules_count: int = Field(ge=0, description="RN contadas en la descripción, sin IA.")
+    test_cases: int | None = Field(
+        default=None,
+        ge=0,
+        description="Subtareas CP («caso-prueba») de la HU en Jira (PA-104); `null` si no se "
+        "pudo consultar.",
+    )
+    published_by_agent: bool | None = Field(
+        default=None,
+        description="El agente publicó esta HU en Jira (PA-104); `null` si no se sabe.",
+    )
 
 
 # --- Arranque guiado -----------------------------------------------------------------------------
@@ -150,6 +160,22 @@ class ProposeIn(BaseModel):
     text: str = Field(max_length=4000)
     project: str = Field(pattern=PROJECT_PATTERN, max_length=50)
     mode: Mode = "functional"
+
+
+class ContextBudgetOut(BaseModel):
+    """Presupuesto de tokens del contexto que se enviará al LLM (PA-102)."""
+
+    used: int = Field(ge=0, description="Tokens estimados de las fuentes seleccionadas.")
+    limit: int = Field(ge=0, description="Tokens disponibles para las fuentes.")
+    dropped_sources: int = Field(
+        ge=0, description="Fuentes que no caben y no se enviarán (incidencias y fragmentos)."
+    )
+    truncated_sources: int = Field(ge=0, description="Incidencias recortadas para que quepan.")
+
+
+class SourcesOut(BaseModel):
+    sources: list[SourcePreview]
+    budget: ContextBudgetOut
 
 
 class SourcesIn(BaseModel):

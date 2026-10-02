@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from adapters.base import IssueDetail, IssueSummary
 from adapters.errors import AuthenticationError, ExternalServiceError
 from core.container import Container
+from core.context.budget import BudgetReport
 from core.context.service import EPIC_TYPES, NOT_STORIES, build_context_service, type_key
 from core.graph.state import Origin, normalize_excluded_sources
 from core.projects import ISSUE_KEY, normalize_project_key, project_of
@@ -122,6 +123,12 @@ class GuidedStart:
         self, origin: Origin, excluded: list[str] | None = None
     ) -> list[SourcePreview]:
         """Fuentes que usaría la propuesta (las mismas que reunirá `retrieve_context`)."""
+        return self.preview_sources_with_budget(origin, excluded)[0]
+
+    def preview_sources_with_budget(
+        self, origin: Origin, excluded: list[str] | None = None
+    ) -> tuple[list[SourcePreview], BudgetReport]:
+        """Fuentes y presupuesto de tokens del contexto (PA-102, panel «Antes de generar»)."""
         key = origin.get("key")
         if key and project_of(key) != origin.get("project"):
             raise ValueError(
@@ -156,7 +163,7 @@ class GuidedStart:
                     category=meta.get("category"),
                 ),
             )
-        return list(rows.values())
+        return list(rows.values()), gathered.budget
 
     def _existing(self, key: str) -> IssueDetail | None:
         """La incidencia si existe; un 429 o 5xx en una clave no corta la propuesta (401/403 sí)."""

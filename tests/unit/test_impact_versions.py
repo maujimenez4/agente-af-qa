@@ -402,3 +402,16 @@ def test_versions_are_isolated_per_artifact(store: StoryVersionStore) -> None:
     store.save(_story_artifact(second, 1, renewal_story(jira_key="DEMO-4")))
     assert store.versions(first) == [1, 2]
     assert store.versions(second) == [1]
+
+
+@pytest.mark.integration
+def test_published_by_agent_only_for_published_user_stories(store: StoryVersionStore) -> None:
+    """PA-104: «Publicada por el agente» solo si una HU con esa clave consta como publicada."""
+    artifact_id = uuid4()
+    store.save(_story_artifact(artifact_id, 1, renewal_story()))
+    key = f"PAQ{artifact_id.hex[:6].upper()}-1"  # clave ficticia y única por ejecución
+    assert store.published_by_agent(key) is False
+    store.update_status(artifact_id, "approved", key)
+    assert store.published_by_agent(key) is False
+    store.update_status(artifact_id, "published", key)
+    assert store.published_by_agent(key) is True

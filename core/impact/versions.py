@@ -126,6 +126,18 @@ class StoryVersionStore:
         with self._transaction() as conn:
             conn.execute(ARTIFACTS.update().where(ARTIFACTS.c.id == artifact_id).values(**values))
 
+    def published_by_agent(self, jira_key: str) -> bool:
+        """El agente publicó en Jira una HU con esta clave (PA-104, tarjeta de QA 1)."""
+        query = sa.select(
+            sa.exists().where(
+                ARTIFACTS.c.jira_key == jira_key,
+                ARTIFACTS.c.type == "user_story",
+                ARTIFACTS.c.status == "published",
+            )
+        )
+        with self._transaction() as conn:
+            return bool(conn.execute(query).scalar())
+
     def versions(self, artifact_id: UUID) -> list[int]:
         query = (
             sa.select(ARTIFACT_VERSIONS.c.version)

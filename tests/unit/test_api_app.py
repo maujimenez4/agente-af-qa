@@ -1532,3 +1532,74 @@ def test_logout_expires_cookie_with_same_attributes(api: Api) -> None:
     assert parts[0].startswith(f"{COOKIE}=")
     for attribute in ("secure", "httponly", "samesite=strict", "path=/api", "max-age=0"):
         assert attribute in parts, parts
+
+
+# --- PA-305 y PA-307 (comentario del PR de T-56) ---------------------------------------------
+
+
+def test_usage_today_sums_only_todays_calls(api: Api, rt: Runtime) -> None:
+    """PA-305: el anillo del carril recibe los tokens de hoy y el umbral de aviso."""
+    from datetime import UTC, datetime, timedelta
+
+    from adapters.base import TaskType
+    from adapters.llm.usage import UsageRecord
+    from core.usage import InMemoryUsageQueries
+
+    now = datetime.now(UTC)
+    records = [
+        UsageRecord(TaskType.GENERATE_STORY, "ollama", "modelo-ficticio-a", 100, 50, 10, at=now),
+        UsageRecord(
+            TaskType.GENERATE_STORY,
+            "ollama",
+            "modelo-ficticio-a",
+            900,
+            900,
+            10,
+            at=now - timedelta(days=2),
+        ),
+    ]
+    rt.usage = InMemoryUsageQueries(lambda: records)
+    rt.token_warning = 1000
+    body = api.get("/settings/usage").json()
+    assert body == {"tokens_today": 150, "warning_threshold": 1000, "scope": "global"}
+
+
+def test_usage_today_without_registry_is_503(api: Api, rt: Runtime) -> None:
+    rt.usage = None
+    response = api.get("/settings/usage")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "service_unavailable"
+
+
+def test_sse_progress_event_is_a_full_progress_step(api: Api) -> None:
+    """PA-307: `data` de `progress` es un `ProgressStep` completo (con `label`)."""
+    import json
+
+    cid = api.post("/conversations", EVOLVE).json()["id"]
+    api.post(f"/conversations/{cid}/discard")
+    with api.client.stream("GET", f"{API_PREFIX}/conversations/{cid}/events") as resp:
+        lines = list(resp.iter_lines())
+    progress = [
+        json.loads(lines[i + 1].removeprefix("data: "))
+        for i, line in enumerate(lines)
+        if line == "event: progress"
+    ]
+    assert progress
+    assert all(set(p) == {"node", "label", "state"} and p["label"] for p in progress)
+
+
+def test_usage_today_requires_session(rt: Runtime) -> None:
+    assert Api(rt).get("/settings/usage").status_code == 401
+
+
+def test_usage_today_database_error_is_503(api: Api, rt: Runtime) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    class Broken:
+        def calls(self, *_a: object, **_k: object) -> list[object]:
+            raise OperationalError("SELECT", {}, Exception("detalle-interno-ficticio"))
+
+    rt.usage = Broken()  # type: ignore[assignment]
+    response = api.get("/settings/usage")
+    assert response.status_code == 503
+    assert "detalle-interno-ficticio" not in response.text

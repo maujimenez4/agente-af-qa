@@ -33,8 +33,46 @@ FLOW_ORIGINS = {"need": ("need", "epic"), "evolve": ("story",), "tests": ("story
 # --- Errores ------------------------------------------------------------------------------------
 
 
+# PA-306: todos los códigos que puede devolver la API (respuestas HTTP y `ConversationOut.error`).
+ErrorCode = Literal[
+    # sesión y permisos
+    "unauthenticated",
+    "invalid_credentials",
+    "too_many_attempts",
+    "forbidden",
+    # petición
+    "invalid_request",
+    "payload_too_large",
+    "not_found",
+    "project_not_found",
+    "method_not_allowed",
+    "http_error",
+    # estado de la conversación
+    "not_in_review",
+    "approval_rejected",
+    "operation_failed",
+    "restart",
+    "too_many_streams",
+    # servicios externos (Jira, LLM, PostgreSQL)
+    "rate_limited",
+    "service_unavailable",
+    "provider_timeout",
+    # generación (suelen llegar en `ConversationOut.error` o `QualityReviewOut.error`)
+    "invalid_model_output",
+    "citation_failed",
+    "coverage_failed",
+    "quality_failed",
+    "publish_failed",
+    # otros
+    "not_implemented",
+    "unexpected",
+]
+
+
 class ErrorBody(BaseModel):
-    code: str = Field(description="Código estable para la UI, p. ej. `not_found`, `rate_limited`.")
+    code: ErrorCode = Field(
+        description="Código estable para la UI. `message` ya está en español y listo para mostrar."
+    )
     message: str = Field(description="Mensaje en español para mostrar a la persona.")
     retry_after: float | None = Field(
         default=None, description="Segundos a esperar antes de reintentar, si aplica."
@@ -273,6 +311,20 @@ class TaskModelsOut(BaseModel):
     task: str
     chain: list[ModelChoiceOut]
     override: ModelChoiceOut | None = None
+
+
+class UsageTodayOut(BaseModel):
+    """Consumo de tokens de hoy (PA-305), para el anillo del carril."""
+
+    tokens_today: int = Field(ge=0, description="Tokens de todas las llamadas al LLM de hoy.")
+    warning_threshold: int = Field(
+        gt=0, description="Umbral de aviso diario (`limits.daily_token_warning`)."
+    )
+    scope: Literal["global"] = Field(
+        default="global",
+        description="El registro de uso no guarda la persona: el consumo es el de toda la "
+        "instalación.",
+    )
 
 
 class SettingsOut(BaseModel):

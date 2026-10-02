@@ -49,6 +49,7 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
   - el avance llega por **SSE** (`/events`) o consultando el estado;
   - con el modelo local en CPU pueden tardar minutos: enseña el progreso por pasos (`progress`);
   - mientras una operación está en curso, otra sobre la misma conversación da 409 `not_in_review`;
+  - `data` de cada evento `progress` es un `ProgressStep` completo (`node`, `label` y `state`): `label` se muestra tal cual;
   - el SSE se cierra tras `result` de una conversación terminada (simulada, publicada o descartada): ciérralo también en el cliente para que `EventSource` no reconecte. Máximo 3 flujos abiertos por persona (429 `too_many_streams`).
 - **Aprobar:**
   - se envía **exactamente** la `fingerprint` del último `review`;
@@ -57,7 +58,13 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
     - `approval_rejected`: el registro de aprobaciones la rechazó; hay que ofrecer «empezar de nuevo»;
     - `not_in_review`: la conversación no está en revisión; hay que actualizar el estado.
 - **Texto de Jira, del RAG y del LLM:** siempre como texto, nunca como HTML. `report_markdown` es solo para descargarlo.
-- **Errores:** siempre `{"error": {"code", "message", "retry_after"}}`, con `message` en español y listo para mostrar. Incluye el `422` de validación, que nunca devuelve lo enviado.
+- **Errores:** siempre `{"error": {"code", "message", "retry_after"}}`, con `message` en español y listo para mostrar. `code` es una lista cerrada (`ErrorCode` en el contrato, PA-306). Los fallos de la generación llegan en `ConversationOut.error` o en `QualityReviewOut.error`, con su propio código:
+  - `citation_failed`, `coverage_failed`, `quality_failed` e `invalid_model_output`: el modelo no dio una salida válida;
+  - `provider_timeout`: el modelo no respondió a tiempo;
+  - `rate_limited`, con `retry_after`: los proveedores están en su límite;
+  - `service_unavailable`: todos los proveedores fallaron;
+  - `publish_failed`: Jira rechazó la publicación. Una publicación **parcial** no es un error: llega en `result.errors`, con el estado `approved`.
+- **Consumo de hoy** (anillo del carril): `GET /settings/usage` devuelve `tokens_today` y `warning_threshold`. Es el consumo de **toda la instalación** (`scope: "global"`): el registro de uso no guarda la persona. Incluye el `422` de validación, que nunca devuelve lo enviado.
 - **Estados de una conversación:**
   - **en la lista** (`ConversationSummary.status`): `started`, `in_review`, `approved`, `simulated`, `published` y `discarded`;
   - **en el detalle** (`ConversationOut.state`): `generating` en lugar de `started` (el grafo está trabajando), los demás iguales, y además `error` (falló la última operación);

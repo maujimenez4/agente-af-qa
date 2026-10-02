@@ -23,6 +23,7 @@ from api.sessions import LoginLimiter, SessionStore
 from core.config import Settings
 from core.container import Container
 from core.logging import get_logger
+from core.usage import UsageQueries
 
 log = get_logger("api.runtime")
 
@@ -128,6 +129,9 @@ class Runtime:
     quality_lock: threading.Lock = field(default_factory=threading.Lock)
     executor: ThreadPoolExecutor | None = None
     run_inline: bool = False  # pruebas: la operación termina antes de responder
+    # PA-305: lectura de `llm_usage` (T-32) y umbral de aviso diario.
+    usage: UsageQueries | None = None
+    token_warning: int = 180_000
 
     def submit(self, fn: Callable[[], None]) -> None:
         if self.run_inline:
@@ -184,6 +188,7 @@ def build_runtime() -> Runtime:
         model_router,
     )
     from core.graph import build_graph
+    from core.usage import SqlUsageQueries
 
     config = build_config()
     bootstrap_logging(config)
@@ -201,4 +206,7 @@ def build_runtime() -> Runtime:
         graph = build_graph(container, checkpointer=checkpointer)
         return Workspace(container=container, graph=graph, router=router, chains=chains)
 
-    return new_runtime(config.settings, base.auth, workspace)
+    rt = new_runtime(config.settings, base.auth, workspace)
+    rt.usage = SqlUsageQueries.from_url(config.settings.sqlalchemy_url())
+    rt.token_warning = config.models.limits.daily_token_warning
+    return rt

@@ -24,6 +24,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import ClientDisconnect
 from starlette.types import Receive, Scope, Send
@@ -62,6 +63,7 @@ from api.models import (
     SourcesIn,
     StartProposal,
     TaskModelsOut,
+    UsageTodayOut,
     UserOut,
 )
 from api.runtime import QualityJob, Runtime, Workspace, build_runtime
@@ -499,7 +501,7 @@ def get_conversation(request: Request, conversation_id: str = ConversationId) ->
     "/{conversation_id}/events",
     response_class=StreamingResponse,
     summary="Eventos en vivo (SSE)",
-    description="`text/event-stream`. Eventos: `progress` (`data`: nodo y estado del paso), "
+    description="`text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), "
     "`review_ready`, `result` (publicación simulada, real o parcial, o descarte) y `error` "
     "(`data`: la conversación completa, como en `GET /conversations/{id}`). El servidor cierra "
     "el flujo tras `result` de una conversación terminada: ciérralo también en el cliente para "
@@ -509,7 +511,9 @@ def get_conversation(request: Request, conversation_id: str = ConversationId) ->
         200: {
             "content": {
                 "text/event-stream": {
-                    "example": 'event: progress\ndata: {"node": "generate", "state": "running"}\n\n'
+                    "example": 'event: progress\ndata: {"node": "generate", "label": '
+                    '"Generar la propuesta, validar las citas y analizar el impacto", '
+                    '"state": "running"}\n\n'
                     'event: review_ready\ndata: {"id": "' + ex.THREAD_ID + '", "state": '
                     '"in_review"}\n\n'
                 }
@@ -605,7 +609,7 @@ async def _event_stream(
                 for step in out.progress:
                     if steps.get(step.node) != step.state:
                         steps[step.node] = step.state
-                        yield _sse("progress", {"node": step.node, "state": step.state})
+                        yield _sse("progress", step.model_dump())  # PA-307
                 final = {"in_review": "review_ready", "error": "error"}.get(out.state)
                 if out.state in ("simulated", "published", "discarded") or out.result:
                     final = "result"
@@ -854,6 +858,27 @@ def get_settings(request: Request) -> SettingsOut:
         publish_mode=ws.container.publish_mode,
         tasks=[service.task_models(ws, task) for task in TaskType],
     )
+
+
+@settings_router.get(
+    "/usage",
+    response_model=UsageTodayOut,
+    summary="Consumo de tokens de hoy (anillo del carril, PA-305)",
+    description="Consumo de toda la instalación: el registro de uso no guarda la persona.",
+    responses={
+        200: _json({"tokens_today": 42000, "warning_threshold": 180000, "scope": "global"}),
+        **AUTH,
+    },
+)
+def usage_today(request: Request) -> UsageTodayOut:
+    rt, _s, _ws, _user = _ctx(request)
+    if rt.usage is None:
+        raise ApiError(503, "service_unavailable", "El registro de consumo no está disponible.")
+    try:
+        tokens = service.tokens_today(rt.usage)
+    except SQLAlchemyError:  # `core/usage` no envuelve los errores de la BD
+        raise ApiError(503, "service_unavailable", "No se pudo leer el consumo de hoy.") from None
+    return UsageTodayOut(tokens_today=tokens, warning_threshold=rt.token_warning)
 
 
 @settings_router.put(

@@ -14,10 +14,14 @@ from adapters.errors import (
     PublishError,
     RateLimitError,
 )
+from adapters.llm.openai_compatible import ProviderTimeoutError, StructuredOutputError
 from api import service
 from api.errors import MAX_RETRY_AFTER, UNEXPECTED, ApiError, safe_message, to_api_error
 from core.approvals import ApprovalError
+from core.functional.citations import CitationError
 from core.graph.nodes import ReviewRejectedError
+from core.qa.validation import CoverageError
+from core.quality import QualityReviewError
 
 SECRET_TEXT = "detalle-interno-ficticio-0000"
 
@@ -88,10 +92,7 @@ def test_approval_error_is_409_approval_rejected() -> None:
     assert (error.status, error.code) == (409, "approval_rejected")
 
 
-@pytest.mark.parametrize(
-    "exc",
-    [PublishError("No se pudo publicar (ficticio)."), ReviewRejectedError("Huella antigua.")],
-)
+@pytest.mark.parametrize("exc", [ReviewRejectedError("Huella antigua.")])
 def test_domain_errors_are_409_operation_failed(exc: Exception) -> None:
     """Req. 8: errores del agente con mensaje para la persona -> 409 `operation_failed`."""
     error = to_api_error(exc)
@@ -143,3 +144,36 @@ def test_unexpected_errors_never_expose_str(exc: Exception) -> None:
     error = to_api_error(_raised(exc))
     assert (error.status, error.code, error.message) == (500, "unexpected", UNEXPECTED)
     assert error.retry_after is None
+
+
+@pytest.mark.parametrize(
+    ("exc", "status", "code"),
+    [
+        (PublishError("No se pudo publicar (ficticio)."), 409, "publish_failed"),
+        (CitationError("Cita fuera del contexto (ficticio)."), 502, "citation_failed"),
+        (CoverageError("Falta cobertura de CA-01 (ficticio)."), 502, "coverage_failed"),
+        (QualityReviewError("Informe no válido (ficticio)."), 502, "quality_failed"),
+        (
+            StructuredOutputError("Salida no válida (ficticio).", "local"),
+            502,
+            "invalid_model_output",
+        ),
+        (ProviderTimeoutError("Sin respuesta (ficticio).", "local"), 504, "provider_timeout"),
+    ],
+)
+def test_generation_errors_have_their_own_code(exc: Exception, status: int, code: str) -> None:
+    """PA-306: cada fallo de generación llega con un código propio y su mensaje."""
+    error = to_api_error(exc)
+    assert (error.status, error.code) == (status, code)
+    assert error.message == str(exc)
+
+
+def test_every_error_code_is_in_the_contract() -> None:
+    """PA-306: `ErrorBody.code` enumera los códigos; el contrato los publica."""
+    from typing import get_args
+
+    from api.export_openapi import openapi_document
+    from api.models import ErrorCode
+
+    schema = openapi_document()["components"]["schemas"]["ErrorBody"]["properties"]["code"]
+    assert set(schema["enum"]) == set(get_args(ErrorCode))

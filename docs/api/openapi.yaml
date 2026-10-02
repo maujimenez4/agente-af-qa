@@ -1708,7 +1708,7 @@ paths:
       tags:
       - Conversaciones
       summary: Eventos en vivo (SSE)
-      description: '`text/event-stream`. Eventos: `progress` (`data`: nodo y estado del paso), `review_ready`,
+      description: '`text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), `review_ready`,
         `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación
         completa, como en `GET /conversations/{id}`). El servidor cierra el flujo tras `result` de una
         conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay
@@ -1731,7 +1731,8 @@ paths:
             text/event-stream:
               example: 'event: progress
 
-                data: {"node": "generate", "state": "running"}
+                data: {"node": "generate", "label": "Generar la propuesta, validar las citas y analizar
+                el impacto", "state": "running"}
 
 
                 event: review_ready
@@ -3573,6 +3574,87 @@ paths:
                   message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
       security:
       - sessionCookie: []
+  /api/v1/settings/usage:
+    get:
+      tags:
+      - Ajustes de la sesión
+      summary: Consumo de tokens de hoy (anillo del carril, PA-305)
+      description: 'Consumo de toda la instalación: el registro de uso no guarda la persona.'
+      operationId: usage_today_api_v1_settings_usage_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageTodayOut'
+              example:
+                tokens_today: 42000
+                warning_threshold: 180000
+                scope: global
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+      security:
+      - sessionCookie: []
   /api/v1/settings/models/{task}:
     put:
       tags:
@@ -4173,8 +4255,34 @@ components:
       properties:
         code:
           type: string
+          enum:
+          - unauthenticated
+          - invalid_credentials
+          - too_many_attempts
+          - forbidden
+          - invalid_request
+          - payload_too_large
+          - not_found
+          - project_not_found
+          - method_not_allowed
+          - http_error
+          - not_in_review
+          - approval_rejected
+          - operation_failed
+          - restart
+          - too_many_streams
+          - rate_limited
+          - service_unavailable
+          - provider_timeout
+          - invalid_model_output
+          - citation_failed
+          - coverage_failed
+          - quality_failed
+          - publish_failed
+          - not_implemented
+          - unexpected
           title: Code
-          description: Código estable para la UI, p. ej. `not_found`, `rate_limited`.
+          description: Código estable para la UI. `message` ya está en español y listo para mostrar.
         message:
           type: string
           title: Message
@@ -5156,6 +5264,30 @@ components:
       - strategy_md
       title: TestSuite
       description: Artefactos de QA de una HU; se publica en Jira nativo (D-09).
+    UsageTodayOut:
+      properties:
+        tokens_today:
+          type: integer
+          minimum: 0.0
+          title: Tokens Today
+          description: Tokens de todas las llamadas al LLM de hoy.
+        warning_threshold:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Warning Threshold
+          description: Umbral de aviso diario (`limits.daily_token_warning`).
+        scope:
+          type: string
+          const: global
+          title: Scope
+          description: 'El registro de uso no guarda la persona: el consumo es el de toda la instalación.'
+          default: global
+      type: object
+      required:
+      - tokens_today
+      - warning_threshold
+      title: UsageTodayOut
+      description: Consumo de tokens de hoy (PA-305), para el anillo del carril.
     UserOut:
       properties:
         username:

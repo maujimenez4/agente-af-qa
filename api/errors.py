@@ -13,11 +13,16 @@ from adapters.errors import (
     AuthenticationError,
     ExternalServiceError,
     NotFoundError,
+    PublishError,
     RateLimitError,
 )
-from api.models import ErrorBody
+from adapters.llm.openai_compatible import ProviderTimeoutError, StructuredOutputError
+from api.models import ErrorBody, ErrorCode
 from core.approvals import ApprovalError
+from core.functional.citations import CitationError
 from core.graph.nodes import ReviewRejectedError
+from core.qa.validation import CoverageError
+from core.quality import QualityReviewError
 
 UNEXPECTED = "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
 MAX_RETRY_AFTER = 3600.0
@@ -37,7 +42,7 @@ class ApiError(Exception):
     """Error que la API devuelve tal cual (código HTTP, código estable y mensaje en español)."""
 
     def __init__(
-        self, status: int, code: str, message: str, retry_after: float | None = None
+        self, status: int, code: ErrorCode, message: str, retry_after: float | None = None
     ) -> None:
         super().__init__(message)
         self.status, self.code, self.message, self.retry_after = status, code, message, retry_after
@@ -78,6 +83,10 @@ def to_api_error(exc: BaseException) -> ApiError:
     message = safe_message(exc)
     if isinstance(exc, RateLimitError):
         return ApiError(429, "rate_limited", message, _retry_after(exc))
+    if isinstance(exc, ProviderTimeoutError):
+        return ApiError(504, "provider_timeout", message)
+    if isinstance(exc, StructuredOutputError):
+        return ApiError(502, "invalid_model_output", message)
     if isinstance(exc, NotFoundError):
         return ApiError(404, "not_found", message)
     if isinstance(exc, AuthenticationError):
@@ -89,6 +98,14 @@ def to_api_error(exc: BaseException) -> ApiError:
         return ApiError(503, "service_unavailable", message)
     if isinstance(exc, ApprovalError):
         return ApiError(409, "approval_rejected", message)
+    if isinstance(exc, CitationError):
+        return ApiError(502, "citation_failed", message)
+    if isinstance(exc, CoverageError):
+        return ApiError(502, "coverage_failed", message)
+    if isinstance(exc, QualityReviewError):
+        return ApiError(502, "quality_failed", message)
+    if isinstance(exc, PublishError):
+        return ApiError(409, "publish_failed", message)
     if isinstance(exc, AgentError | ReviewRejectedError):
         return ApiError(409, "operation_failed", message)
     if message != UNEXPECTED:  # ValueError de validación

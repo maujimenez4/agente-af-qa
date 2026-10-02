@@ -47,6 +47,7 @@ from core.graph.state import Origin, normalize_excluded_sources
 from core.logging import get_logger
 from core.permissions import Permission, require
 from core.projects import normalize_issue_key, normalize_project_key, project_of
+from core.usage import DEFAULT_TZ, UsageQueries
 from schemas.artifact import Artifact
 
 log = get_logger("api.service")
@@ -162,6 +163,13 @@ def iterate_answer(feedback: str) -> dict[str, Any]:
     if not text:
         raise ValueError("Escribe qué quieres cambiar de la propuesta.")
     return {"decision": "iterate", "feedback": text}
+
+
+def tokens_today(queries: UsageQueries, now: datetime | None = None) -> int:
+    """Tokens de todas las llamadas al LLM desde las 00:00 (hora de `core.usage`)."""
+    local_now = (now or datetime.now(UTC)).astimezone(DEFAULT_TZ)
+    start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return sum(call.total_tokens for call in queries.calls(since=start))
 
 
 def task_type(raw: str) -> TaskType:

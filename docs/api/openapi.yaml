@@ -1,0 +1,4319 @@
+# Contrato de la API (T-55). GENERADO: no editar a mano.
+# Regenerar con: uv run python -m api.export_openapi
+openapi: 3.1.0
+info:
+  title: Agente de IA de Análisis Funcional y QA
+  description: API para el frontend propio (T-55). Sesión con cookie HttpOnly `afqa_session` y cabecera
+    `X-CSRF-Token` en las peticiones que modifican algo.
+  version: 0.1.0
+paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+      - Sesión
+      summary: Iniciar sesión
+      description: Crea la cookie de sesión HttpOnly y devuelve el usuario y el token anti-CSRF.
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOut'
+              example:
+                user:
+                  username: af-demo
+                  role: functional
+                  permissions:
+                  - view_context
+                  - generate_story
+                  - publish_story
+                  - view_memory
+                csrf_token: csrf-token-ficticio-0123456789abcdef
+        '401':
+          description: Credenciales.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_credentials
+                  message: Usuario o contraseña incorrectos.
+        '429':
+          description: Intentos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: too_many_attempts
+                  message: Demasiados intentos; espera unos minutos.
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security: []
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - Sesión
+      summary: Cerrar sesión
+      operationId: logout_api_v1_auth_logout_post
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+  /api/v1/auth/me:
+    get:
+      tags:
+      - Sesión
+      summary: Sesión actual
+      description: 'Al recargar la página: usuario y un token anti-CSRF nuevo.'
+      operationId: me_api_v1_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOut'
+              example:
+                user:
+                  username: af-demo
+                  role: functional
+                  permissions:
+                  - view_context
+                  - generate_story
+                  - publish_story
+                  - view_memory
+                csrf_token: csrf-token-ficticio-0123456789abcdef
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+      security:
+      - sessionCookie: []
+  /api/v1/projects:
+    get:
+      tags:
+      - Proyectos y Jira
+      summary: Proyectos que ve la conexión y el preseleccionado (T-50)
+      operationId: list_projects_api_v1_projects_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectsOut'
+              example:
+                projects:
+                - key: DEMO
+                  name: Biblioteca
+                - key: SOCI
+                  name: Gestión de personas socias
+                preselected: DEMO
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+      security:
+      - sessionCookie: []
+  /api/v1/projects/choose:
+    post:
+      tags:
+      - Proyectos y Jira
+      summary: Fijar el proyecto de la conversación y recordarlo como último usado
+      operationId: choose_project_api_v1_projects_choose_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChooseProjectIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChooseProjectOut'
+              example:
+                project: DEMO
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '404':
+          description: Proyecto que no ve la conexión de Jira.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: project_not_found
+                  message: El proyecto DEMO no existe o la conexión no tiene acceso a él.
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/projects/{project}/epics:
+    get:
+      tags:
+      - Proyectos y Jira
+      summary: Épicas del proyecto (Elegir en Jira)
+      operationId: list_epics_api_v1_projects__project__epics_get
+      parameters:
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          title: Project
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IssueSummary'
+                title: Response List Epics Api V1 Projects  Project  Epics Get
+              example:
+              - key: DEMO-1
+                summary: Préstamo digital
+                issue_type: Epic
+                status: Abierta
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/projects/{project}/search:
+    get:
+      tags:
+      - Proyectos y Jira
+      summary: Buscar HU y épicas por texto o clave; sin `q`, las recientes del proyecto
+      operationId: search_api_v1_projects__project__search_get
+      parameters:
+      - name: project
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          title: Project
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 200
+          - type: 'null'
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 10
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IssueSummary'
+                title: Response Search Api V1 Projects  Project  Search Get
+              example:
+              - key: DEMO-2
+                summary: Reservar un libro
+                issue_type: Story
+                status: Hecho
+              - key: DEMO-3
+                summary: Renovar un préstamo
+                issue_type: Story
+                status: Abierta
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/epics/{key}/stories:
+    get:
+      tags:
+      - Proyectos y Jira
+      summary: HU de una épica
+      operationId: list_children_api_v1_epics__key__stories_get
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          title: Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IssueSummary'
+                title: Response List Children Api V1 Epics  Key  Stories Get
+              example:
+              - key: DEMO-2
+                summary: Reservar un libro
+                issue_type: Story
+                status: Hecho
+              - key: DEMO-3
+                summary: Renovar un préstamo
+                issue_type: Story
+                status: Abierta
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/issues/{key}:
+    get:
+      tags:
+      - Proyectos y Jira
+      summary: Ficha de una incidencia (tarjetas de HU parecida o clave reconocida)
+      operationId: issue_card_api_v1_issues__key__get
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          title: Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueCard'
+              example:
+                key: DEMO-3
+                project: DEMO
+                summary: Renovar un préstamo
+                issue_type: Story
+                status: Abierta
+                epic_key: DEMO-1
+                criteria_count: 2
+                rules_count: 2
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/start/propose:
+    post:
+      tags:
+      - Arranque guiado
+      summary: Proponer con qué empezar a partir del texto (sin IA, T-53)
+      description: Claves de Jira en el texto (también en minúsculas, si existen) o HU parecidas. Si `project_changed`,
+        avisar; si `ignored_projects` no está vacío, avisar también.
+      operationId: propose_api_v1_start_propose_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposeIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartProposal'
+              example:
+                project: DEMO
+                project_changed: false
+                ignored_projects: []
+                recognized: []
+                similar:
+                - key: DEMO-3
+                  summary: Renovar un préstamo
+                  issue_type: Story
+                  status: Abierta
+                options:
+                - kind: evolve
+                  label: Evolucionar DEMO-3
+                  origin:
+                    kind: story
+                    key: DEMO-3
+                    project: DEMO
+                  issue:
+                    key: DEMO-3
+                    summary: Renovar un préstamo
+                    issue_type: Story
+                    status: Abierta
+                - kind: new_need
+                  label: Crear HU nueva
+                  origin:
+                    kind: need
+                    text: Renovar un préstamo desde la app (ficticio).
+                    project: DEMO
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/start/sources:
+    post:
+      tags:
+      - Arranque guiado
+      summary: Fuentes que usaría la propuesta (panel «Antes de generar»)
+      description: Las desmarcadas van en `excluded_sources` al crear la conversación; la fila `required`
+        (la incidencia de origen) no se puede desmarcar.
+      operationId: sources_api_v1_start_sources_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourcesIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SourcePreview'
+                type: array
+                title: Response Sources Api V1 Start Sources Post
+              example:
+              - ref: DEMO-3
+                kind: jira
+                title: Renovar un préstamo
+                category: Story
+                required: true
+              - ref: DOC-01
+                kind: rag
+                title: Reglamento de préstamo
+                category: politicas
+                required: false
+              - ref: memoria-DEMO-2
+                kind: memory
+                title: Memoria de DEMO-2
+                category: memoria
+                required: false
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations:
+    get:
+      tags:
+      - Conversaciones
+      summary: Conversaciones de la persona (más recientes primero)
+      operationId: list_conversations_api_v1_conversations_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConversationSummary'
+                title: Response List Conversations Api V1 Conversations Get
+              example:
+              - thread_id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                username: af-demo
+                project_key: DEMO
+                mode: functional
+                origin_kind: story
+                origin_key: DEMO-3
+                title: Evolucionar DEMO-3
+                status: in_review
+                artifact_id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                version: 2
+                created_at: '2026-10-02T10:30:00Z'
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+    post:
+      tags:
+      - Conversaciones
+      summary: Crear una conversación y empezar a generar
+      description: Responde 202 con `state=generating`; el avance llega por `/events` o consultando la
+        conversación. El `id` lo genera el servidor.
+      operationId: create_conversation_api_v1_conversations_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationCreateIn'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: generating
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: running
+                - node: generate
+                  label: Generar la propuesta
+                  state: pending
+                versions: []
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}:
+    get:
+      tags:
+      - Conversaciones
+      summary: Estado completo de una conversación
+      description: Progreso, propuesta en revisión (con `plan`, `fingerprint` y `error`), versiones y
+        resultado. Sirve también para retomarla.
+      operationId: get_conversation_api_v1_conversations__conversation_id__get
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: in_review
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: done
+                - node: generate
+                  label: Generar la propuesta
+                  state: done
+                review:
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  version: 2
+                  target:
+                    operation: actualizar HU
+                    project: DEMO
+                    jira_key: DEMO-3
+                  fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
+                  impact:
+                    diffs:
+                    - field: acceptance_criteria.CA-02
+                      after: Renovación rechazada por reservas
+                    affected:
+                    - jira_key: DEMO-2
+                      reason: Comparte la regla de reservas
+                      kind: rule
+                    regression_notes:
+                    - Revisar el flujo de reservas.
+                  plan:
+                  - op: update_story
+                    project: DEMO
+                    key: DEMO-3
+                  - op: link
+                    from: DEMO-3
+                    to: DEMO-2
+                    type: relates to
+                  decisions:
+                  - iterate
+                  - edit
+                  - approve
+                  - discard
+                versions:
+                - version: 2
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  created_at: '2026-10-02T10:30:00Z'
+                  edited: false
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/conversations/{conversation_id}/events:
+    get:
+      tags:
+      - Conversaciones
+      summary: Eventos en vivo (SSE)
+      description: '`text/event-stream`. Eventos: `progress` (`data`: nodo y estado del paso), `review_ready`,
+        `result` (publicación simulada, real o parcial) y `error` (`data`: la conversación completa, como
+        en `GET /conversations/{id}`). Si se corta, basta con consultar el estado.'
+      operationId: events_api_v1_conversations__conversation_id__events_get
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/event-stream:
+              example: 'event: progress
+
+                data: {"node": "generate", "state": "running"}
+
+
+                event: review_ready
+
+                data: {"id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d", "state": "in_review"}
+
+
+                '
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/conversations/{conversation_id}/iterate:
+    post:
+      tags:
+      - Conversaciones
+      summary: Pedir un cambio (RF-20)
+      operationId: iterate_api_v1_conversations__conversation_id__iterate_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IterateIn'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: generating
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: running
+                - node: generate
+                  label: Generar la propuesta
+                  state: pending
+                versions: []
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'Estado que no admite la operación. También «Demasiadas respuestas rechazadas…»:
+            empieza una conversación nueva.'
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: La conversación no tiene una propuesta en revisión (está generando o ya terminó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}/edit:
+    post:
+      tags:
+      - Conversaciones
+      summary: 'Editar a mano (RF-32): versión nueva con su huella'
+      description: '`fingerprint` es la del payload mostrado. Una edición inválida no da error HTTP: la
+        revisión sigue con `review.error` (UI.md §5).'
+      operationId: edit_api_v1_conversations__conversation_id__edit_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: in_review
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: done
+                - node: generate
+                  label: Generar la propuesta
+                  state: done
+                review:
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  version: 2
+                  target:
+                    operation: actualizar HU
+                    project: DEMO
+                    jira_key: DEMO-3
+                  fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
+                  impact:
+                    diffs:
+                    - field: acceptance_criteria.CA-02
+                      after: Renovación rechazada por reservas
+                    affected:
+                    - jira_key: DEMO-2
+                      reason: Comparte la regla de reservas
+                      kind: rule
+                    regression_notes:
+                    - Revisar el flujo de reservas.
+                  plan:
+                  - op: update_story
+                    project: DEMO
+                    key: DEMO-3
+                  - op: link
+                    from: DEMO-3
+                    to: DEMO-2
+                    type: relates to
+                  decisions:
+                  - iterate
+                  - edit
+                  - approve
+                  - discard
+                versions:
+                - version: 2
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  created_at: '2026-10-02T10:30:00Z'
+                  edited: false
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'Estado que no admite la operación. También «Demasiadas respuestas rechazadas…»:
+            empieza una conversación nueva.'
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: La conversación no tiene una propuesta en revisión (está generando o ya terminó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}/approve:
+    post:
+      tags:
+      - Conversaciones
+      summary: Aprobar y publicar (simulación o real)
+      description: Con la `fingerprint` exacta del último payload. Si no casa, la revisión sigue con `review.error`.
+        Un rechazo del registro de aprobaciones da 409 y obliga a empezar de nuevo.
+      operationId: approve_api_v1_conversations__conversation_id__approve_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveIn'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: simulated
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: done
+                - node: generate
+                  label: Generar la propuesta
+                  state: done
+                versions:
+                - version: 2
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  created_at: '2026-10-02T10:30:00Z'
+                  edited: false
+                feedback:
+                - Mismas reglas que en la web.
+                result:
+                  simulated: true
+                  plan:
+                  - op: update_story
+                    project: DEMO
+                    key: DEMO-3
+                  - op: link
+                    from: DEMO-3
+                    to: DEMO-2
+                    type: relates to
+                  approved_by: af-demo
+                  approved_at: '2026-10-02T10:30:00Z'
+                  published_keys: []
+                  errors: []
+                  failed_ids: []
+                updated_at: '2026-10-02T10:30:00Z'
+        '409':
+          description: 'Rechazo del registro de aprobaciones: la conversación no se recupera.'
+          content:
+            application/json:
+              example:
+                error:
+                  code: approval_rejected
+                  message: La aprobación no corresponde a la versión revisada; empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}/discard:
+    post:
+      tags:
+      - Conversaciones
+      summary: Descartar la propuesta
+      operationId: discard_api_v1_conversations__conversation_id__discard_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: discarded
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: done
+                - node: generate
+                  label: Generar la propuesta
+                  state: done
+                versions:
+                - version: 2
+                  artifact:
+                    id: 6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03
+                    type: user_story
+                    status: in_review
+                    version: 2
+                    origin_key: DEMO-3
+                    content:
+                      internal_id: HU-02
+                      jira_key: DEMO-3
+                      title: Renovar un préstamo
+                      role: persona socia de la biblioteca
+                      action: renovar un préstamo activo desde la web o la app
+                      benefit: no tener que acudir al mostrador para ampliar el plazo
+                      description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                      business_goal: Reducir las visitas al mostrador por renovaciones.
+                      scope_includes:
+                      - Renovación desde la ficha del préstamo
+                      - Renovación desde la app
+                      scope_excludes:
+                      - Renovación de materiales audiovisuales
+                      acceptance_criteria:
+                      - id: CA-01
+                        title: Renovación permitida
+                        given:
+                        - un préstamo activo con menos de 2 renovaciones
+                        - sin reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - el vencimiento se amplía 21 días
+                      - id: CA-02
+                        title: Renovación rechazada por reservas
+                        given:
+                        - un préstamo activo con reservas pendientes
+                        when:
+                        - la persona socia pulsa «Renovar»
+                        then:
+                        - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                      business_rules:
+                      - id: RN-01
+                        description: Máximo 2 renovaciones por préstamo.
+                      - id: RN-02
+                        description: No se renueva si hay reservas pendientes.
+                      assumptions:
+                      - La persona socia ha iniciado sesión.
+                      constraints:
+                      - Plazo de préstamo de 21 días (reglamento, art. 7).
+                      dependencies:
+                      - DEMO-2
+                      alternate_flows:
+                      - Renovación desde el correo de aviso de vencimiento.
+                      exceptions:
+                      - El servicio de catálogo no responde.
+                      related_features:
+                      - Reservas
+                      changes_from_previous:
+                      - 'CA-02: se añade el aviso de reservas pendientes (fuente DOC-01).'
+                      related_requirements: []
+                      priority: Must
+                      sources:
+                      - kind: rag
+                        ref: DOC-01
+                        excerpt: Cada préstamo admite hasta 2 renovaciones.
+                      - kind: jira
+                        ref: DEMO-3
+                        excerpt: Renovar un préstamo
+                      open_questions: []
+                    impact:
+                      diffs:
+                      - field: acceptance_criteria.CA-02
+                        after: Renovación rechazada por reservas
+                      affected:
+                      - jira_key: DEMO-2
+                        reason: Comparte la regla de reservas
+                        kind: rule
+                      regression_notes:
+                      - Revisar el flujo de reservas.
+                    created_by: af-demo
+                    model_used: local/qwen3:4b-instruct
+                    prompt_version: '2'
+                  created_at: '2026-10-02T10:30:00Z'
+                  edited: false
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'Estado que no admite la operación. También «Demasiadas respuestas rechazadas…»:
+            empieza una conversación nueva.'
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: La conversación no tiene una propuesta en revisión (está generando o ya terminó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}/handoff:
+    post:
+      tags:
+      - Conversaciones
+      summary: Pasar la HU aprobada a QA (provisional, T-54)
+      operationId: handoff_api_v1_conversations__conversation_id__handoff_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandoffOut'
+              example:
+                id: c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d
+                title: Renovar un préstamo
+                project: DEMO
+                story_key: DEMO-3
+                version: 2
+                from_user: af-demo
+                created_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/quality-reviews:
+    post:
+      tags:
+      - Revisar la calidad
+      summary: Revisar la calidad de una HU (T-48, no publica)
+      operationId: create_quality_review_api_v1_quality_reviews_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityReviewIn'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityReviewOut'
+              example:
+                id: b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c
+                issue_key: DEMO-3
+                state: done
+                report:
+                  summary: La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco (ficticio).
+                  invest:
+                  - letter: I
+                    verdict: ok
+                    reason: Motivo ficticio de I.
+                  - letter: N
+                    verdict: ok
+                    reason: Motivo ficticio de N.
+                  - letter: V
+                    verdict: ok
+                    reason: Motivo ficticio de V.
+                  - letter: E
+                    verdict: ok
+                    reason: Motivo ficticio de E.
+                  - letter: S
+                    verdict: ok
+                    reason: Motivo ficticio de S.
+                  - letter: T
+                    verdict: improvable
+                    reason: Motivo ficticio de T.
+                  findings:
+                  - kind: ambiguity
+                    target_id: CA-02
+                    explanation: «Avisar pronto» no se puede probar.
+                    proposal: Avisar en menos de 15 minutos.
+                  - kind: gap
+                    explanation: No dice qué pasa si la renovación falla.
+                    proposal: Añadir un criterio de error.
+                  open_questions:
+                  - ¿Hay un máximo de renovaciones por año? (ficticio)
+                  sources:
+                  - kind: rag
+                    ref: DOC-01
+                evolve_feedback:
+                - 'CA-02: Avisar en menos de 15 minutos.'
+                - Añadir un criterio de error.
+                report_markdown: '# Calidad de DEMO-3
+
+
+                  La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \(ficticio\).
+
+
+                  ## INVEST
+
+
+                  - **I · Independiente**: Bien. Motivo ficticio de I.
+
+                  - **N · Negociable**: Bien. Motivo ficticio de N.
+
+                  - **V · Valiosa**: Bien. Motivo ficticio de V.
+
+                  - **E · Estimable**: Bien. Motivo ficticio de E.
+
+                  - **S · Pequeña**: Bien. Motivo ficticio de S.
+
+                  - **T · Testeable**: Mejorable. Motivo ficticio de T.
+
+
+                  ## Hallazgos
+
+
+                  - **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos
+                  de 15 minutos.
+
+                  - **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio
+                  de error.
+
+
+                  ## Preguntas para negocio
+
+
+                  - ¿Hay un máximo de renovaciones por año? \(ficticio\)
+
+
+                  ## Fuentes
+
+
+                  - DOC-01
+
+                  '
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/quality-reviews/{review_id}:
+    get:
+      tags:
+      - Revisar la calidad
+      summary: Estado e informe de una revisión de calidad
+      description: '`report` se pinta campo a campo como texto; `report_markdown` es solo para descargarlo.'
+      operationId: get_quality_review_api_v1_quality_reviews__review_id__get
+      parameters:
+      - name: review_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Review Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityReviewOut'
+              example:
+                id: b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c
+                issue_key: DEMO-3
+                state: done
+                report:
+                  summary: La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco (ficticio).
+                  invest:
+                  - letter: I
+                    verdict: ok
+                    reason: Motivo ficticio de I.
+                  - letter: N
+                    verdict: ok
+                    reason: Motivo ficticio de N.
+                  - letter: V
+                    verdict: ok
+                    reason: Motivo ficticio de V.
+                  - letter: E
+                    verdict: ok
+                    reason: Motivo ficticio de E.
+                  - letter: S
+                    verdict: ok
+                    reason: Motivo ficticio de S.
+                  - letter: T
+                    verdict: improvable
+                    reason: Motivo ficticio de T.
+                  findings:
+                  - kind: ambiguity
+                    target_id: CA-02
+                    explanation: «Avisar pronto» no se puede probar.
+                    proposal: Avisar en menos de 15 minutos.
+                  - kind: gap
+                    explanation: No dice qué pasa si la renovación falla.
+                    proposal: Añadir un criterio de error.
+                  open_questions:
+                  - ¿Hay un máximo de renovaciones por año? (ficticio)
+                  sources:
+                  - kind: rag
+                    ref: DOC-01
+                evolve_feedback:
+                - 'CA-02: Avisar en menos de 15 minutos.'
+                - Añadir un criterio de error.
+                report_markdown: '# Calidad de DEMO-3
+
+
+                  La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \(ficticio\).
+
+
+                  ## INVEST
+
+
+                  - **I · Independiente**: Bien. Motivo ficticio de I.
+
+                  - **N · Negociable**: Bien. Motivo ficticio de N.
+
+                  - **V · Valiosa**: Bien. Motivo ficticio de V.
+
+                  - **E · Estimable**: Bien. Motivo ficticio de E.
+
+                  - **S · Pequeña**: Bien. Motivo ficticio de S.
+
+                  - **T · Testeable**: Mejorable. Motivo ficticio de T.
+
+
+                  ## Hallazgos
+
+
+                  - **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos
+                  de 15 minutos.
+
+                  - **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio
+                  de error.
+
+
+                  ## Preguntas para negocio
+
+
+                  - ¿Hay un máximo de renovaciones por año? \(ficticio\)
+
+
+                  ## Fuentes
+
+
+                  - DOC-01
+
+                  '
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/qa/handoffs:
+    get:
+      tags:
+      - QA encadenada (provisional, T-54)
+      summary: HU aprobadas listas para preparar pruebas (rol QA)
+      operationId: list_handoffs_api_v1_qa_handoffs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/HandoffOut'
+                type: array
+                title: Response List Handoffs Api V1 Qa Handoffs Get
+              example:
+              - id: c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d
+                title: Renovar un préstamo
+                project: DEMO
+                story_key: DEMO-3
+                version: 2
+                from_user: af-demo
+                created_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+      security:
+      - sessionCookie: []
+  /api/v1/qa/handoffs/{handoff_id}/take:
+    post:
+      tags:
+      - QA encadenada (provisional, T-54)
+      summary: Recoger una HU y empezar su conversación de QA
+      operationId: take_handoff_api_v1_qa_handoffs__handoff_id__take_post
+      parameters:
+      - name: handoff_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Handoff Id
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e
+                title: Preparar pruebas de DEMO-3
+                project: DEMO
+                flow: tests
+                mode: qa
+                state: generating
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: running
+                - node: generate
+                  label: Generar la propuesta
+                  state: pending
+                versions: []
+                feedback: []
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/settings:
+    get:
+      tags:
+      - Ajustes de la sesión
+      summary: Modo de publicación y modelos por tarea
+      operationId: get_settings_api_v1_settings_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsOut'
+              example:
+                publish_mode: simulation
+                tasks:
+                - task: generate_story
+                  chain:
+                  - provider: local
+                    model: qwen3:4b-instruct
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+      security:
+      - sessionCookie: []
+  /api/v1/settings/models/{task}:
+    put:
+      tags:
+      - Ajustes de la sesión
+      summary: Cambiar el modelo de una tarea en la sesión (RF-42)
+      operationId: override_model_api_v1_settings_models__task__put
+      parameters:
+      - name: task
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 50
+          title: Task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelOverrideIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskModelsOut'
+              example:
+                task: generate_story
+                chain:
+                - provider: local
+                  model: qwen3:4b-instruct
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+    delete:
+      tags:
+      - Ajustes de la sesión
+      summary: Volver a «Modelo automático» en una tarea (quita el cambio de la sesión)
+      operationId: clear_model_override_api_v1_settings_models__task__delete
+      parameters:
+      - name: task
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 50
+          title: Task
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskModelsOut'
+              example:
+                task: generate_story
+                chain:
+                - provider: local
+                  model: qwen3:4b-instruct
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+components:
+  schemas:
+    AcceptanceCriterion:
+      properties:
+        id:
+          type: string
+          pattern: ^CA-\d+$
+          title: Id
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        given:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Given
+        when:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: When
+        then:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Then
+      type: object
+      required:
+      - id
+      - title
+      - given
+      - when
+      - then
+      title: AcceptanceCriterion
+      description: Criterio de aceptación en Gherkin (RF-16).
+    ApproveIn:
+      properties:
+        fingerprint:
+          type: string
+          maxLength: 64
+          minLength: 64
+          pattern: ^[0-9a-f]{64}$
+          title: Fingerprint
+      type: object
+      required:
+      - fingerprint
+      title: ApproveIn
+    Artifact:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        type:
+          $ref: '#/components/schemas/ArtifactType'
+        status:
+          $ref: '#/components/schemas/ArtifactStatus'
+        version:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Version
+        origin_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Origin Key
+        content:
+          anyOf:
+          - $ref: '#/components/schemas/UserStory'
+          - $ref: '#/components/schemas/TestSuite'
+          title: Content
+        impact:
+          anyOf:
+          - $ref: '#/components/schemas/ImpactAnalysis'
+          - type: 'null'
+        created_by:
+          type: string
+          title: Created By
+        model_used:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model Used
+        prompt_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prompt Version
+      type: object
+      required:
+      - id
+      - type
+      - status
+      - version
+      - origin_key
+      - content
+      - created_by
+      title: Artifact
+    ArtifactStatus:
+      type: string
+      enum:
+      - draft
+      - in_review
+      - approved
+      - published
+      - discarded
+      title: ArtifactStatus
+    ArtifactType:
+      type: string
+      enum:
+      - user_story
+      - test_suite
+      title: ArtifactType
+    BusinessRule:
+      properties:
+        id:
+          type: string
+          pattern: ^RN-\d+$
+          title: Id
+        description:
+          type: string
+          minLength: 1
+          title: Description
+      type: object
+      required:
+      - id
+      - description
+      title: BusinessRule
+      description: Regla de negocio identificada (RF-17).
+    ChooseProjectIn:
+      properties:
+        project:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          title: Project
+      type: object
+      required:
+      - project
+      title: ChooseProjectIn
+    ChooseProjectOut:
+      properties:
+        project:
+          type: string
+          title: Project
+      type: object
+      required:
+      - project
+      title: ChooseProjectOut
+    ConversationCreateIn:
+      properties:
+        flow:
+          type: string
+          enum:
+          - need
+          - evolve
+          - tests
+          title: Flow
+        origin:
+          $ref: '#/components/schemas/OriginIn'
+        excluded_sources:
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9_.:/-]{1,100}$
+          type: array
+          maxItems: 50
+          title: Excluded Sources
+          default: []
+        feedback:
+          items:
+            type: string
+            maxLength: 1000
+            minLength: 1
+          type: array
+          maxItems: 30
+          title: Feedback
+          description: Restricciones, tipos de caso o `evolve_feedback` de T-48 (uno por hallazgo).
+          default: []
+      type: object
+      required:
+      - flow
+      - origin
+      title: ConversationCreateIn
+    ConversationOut:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: Identificador de la conversación (generado por el servidor).
+        title:
+          type: string
+          title: Title
+        project:
+          type: string
+          title: Project
+        flow:
+          type: string
+          enum:
+          - need
+          - evolve
+          - tests
+          title: Flow
+        mode:
+          type: string
+          enum:
+          - functional
+          - qa
+          title: Mode
+        state:
+          type: string
+          enum:
+          - generating
+          - in_review
+          - approved
+          - simulated
+          - published
+          - discarded
+          - error
+          title: State
+        progress:
+          items:
+            $ref: '#/components/schemas/ProgressStep'
+          type: array
+          title: Progress
+        review:
+          anyOf:
+          - $ref: '#/components/schemas/ReviewPayload'
+          - type: 'null'
+        versions:
+          items:
+            $ref: '#/components/schemas/VersionOut'
+          type: array
+          title: Versions
+          default: []
+        feedback:
+          items:
+            type: string
+          type: array
+          title: Feedback
+          default: []
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/PublishOutcome'
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorBody'
+          - type: 'null'
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - title
+      - project
+      - flow
+      - mode
+      - state
+      - progress
+      - updated_at
+      title: ConversationOut
+      description: 'Detalle de una conversación.
+
+
+        `state` amplía el `status` de la lista (`ConversationSummary`): `generating` cuando el grafo
+
+        está trabajando (en la lista, `started` o el estado anterior) y `error` cuando la última
+
+        operación falló. Una publicación parcial queda en `approved` con `result.errors`.'
+    ConversationSummary:
+      properties:
+        thread_id:
+          type: string
+          title: Thread Id
+        username:
+          type: string
+          title: Username
+        project_key:
+          type: string
+          title: Project Key
+        mode:
+          type: string
+          enum:
+          - functional
+          - qa
+          title: Mode
+        origin_kind:
+          type: string
+          enum:
+          - epic
+          - story
+          - need
+          title: Origin Kind
+        origin_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Origin Key
+        title:
+          type: string
+          title: Title
+        status:
+          type: string
+          enum:
+          - started
+          - in_review
+          - approved
+          - published
+          - simulated
+          - discarded
+          title: Status
+        artifact_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact Id
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - thread_id
+      - username
+      - project_key
+      - mode
+      - origin_kind
+      - title
+      - status
+      - created_at
+      - updated_at
+      title: ConversationSummary
+      description: Una fila de la lista de conversaciones (UI.md, marco común).
+    EditIn:
+      properties:
+        content:
+          anyOf:
+          - $ref: '#/components/schemas/UserStory'
+          - $ref: '#/components/schemas/TestSuite'
+          title: Content
+          description: 'Contenido completo editado: HU o suite, según el artefacto en revisión.'
+        feedback:
+          anyOf:
+          - type: string
+            maxLength: 1000
+            minLength: 1
+          - type: 'null'
+          title: Feedback
+          description: Nota opcional (RF-20).
+        fingerprint:
+          type: string
+          maxLength: 64
+          minLength: 64
+          pattern: ^[0-9a-f]{64}$
+          title: Fingerprint
+      type: object
+      required:
+      - content
+      - fingerprint
+      title: EditIn
+    ErrorBody:
+      properties:
+        code:
+          type: string
+          title: Code
+          description: Código estable para la UI, p. ej. `not_found`, `rate_limited`.
+        message:
+          type: string
+          title: Message
+          description: Mensaje en español para mostrar a la persona.
+        retry_after:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Retry After
+          description: Segundos a esperar antes de reintentar, si aplica.
+      type: object
+      required:
+      - code
+      - message
+      title: ErrorBody
+    ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+      type: object
+      required:
+      - error
+      title: ErrorResponse
+    HandoffOut:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          type: string
+          title: Title
+        project:
+          type: string
+          title: Project
+        story_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Story Key
+          description: Sin clave si la HU solo se aprobó en simulación.
+        version:
+          type: integer
+          title: Version
+        from_user:
+          type: string
+          title: From User
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - title
+      - project
+      - story_key
+      - version
+      - from_user
+      - created_at
+      title: HandoffOut
+    ImpactAnalysis:
+      properties:
+        diffs:
+          items:
+            $ref: '#/components/schemas/StoryDiff'
+          type: array
+          title: Diffs
+        affected:
+          items:
+            $ref: '#/components/schemas/ImpactItem'
+          type: array
+          title: Affected
+        regression_notes:
+          items:
+            type: string
+          type: array
+          title: Regression Notes
+      type: object
+      required:
+      - diffs
+      - affected
+      - regression_notes
+      title: ImpactAnalysis
+    ImpactItem:
+      properties:
+        jira_key:
+          type: string
+          minLength: 1
+          title: Jira Key
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+        kind:
+          type: string
+          enum:
+          - story
+          - rule
+          - dependency
+          - regression
+          title: Kind
+      type: object
+      required:
+      - jira_key
+      - reason
+      - kind
+      title: ImpactItem
+    InvestCheck:
+      properties:
+        letter:
+          type: string
+          enum:
+          - I
+          - N
+          - V
+          - E
+          - S
+          - T
+          title: Letter
+        verdict:
+          type: string
+          enum:
+          - ok
+          - improvable
+          title: Verdict
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Reason
+      type: object
+      required:
+      - letter
+      - verdict
+      - reason
+      title: InvestCheck
+    IssueCard:
+      properties:
+        key:
+          type: string
+          title: Key
+        project:
+          type: string
+          title: Project
+        summary:
+          type: string
+          title: Summary
+        issue_type:
+          type: string
+          title: Issue Type
+        status:
+          type: string
+          title: Status
+        epic_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Epic Key
+        criteria_count:
+          type: integer
+          minimum: 0.0
+          title: Criteria Count
+          description: CA contados en la descripción, sin IA.
+        rules_count:
+          type: integer
+          minimum: 0.0
+          title: Rules Count
+          description: RN contadas en la descripción, sin IA.
+      type: object
+      required:
+      - key
+      - project
+      - summary
+      - issue_type
+      - status
+      - criteria_count
+      - rules_count
+      title: IssueCard
+      description: Ficha de una incidencia para las tarjetas (HU parecida, clave reconocida).
+    IssueSummary:
+      properties:
+        key:
+          type: string
+          title: Key
+        summary:
+          type: string
+          title: Summary
+        issue_type:
+          type: string
+          title: Issue Type
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - key
+      - summary
+      - issue_type
+      - status
+      title: IssueSummary
+    IterateIn:
+      properties:
+        feedback:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          title: Feedback
+      type: object
+      required:
+      - feedback
+      title: IterateIn
+    LoginIn:
+      properties:
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Username
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - username
+      - password
+      title: LoginIn
+    ModelChoiceOut:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        model:
+          type: string
+          title: Model
+      type: object
+      required:
+      - provider
+      - model
+      title: ModelChoiceOut
+    ModelOverrideIn:
+      properties:
+        provider:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Provider
+        model:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Model
+      type: object
+      required:
+      - provider
+      - model
+      title: ModelOverrideIn
+    Origin:
+      properties:
+        kind:
+          type: string
+          enum:
+          - epic
+          - story
+          - need
+          title: Kind
+        key:
+          type: string
+          title: Key
+        text:
+          type: string
+          title: Text
+        project:
+          type: string
+          title: Project
+      type: object
+      required:
+      - kind
+      title: Origin
+    OriginIn:
+      properties:
+        kind:
+          type: string
+          enum:
+          - epic
+          - story
+          - need
+          title: Kind
+        key:
+          anyOf:
+          - type: string
+            maxLength: 50
+            pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          - type: 'null'
+          title: Key
+        text:
+          anyOf:
+          - type: string
+            maxLength: 4000
+          - type: 'null'
+          title: Text
+        project:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          title: Project
+      type: object
+      required:
+      - kind
+      - project
+      title: OriginIn
+    Priority:
+      type: string
+      enum:
+      - Must
+      - Should
+      - Could
+      - Won't
+      title: Priority
+    ProgressStep:
+      properties:
+        node:
+          type: string
+          enum:
+          - load_origin
+          - retrieve_context
+          - generate
+          - publish
+          - memorize
+          title: Node
+        label:
+          type: string
+          title: Label
+        state:
+          type: string
+          enum:
+          - pending
+          - running
+          - done
+          title: State
+      type: object
+      required:
+      - node
+      - label
+      - state
+      title: ProgressStep
+    ProjectSummary:
+      properties:
+        key:
+          type: string
+          title: Key
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - key
+      - name
+      title: ProjectSummary
+    ProjectsOut:
+      properties:
+        projects:
+          items:
+            $ref: '#/components/schemas/ProjectSummary'
+          type: array
+          title: Projects
+        preselected:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preselected
+          description: Último proyecto usado o, si no, `JIRA_PROJECT_KEY` si es visible (T-50).
+      type: object
+      required:
+      - projects
+      - preselected
+      title: ProjectsOut
+    ProposeIn:
+      properties:
+        text:
+          type: string
+          maxLength: 4000
+          title: Text
+        project:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          title: Project
+        mode:
+          type: string
+          enum:
+          - functional
+          - qa
+          title: Mode
+          default: functional
+      type: object
+      required:
+      - text
+      - project
+      title: ProposeIn
+    PublishOutcome:
+      properties:
+        simulated:
+          type: boolean
+          title: Simulated
+        plan:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+          title: Plan
+        approved_by:
+          type: string
+          title: Approved By
+        approved_at:
+          type: string
+          format: date-time
+          title: Approved At
+        published_keys:
+          items:
+            type: string
+          type: array
+          title: Published Keys
+          default: []
+        errors:
+          items:
+            type: string
+          type: array
+          title: Errors
+          description: Publicación parcial (RNF-13).
+          default: []
+        failed_ids:
+          items:
+            type: string
+          type: array
+          title: Failed Ids
+          description: CP o adjuntos que fallaron (para «Reintentar solo los fallidos»).
+          default: []
+      type: object
+      required:
+      - simulated
+      - plan
+      - approved_by
+      - approved_at
+      title: PublishOutcome
+    QualityFinding:
+      properties:
+        kind:
+          type: string
+          enum:
+          - ambiguity
+          - gap
+          - no_source
+          - invest
+          - inconsistency
+          title: Kind
+        target_id:
+          anyOf:
+          - type: string
+            pattern: ^(CA|RN)-\d+$
+          - type: 'null'
+          title: Target Id
+        explanation:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Explanation
+        proposal:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Proposal
+      type: object
+      required:
+      - kind
+      - explanation
+      - proposal
+      title: QualityFinding
+    QualityReport:
+      properties:
+        summary:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Summary
+        invest:
+          items:
+            $ref: '#/components/schemas/InvestCheck'
+          type: array
+          maxItems: 6
+          minItems: 6
+          title: Invest
+        findings:
+          items:
+            $ref: '#/components/schemas/QualityFinding'
+          type: array
+          maxItems: 30
+          title: Findings
+        open_questions:
+          items:
+            type: string
+            maxLength: 500
+          type: array
+          maxItems: 30
+          title: Open Questions
+          default: []
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceRef'
+          type: array
+          maxItems: 30
+          title: Sources
+          default: []
+      type: object
+      required:
+      - summary
+      - invest
+      - findings
+      title: QualityReport
+    QualityReviewIn:
+      properties:
+        issue_key:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          title: Issue Key
+        excluded_sources:
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9_.:/-]{1,100}$
+          type: array
+          maxItems: 50
+          title: Excluded Sources
+          default: []
+      type: object
+      required:
+      - issue_key
+      title: QualityReviewIn
+    QualityReviewOut:
+      properties:
+        id:
+          type: string
+          title: Id
+        issue_key:
+          type: string
+          title: Issue Key
+        state:
+          type: string
+          enum:
+          - running
+          - done
+          - error
+          title: State
+        report:
+          anyOf:
+          - $ref: '#/components/schemas/QualityReport'
+          - type: 'null'
+        evolve_feedback:
+          items:
+            type: string
+          type: array
+          title: Evolve Feedback
+          description: Feedback inicial para «Evolucionar con esto».
+          default: []
+        report_markdown:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Report Markdown
+          description: Informe escapado, **solo para descargar** (no pintarlo).
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorBody'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - issue_key
+      - state
+      title: QualityReviewOut
+    ReviewPayload:
+      properties:
+        artifact:
+          $ref: '#/components/schemas/Artifact'
+        version:
+          type: integer
+          title: Version
+        target:
+          additionalProperties:
+            anyOf:
+            - type: string
+            - type: 'null'
+          type: object
+          title: Target
+          description: Operación que se aprobará (`describe()`).
+        fingerprint:
+          type: string
+          title: Fingerprint
+          description: Huella que hay que devolver **tal cual** para aprobar.
+        impact:
+          anyOf:
+          - $ref: '#/components/schemas/ImpactAnalysis'
+          - type: 'null'
+        plan:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+          title: Plan
+          description: 'Operaciones de Jira: el recibo (RF-31).'
+        decisions:
+          items:
+            type: string
+            enum:
+            - iterate
+            - edit
+            - approve
+            - discard
+          type: array
+          title: Decisions
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+          description: Motivo de la última respuesta rechazada (la revisión sigue).
+      type: object
+      required:
+      - artifact
+      - version
+      - target
+      - fingerprint
+      - plan
+      - decisions
+      title: ReviewPayload
+      description: La pausa de `human_review` (UI.md §5, anexo §11 de la SPEC).
+    SessionOut:
+      properties:
+        user:
+          $ref: '#/components/schemas/UserOut'
+        csrf_token:
+          type: string
+          title: Csrf Token
+          description: Se envía en la cabecera `X-CSRF-Token` en toda petición que modifica algo. La sesión
+            va en una cookie HttpOnly que el frontend no ve.
+      type: object
+      required:
+      - user
+      - csrf_token
+      title: SessionOut
+    SettingsOut:
+      properties:
+        publish_mode:
+          type: string
+          enum:
+          - simulation
+          - live
+          title: Publish Mode
+        tasks:
+          items:
+            $ref: '#/components/schemas/TaskModelsOut'
+          type: array
+          title: Tasks
+      type: object
+      required:
+      - publish_mode
+      - tasks
+      title: SettingsOut
+    SourcePreview:
+      properties:
+        ref:
+          type: string
+          title: Ref
+        kind:
+          type: string
+          enum:
+          - jira
+          - rag
+          - memory
+          title: Kind
+        title:
+          type: string
+          title: Title
+        category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+        required:
+          type: boolean
+          title: Required
+          default: false
+      type: object
+      required:
+      - ref
+      - kind
+      - title
+      title: SourcePreview
+      description: Una fila del panel de fuentes; `ref` es lo que se pasa en `excluded_sources`.
+    SourceRef:
+      properties:
+        kind:
+          type: string
+          enum:
+          - jira
+          - rag
+          - memory
+          title: Kind
+        ref:
+          type: string
+          minLength: 1
+          title: Ref
+        excerpt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Excerpt
+      type: object
+      required:
+      - kind
+      - ref
+      title: SourceRef
+      description: Fuente citada por un artefacto (RF-21, RNF-14).
+    SourcesIn:
+      properties:
+        origin:
+          $ref: '#/components/schemas/OriginIn'
+        excluded_sources:
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9_.:/-]{1,100}$
+          type: array
+          maxItems: 50
+          title: Excluded Sources
+          default: []
+      type: object
+      required:
+      - origin
+      title: SourcesIn
+    StartOption:
+      properties:
+        kind:
+          type: string
+          enum:
+          - evolve
+          - new_story_in_epic
+          - tests
+          - new_need
+          title: Kind
+        label:
+          type: string
+          title: Label
+        origin:
+          $ref: '#/components/schemas/Origin'
+        issue:
+          anyOf:
+          - $ref: '#/components/schemas/IssueSummary'
+          - type: 'null'
+      type: object
+      required:
+      - kind
+      - label
+      - origin
+      title: StartOption
+      description: Una forma de empezar; `origin` va tal cual a `initial_state`.
+    StartProposal:
+      properties:
+        project:
+          type: string
+          title: Project
+        project_changed:
+          type: boolean
+          title: Project Changed
+        ignored_projects:
+          items:
+            type: string
+          type: array
+          title: Ignored Projects
+          default: []
+        recognized:
+          items:
+            $ref: '#/components/schemas/IssueSummary'
+          type: array
+          title: Recognized
+        similar:
+          items:
+            $ref: '#/components/schemas/IssueSummary'
+          type: array
+          title: Similar
+        options:
+          items:
+            $ref: '#/components/schemas/StartOption'
+          type: array
+          title: Options
+      type: object
+      required:
+      - project
+      - project_changed
+      - recognized
+      - similar
+      - options
+      title: StartProposal
+    StoryDiff:
+      properties:
+        field:
+          type: string
+          minLength: 1
+          title: Field
+        before:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Before
+        after:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: After
+      type: object
+      required:
+      - field
+      - before
+      - after
+      title: StoryDiff
+    TaskModelsOut:
+      properties:
+        task:
+          type: string
+          title: Task
+        chain:
+          items:
+            $ref: '#/components/schemas/ModelChoiceOut'
+          type: array
+          title: Chain
+        override:
+          anyOf:
+          - $ref: '#/components/schemas/ModelChoiceOut'
+          - type: 'null'
+      type: object
+      required:
+      - task
+      - chain
+      title: TaskModelsOut
+    TestCase:
+      properties:
+        internal_id:
+          type: string
+          pattern: ^CP-\d+$
+          title: Internal Id
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        criterion_ids:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Criterion Ids
+        rule_ids:
+          items:
+            type: string
+          type: array
+          title: Rule Ids
+          default: []
+        type:
+          $ref: '#/components/schemas/TestCaseType'
+        preconditions:
+          items:
+            type: string
+          type: array
+          title: Preconditions
+        steps:
+          items:
+            $ref: '#/components/schemas/TestStep'
+          type: array
+          minItems: 1
+          title: Steps
+        gherkin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gherkin
+        priority:
+          $ref: '#/components/schemas/Priority'
+      type: object
+      required:
+      - internal_id
+      - title
+      - criterion_ids
+      - type
+      - preconditions
+      - steps
+      - priority
+      title: TestCase
+      description: Caso de prueba trazable a CA y RN (RF-23).
+    TestCaseType:
+      type: string
+      enum:
+      - positivo
+      - negativo
+      - alterno
+      - excepcion
+      title: TestCaseType
+    TestStep:
+      properties:
+        action:
+          type: string
+          minLength: 1
+          title: Action
+        data:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Data
+        expected:
+          type: string
+          minLength: 1
+          title: Expected
+      type: object
+      required:
+      - action
+      - expected
+      title: TestStep
+    TestSuite:
+      properties:
+        story_jira_key:
+          type: string
+          minLength: 1
+          title: Story Jira Key
+        cases:
+          items:
+            $ref: '#/components/schemas/TestCase'
+          type: array
+          minItems: 1
+          title: Cases
+        strategy_md:
+          type: string
+          title: Strategy Md
+        synthetic_data:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+          title: Synthetic Data
+          default: []
+        risks:
+          items:
+            type: string
+          type: array
+          title: Risks
+          default: []
+        dependencies:
+          items:
+            type: string
+          type: array
+          title: Dependencies
+          default: []
+        impact_areas:
+          items:
+            type: string
+          type: array
+          title: Impact Areas
+          default: []
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceRef'
+          type: array
+          title: Sources
+          default: []
+      type: object
+      required:
+      - story_jira_key
+      - cases
+      - strategy_md
+      title: TestSuite
+      description: Artefactos de QA de una HU; se publica en Jira nativo (D-09).
+    UserOut:
+      properties:
+        username:
+          type: string
+          title: Username
+        role:
+          type: string
+          enum:
+          - functional
+          - qa
+          - admin
+          title: Role
+        permissions:
+          items:
+            type: string
+          type: array
+          title: Permissions
+          description: Permisos de `core/permissions.py` del rol.
+      type: object
+      required:
+      - username
+      - role
+      - permissions
+      title: UserOut
+    UserStory:
+      properties:
+        internal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Internal Id
+        jira_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Jira Key
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        role:
+          type: string
+          title: Role
+        action:
+          type: string
+          title: Action
+        benefit:
+          type: string
+          title: Benefit
+        description:
+          type: string
+          title: Description
+        business_goal:
+          type: string
+          title: Business Goal
+        scope_includes:
+          items:
+            type: string
+          type: array
+          title: Scope Includes
+        scope_excludes:
+          items:
+            type: string
+          type: array
+          title: Scope Excludes
+        acceptance_criteria:
+          items:
+            $ref: '#/components/schemas/AcceptanceCriterion'
+          type: array
+          minItems: 1
+          title: Acceptance Criteria
+        business_rules:
+          items:
+            $ref: '#/components/schemas/BusinessRule'
+          type: array
+          title: Business Rules
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        constraints:
+          items:
+            type: string
+          type: array
+          title: Constraints
+        dependencies:
+          items:
+            type: string
+          type: array
+          title: Dependencies
+        alternate_flows:
+          items:
+            type: string
+          type: array
+          title: Alternate Flows
+        exceptions:
+          items:
+            type: string
+          type: array
+          title: Exceptions
+        related_features:
+          items:
+            type: string
+          type: array
+          title: Related Features
+        changes_from_previous:
+          items:
+            type: string
+          type: array
+          title: Changes From Previous
+          default: []
+        related_requirements:
+          items:
+            type: string
+          type: array
+          title: Related Requirements
+          default: []
+        priority:
+          $ref: '#/components/schemas/Priority'
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceRef'
+          type: array
+          title: Sources
+          default: []
+        open_questions:
+          items:
+            type: string
+          type: array
+          title: Open Questions
+          default: []
+      type: object
+      required:
+      - title
+      - role
+      - action
+      - benefit
+      - description
+      - business_goal
+      - scope_includes
+      - scope_excludes
+      - acceptance_criteria
+      - business_rules
+      - assumptions
+      - constraints
+      - dependencies
+      - alternate_flows
+      - exceptions
+      - related_features
+      - priority
+      title: UserStory
+      description: Plantilla completa de HU del proyecto (RF-15).
+    VersionOut:
+      properties:
+        version:
+          type: integer
+          title: Version
+        artifact:
+          $ref: '#/components/schemas/Artifact'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        edited:
+          type: boolean
+          title: Edited
+          description: Versión editada a mano (RF-32).
+          default: false
+      type: object
+      required:
+      - version
+      - artifact
+      - created_at
+      title: VersionOut
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: afqa_session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+security:
+- sessionCookie: []
+  csrfHeader: []

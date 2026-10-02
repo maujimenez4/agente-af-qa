@@ -53,14 +53,20 @@ def _id_sort_key(item_id: str) -> tuple[int, str]:
     return (int(match.group(1)) if match else 0, item_id)
 
 
+def _one_line(text: str) -> str:
+    """Elemento de una lista unida por saltos de línea, sin ambigüedad (PA-198): sus propios
+    saltos y barras invertidas se escapan, así ['a\\n- b'] y ['a', 'b'] no dan el mismo texto."""
+    return text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n")
+
+
 def _criterion_text(criterion: AcceptanceCriterion) -> str:
-    lines = [criterion.title]
+    lines = [_one_line(criterion.title)]
     for keyword, steps in (
         ("Dado", criterion.given),
         ("Cuando", criterion.when),
         ("Entonces", criterion.then),
     ):
-        lines += [f"{keyword if i == 0 else 'Y'} {step}" for i, step in enumerate(steps)]
+        lines += [f"{keyword if i == 0 else 'Y'} {_one_line(step)}" for i, step in enumerate(steps)]
     return "\n".join(lines)
 
 
@@ -73,9 +79,9 @@ def _render(name: str, value: Any) -> str | None:
     if value is None:
         return None
     if name == "sources":
-        refs = [f"{ref.kind}:{ref.ref}" for ref in value]
+        refs = [f"{ref.kind}:{_one_line(ref.ref)}" for ref in value]
         return "\n".join(f"- {r}" for r in refs) or None
     if isinstance(value, list):
-        return "\n".join(f"- {item}" for item in value) or None
+        return "\n".join(f"- {_one_line(str(item))}" for item in value) or None
     text = str(value.value if hasattr(value, "value") else value)
     return text or None

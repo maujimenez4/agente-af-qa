@@ -23,7 +23,11 @@ from pydantic import BaseModel
 
 from adapters.base import LLMProvider, LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import ExternalServiceError, RateLimitError
-from adapters.llm.openai_compatible import ProviderTimeoutError, StructuredOutputError
+from adapters.llm.openai_compatible import (
+    ProviderTimeoutError,
+    StructuredOutputError,
+    spent_tokens,
+)
 from adapters.llm.usage import UsageRecord, UsageRecorder, current_artifact_id
 
 log = structlog.get_logger(__name__)
@@ -127,9 +131,11 @@ class FallbackLLMProvider:
             start = time.monotonic()
             try:
                 result = call(provider)
-            except StructuredOutputError:
+            except StructuredOutputError as exc:
+                self._record_spent(task, name, model, exc, start)
                 raise
             except ExternalServiceError as exc:
+                self._record_spent(task, name, model, exc, start)
                 reason = fallback_reason(exc)
                 log.warning(
                     "llm_provider_failed",
@@ -139,6 +145,7 @@ class FallbackLLMProvider:
                     model=model,
                     error=type(exc).__name__,
                     reason=reason,
+                    artifact_id=current_artifact_id(),
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )
                 if (events := _EVENTS.get()) is not None:
@@ -149,6 +156,40 @@ class FallbackLLMProvider:
             return result
         raise _chain_error(task, failures)
 
+    def _record_spent(
+        self,
+        task: TaskType,
+        provider: str,
+        model: str | None,
+        exc: BaseException,
+        start: float,
+    ) -> None:
+        """PA-191: registra los tokens que un proveedor consumió antes de fallar (RF-43)."""
+        input_tokens, output_tokens = spent_tokens(exc)
+        if self._recorder is None or input_tokens + output_tokens == 0:
+            return
+        try:
+            self._recorder.record(
+                UsageRecord(
+                    task=task,
+                    provider=provider,
+                    model=model or "",
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    latency_ms=int((time.monotonic() - start) * 1000),
+                    artifact_id=current_artifact_id(),
+                )
+            )
+        except Exception as error:  # el registro no puede tapar el error del proveedor
+            log.warning(
+                "llm_usage_not_recorded",
+                action="llm_call",
+                task=task.value,
+                model=model,
+                artifact_id=current_artifact_id(),
+                error=type(error).__name__,
+            )
+
     def _record(self, task: TaskType, result: LLMResult | StructuredResult) -> None:
         log.info(
             "llm_call",
@@ -158,6 +199,7 @@ class FallbackLLMProvider:
             model=result.model,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            artifact_id=current_artifact_id(),  # PA-194: campos de log de CLAUDE.md
             duration_ms=result.latency_ms,
         )
         if self._recorder is None:

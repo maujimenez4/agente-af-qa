@@ -691,14 +691,6 @@ def test_markdown_to_adf_caps_published_text_when_input_exceeds_max() -> None:
     assert sum(len(t) for t in _texts(adf)) == MAX_MARKDOWN_CHARS
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-187): `_TABLE_SEPARATOR` tiene backtracking cuadrático (`\\s*` "
-        "adyacentes); una segunda fila de tabla «| -» + espacios + «x» de 20 000 caracteres "
-        "tarda >1 s y una de 100 000 (el tope) decenas de segundos (adapters/jira/adf.py:230, 354)"
-    ),
-)
 def test_markdown_to_adf_runs_in_linear_time_when_table_separator_is_pathological() -> None:
     """§8: el comentario del diff (texto no fiable) no puede bloquear la publicación."""
     md = "| a |\n| -" + " " * 20_000 + "x"
@@ -839,3 +831,25 @@ def test_link_rejects_link_type_without_request_when_not_allowed(link_type: str)
     """D-09: solo «relates to» (el nombre interno, no el de la API)."""
     with pytest.raises(PublishError):
         _tracker(Script(_no_http)).link("DEMO-3", "DEMO-2", link_type)
+
+
+def test_markdown_to_adf_table_separator_at_max_length_runs_in_milliseconds() -> None:
+    """PA-187 · §8: el texto más largo permitido (`MAX_MARKDOWN_CHARS`) con una segunda fila
+    patológica se procesa en milisegundos (sin backtracking cuadrático)."""
+    from adapters.jira.adf import MAX_MARKDOWN_CHARS
+
+    head = "| a |\n| -"
+    md = head + " " * (MAX_MARKDOWN_CHARS - len(head) - 1) + "x"
+    assert len(md) == MAX_MARKDOWN_CHARS
+    start = time.perf_counter()
+    markdown_to_adf(md)
+    assert time.perf_counter() - start < 0.5  # ~0,1 s medido; margen para una máquina cargada
+
+
+def test_markdown_to_adf_keeps_table_header_with_valid_separators() -> None:
+    """PA-187 (regresión): los separadores válidos siguen marcando la cabecera de la tabla."""
+    for separator in ("|---|---|", "| :-- | --: |", "|:-:|-|"):
+        adf = markdown_to_adf(f"| a | b |\n{separator}\n| 1 | 2 |")
+        cells = [n["type"] for n in _walk(adf) if n["type"] in ("tableHeader", "tableCell")]
+        assert cells[:2] == ["tableHeader", "tableHeader"], separator
+        assert cells[2:] == ["tableCell", "tableCell"], separator

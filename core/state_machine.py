@@ -27,16 +27,35 @@ __all__ = [
 ]
 
 
+def _status(value: object) -> ArtifactStatus | None:
+    """`ArtifactStatus` de un valor (también su cadena); None si no es un estado válido."""
+    try:
+        return ArtifactStatus(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def can_transition(current: ArtifactStatus, target: ArtifactStatus) -> bool:
-    return target in TRANSITIONS[current]
+    origin, destination = _status(current), _status(target)
+    return origin is not None and destination is not None and destination in TRANSITIONS[origin]
 
 
-def ensure_transition(current: ArtifactStatus, target: ArtifactStatus) -> None:
+def ensure_transition(current: ArtifactStatus, target: ArtifactStatus) -> ArtifactStatus:
+    """Devuelve el destino como `ArtifactStatus`; `InvalidTransitionError` si no se permite.
+
+    PA-176: un estado de tipo o valor inesperado también es una transición no permitida.
+    """
     if not can_transition(current, target):
-        raise InvalidTransitionError(current.value, target.value)
+        raise InvalidTransitionError(_label(current), _label(target))
+    return ArtifactStatus(target)
 
 
 def transition(artifact: Artifact, target: ArtifactStatus) -> Artifact:
     """Devuelve una copia del artefacto en el estado `target`; no modifica el original."""
-    ensure_transition(artifact.status, target)
-    return artifact.model_copy(update={"status": target})
+    status = ensure_transition(artifact.status, target)
+    return artifact.model_copy(update={"status": status})
+
+
+def _label(value: object) -> str:
+    status = _status(value)
+    return status.value if status is not None else str(value)[:40]

@@ -49,7 +49,14 @@ from adapters.jira.adf import (
 from adapters.jira.http import SERVICE, JiraHttp
 from adapters.jira.jql import CASE_LABEL, cases_jql
 from adapters.jira.story_template import prefixed_summary
-from adapters.jira.tracker import JIRA_KEY_RE, SEARCH_FIELDS, to_issue_summary
+from adapters.jira.tracker import (
+    JIRA_KEY_RE,
+    MAPPING_ERRORS,
+    SEARCH_FIELDS,
+    list_field,
+    to_issue_summary,
+    unexpected_format,
+)
 
 # PA-206: el resultado y el límite de la evidencia son del dominio (`schemas/`); se
 # reexportan aquí para quien los importaba de este módulo.
@@ -149,8 +156,11 @@ class JiraNativeTests:
             if token:
                 params["nextPageToken"] = token
             page = self._http.get("/rest/api/3/search/jql", params=params, invalid="La consulta")
-            issues = page.get("issues") or []
-            cases += [to_issue_summary(issue) for issue in issues]
+            issues = list_field(page, "issues")  # PA-189
+            try:
+                cases += [to_issue_summary(issue) for issue in issues]
+            except MAPPING_ERRORS:
+                raise unexpected_format() from None
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
                 break
@@ -274,12 +284,12 @@ class JiraNativeTests:
         if len(evidence) > MAX_EVIDENCE_CHARS:
             raise PublishError(f"La evidencia supera los {MAX_EVIDENCE_CHARS} caracteres.")
 
-        fields = (
+        fields = _fields(
             self._http.get(
                 f"/rest/api/3/issue/{key}", params={"fields": "labels,status,issuetype"}, key=key
             )
-        ).get("fields") or {}
-        labels = [str(label) for label in fields.get("labels") or []]
+        )
+        labels = [str(label) for label in list_field(fields, "labels")]
         issue_type = fields.get("issuetype")
         # Nunca se escribe en una incidencia que no sea una subtarea CP.
         if not isinstance(issue_type, dict) or issue_type.get("subtask") is not True:
@@ -370,7 +380,9 @@ class JiraNativeTests:
         data = self._http.get(
             f"/rest/api/3/issue/{story}", params={"fields": "attachment"}, key=story
         )
-        attachments = (data.get("fields") or {}).get("attachment") or []
+        attachments = list_field(
+            _fields(data), "attachment"
+        )  # PA-188: forma inesperada → AgentError
         return {str(a.get("filename")) for a in attachments if isinstance(a, dict)}
 
 
@@ -477,6 +489,14 @@ def _transition_names(
             raise ValueError(f"Las transiciones de «{STATUS_TEXT[status]}» no son válidas.")
         names[status] = frozenset(cleaned)
     return names
+
+
+def _fields(issue: dict[str, Any]) -> dict[str, Any]:
+    """`fields` de una incidencia leída; otra forma es un error de Jira (PA-188, PA-189)."""
+    fields = issue.get("fields") or {}
+    if not isinstance(fields, dict):
+        raise unexpected_format()
+    return fields
 
 
 def _checked_key(key: str) -> str:

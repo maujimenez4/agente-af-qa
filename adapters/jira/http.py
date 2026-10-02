@@ -26,6 +26,7 @@ from adapters.errors import (
 )
 
 SERVICE = "jira"
+UNEXPECTED_FORMAT = "Jira ha devuelto datos con un formato inesperado."  # PA-185
 _GATEWAY = "https://api.atlassian.com/ex/jira"
 _CLOUD_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 
@@ -89,6 +90,7 @@ class JiraHttp:
                     auth=self._auth,
                     headers={"Accept": "application/json"},
                     timeout=self._timeout,
+                    follow_redirects=False,  # PA-183: como en las escrituras
                 )
             except httpx.HTTPError:
                 if attempt < self._max_retries:
@@ -101,15 +103,24 @@ class JiraHttp:
                 ) from None
 
             status = response.status_code
-            if status < 400:
+            if status < 300:
                 if not response.content:
                     return {}
                 try:
-                    return response.json()
+                    data = response.json()
                 except ValueError:
                     raise ExternalServiceError(
                         "Jira ha devuelto una respuesta no válida.", service=SERVICE
                     ) from None
+                if not isinstance(data, dict):  # PA-185: las lecturas siempre son objetos
+                    raise ExternalServiceError(UNEXPECTED_FORMAT, service=SERVICE)
+                return data
+            if status < 400:  # PA-183: un 3xx (URL del sitio mal puesta) no es un éxito vacío
+                raise ExternalServiceError(
+                    f"Jira ha respondido con una redirección (HTTP {status}). Revisa la URL del "
+                    "sitio.",
+                    service=SERVICE,
+                )
             if status in (401, 403):
                 raise AuthenticationError(
                     f"Jira ha rechazado las credenciales (HTTP {status}). Revisa el email, "

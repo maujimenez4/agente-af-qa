@@ -20,7 +20,7 @@ from adapters.base import IssueDetail, IssueLink, IssueSummary, ProjectSummary
 from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
 from adapters.jira.adf import adf_to_text, markdown_to_adf
 from adapters.jira.http import SERVICE as _SERVICE
-from adapters.jira.http import JiraHttp
+from adapters.jira.http import UNEXPECTED_FORMAT, JiraHttp
 from adapters.jira.jql import PROJECT_KEY_RE, children_jql, epics_jql
 from adapters.jira.story_template import story_summary, story_to_adf
 from schemas.user_story import UserStory
@@ -39,6 +39,22 @@ LINK_TYPES = {"relates to": "Relates"}  # D-09: nombre del vínculo en la API de
 
 def _project_of(key: str) -> str:
     return key.rsplit("-", 1)[0]
+
+
+# PA-185: errores de Python al mapear una respuesta 2xx con forma inesperada.
+MAPPING_ERRORS = (AttributeError, KeyError, TypeError, ValueError)
+
+
+def unexpected_format() -> ExternalServiceError:
+    return ExternalServiceError(UNEXPECTED_FORMAT, service=_SERVICE)
+
+
+def list_field(data: dict[str, Any], field: str) -> list[Any]:
+    """`data[field]` como lista (vacía si falta); otra forma es un error de Jira (PA-185)."""
+    value = data.get(field) or []
+    if not isinstance(value, list):
+        raise unexpected_format()
+    return value
 
 
 class JiraCloudTracker:
@@ -90,31 +106,43 @@ class JiraCloudTracker:
             shown = key[:_MAX_KEY_IN_MESSAGE]
             raise NotFoundError(f"«{shown}» no es una clave de Jira válida.", service=_SERVICE)
         data = self._get(f"/rest/api/3/issue/{key}", params={"fields": ISSUE_FIELDS}, key=key)
-        return _to_issue_detail(data)
+        try:
+            return _to_issue_detail(data)
+        except MAPPING_ERRORS:  # PA-185: una forma inesperada no escapa como error de Python
+            raise unexpected_format() from None
 
     def search(self, jql: str, limit: int = 50) -> list[IssueSummary]:
         """JQL de solo lectura, paginada con `nextPageToken` hasta `limit` (RF-02)."""
         if not jql.strip():
             raise ValueError("La consulta JQL está vacía.")
-        remaining = min(limit, MAX_RESULTS)
-        results: list[IssueSummary] = []
+        cap = min(limit, MAX_RESULTS)
+        results: dict[str, IssueSummary] = {}  # por clave: una incidencia no se repite (PA-184)
         token: str | None = None
-        while remaining > 0:
+        seen_tokens: set[str] = set()
+        while len(results) < cap:
             params = {
                 "jql": jql,
-                "maxResults": str(min(PAGE_SIZE, remaining)),
+                "maxResults": str(min(PAGE_SIZE, cap - len(results))),
                 "fields": SEARCH_FIELDS,
             }
             if token:
                 params["nextPageToken"] = token
             page = self._get("/rest/api/3/search/jql", params=params, invalid="La consulta JQL")
-            issues = page.get("issues") or []
-            results += [to_issue_summary(issue) for issue in issues[:remaining]]
-            remaining = min(limit, MAX_RESULTS) - len(results)
+            issues = list_field(page, "issues")
+            try:
+                for issue in issues:
+                    summary = to_issue_summary(issue)
+                    if len(results) < cap:
+                        results.setdefault(summary.key, summary)
+            except MAPPING_ERRORS:
+                raise unexpected_format() from None
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
                 break
-        return results
+            if not isinstance(token, str) or token in seen_tokens:  # PA-184: token repetido
+                break
+            seen_tokens.add(token)
+        return list(results.values())
 
     def list_projects(self) -> list[ProjectSummary]:
         """Proyectos visibles con el token (RF-02), paginados con `startAt`/`isLast`."""
@@ -123,12 +151,15 @@ class JiraCloudTracker:
         while start < MAX_RESULTS and len(projects) < MAX_RESULTS:
             params = {"startAt": str(start), "maxResults": str(PAGE_SIZE), "orderBy": "key"}
             page = self._get("/rest/api/3/project/search", params=params)
-            values = page.get("values") or []
-            projects += [
-                ProjectSummary(key=str(v.get("key", "")), name=str(v.get("name") or ""))
-                for v in values
-                if v.get("key")
-            ]
+            values = list_field(page, "values")
+            try:
+                projects += [
+                    ProjectSummary(key=str(v.get("key", "")), name=str(v.get("name") or ""))
+                    for v in values
+                    if v.get("key")
+                ]
+            except MAPPING_ERRORS:  # PA-185
+                raise unexpected_format() from None
             start += len(values)
             if not values or page.get("isLast", True):
                 break

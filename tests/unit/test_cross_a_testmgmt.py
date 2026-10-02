@@ -597,15 +597,6 @@ def test_publish_suite_retries_list_cases_429_with_injected_sleep_then_publishes
     assert result.created == ["DEMO-101"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-188): si la consulta de adjuntos responde 200 con JSON que no es un "
-        "objeto (lista o `fields` no objeto), `_attachment_names` lanza `AttributeError` "
-        "después de crear los CP y se pierde el `PublishResult` (RNF-13) "
-        "(adapters/testmgmt/jira_native.py:231-234, 369-374; adapters/jira/http.py:107-108)"
-    ),
-)
 @pytest.mark.parametrize("payload", [[], {"fields": "x"}], ids=["lista", "fields-texto"])
 def test_publish_suite_reports_attachments_failed_when_attachment_query_has_unexpected_shape(
     payload: Any,
@@ -618,15 +609,6 @@ def test_publish_suite_reports_attachments_failed_when_attachment_query_has_unex
     assert result.failed == [STRATEGY_FILE, MATRIX_FILE]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-189): las lecturas asumen objetos JSON; un 200 con una lista o con "
-        "incidencias que no son objetos lanza `AttributeError` en vez de un `ExternalServiceError` "
-        "en español (adapters/testmgmt/jira_native.py:151-153, 277-281; "
-        "adapters/jira/http.py:107-108; adapters/jira/tracker.py:236-237)"
-    ),
-)
 @pytest.mark.parametrize(
     "payload", [[], {"issues": ["DEMO-9"]}], ids=["pagina-lista", "incidencia-texto"]
 )
@@ -807,14 +789,6 @@ def test_record_execution_transition_400_message_does_not_mention_epic() -> None
     assert "épica" not in str(info.value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-189): `record_execution` asume que la incidencia leída es un objeto; "
-        "un 200 con una lista lanza `AttributeError` en vez de un `AgentError` en español "
-        "(adapters/testmgmt/jira_native.py:277-281; adapters/jira/http.py:107-108)"
-    ),
-)
 def test_record_execution_raises_agent_error_when_case_read_has_unexpected_shape() -> None:
     """§8: una respuesta con forma inesperada es un error de la familia `AgentError`."""
     site = ExecutionSite(replies={("GET", CASE_PATH): [httpx.Response(200, json=[])]})

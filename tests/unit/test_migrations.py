@@ -26,6 +26,7 @@ TABLES = {
     "llm_usage",
     "user_last_project",  # 0003 (T-50)
     "conversations",  # 0004 (T-52)
+    "qa_handoffs",  # 0005 (T-54)
 }
 
 OFFLINE_URL = URL.create("postgresql+psycopg", username="agente", host="localhost", database="x")
@@ -148,3 +149,128 @@ def test_tsv_is_stored_generated_column(offline_sql: str) -> None:
     assert re.search(
         r"tsv TSVECTOR GENERATED ALWAYS AS \(to_tsvector\('spanish'.*\) STORED", offline_sql
     )
+
+
+# --- 0005 · qa_handoffs (T-54) --------------------------------------------------------------
+
+
+def _qa_handoffs_sql(offline_sql: str) -> str:
+    start = offline_sql.index("CREATE TABLE qa_handoffs")
+    return offline_sql[start : offline_sql.index(");", start)]
+
+
+def test_qa_handoffs_table_columns_and_nullability(offline_sql: str) -> None:
+    """T-54 · criterio 10: qa_handoffs con la HU en JSONB y solo las claves opcionales nulas."""
+    table = _qa_handoffs_sql(offline_sql)
+    for column in (
+        "id VARCHAR(32) NOT NULL",
+        "artifact_id UUID NOT NULL",
+        "version INTEGER NOT NULL",
+        "project_key VARCHAR NOT NULL",
+        "published BOOLEAN NOT NULL",
+        "title VARCHAR NOT NULL",
+        "story JSONB NOT NULL",
+        "from_user VARCHAR NOT NULL",
+        "from_thread_id VARCHAR(64) NOT NULL",
+        "created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL",
+        "status VARCHAR DEFAULT 'pending' NOT NULL",
+    ):
+        assert column in table
+    for nullable in ("story_key", "taken_by", "taken_at", "qa_thread_id"):
+        (line,) = [x for x in table.splitlines() if x.strip().startswith(nullable + " ")]
+        assert "NOT NULL" not in line
+    assert "PRIMARY KEY (id)" in table
+
+
+def test_qa_handoffs_constraints_and_index(offline_sql: str) -> None:
+    """T-54 · criterio 10: única por versión y publicación, CHECK de clave, estado y recogida."""
+    table = _qa_handoffs_sql(offline_sql)
+    assert (
+        "CONSTRAINT uq_qa_handoffs_artifact_version UNIQUE (artifact_id, version, published)"
+        in table
+    )
+    assert "CONSTRAINT ck_qa_handoffs_key CHECK (published = (story_key IS NOT NULL))" in table
+    assert "CONSTRAINT ck_qa_handoffs_status CHECK (status IN ('pending', 'taken'))" in table
+    # Recogida exige quién, cuándo y en qué conversación; pendiente, ninguno de los tres.
+    assert "CONSTRAINT ck_qa_handoffs_taken CHECK ((status = 'taken') = (taken_by IS NOT NULL" in (
+        table
+    )
+    for column in ("taken_by", "taken_at", "qa_thread_id"):
+        assert f"{column} IS NOT NULL" in table and f"{column} IS NULL" in table
+    assert (
+        "CREATE INDEX ix_qa_handoffs_status_created ON qa_handoffs (status, created_at)"
+        in offline_sql
+    )
+
+
+def test_qa_handoffs_migration_follows_conversations(offline_sql: str) -> None:
+    """T-54: 0005 se aplica justo después de 0004."""
+    assert "-- Running upgrade 0004_conversations -> 0005_qa_handoffs" in offline_sql
+
+
+def test_qa_handoffs_model_matches_migration_columns(offline_sql: str) -> None:
+    """T-54: la tabla de SQLAlchemy de core/handoff.py tiene las columnas de la migración."""
+    from core.handoff import QA_HANDOFFS
+
+    table = _qa_handoffs_sql(offline_sql)
+    migrated = set(re.findall(r"^\s{4}(\w+) [A-Z]", table, flags=re.MULTILINE))
+    assert {c.name for c in QA_HANDOFFS.columns} == migrated - {"PRIMARY", "CONSTRAINT"}
+
+
+def _insert_handoff(conn: sa.Connection, **values: object) -> None:
+    row: dict[str, object] = {
+        "id": "a" * 32,
+        "artifact_id": "00000000-0000-0000-0000-000000000001",
+        "version": 1,
+        "project_key": "DEMO",
+        "story_key": "DEMO-3",
+        "published": True,
+        "title": "Renovar un préstamo",
+        "story": "{}",
+        "from_user": "ana-ficticia",
+        "from_thread_id": "hilo-ficticio",
+        "status": "pending",
+        "taken_by": None,
+    }
+    row |= values
+    conn.execute(
+        sa.text(
+            "INSERT INTO qa_handoffs (id, artifact_id, version, project_key, story_key, "
+            "published, title, story, from_user, from_thread_id, status, taken_by) VALUES "
+            "(:id, :artifact_id, :version, :project_key, :story_key, :published, :title, "
+            "CAST(:story AS JSONB), :from_user, :from_thread_id, :status, :taken_by)"
+        ),
+        row,
+    )
+
+
+@pytest.mark.integration
+def test_migration_0005_constraints_against_postgres(database_url: URL) -> None:
+    """T-54 · criterio 10 (PostgreSQL): restricciones de qa_handoffs y downgrade a 0004."""
+    config = _alembic_config(database_url)
+    command.upgrade(config, "head")
+    engine = sa.create_engine(database_url, poolclass=sa.pool.NullPool)
+    try:
+        with engine.begin() as conn:
+            _insert_handoff(conn)
+            # Misma versión sin publicar: admitida (otra fila).
+            _insert_handoff(conn, id="b" * 32, story_key=None, published=False)
+        bad_rows = [
+            {"id": "c" * 32},  # duplicada (artifact_id, version, published)
+            {"id": "d" * 32, "version": 2, "story_key": None},  # published sin clave
+            {"id": "e" * 32, "version": 3, "published": False},  # clave sin published
+            {"id": "f" * 32, "version": 4, "status": "otro"},
+            {"id": "1" * 32, "version": 5, "status": "taken"},  # recogida sin taken_by
+            {"id": "2" * 32, "version": 6, "taken_by": "quim-ficticio"},  # pendiente con taken_by
+        ]
+        for bad in bad_rows:
+            with pytest.raises(sa.exc.IntegrityError), engine.begin() as conn:
+                _insert_handoff(conn, **bad)
+        indexes = {ix["name"] for ix in sa.inspect(engine).get_indexes("qa_handoffs")}
+        assert "ix_qa_handoffs_status_created" in indexes
+        command.downgrade(config, "0004_conversations")
+        tables = set(sa.inspect(engine).get_table_names())
+        assert "qa_handoffs" not in tables
+        assert "conversations" in tables
+    finally:
+        engine.dispose()

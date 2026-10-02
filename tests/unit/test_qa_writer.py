@@ -16,7 +16,7 @@ from adapters.errors import AgentError
 from core.functional.citations import CitationError
 from core.functional.context import StoryContext, render_context
 from core.qa.validation import CoverageError, suite_errors
-from core.qa.writer import SuiteDraft, TestWriter
+from core.qa.writer import UNPUBLISHED_STORY_KEY, SuiteDraft, TestWriter
 from core.rag.prompts import Prompt, load_prompt
 from schemas.common import Priority, SourceRef
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -678,3 +678,65 @@ def test_generate_raises_citation_error_when_suite_sources_stay_empty() -> None:
         TestWriter(llm).generate(dataset.renewal_story(), ctx_with_sources())
 
     assert len(llm.calls) == 2
+
+
+# --- generate: HU encadenada sin publicar (T-54) ------------------------------------------------
+
+
+def test_unpublished_story_key_is_not_a_jira_key() -> None:
+    """T-54 · criterio 9: «SIN-CLAVE» no tiene forma de clave de Jira (PROYECTO-123)."""
+    from core.projects import ISSUE_KEY
+
+    assert UNPUBLISHED_STORY_KEY == "SIN-CLAVE"
+    assert not ISSUE_KEY.fullmatch(UNPUBLISHED_STORY_KEY)
+
+
+@pytest.mark.parametrize("ctx", [None, StoryContext(origin_kind="story")])
+def test_generate_unpublished_story_without_key_uses_placeholder_key(
+    ctx: StoryContext | None,
+) -> None:
+    """T-54 · criterio 9: HU sin clave y `unpublished=True` → story_jira_key «SIN-CLAVE»."""
+    llm, _ = fake_llm(renewal_test_suite(story_key="DEMO-777"))
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key=None), ctx, unpublished=True)
+
+    assert draft.suite.story_jira_key == UNPUBLISHED_STORY_KEY
+    assert len(llm.calls) == 1
+    assert llm.calls[0]["task"] is TaskType.GENERATE_TESTS
+
+
+def test_generate_unpublished_does_not_override_existing_story_key() -> None:
+    """T-54 · criterio 9 (límite): con clave en la HU, `unpublished` no la cambia."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key="DEMO-3"), unpublished=True)
+
+    assert draft.suite.story_jira_key == "DEMO-3"
+
+
+def test_generate_unpublished_does_not_override_ctx_origin_key() -> None:
+    """T-54 · criterio 9 (límite): la clave del origen story prevalece sobre «SIN-CLAVE»."""
+    llm, _ = fake_llm(renewal_test_suite())
+    ctx = StoryContext(origin_kind="story", origin_key="DEMO-3")
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key=None), ctx, unpublished=True)
+
+    assert draft.suite.story_jira_key == "DEMO-3"
+
+
+def test_generate_without_unpublished_still_requires_key() -> None:
+    """T-54 · criterio 9 (error): sin `unpublished`, una HU sin clave sigue fallando."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    with pytest.raises(ValueError, match="clave de Jira"):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key=None), unpublished=False)
+
+    assert llm.calls == []
+
+
+def test_generate_unpublished_is_keyword_only() -> None:
+    """T-54 · criterio 9: `unpublished` solo se pasa por nombre."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    with pytest.raises(TypeError):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key=None), None, True)  # type: ignore[misc]

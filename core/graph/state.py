@@ -6,6 +6,7 @@ from typing import Literal, NotRequired, TypedDict
 from adapters.base import IssueDetail, RetrievedChunk
 from core.projects import ISSUE_KEY
 from schemas.artifact import Artifact
+from schemas.user_story import UserStory
 
 Decision = Literal["iterate", "edit", "approve", "discard"]
 MAX_EXCLUDED_SOURCES = 50
@@ -32,6 +33,10 @@ class AgentState(TypedDict):
     excluded_sources: list[str]  # fuentes desmarcadas antes de generar (T-51, RF-21)
     published_keys: list[str]
     errors: list[str]
+    # T-54: QA encadenada. La HU aprobada se carga del servidor por esta entrega (no va en
+    # `origin`, que también llega de la API); `load_origin` la deja en `source_story`.
+    handoff_id: NotRequired[str | None]
+    source_story: NotRequired[UserStory | None]
 
 
 def normalize_excluded_sources(
@@ -56,6 +61,7 @@ def initial_state(
     origin: Origin,
     excluded_sources: list[str] | None = None,
     feedback: list[str] | None = None,
+    handoff_id: str | None = None,
 ) -> AgentState:
     """Estado inicial; con clave de origen, el proyecto es el de la clave (T-50).
 
@@ -63,6 +69,7 @@ def initial_state(
     (T-51). La incidencia de origen no se puede excluir.
     `feedback`: indicaciones previas a la primera versión (restricciones al evolucionar, tipos
     de caso en QA); llegan al LLM como el resto del feedback (RF-20).
+    `handoff_id`: entrega a QA recogida (T-54); solo lo pone `core.handoff.take_handoff`.
     """
     origin = Origin(**origin)
     if (key := origin.get("key")) and (match := ISSUE_KEY.fullmatch(key)):
@@ -80,4 +87,5 @@ def initial_state(
         excluded_sources=excluded,
         published_keys=[],
         errors=[],
+        handoff_id=handoff_id,
     )

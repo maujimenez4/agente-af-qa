@@ -37,6 +37,11 @@ class SuiteDraft:
     coverage_md: str = field(default="")
 
 
+# T-54: HU aprobada en simulación (sin clave de Jira). No tiene forma de clave, así que nunca se
+# confunde con una incidencia real; publicar sus casos se rechaza en el grafo.
+UNPUBLISHED_STORY_KEY = "SIN-CLAVE"
+
+
 class TestWriter:
     __test__ = False  # evita que pytest la tome por una clase de pruebas
 
@@ -44,11 +49,16 @@ class TestWriter:
         self._llm = llm
         self._load = prompt_loader
 
-    def generate(self, story: UserStory, ctx: StoryContext | None = None) -> SuiteDraft:
+    def generate(
+        self, story: UserStory, ctx: StoryContext | None = None, *, unpublished: bool = False
+    ) -> SuiteDraft:
+        """`unpublished`: HU encadenada sin clave (T-54); la suite lleva `UNPUBLISHED_STORY_KEY`."""
         base = ctx or StoryContext(origin_kind="story", origin_key=story.jira_key)
         # La clave de origen solo identifica a la HU si el origen es una historia (no una épica).
         origin_story_key = base.origin_key if base.origin_kind == "story" else None
         story_key = story.jira_key or origin_story_key
+        if not story_key and unpublished:
+            story_key = UNPUBLISHED_STORY_KEY
         if not story_key:
             raise ValueError(
                 "La HU no tiene clave de Jira: publícala antes de generar sus pruebas."

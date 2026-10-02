@@ -337,6 +337,7 @@
 | PA-311 | **Pantalla de inicio de sesión del frontend** (T-56): no está especificada en `docs/specs/UI.md` ni en el lienzo «Propuesta mixta» (el login de la v2 no se mantuvo). Se hace mínima, con las piezas del sistema, sobre `POST /auth/login` y los errores por `code` (`invalid_credentials`, `too_many_attempts` con cuenta atrás). Validar con la principal y, si se mantiene, añadirla a UI.md | T-56 | Pendiente (P: validar) |
 | PA-312 | ESLint de `web/`: la regla contra el almacenamiento del navegador no cubre `self.localStorage`, `globalThis.indexedDB`, la Cache API (`caches`) ni la desestructuración de `document` (hoy ningún archivo los usa) | T-56 (security-reviewer) | Pendiente (B) |
 | PA-313 | Arranque guiado en el frontend: avisar de `project_changed` (y fijar el proyecto con `POST /projects/choose`) y de `ignored_projects` de `StartProposal` (UI.md §4.1 y §9, T-53). Se hace en la pantalla Origen y fuentes, donde se fija la operación | T-56 (spec-checker) | Pendiente (B · Origen) |
+| PA-314 | Contrato de T-55: el lienzo (Generando) tiene un botón *Detener la generación*, pero no hay ruta para cancelar una generación en curso. El frontend no lo pinta hasta que exista (p. ej. `POST /conversations/{id}/cancel`) | T-56 | Pendiente (P: contrato T-55) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

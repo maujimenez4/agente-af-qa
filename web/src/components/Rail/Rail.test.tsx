@@ -15,9 +15,10 @@ function renderRail(props: Partial<RailProps> = {}) {
 
 function zoneNames(): string[] {
   const nav = screen.getByRole('navigation', { name: 'Zonas' })
-  return within(nav)
-    .getAllByRole('listitem')
-    .map((item) => item.textContent ?? '')
+  // La etiqueta visible de cada zona (la primera línea del botón).
+  return within(within(nav).getByRole('list'))
+    .getAllByRole('button')
+    .map((button) => button.querySelector('span')?.textContent ?? '')
 }
 
 describe('Rail', () => {
@@ -67,25 +68,27 @@ describe('Rail', () => {
 
   it('sin dato de consumo no pinta el anillo (PA-305)', () => {
     renderRail()
-    expect(screen.queryByRole('img', { name: /Consumo diario de tokens/ })).toBeNull()
+    expect(screen.queryByRole('img', { name: /Consumo de tokens de hoy/ })).toBeNull()
   })
 
-  it('con dato pinta el anillo y su porcentaje', () => {
-    renderRail({ usagePercent: 24 })
-    const ring = screen.getByRole('img', { name: 'Consumo diario de tokens: 24 %' })
-    expect(ring).toHaveTextContent('24 % tokens')
+  it('con dato pinta el consumo de toda la instalación respecto al umbral de aviso', () => {
+    renderRail({ usage: { tokens_today: 42000, warning_threshold: 180000 } })
+    const ring = screen.getByRole('img', {
+      name: 'Consumo de tokens de hoy de toda la instalación: 42.000 de 180.000, 23 % del umbral de aviso',
+    })
+    expect(ring).toHaveTextContent('23 %instalación')
     expect(ring.querySelector('[data-warning]')).toBeNull()
   })
 
-  it('avisa desde el 90 %', () => {
-    renderRail({ usagePercent: 90 })
-    const ring = screen.getByRole('img', { name: 'Consumo diario de tokens: 90 %' })
+  it('avisa al llegar al umbral', () => {
+    renderRail({ usage: { tokens_today: 180000, warning_threshold: 180000 } })
+    const ring = screen.getByRole('img', { name: /100 % del umbral de aviso/ })
     expect(ring.querySelector('[data-warning]')).not.toBeNull()
   })
 
-  it('acota el porcentaje a 0–100', () => {
-    renderRail({ usagePercent: 140 })
-    expect(screen.getByRole('img', { name: 'Consumo diario de tokens: 100 %' })).toBeInTheDocument()
+  it('por encima del umbral se acota a 100 % y sigue avisando', () => {
+    renderRail({ usage: { tokens_today: 250000, warning_threshold: 180000 } })
+    expect(screen.getByRole('img', { name: /250.000 de 180.000, 100 % del umbral/ })).toBeInTheDocument()
   })
 })
 

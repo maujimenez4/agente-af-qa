@@ -57,6 +57,33 @@
   color: var(--color-primary);
 }
 
+/* Zona aún no disponible (decisión 16): atenuada y sin hover. */
+.item[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.item[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--color-on-navy);
+}
+
+.soon {
+  font-size: var(--text-3xs);
+  font-weight: var(--weight-regular);
+}
+
+.usageText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: var(--leading-tight);
+}
+
+.usageScope {
+  font-size: 10px;
+}
+
 .spacer {
   flex-grow: 1;
 }

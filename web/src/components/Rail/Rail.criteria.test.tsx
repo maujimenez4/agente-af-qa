@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Rail, type RailProps } from './Rail.tsx'
-import { railItemsFor, ROLE_NAMES, USAGE_WARNING, usageDash, type Role } from './railItems.ts'
+import { homeZone, railItemsFor, ROLE_NAMES, usageDash, usageView, type Role } from './railItems.ts'
 
 function renderRail(props: Partial<RailProps> = {}) {
   const onNavigate = vi.fn()
@@ -16,7 +16,7 @@ function renderRail(props: Partial<RailProps> = {}) {
 }
 
 function ring(): HTMLElement {
-  return screen.getByRole('img', { name: /Consumo diario de tokens/ })
+  return screen.getByRole('img', { name: /Consumo de tokens de hoy de toda la instalación/ })
 }
 
 describe('railItemsFor (decisión 16)', () => {
@@ -63,7 +63,7 @@ describe('Rail: zonas y zona activa', () => {
   })
 
   it('solo hay una zona con aria-current a la vez', () => {
-    const { container } = renderRail({ userRole: 'admin', username: 'admin-demo', active: 'history' })
+    const { container } = renderRail({ userRole: 'admin', username: 'admin-demo', active: 'settings' })
     expect(container.querySelectorAll('[aria-current]')).toHaveLength(1)
   })
 
@@ -106,53 +106,57 @@ describe('Rail: zonas y zona activa', () => {
   })
 })
 
-describe('Rail: anillo de consumo de tokens (decisiones 2 y 17)', () => {
-  it('el umbral del aviso es el 90 %', () => {
-    expect(USAGE_WARNING).toBe(90)
+describe('Rail: anillo con el consumo de hoy de la instalación (decisión 17, PA-305)', () => {
+  const usage = (tokens_today: number, warning_threshold = 1000) => ({ tokens_today, warning_threshold })
+
+  it('el porcentaje es tokens_today / warning_threshold, redondeado', () => {
+    expect(usageView(usage(244))?.percent).toBe(24)
+    expect(usageView(usage(245))?.percent).toBe(25)
   })
 
-  it('89 % no avisa', () => {
-    renderRail({ usagePercent: 89 })
-    expect(ring().querySelector('[data-warning]')).toBeNull()
+  it('avisa desde el umbral, no antes', () => {
+    expect(usageView(usage(999))?.warning).toBe(false)
+    expect(usageView(usage(1000))?.warning).toBe(true)
   })
 
-  it.each([90, 95, 100])('%i % avisa', (percent) => {
-    renderRail({ usagePercent: percent })
-    expect(ring().querySelector('[data-warning]')).not.toBeNull()
+  it('acota a 0–100 % y no pinta números negativos', () => {
+    expect(usageView(usage(-5))?.percent).toBe(0)
+    expect(usageView(usage(-5))?.label).toContain(': 0 de 1000')
+    expect(usageView(usage(5000))?.percent).toBe(100)
   })
 
-  it('redondea antes de decidir el aviso: 89,4 % no avisa y 89,6 % se ve y avisa como 90 %', () => {
-    const { unmount } = renderRail({ usagePercent: 89.4 })
-    expect(ring()).toHaveAccessibleName('Consumo diario de tokens: 89 %')
-    expect(ring().querySelector('[data-warning]')).toBeNull()
-    unmount()
-    renderRail({ usagePercent: 89.6 })
-    expect(ring()).toHaveAccessibleName('Consumo diario de tokens: 90 %')
-    expect(ring().querySelector('[data-warning]')).not.toBeNull()
+  it.each([
+    ['sin dato', undefined],
+    ['NaN', { tokens_today: Number.NaN, warning_threshold: 1000 }],
+    ['umbral 0', { tokens_today: 10, warning_threshold: 0 }],
+    ['umbral infinito', { tokens_today: 10, warning_threshold: Number.POSITIVE_INFINITY }],
+  ])('%s: no hay anillo', (_name, value) => {
+    expect(usageView(value)).toBeUndefined()
   })
 
-  it('un consumo negativo se acota a 0 % y no avisa', () => {
-    renderRail({ usagePercent: -5 })
-    expect(ring()).toHaveAccessibleName('Consumo diario de tokens: 0 %')
-    expect(ring().querySelector('[data-warning]')).toBeNull()
+  it('0 tokens sí pinta el anillo: es un dato, no la ausencia de dato', () => {
+    renderRail({ usage: usage(0) })
+    expect(ring()).toHaveTextContent('0 %')
   })
 
-  it('0 % sí pinta el anillo: es un dato, no la ausencia de dato', () => {
-    renderRail({ usagePercent: 0 })
-    expect(ring()).toHaveTextContent('0 % tokens')
+  it('el nombre accesible dice que es el consumo de toda la instalación, con cifras en español', () => {
+    renderRail({ usage: { tokens_today: 12345, warning_threshold: 50000 } })
+    expect(ring()).toHaveAccessibleName(
+      'Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 25 % del umbral de aviso',
+    )
   })
 
   it('el dasharray del anillo corresponde al porcentaje redondeado', () => {
-    renderRail({ usagePercent: 49.6 })
-    const value = ring().querySelector('circle[stroke-dasharray]')
-    expect(value).toHaveAttribute('stroke-dasharray', usageDash(50))
+    renderRail({ usage: usage(496) })
+    expect(ring().querySelector('circle[stroke-dasharray]')).toHaveAttribute('stroke-dasharray', usageDash(50))
   })
 
-  it('el texto del porcentaje es decorativo y con cifras tabulares; lo anuncia el nombre del anillo', () => {
-    renderRail({ usagePercent: 24 })
+  it('el texto visible es decorativo y con cifras tabulares; lo anuncia el nombre del anillo', () => {
+    renderRail({ usage: usage(240) })
     const text = within(ring()).getByText(/24/)
     expect(text).toHaveAttribute('aria-hidden', 'true')
     expect(text).toHaveClass('tabular-nums')
+    expect(text).toHaveTextContent('instalación')
   })
 
   it('usageDash acota fuera de 0–100', () => {
@@ -161,7 +165,25 @@ describe('Rail: anillo de consumo de tokens (decisiones 2 y 17)', () => {
   })
 
   it('un consumo NaN no pinta «NaN %»', () => {
-    renderRail({ usagePercent: Number.NaN })
+    renderRail({ usage: { tokens_today: Number.NaN, warning_threshold: 1000 } })
     expect(screen.queryByText(/NaN/)).toBeNull()
+  })
+})
+
+describe('Rail: Historial «disponible pronto» (decisión 16, PA-302)', () => {
+  it('admin ve Historial desactivado con su descripción, y no navega', async () => {
+    const { onNavigate } = renderRail({ userRole: 'admin', username: 'admin-demo', active: 'settings' })
+    const history = screen.getByRole('button', { name: 'Historial' })
+    expect(history).toHaveAttribute('aria-disabled', 'true')
+    expect(history).toHaveAccessibleDescription('Disponible pronto')
+    expect(history).not.toHaveAttribute('aria-current')
+    await userEvent.click(history)
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('cada rol entra por su primera zona disponible', () => {
+    expect(homeZone('functional')).toBe('work')
+    expect(homeZone('qa')).toBe('work')
+    expect(homeZone('admin')).toBe('settings')
   })
 })

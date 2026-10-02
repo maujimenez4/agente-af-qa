@@ -66,16 +66,16 @@ describe('Catalog: demo del carril y la lista', () => {
     expect(within(nav).queryByRole('button', { name: 'Historial' })).toBeNull()
 
     await userEvent.click(within(shell).getByRole('button', { name: 'admin-demo' }))
-    expect(within(nav).getByRole('button', { name: 'Historial' })).toHaveAttribute('aria-current', 'page')
-    expect(within(nav).getByRole('button', { name: 'Ajustes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Historial' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(nav).getByRole('button', { name: 'Ajustes' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).queryByRole('button', { name: 'Trabajo' })).toBeNull()
   })
 
-  it('qa-demo al 95 % muestra el aviso de consumo', async () => {
+  it('por encima del umbral de la instalación muestra el aviso de consumo', async () => {
     render(<Catalog />)
     const shell = section('Carril y lista de conversaciones')
     await userEvent.click(within(shell).getByRole('button', { name: 'qa-demo' }))
-    const ring = within(shell).getByRole('img', { name: 'Consumo diario de tokens: 95 %' })
+    const ring = within(shell).getByRole('img', { name: /Consumo de tokens de hoy de toda la instalación: 185.000 de 180.000/ })
     expect(ring.querySelector('[data-warning]')).not.toBeNull()
   })
 
@@ -83,7 +83,7 @@ describe('Catalog: demo del carril y la lista', () => {
     render(<Catalog />)
     const shell = section('Carril y lista de conversaciones')
     await userEvent.click(within(shell).getByRole('button', { name: 'Con consumo de tokens' }))
-    expect(within(shell).queryByRole('img', { name: /Consumo diario de tokens/ })).toBeNull()
+    expect(within(shell).queryByRole('img', { name: /Consumo de tokens de hoy/ })).toBeNull()
   })
 
   it('«Sin conversaciones» deja solo «Nueva conversación», sin buscador', async () => {

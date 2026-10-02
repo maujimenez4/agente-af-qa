@@ -5,11 +5,14 @@ import { DEMO_CONVERSATIONS, DEMO_NOW } from '../fixtures/conversations.ts'
 import { DemoButton } from './DemoButton.tsx'
 import styles from './Catalog.module.css'
 
+// Consumo de hoy de toda la instalación (GET /settings/usage), sintético.
 const USERS: Record<Role, { username: string; usage: number; zone: Zone }> = {
-  functional: { username: 'af-demo', usage: 24, zone: 'work' },
-  qa: { username: 'qa-demo', usage: 95, zone: 'work' },
-  admin: { username: 'admin-demo', usage: 2, zone: 'history' },
+  functional: { username: 'af-demo', usage: 42000, zone: 'work' },
+  qa: { username: 'qa-demo', usage: 185000, zone: 'work' },
+  admin: { username: 'admin-demo', usage: 3600, zone: 'settings' },
 }
+
+const WARNING_THRESHOLD = 180000
 
 export function ShellDemo() {
   const [role, setRole] = useState<Role>('functional')
@@ -54,7 +57,7 @@ export function ShellDemo() {
           userRole={role}
           username={user.username}
           active={zone}
-          usagePercent={withUsage ? user.usage : undefined}
+          usage={withUsage ? { tokens_today: user.usage, warning_threshold: WARNING_THRESHOLD } : undefined}
           onNavigate={setZone}
           onLogout={() => setRole('functional')}
         />

@@ -30,12 +30,18 @@ from adapters.jira.adf import adf_to_text
 from adapters.jira.jql import CASE_LABEL
 from adapters.jira.tracker import SEARCH_FIELDS
 from adapters.testmgmt.jira_native import (
+    DEFAULT_EXECUTION_TRANSITIONS,
+    EXECUTION_LABELS,
     MAX_CASES,
+    MAX_EVIDENCE_CHARS,
     PAGE_SIZE,
+    STATUS_TEXT,
+    ExecutionStatus,
     JiraNativeTests,
     attachment_files,
     case_labels,
     case_to_adf,
+    execution_comment,
 )
 from schemas.common import Priority
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -1161,3 +1167,802 @@ def test_publish_suite_logs_counts_without_secrets() -> None:
     dumped = json.dumps(logs, default=str)
     for forbidden in (TOKEN, EMAIL, BASIC_CREDENTIALS, BODY_MARKER):
         assert forbidden not in dumped
+
+
+# =============================================================================================
+# T-47: registro de la ejecución de un CP (RF-28, R-01 opción A, UI.md §6.6)
+# =============================================================================================
+
+CASE_KEY = "DEMO-21"
+CASE_PATH = f"/rest/api/3/issue/{CASE_KEY}"
+TRANSITIONS_PATH = f"{CASE_PATH}/transitions"
+COMMENT_PATH = f"{CASE_PATH}/comment"
+EVIDENCE = "El sistema ficticio muestra «Préstamo no renovable» en PR-0002."
+EVIDENCE_MARKER = "MARCADOR-EVIDENCIA-FICTICIA"
+Route = tuple[str, str]
+GET_CASE: Route = ("GET", CASE_PATH)
+GET_TRANSITIONS: Route = ("GET", TRANSITIONS_PATH)
+POST_TRANSITION: Route = ("POST", TRANSITIONS_PATH)
+PUT_LABELS: Route = ("PUT", CASE_PATH)
+POST_COMMENT: Route = ("POST", COMMENT_PATH)
+REGISTERED_EVENT = "ejecución registrada en Jira"
+
+
+def workflow_transitions() -> list[Any]:
+    """Flujo ficticio de una subtarea: Tareas por hacer → En curso → Done."""
+    return [
+        {"id": "11", "name": "Tareas por hacer", "to": {"name": "Tareas por hacer"}},
+        {"id": "21", "name": "En curso", "to": {"name": "En curso"}},
+        {"id": "31", "name": "Finalizar", "to": {"name": "Done"}},
+    ]
+
+
+@dataclass
+class ExecutionJira:
+    """Jira simulado para `record_execution`: la subtarea CP, sus transiciones y escrituras.
+
+    `replies[ruta]` es una secuencia de respuestas (o excepciones) que sustituye, una a una, a la
+    respuesta por defecto de esa ruta.
+    """
+
+    labels: list[str] = field(default_factory=lambda: [CASE_LABEL, "CA-01", "tipo-positivo"])
+    status: str = "En curso"
+    subtask: bool = True
+    transitions: list[Any] = field(default_factory=workflow_transitions)
+    replies: dict[Route, list[Reply]] = field(default_factory=dict)
+    requests: list[httpx.Request] = field(default_factory=list)
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        request.read()
+        self.requests.append(request)
+        route = (request.method, request.url.path)
+        if self.replies.get(route):
+            return _reply(self.replies[route].pop(0))
+        if route == GET_CASE:
+            fields = {
+                "labels": self.labels,
+                "status": {"name": self.status},
+                "issuetype": {"name": "Subtarea", "subtask": self.subtask},
+            }
+            return httpx.Response(200, json={"key": CASE_KEY, "fields": fields})
+        if route == GET_TRANSITIONS:
+            return httpx.Response(200, json={"transitions": self.transitions})
+        if route in (POST_TRANSITION, PUT_LABELS):
+            return httpx.Response(204)
+        if route == POST_COMMENT:
+            return httpx.Response(201, json={"id": "10001"})
+        pytest.fail(f"Petición no esperada: {request.method} {request.url.path}")
+
+    def routes(self) -> list[Route]:
+        return [(r.method, r.url.path) for r in self.requests]
+
+    def writes(self) -> list[Route]:
+        return [route for route in self.routes() if route[0] != "GET"]
+
+    def count(self, route: Route) -> int:
+        return self.routes().count(route)
+
+    def body(self, route: Route) -> dict[str, Any]:
+        [request] = [r for r in self.requests if (r.method, r.url.path) == route]
+        return json.loads(request.content)
+
+
+def make_execution_tests(
+    handler: Handler,
+    sleep: RecordingSleep | None = None,
+    execution_transitions: dict[Any, Any] | None = None,
+) -> JiraNativeTests:
+    return JiraNativeTests(
+        BASE_URL,
+        SecretStr(EMAIL),
+        SecretStr(TOKEN),
+        subtask_type=SUBTASK_TYPE,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=sleep or RecordingSleep(),
+        execution_transitions=execution_transitions,
+    )
+
+
+def execution_setup(
+    jira: ExecutionJira | None = None, execution_transitions: dict[Any, Any] | None = None
+) -> tuple[ExecutionJira, JiraNativeTests, RecordingSleep]:
+    jira = jira or ExecutionJira()
+    sleep = RecordingSleep()
+    return jira, make_execution_tests(jira, sleep, execution_transitions), sleep
+
+
+def label_update(jira: ExecutionJira) -> list[dict[str, str]]:
+    return jira.body(PUT_LABELS)["update"]["labels"]
+
+
+def comment_body(jira: ExecutionJira) -> dict[str, Any]:
+    return jira.body(POST_COMMENT)["body"]
+
+
+def link_marks(node: Any) -> list[dict[str, Any]]:
+    return [
+        mark
+        for item in _walk(node)
+        if item.get("type") == "text"
+        for mark in item.get("marks") or []
+        if mark.get("type") == "link"
+    ]
+
+
+def registered_entries(logs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [e for e in logs if e.get("event") == REGISTERED_EVENT]
+
+
+# --- Validaciones previas, sin ninguna petición HTTP ----------------------------------------
+
+
+@pytest.mark.parametrize("key", ["", "demo-21", "DEMO", "DEMO-21/../x", "DEMO-21\n", "1-DEMO"])
+def test_record_execution_raises_publish_error_without_http_when_key_is_invalid(
+    key: str,
+) -> None:
+    """RF-28: una clave inválida → PublishError sin ninguna petición HTTP."""
+    tests = make_execution_tests(fail_if_called)
+    with pytest.raises(PublishError) as exc_info:
+        tests.record_execution(key, ExecutionStatus.PASSED, EVIDENCE)
+    assert_safe_message(exc_info.value)
+
+
+@pytest.mark.parametrize("status", ["pasó", "PASO", "", "ok", "ejecucion-paso"])
+def test_record_execution_raises_publish_error_without_http_when_status_is_unknown(
+    status: str,
+) -> None:
+    """RF-28: un resultado que no es de `ExecutionStatus` → PublishError sin HTTP."""
+    tests = make_execution_tests(fail_if_called)
+    with pytest.raises(PublishError, match="no es un resultado de ejecución"):
+        tests.record_execution(CASE_KEY, status, EVIDENCE)
+
+
+def test_record_execution_truncates_unknown_status_in_message() -> None:
+    """RF-28 (límite): el resultado desconocido se muestra recortado a 30 caracteres."""
+    tests = make_execution_tests(fail_if_called)
+    with pytest.raises(PublishError) as exc_info:
+        tests.record_execution(CASE_KEY, "z" * 200, EVIDENCE)
+    assert "z" * 30 in str(exc_info.value)
+    assert "z" * 31 not in str(exc_info.value)
+
+
+@pytest.mark.parametrize("status", [ExecutionStatus.FAILED, "fallo"], ids=["enum", "str"])
+@pytest.mark.parametrize("evidence", ["", "   ", "\n\t  \n"], ids=["vacia", "espacios", "blancos"])
+def test_record_execution_raises_publish_error_without_http_when_failed_has_no_evidence(
+    status: ExecutionStatus | str, evidence: str
+) -> None:
+    """RF-28, UI.md §6.6: «fallo» sin evidencia (vacía o solo espacios) → PublishError sin HTTP."""
+    tests = make_execution_tests(fail_if_called)
+    with pytest.raises(PublishError, match="necesita evidencia"):
+        tests.record_execution(CASE_KEY, status, evidence)
+
+
+def test_record_execution_raises_publish_error_without_http_when_evidence_exceeds_max() -> None:
+    """RF-28 (límite): evidencia de MAX_EVIDENCE_CHARS + 1 caracteres → PublishError sin HTTP."""
+    tests = make_execution_tests(fail_if_called)
+    with pytest.raises(PublishError, match=str(MAX_EVIDENCE_CHARS)):
+        tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, "x" * (MAX_EVIDENCE_CHARS + 1))
+
+
+def test_record_execution_accepts_evidence_of_exactly_max_chars_after_strip() -> None:
+    """RF-28 (límite): MAX_EVIDENCE_CHARS caracteres (más espacios en los extremos) se acepta."""
+    jira, tests, _ = execution_setup()
+    evidence = "  " + "x" * MAX_EVIDENCE_CHARS + "\n"
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, evidence)
+    assert jira.count(POST_COMMENT) == 1
+
+
+@pytest.mark.parametrize("as_str", [False, True], ids=["enum", "str"])
+@pytest.mark.parametrize("status", list(ExecutionStatus))
+def test_record_execution_accepts_enum_or_its_str_value(
+    status: ExecutionStatus, as_str: bool
+) -> None:
+    """RF-28: se acepta el enum o su valor str; la etiqueta y el comentario son los del estado."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, status.value if as_str else status, EVIDENCE)
+    assert label_update(jira)[-1] == {"add": EXECUTION_LABELS[status]}
+    assert STATUS_TEXT[status] in all_texts(comment_body(jira))
+
+
+# --- Lectura previa de la subtarea ----------------------------------------------------------
+
+
+def test_record_execution_reads_labels_and_status_before_anything_else() -> None:
+    """RF-28: la primera petición es GET /issue/{key}?fields=labels,status,issuetype."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    first = jira.requests[0]
+    assert (first.method, first.url.path) == GET_CASE
+    assert dict(first.url.params) == {"fields": "labels,status,issuetype"}
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [[], ["CA-01", "tipo-positivo"], ["Caso-Prueba"], ["caso-prueba-x"], ["ejecucion-paso"]],
+    ids=["sin-etiquetas", "sin-caso-prueba", "mayusculas", "prefijo", "solo-ejecucion"],
+)
+def test_record_execution_raises_publish_error_without_writes_when_issue_is_not_a_case(
+    labels: list[str],
+) -> None:
+    """RF-28: sin la etiqueta `caso-prueba` → PublishError y ninguna escritura (ni POST ni PUT)."""
+    jira, tests, _ = execution_setup(ExecutionJira(labels=labels))
+    with pytest.raises(PublishError, match=CASE_LABEL) as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == []
+    assert jira.routes() == [GET_CASE]
+    assert_safe_message(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "payload", [{}, {"key": CASE_KEY}, {"fields": {}}, {"fields": {"labels": None}}]
+)
+def test_record_execution_raises_publish_error_without_writes_when_labels_are_missing(
+    payload: dict[str, Any],
+) -> None:
+    """RF-28 (límite): respuesta sin `fields` o sin `labels` → no es un CP, no se escribe."""
+    jira = ExecutionJira(replies={GET_CASE: [httpx.Response(200, json=payload)]})
+    jira, tests, _ = execution_setup(jira)
+    with pytest.raises(PublishError):
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == []
+
+
+# --- Transición ------------------------------------------------------------------------------
+
+
+def test_record_execution_posts_transition_matching_transition_name_case_insensitive() -> None:
+    """RF-28: se elige la transición por su nombre, sin distinguir mayúsculas."""
+    transitions = [
+        {"id": "21", "name": "En curso", "to": {"name": "En curso"}},
+        {"id": "41", "name": "dONE", "to": {"name": "Cerrada"}},
+    ]
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions))
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "41"}}
+
+
+def test_record_execution_posts_transition_matching_target_status_name() -> None:
+    """RF-28: se elige la transición por el nombre del estado de destino (`to.name`)."""
+    jira, tests, _ = execution_setup()  # «Finalizar» → «Done»
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "31"}}
+    assert jira.count(GET_TRANSITIONS) == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "name"),
+    [
+        (ExecutionStatus.PASSED, "Done"),
+        (ExecutionStatus.PASSED, "Hecho"),
+        (ExecutionStatus.PASSED, "listo"),
+        (ExecutionStatus.FAILED, "Falló"),
+        (ExecutionStatus.FAILED, "FAILED"),
+        (ExecutionStatus.BLOCKED, "Bloqueado"),
+        (ExecutionStatus.BLOCKED, "blocked"),
+        (ExecutionStatus.NOT_RUN, "Tareas por hacer"),
+        (ExecutionStatus.NOT_RUN, "To Do"),
+    ],
+)
+def test_record_execution_uses_default_transition_names(status: ExecutionStatus, name: str) -> None:
+    """RF-28, PA-207: nombres por defecto de DEFAULT_EXECUTION_TRANSITIONS para cada estado."""
+    transitions = [
+        {"id": "21", "name": "En curso", "to": {"name": "En curso"}},
+        {"id": "77", "name": f"Ir a {name}", "to": {"name": name}},
+    ]
+    jira, tests, _ = execution_setup(ExecutionJira(status="Revisión", transitions=transitions))
+    tests.record_execution(CASE_KEY, status, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "77"}}
+
+
+def test_default_execution_transitions_cover_every_status() -> None:
+    """RF-28: hay nombres por defecto para todos los resultados."""
+    assert set(DEFAULT_EXECUTION_TRANSITIONS) == set(ExecutionStatus)
+    assert "Done" in DEFAULT_EXECUTION_TRANSITIONS[ExecutionStatus.PASSED]
+    assert "Tareas por hacer" in DEFAULT_EXECUTION_TRANSITIONS[ExecutionStatus.NOT_RUN]
+
+
+def test_record_execution_skips_transition_with_non_numeric_id() -> None:
+    """RF-28: una transición con id no numérico se ignora y se usa la siguiente válida."""
+    transitions = [
+        {"id": "abc", "name": "Done"},
+        {"id": "", "name": "Done"},
+        {"name": "Done"},
+        {"id": "52", "name": "Cerrar", "to": {"name": "Done"}},
+    ]
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions))
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "52"}}
+
+
+@pytest.mark.parametrize("current", ["Done", "DONE", "hecho"])
+def test_record_execution_does_not_request_transitions_when_already_in_target_status(
+    current: str,
+) -> None:
+    """RF-28: si el estado actual ya es uno de los nombres, no se piden transiciones."""
+    jira, tests, _ = execution_setup(ExecutionJira(status=current))
+    with capture_logs() as logs:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.routes() == [GET_CASE, PUT_LABELS, POST_COMMENT]
+    [entry] = registered_entries(logs)
+    assert entry["transitioned"] is False
+
+
+@pytest.mark.parametrize(
+    "transitions",
+    [
+        workflow_transitions(),
+        [],
+        [None, "Falló", 7],
+        [{"id": "abc", "name": "Falló"}],
+    ],
+    ids=["sin-coincidencia", "vacia", "no-dict", "id-no-numerico"],
+)
+def test_record_execution_writes_label_and_comment_without_transition_when_none_matches(
+    transitions: list[Any],
+) -> None:
+    """RF-28: sin transición válida no hay POST de transición, pero sí etiqueta y comentario."""
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions))
+    with capture_logs() as logs:
+        tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.routes() == [GET_CASE, GET_TRANSITIONS, PUT_LABELS, POST_COMMENT]
+    assert any(e.get("event") == "sin transición para el resultado" for e in logs)
+    [entry] = registered_entries(logs)
+    assert entry["transitioned"] is False
+
+
+def test_record_execution_handles_transitions_response_without_list() -> None:
+    """RF-28 (límite): respuesta de transiciones sin la lista → sin transición, se registra."""
+    jira = ExecutionJira(replies={GET_TRANSITIONS: [httpx.Response(200, json={})]})
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == [PUT_LABELS, POST_COMMENT]
+
+
+def test_record_execution_uses_custom_mapping_and_keeps_defaults_for_other_statuses() -> None:
+    """PA-207: `execution_transitions` sobrescribe un estado; los demás siguen por defecto."""
+    transitions = [
+        *workflow_transitions(),
+        {"id": "61", "name": "Marcar rechazado", "to": {"name": "Rechazado"}},
+    ]
+    custom = {ExecutionStatus.FAILED: ["Rechazado"]}
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions), custom)
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "61"}}
+
+    jira2, tests2, _ = execution_setup(ExecutionJira(transitions=transitions), custom)
+    tests2.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira2.body(POST_TRANSITION) == {"transition": {"id": "31"}}  # «Done» por defecto
+
+
+def test_record_execution_custom_mapping_replaces_default_names_of_that_status() -> None:
+    """PA-207: con un mapeo propio, los nombres por defecto de ese estado ya no se usan."""
+    transitions = [{"id": "71", "name": "Failed", "to": {"name": "Failed"}}]
+    custom = {ExecutionStatus.FAILED: ["Rechazado"]}
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions), custom)
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert POST_TRANSITION not in jira.routes()
+    assert jira.writes() == [PUT_LABELS, POST_COMMENT]
+
+
+def test_record_execution_custom_mapping_strips_and_ignores_case() -> None:
+    """PA-207: los nombres configurados se comparan sin espacios extremos ni mayúsculas."""
+    transitions = [{"id": "81", "name": "Validado OK", "to": {"name": "QA"}}]
+    custom = {ExecutionStatus.PASSED: ["  VALIDADO ok  "]}
+    jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions), custom)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.body(POST_TRANSITION) == {"transition": {"id": "81"}}
+
+
+@pytest.mark.parametrize(
+    "names",
+    [[], [""], ["   "], ["Re\nchazado"], ["Re\rchazado"], ["Re\tchazado"], ["x" * 61]],
+    ids=["vacio", "cadena-vacia", "espacios", "salto-linea", "retorno", "tabulador", "61"],
+)
+def test_constructor_raises_value_error_when_execution_transitions_are_invalid(
+    names: list[str],
+) -> None:
+    """PA-207: mapeo inválido (vacío, con salto de línea o > 60) → ValueError sin HTTP."""
+    with pytest.raises(ValueError, match="no son válidas"):
+        make_execution_tests(fail_if_called, execution_transitions={ExecutionStatus.FAILED: names})
+
+
+def test_constructor_accepts_execution_transition_name_of_exactly_60_chars() -> None:
+    """PA-207 (límite): un nombre de 60 caracteres se acepta."""
+    custom = {ExecutionStatus.BLOCKED: ["x" * 60]}
+    assert isinstance(make_execution_tests(fail_if_called, None, custom), JiraNativeTests)
+
+
+# --- Orden de las escrituras ----------------------------------------------------------------
+
+
+def test_record_execution_writes_transition_then_label_then_comment() -> None:
+    """RF-28: orden transición → PUT etiqueta → POST comentario (el comentario, el último)."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.routes() == [GET_CASE, GET_TRANSITIONS, POST_TRANSITION, PUT_LABELS, POST_COMMENT]
+
+
+# --- Etiqueta ejecucion-<estado> ------------------------------------------------------------
+
+
+def test_execution_labels_use_ejecucion_prefix_for_every_status() -> None:
+    """RF-28: etiquetas `ejecucion-paso`, `ejecucion-fallo`, `ejecucion-bloqueado`…"""
+    assert EXECUTION_LABELS == {
+        ExecutionStatus.PASSED: "ejecucion-paso",
+        ExecutionStatus.FAILED: "ejecucion-fallo",
+        ExecutionStatus.BLOCKED: "ejecucion-bloqueado",
+        ExecutionStatus.NOT_RUN: "ejecucion-sin-ejecutar",
+    }
+
+
+def test_record_execution_removes_only_other_present_execution_labels() -> None:
+    """RF-28: quita solo las `ejecucion-*` presentes y distintas; no toca caso-prueba ni CA-01."""
+    labels = [
+        CASE_LABEL,
+        "CA-01",
+        "ejecucion-paso",
+        "tipo-positivo",
+        "ejecucion-bloqueado",
+        "ejecucion-fallo",
+    ]
+    jira, tests, _ = execution_setup(ExecutionJira(labels=labels))
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.body(PUT_LABELS) == {
+        "update": {
+            "labels": [
+                {"remove": "ejecucion-paso"},
+                {"remove": "ejecucion-bloqueado"},
+                {"add": "ejecucion-fallo"},
+            ]
+        }
+    }
+
+
+def test_record_execution_only_adds_label_when_there_is_no_previous_execution() -> None:
+    """RF-28: sin etiquetas `ejecucion-*` previas solo se añade la nueva."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.BLOCKED, EVIDENCE)
+    assert label_update(jira) == [{"add": "ejecucion-bloqueado"}]
+    assert "fields" not in jira.body(PUT_LABELS)  # nunca sustituye la lista de etiquetas
+
+
+def test_record_execution_never_removes_non_execution_labels() -> None:
+    """RF-28: `caso-prueba`, los CA, RN y `tipo-*` nunca aparecen en el PUT."""
+    labels = [CASE_LABEL, "CA-01", "RN-02", "tipo-negativo", "ejecucion-paso"]
+    jira, tests, _ = execution_setup(ExecutionJira(labels=labels))
+    tests.record_execution(CASE_KEY, ExecutionStatus.NOT_RUN, "")
+    touched = {value for change in label_update(jira) for value in change.values()}
+    assert touched == {"ejecucion-paso", "ejecucion-sin-ejecutar"}
+
+
+# --- Comentario ADF --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("status", list(ExecutionStatus))
+def test_execution_comment_shows_status_text_for_each_status(status: ExecutionStatus) -> None:
+    """RF-28: «Resultado de la ejecución: <STATUS_TEXT>» en el primer párrafo."""
+    document = execution_comment(status, EVIDENCE)
+    assert document["type"] == "doc"
+    first = document["content"][0]
+    assert first["type"] == "paragraph"
+    assert "".join(all_texts(first)) == f"Resultado de la ejecución: {STATUS_TEXT[status]}"
+
+
+def test_status_text_has_spanish_text_for_every_status() -> None:
+    """RF-28: textos del resultado en español."""
+    assert STATUS_TEXT == {
+        ExecutionStatus.PASSED: "Pasó",
+        ExecutionStatus.FAILED: "Falló",
+        ExecutionStatus.BLOCKED: "Bloqueado",
+        ExecutionStatus.NOT_RUN: "Sin ejecutar",
+    }
+
+
+def test_record_execution_comment_has_result_and_stripped_evidence() -> None:
+    """RF-28: el comentario es execution_comment(estado, evidencia sin espacios extremos)."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, "fallo", f"\n  {EVIDENCE}  \n")
+    body = comment_body(jira)
+    assert body == execution_comment(ExecutionStatus.FAILED, EVIDENCE)
+    texts = all_texts(body)
+    assert "Resultado de la ejecución: " in texts
+    assert "Falló" in texts
+    assert "Evidencia:" in texts
+    assert EVIDENCE in texts
+
+
+def test_execution_comment_converts_https_link_to_link_mark() -> None:
+    """RF-28: un enlace https de la evidencia → marca `link`."""
+    document = execution_comment(
+        ExecutionStatus.FAILED, "Captura: [pantalla](https://ejemplo.invalid/captura.png)"
+    )
+    assert link_marks(document) == [
+        {"type": "link", "attrs": {"href": "https://ejemplo.invalid/captura.png"}}
+    ]
+
+
+def test_execution_comment_keeps_javascript_link_as_literal_text() -> None:
+    """RF-28, PA-49: un enlace `javascript:` no se convierte en enlace; queda literal."""
+    document = execution_comment(ExecutionStatus.FAILED, "[pulsa](javascript:alert(1))")
+    assert link_marks(document) == []
+    assert "javascript:alert(1)" in "".join(all_texts(document))
+
+
+def test_execution_comment_keeps_html_as_literal_text() -> None:
+    """RF-28: el HTML de la evidencia queda como texto literal."""
+    document = execution_comment(ExecutionStatus.FAILED, "Salida <script>x</script> <b>ok</b>")
+    joined = "".join(all_texts(document))
+    assert "<script>x</script>" in joined
+    assert "<b>ok</b>" in joined
+
+
+def test_execution_comment_renders_markdown_evidence_as_adf() -> None:
+    """RF-28: la evidencia en Markdown pasa por markdown_to_adf (listas, negrita…)."""
+    document = execution_comment(ExecutionStatus.FAILED, "- Paso 1 **falla**\n- Paso 2 ok")
+    assert "bulletList" in node_types(document)
+
+
+@pytest.mark.parametrize(
+    "status", [ExecutionStatus.PASSED, ExecutionStatus.BLOCKED, ExecutionStatus.NOT_RUN]
+)
+def test_record_execution_comment_says_sin_evidencia_when_evidence_is_blank(
+    status: ExecutionStatus,
+) -> None:
+    """RF-28: sin evidencia (resultado distinto de «fallo») → «Sin evidencia.»."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, status, "   ")
+    texts = all_texts(comment_body(jira))
+    assert "Sin evidencia." in texts
+    assert "Evidencia:" not in texts
+
+
+# --- Errores ---------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [
+        (error_response(401), AuthenticationError),
+        (error_response(403), AuthenticationError),
+        (error_response(404), NotFoundError),
+        (error_response(429, headers={"Retry-After": "1"}), RateLimitError),
+        (error_response(500), ExternalServiceError),
+    ],
+    ids=["401", "403", "404", "429", "500"],
+)
+def test_record_execution_raises_without_writes_when_read_fails(
+    reply: Reply, error: type[Exception]
+) -> None:
+    """RF-28: fallo en la lectura previa → su excepción y ninguna escritura."""
+    jira = ExecutionJira(replies={GET_CASE: [reply] * 5})
+    jira, tests, _ = execution_setup(jira)
+    with pytest.raises(error) as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == []
+    assert GET_TRANSITIONS not in jira.routes()
+    assert_safe_message(exc_info.value)
+
+
+def test_record_execution_raises_not_found_naming_the_key_when_case_does_not_exist() -> None:
+    """RF-28: un 404 en la lectura nombra la clave del CP."""
+    _jira, tests, _ = execution_setup(ExecutionJira(replies={GET_CASE: [error_response(404)]}))
+    with pytest.raises(NotFoundError, match=CASE_KEY):
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+
+
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [
+        (error_response(401), AuthenticationError),
+        (error_response(404), NotFoundError),
+        (error_response(429, headers={"Retry-After": "1"}), RateLimitError),
+    ],
+    ids=["401", "404", "429"],
+)
+def test_record_execution_raises_without_writes_when_transitions_query_fails(
+    reply: Reply, error: type[Exception]
+) -> None:
+    """RF-28: fallo al pedir las transiciones → su excepción y ninguna escritura."""
+    jira = ExecutionJira(replies={GET_TRANSITIONS: [reply] * 5})
+    jira, tests, _ = execution_setup(jira)
+    with pytest.raises(error) as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == []
+    assert_safe_message(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [
+        (error_response(400), PublishError),
+        (error_response(500), PublishError),
+        (httpx.ConnectError("fallo de red ficticio"), PublishError),
+        (httpx.Response(302, headers={"Location": "https://otro.example/x"}), PublishError),
+        (error_response(401), AuthenticationError),
+        (error_response(403), AuthenticationError),
+        (error_response(404), NotFoundError),
+        (error_response(429, headers={"Retry-After": "1"}), RateLimitError),
+    ],
+    ids=["400", "500", "red", "302", "401", "403", "404", "429"],
+)
+def test_record_execution_raises_without_label_or_comment_when_transition_fails(
+    reply: Reply, error: type[Exception]
+) -> None:
+    """RF-28, §8: fallo en la transición → su excepción, una sola petición y nada más escrito."""
+    jira, tests, sleep = execution_setup(ExecutionJira(replies={POST_TRANSITION: [reply]}))
+    with pytest.raises(error) as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == [POST_TRANSITION]
+    assert sleep.waits == []
+    assert_safe_message(exc_info.value)
+
+
+ALL_WRITE_FAILURES: dict[str, Reply] = {**FAILURE_REPLIES, **STOP_REPLIES}
+
+
+@pytest.mark.parametrize(
+    "reply", list(ALL_WRITE_FAILURES.values()), ids=list(ALL_WRITE_FAILURES.keys())
+)
+def test_record_execution_reports_incomplete_with_state_changed_when_label_put_fails(
+    reply: Reply,
+) -> None:
+    """RF-28, §8: fallo del PUT tras la transición → PublishError «Registro incompleto … (con el
+    estado ya cambiado)», sin comentario y sin reintentos."""
+    jira, tests, sleep = execution_setup(ExecutionJira(replies={PUT_LABELS: [reply]}))
+    with pytest.raises(PublishError) as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    message = str(exc_info.value)
+    assert message.startswith(f"Registro incompleto de la ejecución en {CASE_KEY}")
+    assert "(con el estado ya cambiado)" in message
+    assert jira.writes() == [POST_TRANSITION, PUT_LABELS]
+    assert sleep.waits == []
+    assert_safe_message(exc_info.value)
+
+
+def test_record_execution_reports_incomplete_without_state_change_when_label_put_fails() -> None:
+    """RF-28: fallo del PUT sin transición previa → «(sin cambiar el estado)»."""
+    jira = ExecutionJira(status="Done", replies={PUT_LABELS: [error_response(500)]})
+    jira, tests, _ = execution_setup(jira)
+    with pytest.raises(PublishError, match=r"\(sin cambiar el estado\)") as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == [PUT_LABELS]
+    assert_safe_message(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "reply", list(ALL_WRITE_FAILURES.values()), ids=list(ALL_WRITE_FAILURES.keys())
+)
+def test_record_execution_reports_incomplete_when_comment_fails(reply: Reply) -> None:
+    """RF-28, §8: fallo del comentario → PublishError «Registro incompleto», un solo intento."""
+    jira, tests, sleep = execution_setup(ExecutionJira(replies={POST_COMMENT: [reply]}))
+    with pytest.raises(PublishError, match="Registro incompleto") as exc_info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert "(sin cambiar el estado)" in str(exc_info.value)  # el flujo no tiene «Falló»
+    assert jira.writes() == [PUT_LABELS, POST_COMMENT]
+    assert sleep.waits == []
+    assert_safe_message(exc_info.value)
+
+
+def test_record_execution_makes_exactly_one_request_per_write() -> None:
+    """§8: en el camino feliz cada escritura se envía una sola vez y no se espera."""
+    jira, tests, sleep = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert [jira.count(r) for r in (POST_TRANSITION, PUT_LABELS, POST_COMMENT)] == [1, 1, 1]
+    assert sleep.waits == []
+
+
+def test_record_execution_retries_read_but_not_writes() -> None:
+    """§8: la lectura previa se reintenta ante 5xx; las escrituras no."""
+    jira = ExecutionJira(replies={GET_CASE: [error_response(503)]})
+    jira, tests, sleep = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.count(GET_CASE) == 2
+    assert len(sleep.waits) == 1
+    assert jira.writes() == [POST_TRANSITION, PUT_LABELS, POST_COMMENT]
+
+
+# --- Log -------------------------------------------------------------------------------------
+
+
+def test_record_execution_logs_key_status_transitioned_and_duration_without_secrets() -> None:
+    """Seguridad, RF-28: log `record_execution` con jira_key, status, transitioned y
+    duration_ms; sin credenciales ni la evidencia."""
+    _jira, tests, _ = execution_setup()
+    with capture_logs() as logs:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, f"{EVIDENCE} {EVIDENCE_MARKER}")
+    [entry] = registered_entries(logs)
+    assert entry["action"] == "record_execution"
+    assert entry["jira_key"] == CASE_KEY
+    assert entry["status"] == "paso"
+    assert entry["transitioned"] is True
+    assert isinstance(entry["duration_ms"], int)
+    assert entry["duration_ms"] >= 0
+    dumped = json.dumps(logs, default=str)
+    for forbidden in (TOKEN, EMAIL, BASIC_CREDENTIALS, BODY_MARKER, EVIDENCE_MARKER):
+        assert forbidden not in dumped
+
+
+def test_record_execution_does_not_log_success_when_a_write_fails() -> None:
+    """RF-28: si la escritura falla no se registra en el log como completada."""
+    jira = ExecutionJira(replies={POST_COMMENT: [error_response(500)]})
+    _jira, tests, _ = execution_setup(jira)
+    with capture_logs() as logs, pytest.raises(PublishError):
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert registered_entries(logs) == []
+
+
+# --- Respuestas malformadas y configuración inválida ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("route", "payload"),
+    [
+        (
+            GET_CASE,
+            {
+                "fields": {
+                    "labels": [CASE_LABEL],
+                    "status": "En curso",
+                    "issuetype": {"subtask": True},
+                }
+            },
+        ),
+        (GET_TRANSITIONS, {"transitions": [{"id": "31", "name": "Finalizar", "to": "Done"}]}),
+    ],
+    ids=["status-texto", "to-texto"],
+)
+def test_record_execution_tolerates_unexpected_response_shape(
+    route: Route, payload: dict[str, Any]
+) -> None:
+    """Un `status` o un `to` que no son objetos se ignoran (como en las lecturas del tracker):
+    sin `AttributeError`; la etiqueta y el comentario se registran igualmente."""
+    jira = ExecutionJira(replies={route: [httpx.Response(200, json=payload)]})
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.count(PUT_LABELS) == 1
+    assert jira.count(POST_COMMENT) == 1
+
+
+def test_constructor_raises_value_error_when_execution_transitions_value_is_bare_str() -> None:
+    """PA-207: un nombre suelto (str) en vez de una secuencia de nombres es un mapeo inválido."""
+    custom = {ExecutionStatus.FAILED: "Rechazado"}
+    with pytest.raises(ValueError):
+        make_execution_tests(fail_if_called, None, custom)
+
+
+@pytest.mark.parametrize("issuetype", [{"subtask": False}, {}, "Subtarea", None])
+def test_record_execution_raises_without_writes_when_issue_is_not_a_subtask(
+    issuetype: Any,
+) -> None:
+    """Seguridad: con la etiqueta `caso-prueba` puesta a mano en una HU no basta; debe ser una
+    subtarea (`issuetype.subtask`), y si no, `PublishError` sin ninguna escritura."""
+    payload = {"fields": {"labels": [CASE_LABEL], "status": {"name": "En curso"}}}
+    if issuetype is not None:
+        payload["fields"]["issuetype"] = issuetype
+    jira, tests, _ = execution_setup(
+        ExecutionJira(replies={GET_CASE: [httpx.Response(200, json=payload)]})
+    )
+    with pytest.raises(PublishError) as info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.writes() == []
+    assert_safe_message(info.value)
+
+
+@pytest.mark.parametrize("transition_id", ["²", "١٢", "3 1", "-31", ""])
+def test_record_execution_skips_transition_with_non_ascii_numeric_id(transition_id: str) -> None:
+    """Seguridad: el id de la transición debe ser numérico ASCII; si no, se ignora."""
+    jira = ExecutionJira(
+        transitions=[{"id": transition_id, "name": "Done", "to": {"name": "Done"}}]
+    )
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
+    assert jira.count(POST_TRANSITION) == 0
+    assert jira.count(POST_COMMENT) == 1
+
+
+def test_record_execution_unknown_status_message_has_no_control_characters() -> None:
+    """El resultado desconocido se muestra sin caracteres de control."""
+    with pytest.raises(PublishError) as info:
+        make_execution_tests(fail_if_called).record_execution(CASE_KEY, "x\n\x1b[31m", EVIDENCE)
+    assert "\n" not in str(info.value)
+    assert "\x1b" not in str(info.value)

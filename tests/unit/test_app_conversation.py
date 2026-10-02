@@ -8,6 +8,7 @@ Solo fakes de `tests/fakes/` y datos 100 % ficticios.
 """
 
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from app.origin import (
     with_restrictions,
 )
 from app.progress import STEPS, phase_of
+from app.qa import case_rows, qa_feedback, suite_summary
 from app.review import (
     approve_answer,
     describe_operation,
@@ -57,7 +59,8 @@ from core.conversations import NOT_YOURS, THREAD_ID
 from core.graph import build_graph, memory_checkpointer
 from core.permissions import Permission
 from schemas.artifact import Artifact
-from schemas.common import ArtifactStatus
+from schemas.common import ArtifactStatus, Priority
+from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
@@ -1192,3 +1195,90 @@ def test_approve_without_actor_fails_closed_without_calling_the_graph(tmp_path: 
     assert conv.view is not None and conv.outcome is None
     tracker = ws.container.issue_tracker
     assert isinstance(tracker, FakeIssueTracker) and tracker.writes == []
+
+
+# --- T-28 · QA 1 … QA 3 con el grafo real (UI.md §6.1–6.3, RF-22…RF-27) ----------------------
+
+
+QA_EXTRA_CASE = TestCase(
+    internal_id="CP-03",
+    title="Renovar con un socio ficticio en el límite de renovaciones",
+    criterion_ids=["CA-01"],
+    type=TestCaseType.ALTERNATE,
+    preconditions=["Préstamo activo con 1 renovación (ficticio)"],
+    steps=[TestStep(action="Pulsar «Renovar»", expected="Vencimiento +21 días")],
+    priority=Priority.SHOULD,
+)
+
+
+def _growing_suite_llm() -> FakeLLMProvider:
+    """LLM fake: la 1.ª suite es la del dataset; desde la 2.ª añade CP-03 (cubre CA-01)."""
+    llm = FakeLLMProvider()
+    base = llm.builders[TestSuite]
+    calls: list[int] = []
+
+    def build(messages: list[Any]) -> TestSuite:
+        calls.append(1)
+        suite = base(messages)
+        assert isinstance(suite, TestSuite)
+        if len(calls) == 1:
+            return suite
+        return suite.model_copy(update={"cases": [*suite.cases, QA_EXTRA_CASE]})
+
+    llm.builders[TestSuite] = build
+    return llm
+
+
+def _qa_request(types: set[TestCaseType], extras: set[str]) -> StartRequest:
+    request = fix_origin("tests", "DEMO", key="DEMO-3", text="DEMO-3")
+    return replace(request, extra_feedback=qa_feedback(types, extras))
+
+
+def test_qa_extra_feedback_reaches_graph_state_and_view_is_suite(tmp_path: Path) -> None:
+    """UI.md §6.1–6.2 · RF-22 · T-28: el feedback de QA 1 llega al estado y la vista es la suite."""
+    ws, _ = _shared(tmp_path)
+    request = _qa_request({TestCaseType.POSITIVE, TestCaseType.EXCEPTION}, {"strategy"})
+    conv = _started_by(ws, request, QA_ACTOR)
+
+    feedback = _values(ws, conv)["feedback"]
+    assert list(request.extra_feedback) == [
+        item for item in feedback if item in request.extra_feedback
+    ]
+    assert feedback[0] == "Incluye casos: positivos, negativos, de excepción."
+    assert "alternos" not in feedback[0]
+    assert any(item.startswith("Incluye además: estrategia de pruebas") for item in feedback)
+    assert conv.view is not None and conv.view.version == 1
+    assert isinstance(conv.view.artifact.content, TestSuite)
+    assert summarize(conv.view) == suite_summary(conv.view.artifact.content, 1)
+    _assert_nothing_written(ws.container)
+
+
+def test_qa_iterate_creates_v2_and_case_rows_mark_new_cases(tmp_path: Path) -> None:
+    """UI.md §6.3 · T-28: iterar crea la v2; `case_rows` con la v1 marca solo CP-03 como nuevo."""
+    ws, _ = _shared(tmp_path, llm=_growing_suite_llm())
+    conv = _started_by(ws, _qa_request(set(TestCaseType), {"data", "risks"}), QA_ACTOR)
+    resume(ws, conv, iterate_answer("Añade un caso de excepción"), QA_ACTOR)
+
+    assert conv.error is None, conv.error
+    assert [v.version for v in conv.versions] == [1, 2]
+    v1, v2 = (v.artifact.content for v in conv.versions)
+    assert isinstance(v1, TestSuite) and isinstance(v2, TestSuite)
+    rows = case_rows(v2, 2, v1)
+    assert {row.id: row.new_in for row in rows} == {
+        "CP-01": None,
+        "CP-02": None,
+        "CP-03": "Nuevo en v2",
+    }
+    assert all(row.new_in is None for row in case_rows(v1, 1, None))
+    assert "Añade un caso de excepción" in _values(ws, conv)["feedback"]
+    _assert_nothing_written(ws.container)
+
+
+def test_qa_functional_actor_cannot_start_tests_flow(tmp_path: Path) -> None:
+    """UI.md §3 · T-28 (negativa): el analista funcional no puede arrancar una suite."""
+    ws, _ = _shared(tmp_path)
+    conv = Conversation(request=_qa_request(set(), set()), user=AF_ACTOR.username)
+    assert run_start(ws, conv, AF_ACTOR) == []
+    assert conv.error == NO_PERMISSION
+    assert conv.view is None
+    _assert_nothing_written(ws.container)

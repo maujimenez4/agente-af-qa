@@ -11,6 +11,7 @@ from app.anim import phase_q, typing_q
 from app.conversation import Conversation, message_for, resume
 from app.editing import LIST_FIELDS, STEP_FIELDS, TEXT_FIELDS, form_to_content, story_to_form
 from app.progress import phase_label, phase_of
+from app.qa import QA_SUGGESTIONS
 from app.review import (
     ReviewView,
     change_marks,
@@ -22,7 +23,7 @@ from app.review import (
 )
 from app.session import SessionState, current_conversation, go
 from app.text import md_escape, md_lines
-from app.views import resultado
+from app.views import resultado, suite
 from app.views.frame import simulation_notice
 from schemas.user_story import UserStory
 
@@ -85,12 +86,17 @@ def _chat(session: SessionState, conv: Conversation) -> None:
             st.markdown(md_escape(text))
     if conv.finished or conv.view is None or session.workspace is None:
         return
-    suggestions = ["Añade un criterio de error", "Revisa INVEST", "Busca la fuente de los CA"]
+    suggestions = (
+        list(QA_SUGGESTIONS)
+        if conv.request.mode == "qa"
+        else ["Añade un criterio de error", "Revisa INVEST", "Busca la fuente de los CA"]
+    )
     cols = st.columns(len(suggestions))
     for col, suggestion in zip(cols, suggestions, strict=True):
         if col.button(suggestion, key=f"sugg-{suggestion}"):
             _iterate(session, conv, suggestion)
-    message = st.chat_input("Pide un cambio a la propuesta", key=f"chat-{conv.thread_id}")
+    what = "la suite" if conv.request.mode == "qa" else "la propuesta"
+    message = st.chat_input(f"Pide un cambio a {what}", key=f"chat-{conv.thread_id}")
     if message:
         _iterate(session, conv, message)
 
@@ -138,8 +144,10 @@ def _panel(session: SessionState, conv: Conversation) -> None:
         )
     )
     story = view.artifact.content
-    if not isinstance(story, UserStory):
-        st.info("La vista de una suite de pruebas llegará con T-28.")
+    if not isinstance(story, UserStory):  # QA 3 (T-28)
+        index = conv.versions.index(view)
+        previous = conv.versions[index - 1] if index > 0 else None
+        suite.render_panel(session, conv, view, previous, latest=latest)
         return
     impact = view.impact
     tabs = st.tabs(

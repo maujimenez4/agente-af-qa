@@ -91,8 +91,7 @@ Acordado con la sesión principal en la PR #2 (PA-303).
   - Los fallos de la generación llegan en `ConversationOut.error` o `QualityReviewOut.error`, no como error HTTP.
   - Un `code` que no esté en la lista (versión futura de la API) usa un título genérico y el mismo mensaje.
 - **Aún sin implementar en la API:**
-  - `/conversations/{id}/handoff` y `/qa/*` dan 501 `not_implemented` hasta que se cierre T-54. La pantalla los trata como «disponible pronto».
-  - El registro de la ejecución (QA 6, `/executions`) llegará más tarde con T-47.
+  - `/conversations/{id}/handoff`, `/qa/*` (T-54) y `/executions` (T-47) ya están en el contrato, pero el frontend aún no los usa: sus pantallas son «disponible pronto» hasta los días 6 a 8. La API simulada responde 404 `not_found` a lo que no simula (`not_implemented` salió de `ErrorCode`).
 - **Aprobar:** se devuelve la `fingerprint` exacta del último `review`. Una respuesta no válida llega en `review.error`, no como error HTTP. Un 409 se distingue por `error.code` (`approval_rejected` → empezar de nuevo; `not_in_review` → actualizar el estado).
 - **API simulada:**
   - **MSW** para desarrollo y pruebas, con un único conjunto de handlers construido con los ejemplos del contrato y un estado en memoria que también simula el SSE.
@@ -187,6 +186,7 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 | | `http_error` | Petición no válida | Error | — |
 | Conversación | `not_in_review` | La revisión ya no está abierta | Aviso | Actualizar |
 | | `approval_rejected` | Aprobación rechazada | Error | Empezar de nuevo |
+| | `handoff_unavailable` | La HU ya no está disponible | Aviso | Actualizar |
 | | `operation_failed` | No se pudo completar la operación | Error | Actualizar |
 | | `restart` | La conversación no puede continuar | Error | Empezar de nuevo |
 | | `too_many_streams` | Demasiadas pestañas abiertas | Aviso | Reintentar |
@@ -198,8 +198,7 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 | | `coverage_failed` | La suite no es válida | Error | Volver a generar |
 | | `quality_failed` | No se pudo revisar la calidad | Error | Reintentar |
 | | `publish_failed` | No se puede publicar | Error | Volver al recibo |
-| Otros | `not_implemented` | Disponible pronto | Neutro | — |
-| | `unexpected` | Error inesperado | Error | Reintentar |
+| Otros | `unexpected` | Error inesperado | Error | Reintentar |
 | Respaldo | Cualquier otro (versión futura de la API) | No se pudo completar la acción | Error | — |
 
 - Los títulos de `citation_failed`, `coverage_failed` y `publish_failed` son los de UI.md §7.

@@ -2101,7 +2101,7 @@
     }
   },
   "POST /api/v1/conversations/{conversation_id}/handoff 200": {
-    "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+    "id": "c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
     "title": "Renovar un préstamo",
     "project": "DEMO",
     "story_key": "DEMO-3",
@@ -2125,6 +2125,12 @@
     "error": {
       "code": "not_found",
       "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 409": {
+    "error": {
+      "code": "handoff_unavailable",
+      "message": "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona."
     }
   },
   "POST /api/v1/conversations/{conversation_id}/handoff 413": {
@@ -2151,12 +2157,6 @@
     "error": {
       "code": "unexpected",
       "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-    }
-  },
-  "POST /api/v1/conversations/{conversation_id}/handoff 501": {
-    "error": {
-      "code": "not_implemented",
-      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
     }
   },
   "POST /api/v1/conversations/{conversation_id}/handoff 503": {
@@ -2393,9 +2393,476 @@
       "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
     }
   },
+  "POST /api/v1/executions 200": {
+    "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+    "story_key": "DEMO-3",
+    "project": "DEMO",
+    "state": "in_review",
+    "cases": [
+      {
+        "key": "DEMO-501",
+        "summary": "[CP-01] Renovar dentro del plazo",
+        "status": "Por hacer"
+      },
+      {
+        "key": "DEMO-502",
+        "summary": "[CP-02] Renovar con una reserva",
+        "status": "Por hacer"
+      }
+    ],
+    "results": [],
+    "environment": "preproducción",
+    "plan": [],
+    "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+  },
+  "POST /api/v1/executions 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/executions 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/executions 404": {
+    "error": {
+      "code": "not_found",
+      "message": "La incidencia DEMO-999 no existe."
+    }
+  },
+  "POST /api/v1/executions 409": {
+    "error": {
+      "code": "publish_failed",
+      "message": "La HU DEMO-3 no tiene casos de prueba publicados en Jira: publica antes su suite."
+    }
+  },
+  "POST /api/v1/executions 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/executions 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/executions 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/executions 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/executions 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 200": {
+    "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+    "story_key": "DEMO-3",
+    "project": "DEMO",
+    "state": "in_review",
+    "cases": [
+      {
+        "key": "DEMO-501",
+        "summary": "[CP-01] Renovar dentro del plazo",
+        "status": "Por hacer"
+      },
+      {
+        "key": "DEMO-502",
+        "summary": "[CP-02] Renovar con una reserva",
+        "status": "Por hacer"
+      }
+    ],
+    "results": [
+      {
+        "case_key": "DEMO-501",
+        "status": "paso",
+        "evidence_md": ""
+      },
+      {
+        "case_key": "DEMO-502",
+        "status": "fallo",
+        "evidence_md": "El botón no se desactiva (ficticio)."
+      }
+    ],
+    "environment": "preproducción",
+    "plan": [
+      {
+        "op": "record_execution",
+        "key": "DEMO-501",
+        "status": "paso",
+        "label": "Pasó",
+        "evidence": "no"
+      },
+      {
+        "op": "record_execution",
+        "key": "DEMO-502",
+        "status": "fallo",
+        "label": "Falló",
+        "evidence": "sí"
+      }
+    ],
+    "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+  },
+  "GET /api/v1/executions/{execution_id} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe ese registro o no es tuyo."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/executions/{execution_id} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 200": {
+    "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+    "story_key": "DEMO-3",
+    "project": "DEMO",
+    "state": "in_review",
+    "cases": [
+      {
+        "key": "DEMO-501",
+        "summary": "[CP-01] Renovar dentro del plazo",
+        "status": "Por hacer"
+      },
+      {
+        "key": "DEMO-502",
+        "summary": "[CP-02] Renovar con una reserva",
+        "status": "Por hacer"
+      }
+    ],
+    "results": [
+      {
+        "case_key": "DEMO-501",
+        "status": "paso",
+        "evidence_md": ""
+      },
+      {
+        "case_key": "DEMO-502",
+        "status": "fallo",
+        "evidence_md": "El botón no se desactiva (ficticio)."
+      }
+    ],
+    "environment": "preproducción",
+    "plan": [
+      {
+        "op": "record_execution",
+        "key": "DEMO-501",
+        "status": "paso",
+        "label": "Pasó",
+        "evidence": "no"
+      },
+      {
+        "op": "record_execution",
+        "key": "DEMO-502",
+        "status": "fallo",
+        "label": "Falló",
+        "evidence": "sí"
+      }
+    ],
+    "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+  },
+  "PUT /api/v1/executions/{execution_id}/results 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe ese registro o no es tuyo."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "PUT /api/v1/executions/{execution_id}/results 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 200": {
+    "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+    "story_key": "DEMO-3",
+    "project": "DEMO",
+    "state": "recorded",
+    "cases": [
+      {
+        "key": "DEMO-501",
+        "summary": "[CP-01] Renovar dentro del plazo",
+        "status": "Por hacer"
+      },
+      {
+        "key": "DEMO-502",
+        "summary": "[CP-02] Renovar con una reserva",
+        "status": "Por hacer"
+      }
+    ],
+    "results": [
+      {
+        "case_key": "DEMO-501",
+        "status": "paso",
+        "evidence_md": ""
+      },
+      {
+        "case_key": "DEMO-502",
+        "status": "fallo",
+        "evidence_md": "El botón no se desactiva (ficticio)."
+      }
+    ],
+    "environment": "preproducción",
+    "plan": [],
+    "outcome": {
+      "recorded": [
+        "DEMO-501",
+        "DEMO-502"
+      ],
+      "failed": [],
+      "errors": [],
+      "approved_by": "qa-demo",
+      "approved_at": "2026-10-02T10:30:00Z",
+      "simulated": false
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe ese registro o no es tuyo."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/approve 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 200": {
+    "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+    "story_key": "DEMO-3",
+    "project": "DEMO",
+    "state": "discarded",
+    "cases": [
+      {
+        "key": "DEMO-501",
+        "summary": "[CP-01] Renovar dentro del plazo",
+        "status": "Por hacer"
+      },
+      {
+        "key": "DEMO-502",
+        "summary": "[CP-02] Renovar con una reserva",
+        "status": "Por hacer"
+      }
+    ],
+    "results": [
+      {
+        "case_key": "DEMO-501",
+        "status": "paso",
+        "evidence_md": ""
+      },
+      {
+        "case_key": "DEMO-502",
+        "status": "fallo",
+        "evidence_md": "El botón no se desactiva (ficticio)."
+      }
+    ],
+    "environment": "preproducción",
+    "plan": []
+  },
+  "POST /api/v1/executions/{execution_id}/discard 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe ese registro o no es tuyo."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/executions/{execution_id}/discard 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
   "GET /api/v1/qa/handoffs 200": [
     {
-      "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+      "id": "c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
       "title": "Renovar un préstamo",
       "project": "DEMO",
       "story_key": "DEMO-3",
@@ -2433,12 +2900,6 @@
     "error": {
       "code": "unexpected",
       "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-    }
-  },
-  "GET /api/v1/qa/handoffs 501": {
-    "error": {
-      "code": "not_implemented",
-      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
     }
   },
   "GET /api/v1/qa/handoffs 503": {
@@ -2487,10 +2948,10 @@
       "message": "No tienes permiso para realizar esta acción."
     }
   },
-  "POST /api/v1/qa/handoffs/{handoff_id}/take 404": {
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 409": {
     "error": {
-      "code": "not_found",
-      "message": "No existe esa conversación o no es tuya."
+      "code": "handoff_unavailable",
+      "message": "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona."
     }
   },
   "POST /api/v1/qa/handoffs/{handoff_id}/take 413": {
@@ -2517,12 +2978,6 @@
     "error": {
       "code": "unexpected",
       "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-    }
-  },
-  "POST /api/v1/qa/handoffs/{handoff_id}/take 501": {
-    "error": {
-      "code": "not_implemented",
-      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
     }
   },
   "POST /api/v1/qa/handoffs/{handoff_id}/take 503": {

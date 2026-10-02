@@ -206,7 +206,7 @@ describe('API simulada: sesión y CSRF', () => {
   })
 })
 
-describe('API simulada: 501 para lo que aún no simula', () => {
+describe('API simulada: 404 para lo que aún no simula', () => {
   it.each([
     ['GET', '/qa/handoffs'],
     ['POST', '/conversations/x/handoff'],
@@ -214,13 +214,13 @@ describe('API simulada: 501 para lo que aún no simula', () => {
     ['POST', '/conversations/x/approve'],
     ['PUT', '/settings/models/generate_story'],
     ['DELETE', '/settings/models/generate_story'],
-  ])('test_%s_%s_is_not_implemented', async (method, path) => {
-    /** Criterio 3: cualquier método sobre una ruta sin simular da 501 not_implemented con mensaje en español. */
+  ])('test_%s_%s_is_not_simulated', async (method, path) => {
+    /** Criterio 3: cualquier método sobre una ruta sin simular da 404 not_found con mensaje en español. */
     const csrf = await csrfOf()
     const response = method === 'GET' ? await fetch(url(path)) : await send(method, path, csrf)
-    expect(response.status).toBe(501)
+    expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
-      error: { code: 'not_implemented', message: 'Aún no está en la API simulada del frontend.', retry_after: null },
+      error: { code: 'not_found', message: 'Aún no está en la API simulada del frontend.', retry_after: null },
     })
   })
 })

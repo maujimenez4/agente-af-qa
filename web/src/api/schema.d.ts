@@ -165,7 +165,7 @@ export interface paths {
         };
         /**
          * Eventos en vivo (SSE)
-         * @description `text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), `review_ready`, `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación completa, como en `GET /conversations/{id}`). El servidor cierra el flujo tras `result` de una conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay un comentario `: ping` cada 15 s. Si se corta, basta con consultar el estado.
+         * @description `text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), `review_ready`, `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación completa, como en `GET /conversations/{id}`; si falla la lectura a mitad del flujo, la última conocida con `state=error` y `error`). El servidor cierra el flujo tras `result` de una conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay un comentario `: ping` cada 15 s. Si se corta, basta con consultar el estado.
          */
         get: operations["events_api_v1_conversations__conversation_id__events_get"];
         put?: never;
@@ -185,7 +185,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pasar la HU aprobada a QA (provisional, T-54) */
+        /**
+         * Pasar la HU aprobada o publicada a QA (T-54)
+         * @description Deja la HU de esta conversación (aprobada, simulada o publicada) en la lista de QA. La HU sale del servidor, nunca de la petición. Sin clave de Jira (aprobada en simulación), QA puede generar y revisar casos pero no publicarlos. Repetirlo es idempotente. Si la conversación tiene una operación en curso, 409 `not_in_review`.
+         */
         post: operations["handoff_api_v1_conversations__conversation_id__handoff_post"];
         delete?: never;
         options?: never;
@@ -220,6 +223,100 @@ export interface paths {
         /** HU de una épica */
         get: operations["list_children_api_v1_epics__key__stories_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Empezar a registrar la ejecución de las pruebas de una HU
+         * @description Lee de Jira las subtareas CP de la HU (su suite tiene que estar publicada) y devuelve el registro en revisión, sin resultados. Nada se escribe en Jira.
+         */
+        post: operations["create_execution_api_v1_executions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Estado del registro de la ejecución (recibo, huella y resultado) */
+        get: operations["get_execution_api_v1_executions__execution_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions/{execution_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprobar el recibo y registrar en Jira
+         * @description Con la `fingerprint` exacta del último registro mostrado. Si no casa, sigue en revisión con `review_error`. Escribe en cada subtarea (transición, etiqueta y comentario con la evidencia); las que fallan quedan en `outcome.failed` (`state=partial`).
+         */
+        post: operations["approve_execution_api_v1_executions__execution_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions/{execution_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Descartar el registro (nada se escribe en Jira) */
+        post: operations["discard_execution_api_v1_executions__execution_id__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions/{execution_id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar el borrador de resultados (nada se escribe en Jira)
+         * @description Sustituye los resultados y el entorno. Un resultado no válido (caso ajeno, «fallo» sin evidencia…) no da error HTTP: el registro sigue en revisión con `review_error`. Cada guardado cambia la `fingerprint`.
+         */
+        put: operations["save_execution_api_v1_executions__execution_id__results_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -319,7 +416,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** HU aprobadas listas para preparar pruebas (rol QA) */
+        /**
+         * HU aprobadas listas para preparar pruebas (rol QA)
+         * @description Cualquier persona con rol QA las ve (D-01); solo las de los proyectos que ve la conexión de Jira.
+         */
         get: operations["list_handoffs_api_v1_qa_handoffs_get"];
         put?: never;
         post?: never;
@@ -338,7 +438,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Recoger una HU y empezar su conversación de QA */
+        /**
+         * Recoger una HU y empezar su conversación de QA
+         * @description Solo una persona puede recogerla: si ya la recogió otra, 409 `handoff_unavailable`. Responde 202 con la conversación de QA generando; el avance llega por `/conversations/{id}/events`. No relee Jira ni vuelve a estructurar la HU.
+         */
         post: operations["take_handoff_api_v1_qa_handoffs__handoff_id__take_post"];
         delete?: never;
         options?: never;
@@ -700,7 +803,7 @@ export interface components {
              * @description Código estable para la UI. `message` ya está en español y listo para mostrar.
              * @enum {string}
              */
-            code: "unauthenticated" | "invalid_credentials" | "too_many_attempts" | "forbidden" | "invalid_request" | "payload_too_large" | "not_found" | "project_not_found" | "method_not_allowed" | "http_error" | "not_in_review" | "approval_rejected" | "operation_failed" | "restart" | "too_many_streams" | "rate_limited" | "service_unavailable" | "provider_timeout" | "invalid_model_output" | "citation_failed" | "coverage_failed" | "quality_failed" | "publish_failed" | "not_implemented" | "unexpected";
+            code: "unauthenticated" | "invalid_credentials" | "too_many_attempts" | "forbidden" | "invalid_request" | "payload_too_large" | "not_found" | "project_not_found" | "method_not_allowed" | "http_error" | "not_in_review" | "approval_rejected" | "handoff_unavailable" | "operation_failed" | "restart" | "too_many_streams" | "rate_limited" | "service_unavailable" | "provider_timeout" | "invalid_model_output" | "citation_failed" | "coverage_failed" | "quality_failed" | "publish_failed" | "unexpected";
             /**
              * Message
              * @description Mensaje en español para mostrar a la persona.
@@ -716,7 +819,149 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
         };
-        /** HandoffOut */
+        /** ExecutionCaseOut */
+        ExecutionCaseOut: {
+            /** Key */
+            key: string;
+            /**
+             * Status
+             * @description Estado actual de la subtarea en Jira.
+             */
+            status: string;
+            /** Summary */
+            summary: string;
+        };
+        /** ExecutionCreateIn */
+        ExecutionCreateIn: {
+            /**
+             * Story Key
+             * @description HU con su suite publicada.
+             */
+            story_key: string;
+        };
+        /**
+         * ExecutionOut
+         * @description Registro de la ejecución de las pruebas de una HU (UI.md §6.6).
+         *
+         *     `in_review`: borrador editable con `PUT /results`; `fingerprint` es la huella del registro
+         *     tal como está, y se devuelve exacta al aprobar. Si una respuesta no se pudo aplicar, la revisión
+         *     sigue con `review_error`. Tras aprobar: `recorded` o `partial` (con `outcome.failed`).
+         */
+        ExecutionOut: {
+            /** Cases */
+            cases: components["schemas"]["ExecutionCaseOut"][];
+            /**
+             * Environment
+             * @default
+             */
+            environment: string;
+            error?: components["schemas"]["ErrorBody"] | null;
+            /** Fingerprint */
+            fingerprint?: string | null;
+            /** Id */
+            id: string;
+            outcome?: components["schemas"]["ExecutionOutcome"] | null;
+            /**
+             * Plan
+             * @description Recibo: una operación por caso.
+             * @default []
+             */
+            plan: {
+                [key: string]: string;
+            }[];
+            /** Project */
+            project: string;
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["ExecutionResultOut"][];
+            /** Review Error */
+            review_error?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "in_review" | "recording" | "simulated" | "recorded" | "partial" | "discarded" | "error";
+            /** Story Key */
+            story_key: string;
+        };
+        /** ExecutionOutcome */
+        ExecutionOutcome: {
+            /** Approved At */
+            approved_at?: string | null;
+            /** Approved By */
+            approved_by: string;
+            /**
+             * Errors
+             * @default []
+             */
+            errors: string[];
+            /**
+             * Failed
+             * @description Subtareas que fallaron (parcial, RNF-13).
+             * @default []
+             */
+            failed: string[];
+            /**
+             * Recorded
+             * @description Subtareas en las que se registró el resultado.
+             */
+            recorded: string[];
+            /**
+             * Simulated
+             * @description Modo simulación: no se escribió nada en Jira.
+             * @default false
+             */
+            simulated: boolean;
+        };
+        /** ExecutionResultIn */
+        ExecutionResultIn: {
+            /**
+             * Case Key
+             * @description Subtarea CP en Jira.
+             */
+            case_key: string;
+            /**
+             * Evidence Md
+             * @description Obligatoria si el caso falla (`fallo`).
+             * @default
+             */
+            evidence_md: string;
+            /**
+             * Status
+             * @description Lo elige la persona, nunca la IA.
+             * @enum {string}
+             */
+            status: "paso" | "fallo" | "bloqueado" | "sin-ejecutar";
+        };
+        /** ExecutionResultOut */
+        ExecutionResultOut: {
+            /** Case Key */
+            case_key: string;
+            /** Evidence Md */
+            evidence_md: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "paso" | "fallo" | "bloqueado" | "sin-ejecutar";
+        };
+        /** ExecutionResultsIn */
+        ExecutionResultsIn: {
+            /**
+             * Environment
+             * @description P. ej. «preproducción».
+             * @default
+             */
+            environment: string;
+            /** Results */
+            results: components["schemas"]["ExecutionResultIn"][];
+        };
+        /**
+         * HandoffOut
+         * @description Una HU aprobada o publicada lista para preparar sus pruebas (T-54).
+         */
         HandoffOut: {
             /**
              * Created At
@@ -3988,7 +4233,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+                     *       "id": "c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
                      *       "title": "Renovar un préstamo",
                      *       "project": "DEMO",
                      *       "story_key": "DEMO-3",
@@ -4045,6 +4290,23 @@ export interface operations {
                      *       "error": {
                      *         "code": "not_found",
                      *         "message": "No existe esa conversación o no es tuya."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Ya recogida por otra persona, o la HU no está aprobada o no coincide con la aprobada. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "handoff_unavailable",
+                     *         "message": "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona."
                      *       }
                      *     }
                      */
@@ -4115,23 +4377,6 @@ export interface operations {
                      *       "error": {
                      *         "code": "unexpected",
                      *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Pendiente del diseño de T-54 (PA-105). */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "not_implemented",
-                     *         "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
                      *       }
                      *     }
                      */
@@ -4452,6 +4697,1091 @@ export interface operations {
                      *       "error": {
                      *         "code": "not_found",
                      *         "message": "No existe esa conversación o no es tuya."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_execution_api_v1_executions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+                     *       "story_key": "DEMO-3",
+                     *       "project": "DEMO",
+                     *       "state": "in_review",
+                     *       "cases": [
+                     *         {
+                     *           "key": "DEMO-501",
+                     *           "summary": "[CP-01] Renovar dentro del plazo",
+                     *           "status": "Por hacer"
+                     *         },
+                     *         {
+                     *           "key": "DEMO-502",
+                     *           "summary": "[CP-02] Renovar con una reserva",
+                     *           "status": "Por hacer"
+                     *         }
+                     *       ],
+                     *       "results": [],
+                     *       "environment": "preproducción",
+                     *       "plan": [],
+                     *       "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ExecutionOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description HU que no existe. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "La incidencia DEMO-999 no existe."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description La HU no tiene subtareas CP. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "publish_failed",
+                     *         "message": "La HU DEMO-3 no tiene casos de prueba publicados en Jira: publica antes su suite."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_execution_api_v1_executions__execution_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del registro de la ejecución. */
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+                     *       "story_key": "DEMO-3",
+                     *       "project": "DEMO",
+                     *       "state": "in_review",
+                     *       "cases": [
+                     *         {
+                     *           "key": "DEMO-501",
+                     *           "summary": "[CP-01] Renovar dentro del plazo",
+                     *           "status": "Por hacer"
+                     *         },
+                     *         {
+                     *           "key": "DEMO-502",
+                     *           "summary": "[CP-02] Renovar con una reserva",
+                     *           "status": "Por hacer"
+                     *         }
+                     *       ],
+                     *       "results": [
+                     *         {
+                     *           "case_key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "evidence_md": ""
+                     *         },
+                     *         {
+                     *           "case_key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "evidence_md": "El botón no se desactiva (ficticio)."
+                     *         }
+                     *       ],
+                     *       "environment": "preproducción",
+                     *       "plan": [
+                     *         {
+                     *           "op": "record_execution",
+                     *           "key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "label": "Pasó",
+                     *           "evidence": "no"
+                     *         },
+                     *         {
+                     *           "op": "record_execution",
+                     *           "key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "label": "Falló",
+                     *           "evidence": "sí"
+                     *         }
+                     *       ],
+                     *       "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ExecutionOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe ese registro o no es tuyo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approve_execution_api_v1_executions__execution_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del registro de la ejecución. */
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+                     *       "story_key": "DEMO-3",
+                     *       "project": "DEMO",
+                     *       "state": "recorded",
+                     *       "cases": [
+                     *         {
+                     *           "key": "DEMO-501",
+                     *           "summary": "[CP-01] Renovar dentro del plazo",
+                     *           "status": "Por hacer"
+                     *         },
+                     *         {
+                     *           "key": "DEMO-502",
+                     *           "summary": "[CP-02] Renovar con una reserva",
+                     *           "status": "Por hacer"
+                     *         }
+                     *       ],
+                     *       "results": [
+                     *         {
+                     *           "case_key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "evidence_md": ""
+                     *         },
+                     *         {
+                     *           "case_key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "evidence_md": "El botón no se desactiva (ficticio)."
+                     *         }
+                     *       ],
+                     *       "environment": "preproducción",
+                     *       "plan": [],
+                     *       "outcome": {
+                     *         "recorded": [
+                     *           "DEMO-501",
+                     *           "DEMO-502"
+                     *         ],
+                     *         "failed": [],
+                     *         "errors": [],
+                     *         "approved_by": "qa-demo",
+                     *         "approved_at": "2026-10-02T10:30:00Z",
+                     *         "simulated": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ExecutionOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe ese registro o no es tuyo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description El registro no está en revisión o hay otra operación en curso. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_in_review",
+                     *         "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discard_execution_api_v1_executions__execution_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del registro de la ejecución. */
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+                     *       "story_key": "DEMO-3",
+                     *       "project": "DEMO",
+                     *       "state": "discarded",
+                     *       "cases": [
+                     *         {
+                     *           "key": "DEMO-501",
+                     *           "summary": "[CP-01] Renovar dentro del plazo",
+                     *           "status": "Por hacer"
+                     *         },
+                     *         {
+                     *           "key": "DEMO-502",
+                     *           "summary": "[CP-02] Renovar con una reserva",
+                     *           "status": "Por hacer"
+                     *         }
+                     *       ],
+                     *       "results": [
+                     *         {
+                     *           "case_key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "evidence_md": ""
+                     *         },
+                     *         {
+                     *           "case_key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "evidence_md": "El botón no se desactiva (ficticio)."
+                     *         }
+                     *       ],
+                     *       "environment": "preproducción",
+                     *       "plan": []
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ExecutionOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe ese registro o no es tuyo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description El registro no está en revisión o hay otra operación en curso. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_in_review",
+                     *         "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_execution_api_v1_executions__execution_id__results_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del registro de la ejecución. */
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionResultsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b",
+                     *       "story_key": "DEMO-3",
+                     *       "project": "DEMO",
+                     *       "state": "in_review",
+                     *       "cases": [
+                     *         {
+                     *           "key": "DEMO-501",
+                     *           "summary": "[CP-01] Renovar dentro del plazo",
+                     *           "status": "Por hacer"
+                     *         },
+                     *         {
+                     *           "key": "DEMO-502",
+                     *           "summary": "[CP-02] Renovar con una reserva",
+                     *           "status": "Por hacer"
+                     *         }
+                     *       ],
+                     *       "results": [
+                     *         {
+                     *           "case_key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "evidence_md": ""
+                     *         },
+                     *         {
+                     *           "case_key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "evidence_md": "El botón no se desactiva (ficticio)."
+                     *         }
+                     *       ],
+                     *       "environment": "preproducción",
+                     *       "plan": [
+                     *         {
+                     *           "op": "record_execution",
+                     *           "key": "DEMO-501",
+                     *           "status": "paso",
+                     *           "label": "Pasó",
+                     *           "evidence": "no"
+                     *         },
+                     *         {
+                     *           "op": "record_execution",
+                     *           "key": "DEMO-502",
+                     *           "status": "fallo",
+                     *           "label": "Falló",
+                     *           "evidence": "sí"
+                     *         }
+                     *       ],
+                     *       "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ExecutionOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe ese registro o no es tuyo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description El registro no está en revisión o hay otra operación en curso. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_in_review",
+                     *         "message": "El registro no está en revisión (se está registrando, ya se registró o se descartó)."
                      *       }
                      *     }
                      */
@@ -5374,7 +6704,7 @@ export interface operations {
                     /**
                      * @example [
                      *       {
-                     *         "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+                     *         "id": "c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
                      *         "title": "Renovar un préstamo",
                      *         "project": "DEMO",
                      *         "story_key": "DEMO-3",
@@ -5467,23 +6797,6 @@ export interface operations {
                      *       "error": {
                      *         "code": "unexpected",
                      *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Pendiente del diseño de T-54 (PA-105). */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "not_implemented",
-                     *         "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
                      *       }
                      *     }
                      */
@@ -5593,8 +6906,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
-            404: {
+            /** @description Ya recogida por otra persona, o la HU no está aprobada o no coincide con la aprobada. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5602,8 +6915,8 @@ export interface operations {
                     /**
                      * @example {
                      *       "error": {
-                     *         "code": "not_found",
-                     *         "message": "No existe esa conversación o no es tuya."
+                     *         "code": "handoff_unavailable",
+                     *         "message": "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona."
                      *       }
                      *     }
                      */
@@ -5674,23 +6987,6 @@ export interface operations {
                      *       "error": {
                      *         "code": "unexpected",
                      *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Pendiente del diseño de T-54 (PA-105). */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "not_implemented",
-                     *         "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
                      *       }
                      *     }
                      */

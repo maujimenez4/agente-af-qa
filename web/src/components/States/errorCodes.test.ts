@@ -30,6 +30,7 @@ describe('ErrorCard: los 25 códigos del contrato (DESIGN-DECISIONS.md §6, PA-3
     ['payload_too_large', 'Contenido demasiado grande', 'error', undefined],
     ['method_not_allowed', 'Acción no permitida', 'error', undefined],
     ['http_error', 'Petición no válida', 'error', undefined],
+    ['handoff_unavailable', 'La HU ya no está disponible', 'warning', 'refresh'],
     ['operation_failed', 'No se pudo completar la operación', 'error', 'refresh'],
     ['restart', 'La conversación no puede continuar', 'error', 'restart'],
     ['too_many_streams', 'Demasiadas pestañas abiertas', 'warning', 'retry'],
@@ -39,7 +40,6 @@ describe('ErrorCard: los 25 códigos del contrato (DESIGN-DECISIONS.md §6, PA-3
     ['coverage_failed', 'La suite no es válida', 'error', 'regenerate'],
     ['quality_failed', 'No se pudo revisar la calidad', 'error', 'retry'],
     ['publish_failed', 'No se puede publicar', 'error', 'backToReceipt'],
-    ['not_implemented', 'Disponible pronto', 'neutral', undefined],
     ['unexpected', 'Error inesperado', 'error', 'retry'],
   ])('%s → «%s» (%s, acción %s)', (code, title, tone, action) => {
     expect(presentError({ code, message: 'x' })).toEqual({ title, tone, ...(action ? { action } : {}) })

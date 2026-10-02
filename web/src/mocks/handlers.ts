@@ -402,6 +402,6 @@ export function createHandlers(db: MockDb) {
     ),
 
     // Lo que la API simulada aún no cubre.
-    http.all(`${API}/*`, () => error(501, 'not_implemented', 'Aún no está en la API simulada del frontend.')),
+    http.all(`${API}/*`, () => error(404, 'not_found', 'Aún no está en la API simulada del frontend.')),
   ]
 }

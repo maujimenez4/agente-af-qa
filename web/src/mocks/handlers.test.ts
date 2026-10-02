@@ -138,10 +138,10 @@ describe('API simulada (MSW) con los ejemplos del contrato', () => {
     expect(response.status).toBe(503)
   })
 
-  it('lo que aún no simula responde 501 not_implemented', async () => {
+  it('lo que aún no simula responde 404 not_found', async () => {
     const csrf = await login()
     const response = await post('/qa/handoffs/x/take', {}, csrf)
-    expect(response.status).toBe(501)
-    expect(await response.json()).toMatchObject({ error: { code: 'not_implemented' } })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ error: { code: 'not_found' } })
   })
 })

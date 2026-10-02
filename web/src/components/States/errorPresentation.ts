@@ -32,6 +32,7 @@ const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   // Conversación
   not_in_review: { title: 'La revisión ya no está abierta', tone: 'warning', action: 'refresh' },
   approval_rejected: { title: 'Aprobación rechazada', tone: 'error', action: 'restart' },
+  handoff_unavailable: { title: 'La HU ya no está disponible', tone: 'warning', action: 'refresh' },
   operation_failed: { title: 'No se pudo completar la operación', tone: 'error', action: 'refresh' },
   restart: { title: 'La conversación no puede continuar', tone: 'error', action: 'restart' },
   too_many_streams: { title: 'Demasiadas pestañas abiertas', tone: 'warning', action: 'retry' },
@@ -46,7 +47,6 @@ const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   quality_failed: { title: 'No se pudo revisar la calidad', tone: 'error', action: 'retry' },
   publish_failed: { title: 'No se puede publicar', tone: 'error', action: 'backToReceipt' },
   // Otros
-  not_implemented: { title: 'Disponible pronto', tone: 'neutral' },
   unexpected: { title: 'Error inesperado', tone: 'error', action: 'retry' },
 }
 

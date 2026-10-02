@@ -1234,38 +1234,44 @@ def test_create_flow_origin_mismatch_is_422(api: Api) -> None:
     assert "no admite" in _error(response)["message"]
 
 
-# --- 14. QA encadenada (provisional) ----------------------------------------------------------
+# --- 14. QA encadenada (T-54, PA-105) --------------------------------------------------------
+
+HANDOFF_HEX = "0123456789abcdef" * 2  # id de entrega bien formado (32 hex), inexistente
 
 
-def test_chained_qa_routes_are_501_with_session(api: Api) -> None:
-    """Req. 10: QA encadenada aún no implementada -> 501 con sesión."""
-    cid, hid = uuid4(), uuid4()
-    responses = [
-        api.post(f"/conversations/{cid}/handoff"),
-        api.get("/qa/handoffs"),
-        api.post(f"/qa/handoffs/{hid}/take"),
-    ]
-    for response in responses:
-        assert response.status_code == 501
-        assert _error(response)["code"] == "not_implemented"
+def test_chained_qa_routes_answer_with_session(api: Api, rt: Runtime) -> None:
+    """Req. 10 (T-54): con sesión ya no hay 501; la entrega inexistente responde 409/403/404."""
+    handoff = api.post(f"/conversations/{uuid4()}/handoff")
+    assert handoff.status_code == 404  # conversación inexistente
+    qa = Api(rt)
+    qa.login(QA)
+    listed = qa.get("/qa/handoffs")
+    taken = qa.post(f"/qa/handoffs/{HANDOFF_HEX}/take")
+    assert listed.status_code == 200 and listed.json() == []
+    assert taken.status_code == 409 and _error(taken)["code"] == "handoff_unavailable"
+    for response in (handoff, listed, taken):
+        assert response.status_code != 501
 
 
 def test_chained_qa_routes_are_401_without_session(rt: Runtime) -> None:
-    """Req. 10: sin sesión -> 401 antes que el 501."""
+    """Req. 1 y 10: sin sesión -> 401 (con un id de entrega válido de 32 hex)."""
     a = Api(rt)
-    cid, hid = uuid4(), uuid4()
     responses = [
-        a.post(f"/conversations/{cid}/handoff", csrf=False),
+        a.post(f"/conversations/{uuid4()}/handoff", csrf=False),
         a.get("/qa/handoffs"),
-        a.post(f"/qa/handoffs/{hid}/take", csrf=False),
+        a.post(f"/qa/handoffs/{HANDOFF_HEX}/take", csrf=False),
     ]
     assert [r.status_code for r in responses] == [401, 401, 401]
+    assert {_error(r)["code"] for r in responses} == {"unauthenticated"}
 
 
-def test_chained_qa_post_routes_require_csrf(api: Api) -> None:
+def test_chained_qa_post_routes_require_csrf(api: Api, rt: Runtime) -> None:
     """Req. 2 y 10: los POST de QA encadenada exigen el token anti-CSRF."""
     assert api.post(f"/conversations/{uuid4()}/handoff", csrf=False).status_code == 403
-    assert api.post(f"/qa/handoffs/{uuid4()}/take", csrf=False).status_code == 403
+    qa = Api(rt)
+    qa.login(QA)
+    assert qa.post(f"/qa/handoffs/{HANDOFF_HEX}/take", csrf=False).status_code == 403
+    assert api.post(f"/qa/handoffs/{HANDOFF_HEX}/take", csrf=False).status_code == 403
 
 
 # =============================================================================================

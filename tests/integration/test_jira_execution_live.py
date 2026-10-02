@@ -2,8 +2,9 @@
 
 ESCRIBE EN JIRA: crea una HU sintética en `JIRA_PROJECT_KEY`, le publica una suite de 1 CP
 (subtarea con la etiqueta `caso-prueba`) y registra sobre esa subtarea primero «paso» y después
-«fallo», ambos con evidencia. Comprueba que la subtarea queda con la etiqueta `ejecucion-fallo`
-(y sin `ejecucion-paso`) y con 2 comentarios «Resultado de la ejecución». Solo se ejecuta con
+«fallo», ambos con evidencia, y repite «fallo» igual (PA-208). Comprueba que la subtarea queda
+con la etiqueta `ejecucion-fallo` (y sin `ejecucion-paso`) y con solo 2 comentarios «Resultado de
+la ejecución». Solo se ejecuta con
 `-m integration` y la variable de entorno `JIRA_WRITE_TESTS=1`; se salta si faltan
 JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN o JIRA_PROJECT_KEY. Nunca se imprimen valores del
 `.env`.
@@ -103,11 +104,10 @@ def test_record_execution_updates_label_and_adds_comments(live_settings: Setting
         tests.record_execution(
             case_key, ExecutionStatus.PASSED, "Ejecución ficticia correcta: **plazo ampliado**."
         )
-        tests.record_execution(
-            case_key,
-            ExecutionStatus.FAILED,
-            "Falla el paso 1 (dato ficticio): [captura](https://ejemplo.invalid/captura.png)",
-        )
+        failure = "Falla el paso 1 (dato ficticio): [captura](https://ejemplo.invalid/captura.png)"
+        tests.record_execution(case_key, ExecutionStatus.FAILED, failure)
+        # PA-208: repetir el mismo registro no deja un tercer comentario.
+        tests.record_execution(case_key, ExecutionStatus.FAILED, failure)
 
         issue = tracker.get_issue(case_key)
         assert "caso-prueba" in issue.labels

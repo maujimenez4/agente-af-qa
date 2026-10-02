@@ -29,6 +29,20 @@ def citation_errors(story: CitedArtifact, sources: list[CitableSource]) -> list[
     return errors
 
 
+def without_forced_citations[T: (UserStory, TestSuite)](
+    artifact: T, sources: list[CitableSource]
+) -> T:
+    """Sin fuentes en el contexto, las citas de la respuesta solo pueden ser inventadas: se quitan.
+
+    El esquema que se envía al LLM pide al menos una cita (`adapters/llm/schema_hints.py`, para que
+    los modelos pequeños no las omitan); si el contexto no trae ninguna fuente (una necesidad sin
+    resultados del RAG, o con todas las fuentes excluidas), esa cita sería falsa (RNF-14).
+    """
+    if sources or not artifact.sources:
+        return artifact
+    return artifact.model_copy(update={"sources": []})
+
+
 def with_real_excerpts[T: (UserStory, TestSuite, QualityReport)](
     story: T, sources: list[CitableSource]
 ) -> T:

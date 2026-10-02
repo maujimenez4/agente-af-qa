@@ -24,6 +24,7 @@ from api.models import (
     ConversationOut,
     ConversationState,
     Flow,
+    HandoffOut,
     Mode,
     ModelChoiceOut,
     OriginIn,
@@ -44,6 +45,16 @@ from core.conversations import (
 )
 from core.graph import initial_state
 from core.graph.state import Origin, normalize_excluded_sources
+from core.handoff import (
+    HANDOFF_ID,
+    Handoff,
+    HandoffError,
+    HandoffStore,
+    hand_off,
+    list_handoffs,
+    take_handoff,
+)
+from core.handoff import NOT_AVAILABLE as HANDOFF_NOT_AVAILABLE
 from core.logging import get_logger
 from core.permissions import Permission, require
 from core.projects import normalize_issue_key, normalize_project_key, project_of
@@ -250,6 +261,69 @@ def create_conversation(rt: Runtime, ws: Workspace, user: User, body: Conversati
     rt.runs.add(run)
     rt.runs.begin(run, "start")
     rt.submit(lambda: _run_graph(rt, ws, run, state, config))
+    return run
+
+
+def _handoff_store(rt: Runtime) -> HandoffStore:
+    if rt.handoffs is None:
+        raise ApiError(503, "service_unavailable", "La entrega de HU a QA no está disponible.")
+    return rt.handoffs
+
+
+def handoff_out(handoff: Handoff) -> HandoffOut:
+    return HandoffOut(
+        id=handoff.id,
+        title=handoff.title,
+        project=handoff.project_key,
+        story_key=handoff.story_key,
+        version=handoff.version,
+        from_user=handoff.from_user,
+        created_at=handoff.created_at,
+    )
+
+
+def pass_to_qa(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> HandoffOut:
+    """«Pasar a QA» (T-54): la HU sale del servidor (checkpointer, lista y registro)."""
+    # Permiso y propiedad primero: lo ajeno da el mismo 404 aunque esté generando.
+    require(user, Permission.GENERATE_STORY)
+    _cfg, run, _row = open_conversation(rt, ws, user, thread_id)
+    if run is not None and run.running:
+        raise NOT_IN_REVIEW
+    handoff = hand_off(ws.container, ws.graph, _handoff_store(rt), user, thread_id)
+    return handoff_out(handoff)
+
+
+def pending_handoffs(rt: Runtime, ws: Workspace, user: User) -> list[HandoffOut]:
+    """HU pendientes de QA, solo de los proyectos que ve la conexión."""
+    require(user, Permission.GENERATE_TESTS)
+    projects = {p.key for p in ws.container.issue_tracker.list_projects()}
+    return [handoff_out(h) for h in list_handoffs(_handoff_store(rt), user, projects)]
+
+
+def take(rt: Runtime, ws: Workspace, user: User, handoff_id: str) -> Run:
+    """Recoge la HU (una sola persona) y arranca su conversación de QA en segundo plano."""
+    require(user, Permission.GENERATE_TESTS)
+    store = _handoff_store(rt)
+    # Defensa en profundidad: solo entregas de proyectos que ve la conexión (como la lista).
+    found = store.get(handoff_id) if HANDOFF_ID.fullmatch(handoff_id or "") else None
+    if found is not None:
+        visible = {p.key for p in ws.container.issue_tracker.list_projects()}
+        if found.project_key not in visible:
+            raise HandoffError(HANDOFF_NOT_AVAILABLE)
+    start = take_handoff(store, user, handoff_id)
+    thread_id = str(start.config["configurable"]["thread_id"])  # type: ignore[index]
+    handoff = start.handoff
+    run = Run(
+        thread_id=thread_id,
+        owner=user.username,
+        flow="tests",
+        mode="qa",
+        project=handoff.project_key,
+        title=conversation_title("qa", "story", handoff.story_key, handoff.project_key),
+    )
+    rt.runs.add(run)
+    rt.runs.begin(run, "start")
+    rt.submit(lambda: _run_graph(rt, ws, run, start.state, start.config))
     return run
 
 

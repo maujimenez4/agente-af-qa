@@ -1,6 +1,6 @@
-# SESIÓN JIRA · Ronda 3: PA-208 y prueba cruzada T-34 (el área A prueba el área B)
+# SESIÓN JIRA · Ronda 4: corregir los defectos de la prueba cruzada T-34
 
-Tu rama `ses-jira` ya está fusionada en `PreProduccion`: `record_execution`, con su prueba real en el sandbox (T-47 sigue 🔄). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu T-34 ya está fusionada en `PreProduccion` (240 pruebas, 50 `xfail` estrictos, PA-211…PA-224). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
@@ -8,76 +8,69 @@ git fetch origin
 git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
 cd .claude/worktrees/area-a
 uv sync
-uv run pytest -m "not integration"          # debe salir en verde antes de empezar
+uv run pytest -m "not integration"          # en verde, con 50 xfailed
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu parte de T-47 (`JiraNativeTests.record_execution`) ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu T-34 ya está fusionada.
 
-**El resto de T-47 lo hace la principal:**
-- añadir `record_execution` al protocolo `TestManagement` (`adapters/base.py`, congelado);
-- la aprobación humana del resultado;
-- la ruta de la API.
-
-Tú no lo tocas.
+**En esta ronda corriges los defectos que encontraste.** El área B ya no tiene responsable de backend: su responsable hace el frontend en React. La principal te autoriza a tocar el código de esas PA.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`. Integra; dueña de los contratos y de la API (`api/`).
-- **Flujo:** `ses-flujo`, con T-54, en `core/graph/` y `core/conversations.py`.
-- **Modelos:** `ses-modelos`, con T-58, en `prompts/`, `core/functional/`, `core/qa/` y `adapters/llm/`.
-- **Ollama:** medición de modelos locales.
+- **Principal:** `PreProduccion`; contratos, API y composición.
+- **Modelos:** `ses-flujo`, con T-54, en `core/graph/`, `core/conversations.py`, `core/qa/` y una migración nueva.
+- **UI:** `ses-ui`, con T-28 en `app/` (Streamlit).
+- **Ollama:** medición y configuración de modelos (`config/models.yaml`).
 
-## 1. PA-208: idempotencia de `record_execution` [RF-28]
-Repetir el registro con el mismo resultado y la misma evidencia no debe dejar un segundo comentario. La transición y la etiqueta ya no se duplican.
-- Antes de comentar, lee los últimos comentarios de la subtarea y compara el resultado y una huella de la evidencia.
-- Pruebas unitarias con `httpx.MockTransport`. La prueba real con `JIRA_WRITE_TESTS=1` ya está autorizada, pero **avísame antes de ejecutarla**.
-- Cierra PA-208 en el Kanban.
+## Orden de trabajo (de más a menos impacto en la demo)
+**Bloque 1 · datos y flujo de la demo:**
+1. **PA-214:** ids de documento duplicados (un documento borra a otro al indexar). Rechaza o desambigua el id, con un error claro.
+2. **PA-216:** indexación no atómica y `zip(strict=True)` sin envolver. Que un fallo no deje el documento fuera del índice.
+3. **PA-218:** falso positivo de secreto en la memoria, que acaba en error tras publicar una HU.
+4. **PA-222:** revisar la calidad.
+   - Comprueba el tipo de la incidencia.
+   - Valida los IDs que se mencionan en el texto, no solo `target_id`.
+5. **PA-223:**
+   - la vista previa de fuentes aplica `normalize_excluded_sources`, como el grafo;
+   - el tipo «Épica» se reconoce también en NFD.
+6. **PA-211:** solapamiento nulo en prosa al trocear. Afecta a la calidad del RAG.
+   - Si cambia el troceado, avisa: habrá que reindexar el corpus.
 
-## 2. `/tarea T-34`: prueba cruzada, el área A prueba el área B [RNF-19]
-Con mirada de fuera: **solo pruebas nuevas e informe, sin cambiar código del área B**.
+**Bloque 2 · robustez:**
+- PA-212 (encabezados y vallas);
+- PA-213 (BOM en la ingesta);
+- PA-215 (delimitadores en el prompt de clasificación);
+- PA-217 (CLI de indexación);
+- PA-220 (embeddings: `retry-after` e índices);
+- PA-221 (pgvector: vector de consulta y categorías mezcladas);
+- PA-224 (prompts: BOM, cuerpo vacío y nombre).
 
-- **Alcance:**
-  - `core/rag/` (ingesta, troceado, búsqueda y prioridad de la memoria);
-  - `core/memory/` (generador y reindexado sin duplicados, T-33);
-  - `adapters/embeddings/` y `adapters/vectorstore/` (con fakes; pgvector, con la marca `integration`);
-  - `core/quality.py` (T-48);
-  - `core/guided_start.py` (T-53).
-- **Fuera del alcance:**
-  - `core/functional/`, `core/qa/` y `prompts/`: los está cambiando la sesión Modelos;
-  - `app/`: Streamlit es el plan B.
-- **Cómo:**
-  - usa `test-writer` para las pruebas que falten frente a los RF y CA de cada módulo;
-  - usa `spec-checker` para comparar con la SPEC-00 y las especificaciones de las épicas;
-  - las pruebas nuevas van en archivos `tests/unit/test_cross_b_*.py`, para no chocar con nadie.
-- **Si encuentras un fallo:**
-  - marca la prueba con `xfail(strict=True)`, con el archivo y la línea del fallo;
-  - anótalo como propuesta.
+**Fuera de esta ronda:**
+- La parte de **PA-219** que pide `min_length` en `schemas/memory.py` (congelado): propónla y la hace la principal. La parte del `CP-99` en `TRACE_ID` sí es tuya.
+- No toques `core/qa/` (T-54).
 
-  No lo corrijas: lo decide la principal.
-- **Informe** en tu fila del registro diario: qué cubriste, los fallos encontrados (con su PA) y lo que queda sin cubrir.
+## Cómo
+- Por cada PA, quita el `xfail` de sus pruebas (o invierte las de comportamiento fijado, como indicaste en cada PA) y corrige el código hasta que pasen.
+- Un commit por PA o por grupo pequeño: `T-34: corrige PA-2XX … [RF-YY]`.
+- Cierra cada PA en el Kanban con la fecha.
+- Si una corrección necesita cambiar un contrato (`schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`), **para y escríbelo como propuesta**.
 
 ## Reglas
-- **Solo tus archivos:**
-  - `adapters/jira/` y `adapters/testmgmt/` (PA-208);
-  - `tests/unit/test_jira_*.py`, `tests/unit/test_testmgmt*.py` y `tests/unit/test_cross_b_*.py`;
-  - `tests/integration/test_jira_*`;
-  - en `tests/fakes/`, solo añadir.
+- **Puedes tocar:**
+  - `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py` y `core/context/service.py` (solo para `NOT_STORIES`, PA-223);
+  - `adapters/embeddings/` y `adapters/vectorstore/`;
+  - `prompts/` (solo PA-215, si hace falta);
+  - sus pruebas y `tests/unit/test_cross_b_*.py`.
 
-  No toques el código de `core/`, `api/`, `app/`, `web/`, `schemas/`, `adapters/base.py`, `adapters/errors.py`, `prompts/`, `config/` ni la SPEC.
-- **Kanban:**
-  - Cambia solo T-34 (a 🔄 y luego ✅) y las PA que cierres.
-  - Añade tu fila al registro diario.
-  - No toques el tablero resumen.
-  - **Propuestas en PA-210…PA-249.**
-- **Seguridad:** tokens solo vía `SecretStr`; nunca registres `Authorization` ni cuerpos; no imprimas el `.env`; datos ficticios.
-- **LLM:** no lo necesitas. Si una prueba lo pide, usa los fakes.
+  No toques `core/graph/`, `core/conversations.py`, `core/qa/`, `api/`, `app/`, `web/`, `config/`, `schemas/` ni los contratos.
+- **Kanban:** cambia solo las PA que cierres y añade tu fila al registro. No toques el tablero. **Propuestas en PA-225…PA-249.**
+- **Seguridad:** no leas el `.env`; datos ficticios; los logs no llevan contenido.
+- **LLM:** solo fakes.
 - **Antes de cada commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
-  - `spec-checker` CONFORME y `security-reviewer` APTO.
+  - `spec-checker` CONFORME y `security-reviewer` APTO al terminar cada bloque.
   - Pide a los subagentes que no maten procesos globales.
-- **Commits:**
-  - Formato `T-XX: descripción [RF-YY]` (para PA-208: `T-47: idempotencia del registro de ejecución (PA-208) [RF-28]`).
-  - **Sin fusionar.** Haz `git push origin ses-jira` y avísame.
+- **Sin fusionar.** Haz `git push origin ses-jira` al terminar cada bloque y avísame.
 
-Empieza por PA-208 y preséntame el plan de T-34 antes de escribir pruebas.
+Empieza por el bloque 1 y preséntame el plan breve antes de tocar código.

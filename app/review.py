@@ -10,9 +10,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.qa import suite_summary
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType
 from schemas.impact import ImpactAnalysis
+from schemas.test_case import TestSuite
 
 
 @dataclass(frozen=True)
@@ -115,7 +117,9 @@ def approve_answer(view: ReviewView) -> dict[str, Any]:
 
 
 def summarize(view: ReviewView) -> str:
-    """Mensaje del asistente al llegar una versión (Mixta 2b y 3)."""
+    """Mensaje del asistente al llegar una versión (Mixta 2b y 3; QA 2 y QA 3)."""
+    if isinstance(view.artifact.content, TestSuite):
+        return suite_summary(view.artifact.content, view.version)
     impact = view.impact
     changes = len(impact.diffs) if impact else 0
     affected = sorted({item.jira_key for item in impact.affected}) if impact else []

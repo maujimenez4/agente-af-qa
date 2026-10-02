@@ -16,10 +16,10 @@ cobertura van como adjuntos `.md` de la HU.
 - Escrituras de un solo intento (`adapters/jira/http.py`); solo las llama el nodo `publish`.
 """
 
+import hashlib
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
-from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -36,6 +36,7 @@ from adapters.errors import (
 )
 from adapters.jira.adf import (
     Node,
+    adf_to_text,
     bullet_list,
     code_block,
     doc,
@@ -49,7 +50,10 @@ from adapters.jira.http import SERVICE, JiraHttp
 from adapters.jira.jql import CASE_LABEL, cases_jql
 from adapters.jira.story_template import prefixed_summary
 from adapters.jira.tracker import JIRA_KEY_RE, SEARCH_FIELDS, to_issue_summary
-from schemas.test_case import TestCase, TestSuite
+
+# PA-206: el resultado y el límite de la evidencia son del dominio (`schemas/`); se
+# reexportan aquí para quien los importaba de este módulo.
+from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus, TestCase, TestSuite
 
 log = structlog.get_logger(__name__)
 
@@ -59,17 +63,12 @@ _CASE_PREFIX = re.compile(r"^\[(CP-\d+)\]")
 _MAX_KEY_IN_MESSAGE = 50
 _MAX_SUBTASK_TYPE = 60
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")  # incluye `\r` y `\n`
-MAX_EVIDENCE_CHARS = 20_000
+COMMENTS_TO_CHECK = 20  # PA-208: comentarios recientes en los que se busca el último registro
+FINGERPRINT_CHARS = 12
+_RESULT_HEADING = "Resultado de la ejecución:"
+_FINGERPRINT_LABEL = "Huella:"
+_FINGERPRINT_LINE = re.compile(r"Huella: ([0-9a-f]{12})")  # solo en la última línea
 _NUMERIC_ID = re.compile(r"[0-9]{1,18}")  # ASCII: `isdigit` admite «²» o «١»
-
-
-class ExecutionStatus(StrEnum):
-    """Resultado de la ejecución de un CP (T-47). PA-206: pasará a `schemas/test_case.py`."""
-
-    PASSED = "paso"
-    FAILED = "fallo"
-    BLOCKED = "bloqueado"
-    NOT_RUN = "sin-ejecutar"
 
 
 STATUS_TEXT = {
@@ -257,7 +256,10 @@ class JiraNativeTests:
 
         Transición al estado configurado (si el flujo de trabajo la tiene), etiqueta
         `ejecucion-<estado>` y comentario con el resultado y la evidencia, por este orden: el
-        comentario, lo único que se duplicaría al repetir, va el último.
+        comentario, lo único que no es idempotente por sí mismo, va el último.
+
+        PA-208: el comentario lleva una huella del resultado y la evidencia; si el comentario de
+        ejecución más reciente ya tiene la misma huella, no se vuelve a comentar.
         """
         started = time.perf_counter()
         key = _checked_key(case_key)
@@ -287,6 +289,8 @@ class JiraNativeTests:
                 f"{key} no es un caso de prueba (le falta la etiqueta «{CASE_LABEL}»)."
             )
 
+        fingerprint = execution_fingerprint(status, evidence)
+        repeated = self._latest_execution_fingerprint(key) == fingerprint  # PA-208, lectura
         current = _name_of(fields.get("status"))
         transitioned = self._transition(key, status, current)  # si falla, no se ha escrito nada
         label = EXECUTION_LABELS[status]
@@ -299,13 +303,14 @@ class JiraNativeTests:
                 PublishError,
                 key,
             )
-            self._http.send(
-                "POST",
-                f"/rest/api/3/issue/{key}/comment",
-                {"body": execution_comment(status, evidence)},
-                PublishError,
-                key,
-            )
+            if not repeated:
+                self._http.send(
+                    "POST",
+                    f"/rest/api/3/issue/{key}/comment",
+                    {"body": execution_comment(status, evidence)},
+                    PublishError,
+                    key,
+                )
         except AgentError as exc:
             state = "con el estado ya cambiado" if transitioned else "sin cambiar el estado"
             raise PublishError(
@@ -317,8 +322,21 @@ class JiraNativeTests:
             jira_key=key,
             status=status.value,
             transitioned=transitioned,
+            commented=not repeated,
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
+
+    def _latest_execution_fingerprint(self, key: str) -> str | None:
+        """Huella del comentario de ejecución más reciente (entre los últimos), o `None`."""
+        params = {"orderBy": "-created", "maxResults": str(COMMENTS_TO_CHECK)}
+        data = self._http.get(f"/rest/api/3/issue/{key}/comment", params=params, key=key)
+        for comment in data.get("comments") or []:
+            body = comment.get("body") if isinstance(comment, dict) else None
+            content = adf_to_text(body) if isinstance(body, dict) else ""
+            if content.startswith(_RESULT_HEADING):
+                match = _FINGERPRINT_LINE.fullmatch(content.splitlines()[-1].strip())
+                return match.group(1) if match else ""
+        return None
 
     def _transition(self, key: str, status: ExecutionStatus, current: str) -> bool:
         """Aplica la transición configurada; `False` si ya está en ese estado o no existe."""
@@ -415,7 +433,7 @@ def case_to_adf(case: TestCase, story: str) -> Node:
 def execution_comment(status: ExecutionStatus, evidence: str) -> Node:
     """Comentario del registro: resultado (texto literal) y evidencia (Markdown → ADF)."""
     content: list[Node] = [
-        paragraph([*text("Resultado de la ejecución: ", strong=True), *text(STATUS_TEXT[status])])
+        paragraph([*text(f"{_RESULT_HEADING} ", strong=True), *text(STATUS_TEXT[status])])
     ]
     if evidence:
         content += [
@@ -424,7 +442,16 @@ def execution_comment(status: ExecutionStatus, evidence: str) -> Node:
         ]
     else:
         content.append(paragraph(text("Sin evidencia.")))
+    fingerprint = execution_fingerprint(status, evidence)
+    content.append(paragraph(text(f"{_FINGERPRINT_LABEL} {fingerprint}")))
     return doc(content)
+
+
+def execution_fingerprint(status: ExecutionStatus, evidence: str) -> str:
+    """Huella corta del resultado y la evidencia (PA-208); no es un secreto ni identifica datos."""
+    normalized = " ".join(evidence.split())  # los espacios y saltos de línea no cuentan
+    digest = hashlib.sha256(f"{status.value}|{normalized}".encode()).hexdigest()
+    return digest[:FINGERPRINT_CHARS]
 
 
 def _name_of(field: Any) -> str:

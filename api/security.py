@@ -4,12 +4,14 @@ Las dependencias leen la cookie y las cabeceras de `Request` (no como parámetro
 que el contrato OpenAPI siga declarando la seguridad con sus `securitySchemes`.
 """
 
+import math
 import threading
 import time
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -176,6 +178,51 @@ class BodyLimitMiddleware:
             if exc.status_code != 413 or started:
                 raise
             await self.on_too_large(scope, receive, send)
+
+
+class SessionGuardMiddleware:
+    """Sesión, origen y CSRF **antes** de leer y validar el cuerpo (PA-161, requisitos 1 y 2).
+
+    Sin esto, una petición sin sesión con un cuerpo inválido responde 422 antes que 401 y permite
+    sondear la validación. Las rutas siguen comprobándolo con `session_for` (defensa en
+    profundidad). `public`: rutas sin sesión (el login).
+    """
+
+    def __init__(self, app: ASGIApp, prefix: str, public: set[str]) -> None:
+        self.app, self.prefix, self.public = app, prefix, public
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Ruta relativa a la app (igual que el router), también si se monta con `root_path`.
+        path = str(scope.get("path") or "").removeprefix(str(scope.get("root_path") or ""))
+        if (
+            scope["type"] != "http"
+            or not path.startswith(self.prefix + "/")
+            or path in self.public
+            or scope.get("method") == "OPTIONS"  # preflight de CORS
+        ):
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope)
+        try:
+            rt = runtime(request)
+            session = rt.sessions.get(request.cookies.get(COOKIE), touch=False)
+            if session is None:
+                raise UNAUTHENTICATED
+            if request.method in UNSAFE_METHODS:
+                check_origin(request, rt.settings.api_origins)
+                if not csrf_matches(session, request.headers.get(CSRF_HEADER)):
+                    raise FORBIDDEN
+        except ApiError as error:
+            await _error_app(error)(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+def _error_app(error: ApiError) -> ASGIApp:
+    headers = {"Retry-After": str(math.ceil(error.retry_after))} if error.retry_after else None
+    return JSONResponse(
+        status_code=error.status, content={"error": error.body.model_dump()}, headers=headers
+    )
 
 
 class CatchAllMiddleware:

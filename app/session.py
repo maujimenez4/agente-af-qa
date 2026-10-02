@@ -22,10 +22,17 @@ from app.flows import FlowId
 from app.origin import StartRequest
 from app.text import md_escape
 from core.config import AppConfig, ConfigError, build_config
-from core.factories import build_app_container, build_checkpointer, model_router
+from core.factories import (
+    build_app_container,
+    build_checkpointer,
+    build_handoffs,
+    model_router,
+)
 from core.graph import build_graph
 from core.guided_start import StartOption
+from core.handoff import HandoffStore
 from core.logging import get_logger
+from core.quality import QualityReview
 
 log = get_logger(__name__)
 
@@ -54,6 +61,7 @@ class SessionState:
     notices: list[str] = field(default_factory=list)  # avisos para la pantalla siguiente
     current: str | None = None  # thread_id de la conversación abierta
     pending: Conversation | None = None  # conversación por arrancar (Mixta 2b)
+    quality: QualityReview | None = None  # informe de «Revisar la calidad» (Mixta 5)
     model_label: str | None = None
     previous_phase: int | None = None
     failed_logins: int = 0
@@ -72,6 +80,12 @@ def shared_checkpointer(_config: AppConfig) -> BaseCheckpointSaver:
     return build_checkpointer(_config)
 
 
+@st.cache_resource(show_spinner=False)
+def shared_handoffs(_config: AppConfig) -> HandoffStore:
+    """Entregas de HU a QA (T-54, PA-268), un almacén por proceso como el checkpointer."""
+    return build_handoffs(_config)
+
+
 def compose(session: SessionState) -> None:
     """Compone contenedor y grafo una vez por sesión; deja el error en español si falla."""
     if session.workspace is not None or session.compose_error is not None:
@@ -80,7 +94,11 @@ def compose(session: SessionState) -> None:
         config = build_config()
         router = model_router(config)
         container = build_app_container(config, router=router)
-        graph = build_graph(container, checkpointer=shared_checkpointer(config))
+        graph = build_graph(
+            container,
+            checkpointer=shared_checkpointer(config),
+            handoffs=shared_handoffs(config),  # T-54 (PA-268): QA encadenada
+        )
     except (ConfigError, AgentError, ValidationError) as exc:
         # Un ValidationError (p. ej. un valor no válido en `.env`) incluiría el valor recibido.
         session.compose_error = INVALID_CONFIG if isinstance(exc, ValidationError) else str(exc)

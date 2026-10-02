@@ -1,5 +1,6 @@
 """Contrato de la API para el frontend (T-55, parte 1)."""
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -77,8 +78,8 @@ def test_approve_requires_the_fingerprint() -> None:
     assert body["properties"]["fingerprint"]["minLength"] == 64
 
 
-def test_qa_handoff_routes_answer_501_until_t54(tmp_path: Path) -> None:
-    """La QA encadenada (provisional) responde 501 con la forma común hasta que cierre T-54."""
+def test_qa_handoffs_list_answers_200_for_qa(tmp_path: Path) -> None:
+    """T-54 (PA-105): la QA encadenada ya no responde 501; sin entregas, qa-demo recibe `[]`."""
     app = create_app(runtime_instance=fake_runtime(tmp_path))
     client = TestClient(app, base_url="https://testserver")  # la cookie es `Secure`
     login = client.post(
@@ -87,14 +88,8 @@ def test_qa_handoff_routes_answer_501_until_t54(tmp_path: Path) -> None:
     )
     assert login.status_code == 200
     response = client.get(f"{API_PREFIX}/qa/handoffs")
-    assert response.status_code == 501
-    assert response.json() == {
-        "error": {
-            "code": "not_implemented",
-            "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño.",
-            "retry_after": None,
-        }
-    }
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_examples_have_no_real_looking_secrets_or_personal_data() -> None:
@@ -176,9 +171,19 @@ def test_frontend_needs_are_in_the_contract() -> None:
     assert "failed_ids" in schemas["PublishOutcome"]["properties"]
 
 
-def test_validation_message_for_model_errors_and_bad_json() -> None:
-    """El 422 da un mensaje listo para mostrar también sin campo concreto (revisión de T-55)."""
-    client = TestClient(create_app())
+def test_validation_message_for_model_errors_and_bad_json(tmp_path: Path) -> None:
+    """El 422 da un mensaje listo para mostrar también sin campo concreto (revisión de T-55).
+
+    Con sesión y CSRF: sin ellos la API responde 401 o 403 antes de validar el cuerpo (PA-161).
+    """
+    client = TestClient(
+        create_app(runtime_instance=fake_runtime(tmp_path)), base_url="https://testserver"
+    )
+    login = client.post(
+        f"{API_PREFIX}/auth/login",
+        json={"username": "af-demo", "password": dataset.DEMO_USERS["af-demo"][0]},
+    )
+    client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
     response = client.post(
         f"{API_PREFIX}/conversations",
         json={"flow": "tests", "origin": {"kind": "need", "text": "x", "project": "DEMO"}},
@@ -277,18 +282,77 @@ def test_sources_declares_missing_origin_404() -> None:
     assert "404" in DOC["paths"][f"{API_PREFIX}/start/sources"]["post"]["responses"]
 
 
+HANDOFF_ROUTES = [
+    (f"{API_PREFIX}/conversations/{{conversation_id}}/handoff", "post"),
+    (f"{API_PREFIX}/qa/handoffs", "get"),
+    (f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take", "post"),
+]
+HANDOFF_ID = r"^[0-9a-f]{32}$"
+
+
+@pytest.mark.parametrize(("path", "method"), HANDOFF_ROUTES)
+def test_chained_qa_routes_no_longer_declare_501(path: str, method: str) -> None:
+    """T-54 (PA-105): la QA encadenada está implementada; ninguna de sus rutas declara 501."""
+    responses = DOC["paths"][path][method]["responses"]
+    assert "501" not in responses
+    assert "provisional" not in str(DOC["paths"][path][method].get("summary", "")).lower()
+
+
 @pytest.mark.parametrize(
-    ("path", "method"),
+    "path",
     [
-        (f"{API_PREFIX}/conversations/{{conversation_id}}/handoff", "post"),
-        (f"{API_PREFIX}/qa/handoffs", "get"),
-        (f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take", "post"),
+        f"{API_PREFIX}/conversations/{{conversation_id}}/handoff",
+        f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take",
     ],
 )
-def test_chained_qa_routes_declare_501_until_t54(path: str, method: str) -> None:
-    response = DOC["paths"][path][method]["responses"]["501"]
-    example = response["content"]["application/json"]["example"]
-    assert example["error"]["code"] == "not_implemented"
+def test_handoff_and_take_declare_409_handoff_unavailable(path: str) -> None:
+    """T-54: pasar a QA y recoger declaran el 409 `handoff_unavailable` con la forma común."""
+    op = DOC["paths"][path]["post"]
+    assert _example_code(op, "409") == "handoff_unavailable"
+
+
+def test_handoff_unavailable_is_a_declared_error_code() -> None:
+    """T-54: `handoff_unavailable` forma parte del enumerado `ErrorCode` publicado."""
+    error_body = DOC["components"]["schemas"]["ErrorBody"]["properties"]["code"]
+    codes = (
+        error_body.get("enum")
+        or DOC["components"]["schemas"][error_body["$ref"].rsplit("/", 1)[-1]]["enum"]
+    )
+    assert "handoff_unavailable" in codes
+
+
+def test_take_handoff_id_is_32_lowercase_hex() -> None:
+    """T-54 (límite): el id de entrega en la ruta es `^[0-9a-f]{32}$`, no un UUID con guiones."""
+    op = DOC["paths"][f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take"]["post"]
+    param = next(p for p in op["parameters"] if p["name"] == "handoff_id")
+    assert param["in"] == "path" and param["required"] is True
+    assert param["schema"]["pattern"] == HANDOFF_ID
+
+
+def test_handoff_out_id_has_the_same_pattern() -> None:
+    """T-54: `HandoffOut.id` usa el mismo patrón que la ruta de recoger."""
+    schema = DOC["components"]["schemas"]["HandoffOut"]
+    assert schema["properties"]["id"]["pattern"] == HANDOFF_ID
+    assert "story_key" in schema["required"]  # nullable pero siempre presente
+
+
+def test_handoff_examples_follow_the_contract() -> None:
+    """T-54: los ejemplos (mock Prism) cumplen el patrón del id y la forma de cada respuesta."""
+    handoff = DOC["paths"][f"{API_PREFIX}/conversations/{{conversation_id}}/handoff"]["post"]
+    one = handoff["responses"]["200"]["content"]["application/json"]["example"]
+    assert re.fullmatch(HANDOFF_ID, one["id"])
+    listed = DOC["paths"][f"{API_PREFIX}/qa/handoffs"]["get"]
+    many = listed["responses"]["200"]["content"]["application/json"]["example"]
+    assert many and all(re.fullmatch(HANDOFF_ID, h["id"]) for h in many)
+    take = DOC["paths"][f"{API_PREFIX}/qa/handoffs/{{handoff_id}}/take"]["post"]
+    conv = take["responses"]["202"]["content"]["application/json"]["example"]
+    assert conv["mode"] == "qa" and conv["flow"] == "tests"
+
+
+def test_list_handoffs_does_not_declare_409() -> None:
+    """T-54: listar no recoge nada: no declara el 409 de entrega no disponible."""
+    op = DOC["paths"][f"{API_PREFIX}/qa/handoffs"]["get"]
+    assert "409" not in op["responses"]
 
 
 def test_api_never_imports_the_streamlit_ui() -> None:

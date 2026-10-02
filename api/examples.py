@@ -13,6 +13,10 @@ from api.models import (
     ConversationOut,
     ErrorBody,
     ErrorResponse,
+    ExecutionCaseOut,
+    ExecutionOut,
+    ExecutionOutcome,
+    ExecutionResultOut,
     HandoffOut,
     IssueCard,
     ModelChoiceOut,
@@ -287,9 +291,58 @@ QUALITY = QualityReviewOut(
     evolve_feedback=["CA-02: Avisar en menos de 15 minutos.", "Añadir un criterio de error."],
     report_markdown=QUALITY_REPORT.to_markdown("DEMO-3"),
 )
+EXECUTION_ID = "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b"
+EXECUTION_CASES = [
+    ExecutionCaseOut(
+        key="DEMO-501", summary="[CP-01] Renovar dentro del plazo", status="Por hacer"
+    ),
+    ExecutionCaseOut(key="DEMO-502", summary="[CP-02] Renovar con una reserva", status="Por hacer"),
+]
+EXECUTION_RESULTS = [
+    ExecutionResultOut(case_key="DEMO-501", status="paso", evidence_md=""),
+    ExecutionResultOut(
+        case_key="DEMO-502", status="fallo", evidence_md="El botón no se desactiva (ficticio)."
+    ),
+]
+EXECUTION = ExecutionOut(
+    id=EXECUTION_ID,
+    story_key="DEMO-3",
+    project="DEMO",
+    state="in_review",
+    cases=EXECUTION_CASES,
+    results=EXECUTION_RESULTS,
+    environment="preproducción",
+    plan=[
+        {
+            "op": "record_execution",
+            "key": "DEMO-501",
+            "status": "paso",
+            "label": "Pasó",
+            "evidence": "no",
+        },
+        {
+            "op": "record_execution",
+            "key": "DEMO-502",
+            "status": "fallo",
+            "label": "Falló",
+            "evidence": "sí",
+        },
+    ],
+    fingerprint=FINGERPRINT,
+)
+EXECUTION_RECORDED = EXECUTION.model_copy(
+    update={
+        "state": "recorded",
+        "plan": [],
+        "fingerprint": None,
+        "outcome": ExecutionOutcome(
+            recorded=["DEMO-501", "DEMO-502"], approved_by="qa-demo", approved_at=NOW
+        ),
+    }
+)
 HANDOFFS = [
     HandoffOut(
-        id="c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+        id="c3e5a7b92d4f4a6b8c0d1e2f3a4b5c6d",
         title="Renovar un préstamo",
         project="DEMO",
         story_key="DEMO-3",

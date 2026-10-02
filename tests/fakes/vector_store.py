@@ -28,6 +28,19 @@ class FakeVectorStore:
     def delete_by_document(self, document_id: str) -> None:
         self.chunks = {k: c for k, c in self.chunks.items() if c.document_id != document_id}
 
+    def replace_document(self, document_id: str, chunks: list[Chunk]) -> None:
+        """Como `PgVectorStore.replace_document` (PA-216): todo o nada."""
+        for chunk in chunks:
+            if chunk.document_id != document_id:
+                raise ValueError(f"El fragmento {chunk.id} no es del documento {document_id}.")
+        previous = dict(self.chunks)
+        try:
+            self.delete_by_document(document_id)
+            self.upsert(chunks)
+        except Exception:
+            self.chunks = previous
+            raise
+
     def search(
         self,
         query_vector: list[float],

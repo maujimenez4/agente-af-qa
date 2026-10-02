@@ -473,3 +473,159 @@ def test_evolve_and_review_ignore_origin_key_when_origin_is_not_a_story(method: 
     story = getattr(StoryWriter(llm), method)(ctx).story
 
     assert story.jira_key is None
+
+
+# --- T-58 · Prompts para modelos locales pequeños (RNF-09, RNF-12) ------------------------------
+
+T58_MIN_VERSIONS = {
+    "generate_story": 2,
+    "evolve_story": 3,
+    "structure_story": 2,
+    "citation_retry": 2,
+    "review_quality": 2,
+    "quality_retry": 2,
+}
+
+
+@pytest.mark.parametrize(("name", "minimum"), T58_MIN_VERSIONS.items())
+def test_prompt_version_raised_when_t58_changes_it(name: str, minimum: int) -> None:
+    """F · T-58: los prompts modificados suben su `version:`."""
+    assert int(load_prompt(name).version) >= minimum
+
+
+@pytest.mark.parametrize("name", ["generate_story", "evolve_story"])
+def test_story_prompt_numbers_ids_even_when_sources_use_other_ids(name: str) -> None:
+    """F · T-58: la regla de numeración menciona los IDs de las fuentes (`RN-RES-01`)."""
+    text = load_prompt(name).text
+
+    assert "RN-RES-01" in text
+    assert "CA-" in text and "RN-" in text
+
+
+def test_structure_prompt_numbers_ids_when_issue_uses_other_format() -> None:
+    """F · T-58: `structure_story` pide CA-01/RN-01 aunque la incidencia use otro formato."""
+    text = load_prompt("structure_story").text
+
+    assert "CA-01" in text and "RN-01" in text
+    assert "otro formato" in text
+
+
+@pytest.mark.parametrize(
+    "name", ["generate_story", "evolve_story", "structure_story", "review_quality"]
+)
+def test_prompt_forbids_empty_sources(name: str) -> None:
+    """F · T-58: `sources` nunca puede quedar vacío (las mediciones devolvían `sources: []`)."""
+    text = load_prompt(name).text
+    rule = next(line for line in text.splitlines() if "`sources`" in line and "nunca" in line)
+
+    assert "vacío" in rule
+
+
+def test_citation_retry_prompt_requires_non_empty_sources() -> None:
+    """F · T-58: el reintento de citas pide que `sources` no quede vacío si hay fuentes."""
+    text = load_prompt("citation_retry").text
+
+    assert "`sources`" in text
+    assert "no puede quedar vacío" in text
+    assert "al menos una" in text
+
+
+def test_quality_retry_prompt_requires_at_least_one_citation() -> None:
+    """F · T-58: el reintento de calidad pide al menos una cita si la lista no está vacía."""
+    text = load_prompt("quality_retry").text
+
+    assert "al menos una" in text
+    assert "{allowed}" in text
+
+
+# --- T-58 · Cita vacía con contexto con fuentes (RNF-14) ----------------------------------------
+
+EMPTY_SOURCES = story_citing()  # HU válida sin ninguna cita
+
+
+def test_generate_retries_with_citation_retry_when_first_story_has_empty_sources() -> None:
+    """G · T-58: `sources=[]` con fuentes en el contexto → reintento con citation_retry."""
+    llm, _ = fake_llm(EMPTY_SOURCES, VALID)
+
+    StoryWriter(llm).generate(need_ctx())
+
+    assert len(llm.calls) == 2
+    retry = llm.calls[1]["messages"]
+    assert UserStory.model_validate_json(retry[-2].content).sources == []
+    feedback = retry[-1].content
+    assert "no cita ninguna fuente" in feedback
+    assert "no puede quedar vacío" in feedback
+    assert "- jira: DEMO-3" in feedback and "- rag: DOC-01" in feedback
+
+
+def test_generate_accepts_retry_when_second_story_cites_a_valid_source() -> None:
+    """G · T-58: si el reintento trae una cita válida, se acepta con el extracto real."""
+    llm, _ = fake_llm(EMPTY_SOURCES, story_citing(("rag", "DOC-01")))
+
+    draft = StoryWriter(llm).generate(need_ctx())
+
+    assert [(s.kind, s.ref) for s in draft.story.sources] == [("rag", "DOC-01")]
+    assert draft.story.sources[0].excerpt != "inventado"
+    assert len(llm.calls) == 2
+
+
+def test_generate_raises_citation_error_when_sources_stay_empty_after_retry() -> None:
+    """G · T-58 (error): si el reintento sigue sin citas → CitationError tras 2 llamadas."""
+    llm, _ = fake_llm(EMPTY_SOURCES, EMPTY_SOURCES)
+
+    with pytest.raises(CitationError):
+        StoryWriter(llm).generate(need_ctx())
+
+    assert len(llm.calls) == 2
+
+
+def test_generate_citation_error_explains_missing_citations_when_sources_stay_empty() -> None:
+    """G · T-58 (error): el mensaje debería explicar que la propuesta no cita ninguna fuente."""
+    llm, _ = fake_llm(EMPTY_SOURCES, EMPTY_SOURCES)
+
+    with pytest.raises(CitationError) as info:
+        StoryWriter(llm).generate(need_ctx())
+
+    assert "no están en el contexto" not in str(info.value)
+
+
+@pytest.mark.parametrize("method", ["evolve", "review"])
+def test_evolve_and_review_retry_when_first_story_has_empty_sources(method: str) -> None:
+    """G · T-58: evolución y revisión siguen el mismo camino ante `sources=[]`."""
+    llm, _ = fake_llm(EMPTY_SOURCES, VALID)
+
+    getattr(StoryWriter(llm), method)(story_ctx())
+
+    assert len(llm.calls) == 2
+    assert "no cita ninguna fuente" in llm.calls[1]["messages"][-1].content
+
+
+def test_structure_retries_when_first_story_has_empty_sources() -> None:
+    """G · T-58: `structure` (HU de Jira a plantilla) también reintenta si no cita la incidencia."""
+    llm, _ = fake_llm(EMPTY_SOURCES, story_citing(("jira", "DEMO-3")))
+
+    draft = StoryWriter(llm).structure(story_ctx())
+
+    assert len(llm.calls) == 2
+    assert "no cita ninguna fuente" in llm.calls[1]["messages"][-1].content
+    assert [s.ref for s in draft.story.sources] == ["DEMO-3"]
+
+
+def test_forced_citation_without_sources_is_dropped_not_an_error() -> None:
+    """RNF-14 · `schema_hints`: el esquema pide una cita; sin fuentes en el contexto, la cita
+    que traiga la respuesta solo puede ser inventada y se quita (sin reintento ni error)."""
+    llm, _ = fake_llm(story_citing(("rag", "DOC-INVENTADO")))
+    ctx = StoryContext(origin_kind="need", need="Necesidad ficticia sin fuentes.")
+
+    draft = StoryWriter(llm).generate(ctx)
+
+    assert draft.story.sources == []
+    assert len(llm.calls) == 1
+
+
+def test_invented_citation_with_sources_still_triggers_retry() -> None:
+    """Con fuentes en el contexto, una cita inventada sigue siendo un error (reintento)."""
+    llm, _ = fake_llm(story_citing(("rag", "DOC-INVENTADO")))
+    with pytest.raises(CitationError):
+        StoryWriter(llm).generate(need_ctx())
+    assert len(llm.calls) == 2

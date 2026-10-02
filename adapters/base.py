@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from schemas.artifact import Artifact
 from schemas.common import SourceRef
 from schemas.memory import Memory
-from schemas.test_case import TestSuite
+from schemas.test_case import ExecutionStatus, TestSuite
 from schemas.user_story import UserStory
 
 T = TypeVar("T", bound=BaseModel)
@@ -138,6 +138,11 @@ class TestManagement(Protocol):  # Área A · Jira nativo (D-09)
     def publish_suite(self, suite: TestSuite) -> PublishResult: ...
     # crea subtareas CP, adjunta la estrategia y la matriz; devuelve las claves creadas y los fallos
     def list_cases(self, story_key: str) -> list[IssueSummary]: ...
+    # T-47 · ESCRITURA (solo desde el nodo publish del grafo de ejecución): resultado de un CP
+    # y evidencia como comentario en su subtarea
+    def record_execution(
+        self, case_key: str, status: ExecutionStatus, evidence_md: str
+    ) -> None: ...
 
 
 @runtime_checkable
@@ -160,6 +165,8 @@ class EmbeddingProvider(Protocol):  # Área B
 class VectorStore(Protocol):  # Área B
     def upsert(self, chunks: list[Chunk]) -> None: ...
     def delete_by_document(self, document_id: str) -> None: ...
+    # PA-225 (PA-216): sustituye los fragmentos de un documento de forma atómica (reindexado)
+    def replace_document(self, document_id: str, chunks: list[Chunk]) -> None: ...
     def search(
         self,
         query_vector: list[float],

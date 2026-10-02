@@ -29,17 +29,18 @@ from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
-from core.config import AppConfig, Settings
+from core.config import AppConfig, ConfigError, Settings
 from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
+from core.handoff import SqlHandoffStore
 from core.impact.versions import StoryVersionStore
 from core.memory.generator import LLMMemoryGenerator
 from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
 from schemas.artifact import Artifact
 from schemas.memory import Memory
-from schemas.test_case import TestSuite
+from schemas.test_case import ExecutionStatus, TestSuite
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
 
@@ -166,6 +167,7 @@ def structured_prompts() -> StructuredPrompts:
 
 def _openai_factory(config: AppConfig) -> ProviderFactory:
     prompts = structured_prompts()
+    options = _model_options(config)
 
     def create(choice: ModelChoice) -> LLMProvider:
         return OpenAICompatibleProvider.create(
@@ -177,9 +179,24 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
             max_retries_on_429=config.models.limits.max_retries_on_429,
             timeout_s=config.models.limits.request_timeout_s,
             max_output_tokens=config.models.limits.max_output_tokens,
+            extra_body=options.get((choice.provider, choice.model)),
         )
 
     return create
+
+
+def _model_options(config: AppConfig) -> dict[tuple[str, str], dict[str, Any]]:
+    """`options` de cada modelo de las cadenas (T-58); las mismas en todas las tareas."""
+    found: dict[tuple[str, str], dict[str, Any]] = {}
+    for chain in config.models.tasks.values():
+        for ref in chain:
+            body = ref.options.request_body() if ref.options else {}
+            if found.setdefault((ref.provider, ref.model), body) != body:
+                raise ConfigError(
+                    f"El modelo «{ref.model}» de «{ref.provider}» tiene 'options' distintas en "
+                    "varias tareas de config/models.yaml; deben coincidir."
+                )
+    return {key: body for key, body in found.items() if body}
 
 
 # --- Contenedor de la aplicación (T-24) ---------------------------------------------------------
@@ -196,6 +213,9 @@ class PendingTestManagement:
             "La consulta de casos de prueba en Jira llega con T-30.", service="jira"
         )
 
+    def record_execution(self, case_key: str, status: ExecutionStatus, evidence_md: str) -> None:
+        raise PublishError("El registro de la ejecución en Jira llega con T-47.")
+
 
 class PendingMemoryGenerator:
     """Hasta T-33 no hay memoria real; solo se llamaría tras publicar en `live`."""
@@ -204,6 +224,11 @@ class PendingMemoryGenerator:
         raise ExternalServiceError(
             "La memoria de la HU publicada llega con T-33.", service="memoria"
         )
+
+
+def build_handoffs(config: AppConfig) -> SqlHandoffStore:
+    """Entregas de HU a QA en `qa_handoffs` (T-54, migración `0005`); va a `build_graph`."""
+    return SqlHandoffStore.from_url(config.settings.sqlalchemy_url())
 
 
 def build_conversations(config: AppConfig) -> SqlConversationStore:

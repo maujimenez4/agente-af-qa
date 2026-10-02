@@ -60,9 +60,34 @@ class ProviderConfig(_StrictModel):
     api_key_env: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]*$")
 
 
+class ModelOptions(_StrictModel):
+    """Opciones de petición por modelo, enviadas tal cual en el cuerpo (T-58).
+
+    Sirven para desactivar el razonamiento de los modelos que lo traen activado. Solo se admiten
+    estas claves:
+    - `reasoning_effort: "none"`: **la que funciona con el endpoint OpenAI de Ollama** (el que usa
+      la app); medido con `qwen3:1.7b` el 2026-10-02.
+    - `think: false`: la opción de la API nativa de Ollama; por el endpoint OpenAI **no tiene
+      efecto** (el modelo sigue razonando). Se conserva por si cambia el proveedor.
+    """
+
+    think: bool | None = None
+    reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> Self:
+        if self.think is None and self.reasoning_effort is None:
+            raise ValueError("options necesita al menos 'think' o 'reasoning_effort'")
+        return self
+
+    def request_body(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
 class ModelRef(_StrictModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    options: ModelOptions | None = None
 
 
 class EmbeddingsConfig(_StrictModel):

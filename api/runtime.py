@@ -22,6 +22,7 @@ from api.models import ErrorBody, Flow, Mode
 from api.sessions import LoginLimiter, SessionStore
 from core.config import Settings
 from core.container import Container
+from core.handoff import HandoffStore
 from core.logging import get_logger
 from core.usage import UsageQueries
 
@@ -37,6 +38,8 @@ class Workspace:
     router: ModelRouter | None = None
     chains: Chains = field(default_factory=dict)  # cadenas configuradas (D-14)
     overrides: dict[TaskType, ModelChoice] = field(default_factory=dict)
+    # T-47: registro de la ejecución (grafo propio, mismo checkpointer).
+    execution_graph: CompiledStateGraph | None = None
 
 
 WorkspaceFactory = Callable[[], Workspace]
@@ -125,8 +128,11 @@ class Runtime:
     sessions: SessionStore[Workspace]
     limiter: LoginLimiter
     runs: RunRegistry = field(default_factory=RunRegistry)
+    execution_runs: RunRegistry = field(default_factory=RunRegistry)  # T-47
     quality: dict[str, QualityJob] = field(default_factory=dict)
     quality_lock: threading.Lock = field(default_factory=threading.Lock)
+    # T-54: entregas de HU a QA (compartidas en el proceso; también las usa el grafo).
+    handoffs: HandoffStore | None = None
     executor: ThreadPoolExecutor | None = None
     run_inline: bool = False  # pruebas: la operación termina antes de responder
     # PA-305: lectura de `llm_usage` (T-32) y umbral de aviso diario.
@@ -183,11 +189,13 @@ def build_runtime() -> Runtime:
     from core.factories import (
         build_app_container,
         build_checkpointer,
+        build_handoffs,
         build_session_container,
         build_usage_recorder,
         model_router,
     )
     from core.graph import build_graph
+    from core.graph.execution import build_execution_graph
     from core.usage import SqlUsageQueries
 
     config = build_config()
@@ -195,6 +203,7 @@ def build_runtime() -> Runtime:
     base = build_app_container(config)
     recorder = build_usage_recorder(config)  # consumo del LLM de todas las sesiones (T-32)
     checkpointer = build_checkpointer(config)
+    handoffs = build_handoffs(config)  # PA-268
     chains: Chains = {
         task: [ModelChoice(r.provider, r.model) for r in config.task_chain(task)]
         for task in TaskType
@@ -203,10 +212,17 @@ def build_runtime() -> Runtime:
     def workspace() -> Workspace:
         router = model_router(config)
         container = build_session_container(config, base, router, recorder)
-        graph = build_graph(container, checkpointer=checkpointer)
-        return Workspace(container=container, graph=graph, router=router, chains=chains)
+        graph = build_graph(container, checkpointer=checkpointer, handoffs=handoffs)
+        return Workspace(
+            container=container,
+            graph=graph,
+            router=router,
+            chains=chains,
+            execution_graph=build_execution_graph(container, checkpointer=checkpointer),
+        )
 
     rt = new_runtime(config.settings, base.auth, workspace)
     rt.usage = SqlUsageQueries.from_url(config.settings.sqlalchemy_url())
+    rt.handoffs = handoffs
     rt.token_warning = config.models.limits.daily_token_warning
     return rt

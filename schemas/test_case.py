@@ -10,6 +10,17 @@ from schemas.common import Priority, SourceRef, duplicated_ids
 from schemas.user_story import CRITERION_ID, RULE_ID
 
 CASE_ID = r"^CP-\d+$"
+# T-47 (RF-28, R-01 opción A): evidencia de la ejecución de un CP, como mucho.
+MAX_EVIDENCE_CHARS = 20_000
+
+
+class ExecutionStatus(StrEnum):
+    """Resultado de la ejecución de un CP (T-47, PA-206). Lo elige la persona, nunca la IA."""
+
+    PASSED = "paso"
+    FAILED = "fallo"
+    BLOCKED = "bloqueado"
+    NOT_RUN = "sin-ejecutar"
 
 
 class TestCaseType(StrEnum):

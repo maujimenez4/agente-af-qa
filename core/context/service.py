@@ -4,6 +4,7 @@ Reúne el contexto de Jira según el origen (HU, épica o necesidad nueva) y el 
 ajusta al presupuesto de tokens. Solo depende de protocolos de `adapters/base.py`.
 """
 
+import unicodedata
 from collections.abc import Collection, Iterable, Mapping
 from typing import TYPE_CHECKING
 
@@ -28,12 +29,23 @@ MEMORY_CATEGORY = "memoria"
 DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
 # Tipos de incidencia que no son HU: no se proponen como «HU parecida» (T-53).
 NOT_STORIES = frozenset({"epic", "épica", "subtarea", "sub-task", "subtask", "task", "tarea"})
+EPIC_TYPES = frozenset({"epic", "épica"})
 # Una norma y el acta que la cambió deben llegar juntas al LLM (hallazgo de T-17).
 RELATED_PAIRS = {"politicas": "documentacion", "documentacion": "politicas"}  # T-49: normas ↔ actas
 MAX_LINKED = 5
 MAX_NEED_MATCHES = 3
 MAX_NEED_CANDIDATES = 20
 MAX_RELATED_DOCS = 4
+
+
+def type_key(issue_type: str) -> str:
+    """Tipo de incidencia comparable (PA-223): NFC, sin espacios y en minúsculas."""
+    return unicodedata.normalize("NFC", issue_type).strip().casefold()
+
+
+def is_story(issue_type: str) -> bool:
+    """`True` si el tipo puede ser una HU: no es épica, subtarea ni tarea (T-48, T-53)."""
+    return type_key(issue_type) not in NOT_STORIES
 
 
 class GatheredContext(BaseModel):
@@ -137,9 +149,7 @@ class ContextService:
     def similar_stories(self, text: str, project: str) -> list[IssueSummary]:
         """HU del proyecto parecidas al texto, por búsqueda de texto en Jira y sin IA (T-53)."""
         stories = [
-            issue
-            for issue in self._ranked_candidates(text, project)
-            if issue.issue_type.strip().lower() not in NOT_STORIES
+            issue for issue in self._ranked_candidates(text, project) if is_story(issue.issue_type)
         ]
         return stories[:MAX_NEED_MATCHES]  # se filtra antes de cortar
 

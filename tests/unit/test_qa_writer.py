@@ -16,7 +16,7 @@ from adapters.errors import AgentError
 from core.functional.citations import CitationError
 from core.functional.context import StoryContext, render_context
 from core.qa.validation import CoverageError, suite_errors
-from core.qa.writer import SuiteDraft, TestWriter
+from core.qa.writer import UNPUBLISHED_STORY_KEY, SuiteDraft, TestWriter
 from core.rag.prompts import Prompt, load_prompt
 from schemas.common import Priority, SourceRef
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -608,3 +608,145 @@ def test_generate_ignores_epic_origin_key_when_story_has_no_key() -> None:
     with pytest.raises(ValueError, match="clave de Jira"):
         TestWriter(llm).generate(story, StoryContext(origin_kind="epic", origin_key="DEMO-1"))
     assert llm.calls == []
+
+
+# --- T-58 · Prompts de QA para modelos locales pequeños (RNF-09, RNF-12) ------------------------
+
+
+@pytest.mark.parametrize(("name", "minimum"), [("generate_tests", 2), ("tests_retry", 3)])
+def test_qa_prompt_version_raised_when_t58_changes_it(name: str, minimum: int) -> None:
+    """F · T-58: los prompts de QA modificados suben su `version:`."""
+    assert int(load_prompt(name).version) >= minimum
+
+
+def test_generate_tests_prompt_numbers_cases_even_when_sources_use_other_ids() -> None:
+    """F · T-58: CP-01… correlativos aunque las fuentes usen otros identificadores."""
+    text = load_prompt("generate_tests").text
+
+    assert "CP-01" in text
+    assert "otros identificadores" in text
+    assert "literalmente" in text  # refs CA/RN copiadas tal cual de la HU
+
+
+def test_generate_tests_prompt_forbids_empty_sources() -> None:
+    """F · T-58: `sources` nunca puede quedar vacío si el contexto trae fuentes."""
+    text = load_prompt("generate_tests").text
+    rule = next(line for line in text.splitlines() if "`sources`" in line and "nunca" in line)
+
+    assert "vacío" in rule
+
+
+def test_tests_retry_prompt_requires_at_least_one_citation() -> None:
+    """F · T-58: el reintento de la suite pide al menos una cita si hay fuentes permitidas."""
+    assert "al menos una" in load_prompt("tests_retry").text
+
+
+# --- T-58 · Cita vacía con contexto con fuentes (RNF-14) ----------------------------------------
+
+EMPTY_SOURCES_SUITE = suite_citing()  # suite que cubre la HU pero no cita nada
+
+
+def test_generate_retries_when_first_suite_has_empty_sources() -> None:
+    """G · T-58: suite con `sources=[]` y contexto con fuentes → reintento con tests_retry."""
+    llm, _ = fake_llm(EMPTY_SOURCES_SUITE, VALID)
+
+    TestWriter(llm).generate(dataset.renewal_story(), ctx_with_sources())
+
+    assert len(llm.calls) == 2
+    feedback = llm.calls[1]["messages"][-1].content
+    assert "no cita ninguna fuente" in feedback
+    assert "al menos una" in feedback
+    assert "- jira: DEMO-2" in feedback and "- rag: DOC-01" in feedback
+
+
+def test_generate_accepts_retry_when_second_suite_cites_a_valid_source() -> None:
+    """G · T-58: si el reintento cita una fuente válida, se acepta con el extracto real."""
+    llm, _ = fake_llm(EMPTY_SOURCES_SUITE, suite_citing(("rag", "DOC-01")))
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(), ctx_with_sources())
+
+    assert [(s.kind, s.ref) for s in draft.suite.sources] == [("rag", "DOC-01")]
+    assert draft.suite.sources[0].excerpt == "Extracto real de DOC-01"
+    assert len(llm.calls) == 2
+
+
+def test_generate_raises_citation_error_when_suite_sources_stay_empty() -> None:
+    """G · T-58 (error): si la suite sigue sin citas tras el reintento → CitationError."""
+    llm, _ = fake_llm(EMPTY_SOURCES_SUITE, EMPTY_SOURCES_SUITE)
+
+    with pytest.raises(CitationError):
+        TestWriter(llm).generate(dataset.renewal_story(), ctx_with_sources())
+
+    assert len(llm.calls) == 2
+
+
+def test_forced_citation_in_suite_without_sources_is_dropped_not_an_error() -> None:
+    """RNF-14 · `schema_hints`: sin fuentes en el contexto, la cita inventada se quita."""
+    llm, _ = fake_llm(INVENTED)
+
+    draft = TestWriter(llm).generate(dataset.renewal_story())  # sin contexto: ninguna fuente
+
+    assert draft.suite.sources == []
+    assert len(llm.calls) == 1
+
+
+# --- generate: HU encadenada sin publicar (T-54) ------------------------------------------------
+
+
+def test_unpublished_story_key_is_not_a_jira_key() -> None:
+    """T-54 · criterio 9: «SIN-CLAVE» no tiene forma de clave de Jira (PROYECTO-123)."""
+    from core.projects import ISSUE_KEY
+
+    assert UNPUBLISHED_STORY_KEY == "SIN-CLAVE"
+    assert not ISSUE_KEY.fullmatch(UNPUBLISHED_STORY_KEY)
+
+
+@pytest.mark.parametrize("ctx", [None, StoryContext(origin_kind="story")])
+def test_generate_unpublished_story_without_key_uses_placeholder_key(
+    ctx: StoryContext | None,
+) -> None:
+    """T-54 · criterio 9: HU sin clave y `unpublished=True` → story_jira_key «SIN-CLAVE»."""
+    llm, _ = fake_llm(renewal_test_suite(story_key="DEMO-777"))
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key=None), ctx, unpublished=True)
+
+    assert draft.suite.story_jira_key == UNPUBLISHED_STORY_KEY
+    assert len(llm.calls) == 1
+    assert llm.calls[0]["task"] is TaskType.GENERATE_TESTS
+
+
+def test_generate_unpublished_does_not_override_existing_story_key() -> None:
+    """T-54 · criterio 9 (límite): con clave en la HU, `unpublished` no la cambia."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key="DEMO-3"), unpublished=True)
+
+    assert draft.suite.story_jira_key == "DEMO-3"
+
+
+def test_generate_unpublished_does_not_override_ctx_origin_key() -> None:
+    """T-54 · criterio 9 (límite): la clave del origen story prevalece sobre «SIN-CLAVE»."""
+    llm, _ = fake_llm(renewal_test_suite())
+    ctx = StoryContext(origin_kind="story", origin_key="DEMO-3")
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key=None), ctx, unpublished=True)
+
+    assert draft.suite.story_jira_key == "DEMO-3"
+
+
+def test_generate_without_unpublished_still_requires_key() -> None:
+    """T-54 · criterio 9 (error): sin `unpublished`, una HU sin clave sigue fallando."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    with pytest.raises(ValueError, match="clave de Jira"):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key=None), unpublished=False)
+
+    assert llm.calls == []
+
+
+def test_generate_unpublished_is_keyword_only() -> None:
+    """T-54 · criterio 9: `unpublished` solo se pasa por nombre."""
+    llm, _ = fake_llm(renewal_test_suite())
+
+    with pytest.raises(TypeError):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key=None), None, True)  # type: ignore[misc]

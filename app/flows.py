@@ -46,8 +46,7 @@ FLOWS: tuple[Flow, ...] = (
         label="Revisar la calidad de una HU",
         hint="Informe con INVEST, ambigüedades y huecos. No cambia nada en Jira.",
         placeholder="Escribe la clave de la HU que quieres revisar, por ejemplo DEMO-4.",
-        permission=Permission.GENERATE_STORY,  # provisional: lo fija T-48
-        pending_task="T-48",
+        permission=Permission.GENERATE_STORY,  # provisional (PA-100), como `core/quality`
     ),
     Flow(
         id="tests",
@@ -55,7 +54,6 @@ FLOWS: tuple[Flow, ...] = (
         hint="Casos, cobertura, datos y estrategia de una HU.",
         placeholder="Escribe la clave de la HU para la que quieres pruebas, por ejemplo DEMO-3.",
         permission=Permission.GENERATE_TESTS,
-        pending_task="T-28",
     ),
 )
 

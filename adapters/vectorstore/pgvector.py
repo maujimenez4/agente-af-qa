@@ -143,7 +143,7 @@ class PgVectorStore:
 
         La categoría (`metadata["category"]`) es obligatoria; `title`, `source_path`,
         `related_key` y `content_hash` se toman de `metadata` si existen. Para reindexar un
-        documento sin dejar fragmentos antiguos: `delete_by_document` y después `upsert` (RF-38).
+        documento sin dejar fragmentos antiguos, `replace_document` (atómico, PA-216; RF-38).
         """
         by_document: dict[str, list[Chunk]] = {}
         for chunk in chunks:
@@ -151,6 +151,8 @@ class PgVectorStore:
             by_document.setdefault(chunk.document_id, []).append(chunk)
         if not by_document:
             return
+        for document_key, document_chunks in by_document.items():
+            self._check_one_category(document_key, document_chunks)
         with self._connection() as conn:
             for document_key, document_chunks in by_document.items():
                 self._upsert_document(conn, document_key, document_chunks)
@@ -158,6 +160,23 @@ class PgVectorStore:
     def delete_by_document(self, document_id: str) -> None:
         with self._connection() as conn:
             conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
+
+    def replace_document(self, document_id: str, chunks: list[Chunk]) -> None:
+        """Sustituye los fragmentos de un documento en **una sola transacción** (PA-216).
+
+        Si algo falla, se conservan los fragmentos anteriores. Aún no está en el protocolo
+        `VectorStore` (PA-225); `core/rag/indexing.py` lo usa si el almacén lo ofrece.
+        """
+        for chunk in chunks:
+            self._validate(chunk)
+            if chunk.document_id != document_id:
+                raise ValueError(f"El fragmento {chunk.id} no es del documento {document_id}.")
+        if chunks:
+            self._check_one_category(document_id, chunks)
+        with self._connection() as conn:
+            conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
+            if chunks:
+                self._upsert_document(conn, document_id, chunks)
 
     def _validate(self, chunk: Chunk) -> None:
         if chunk.embedding is None:
@@ -173,6 +192,16 @@ class PgVectorStore:
             raise ValueError(f"El fragmento {chunk.id} necesita metadata['category'].")
         if _RESERVED & chunk.metadata.keys():
             raise ValueError(f"El fragmento {chunk.id} usa claves reservadas de metadata.")
+
+    @staticmethod
+    def _check_one_category(document_key: str, chunks: list[Chunk]) -> None:
+        """PA-221: `documents.category` es una; fragmentos con varias darían filtros y prioridad
+        de la memoria incoherentes (RF-51)."""
+        categories = {chunk.metadata["category"] for chunk in chunks}
+        if len(categories) > 1:
+            raise ValueError(
+                f"El documento {document_key} mezcla categorías: {', '.join(sorted(categories))}."
+            )
 
     def _upsert_document(self, conn: Connection, document_key: str, chunks: list[Chunk]) -> None:
         meta = chunks[0].metadata
@@ -221,6 +250,8 @@ class PgVectorStore:
                 f"El vector de consulta tiene {len(query_vector)} dimensiones; "
                 f"se esperaban {self.dimensions}."
             )
+        if not all(math.isfinite(v) for v in query_vector):  # PA-221: como en `upsert`
+            raise ValueError("El vector de consulta tiene valores no finitos.")
         params = {
             "query_vector": _vector_literal(query_vector),
             "query_text": query_text or "",

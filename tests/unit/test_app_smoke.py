@@ -15,17 +15,23 @@ from streamlit.testing.v1 import AppTest
 from streamlit.testing.v1.errors import AppTestError
 
 import app.session as app_session
+import core.quality as core_quality
 from adapters.base import ProjectSummary
 from adapters.errors import ExternalServiceError
+from app.conversation import UNEXPECTED
 from app.session import LOGIN_LOCKED, MAX_LOGIN_ATTEMPTS, SessionState, login_locked
 from app.text import md_escape
 from core.approvals import ApprovalError
 from core.config import ROOT_DIR
 from core.container import Container
 from core.graph import memory_checkpointer
+from core.handoff import InMemoryHandoffStore
+from schemas.quality import INVEST_NAMES
+from schemas.test_case import TestSuite
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
+from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.test_management import FakeTestManagement
 
 MAIN = str(ROOT_DIR / "app" / "main.py")
@@ -48,6 +54,7 @@ def composed(monkeypatch: pytest.MonkeyPatch, container: Container) -> Container
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
     return container
 
 
@@ -167,6 +174,7 @@ def test_smoke_compose_failure_shows_message_and_retry(monkeypatch: pytest.Monke
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", failing)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: memory_checkpointer())
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
 
     at = _app()
 
@@ -176,15 +184,164 @@ def test_smoke_compose_failure_shows_message_and_retry(monkeypatch: pytest.Monke
     assert _session(at).workspace is None
 
 
-def test_smoke_qa_user_sees_tests_card_disabled_until_t28(composed: Container) -> None:
-    """UI.md §3 · app/flows.py: QA ve «Preparar pruebas» desactivada (pending_task T-28)."""
+def test_smoke_qa_user_sees_tests_card_enabled(composed: Container) -> None:
+    """UI.md §3 · §6.1 · T-28: QA ve «Preparar pruebas» activa y el compositor abierto."""
     at = _app()
     _login(at, "qa-demo", _password("qa-demo"))
     tests_card = at.button(key="flow-tests")
     assert "Preparar pruebas" in str(tests_card.label)
-    assert tests_card.disabled is True
+    assert tests_card.disabled is False
     assert all(at.button(key=f"flow-{flow}").disabled for flow in ("need", "evolve", "review"))
-    assert len(at.text_area) == 0  # sin flujo habilitado no hay compositor
+    assert at.text_area(key="start_text") is not None  # flujo por defecto: Preparar pruebas
+    _assert_nothing_written(composed)
+
+
+QA_STRATEGY_MD = (
+    "# Título de estrategia ficticia\n\n"
+    "Ver [guía ficticia](https://example.invalid/guia) antes de probar."
+)
+QA_GHERKIN = "Escenario: renovar sin reservas (ficticio)\n  Dado un préstamo activo"
+
+
+@pytest.fixture
+def qa_composed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Container:
+    """Como `composed`, con un LLM fake cuya suite trae Markdown en la estrategia y Gherkin."""
+    llm = FakeLLMProvider()
+    base = llm.builders[TestSuite]
+
+    def build(messages: list[Any]) -> TestSuite:
+        suite = base(messages)
+        assert isinstance(suite, TestSuite)
+        cases = [suite.cases[0].model_copy(update={"gherkin": QA_GHERKIN}), *suite.cases[1:]]
+        return suite.model_copy(
+            update={
+                "strategy_md": QA_STRATEGY_MD,
+                "cases": cases,
+                "risks": ["Reservas concurrentes (ficticio)"],
+                "synthetic_data": [{"socio": "S-0001 (ficticio)"}],
+            }
+        )
+
+    llm.builders[TestSuite] = build
+    container = fake_container(tmp_path, llm=llm, publish_mode="simulation", require_actor=True)
+    checkpointer = memory_checkpointer()
+    monkeypatch.setattr(app_session, "build_config", lambda: None)
+    monkeypatch.setattr(app_session, "model_router", lambda _config: None)
+    monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
+    monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
+    return container
+
+
+def _to_qa_origin(at: AppTest) -> None:
+    """Login como QA → «DEMO-3» en el compositor (flujo por defecto: Preparar pruebas) → QA 1."""
+    _login(at, "qa-demo", _password("qa-demo"))
+    at.text_area(key="start_text").input("DEMO-3")
+    at.button(key="continue").click().run()
+    assert not at.exception, at.exception
+
+
+def test_smoke_qa_origin_shows_case_types_extras_and_fixed_origin(composed: Container) -> None:
+    """UI.md §6.1 · RF-22 · T-28: QA 1 con tipos de caso, extras y la HU de origen fija."""
+    at = _app()
+    _to_qa_origin(at)
+    session = _session(at)
+    assert session.screen == "origen", _texts(at)
+    assert session.request is not None
+    assert (session.request.flow, session.request.key) == ("tests", "DEMO-3")
+    assert session.request.mode == "qa"
+
+    boxes = {box.key: box for box in at.checkbox}
+    for required in ("qa-type-positivo", "qa-type-negativo"):
+        assert boxes[required].disabled is True and boxes[required].value is True
+    for optional in ("qa-type-alterno", "qa-type-excepcion", "qa-data", "qa-risks", "qa-strategy"):
+        assert boxes[optional].disabled is False and boxes[optional].value is True
+    assert boxes["src-DEMO-3-DEMO-3"].disabled is True
+    texts = _texts(at)
+    assert "Clave reconocida en Jira · sin IA" in texts
+    assert "caso\\-prueba" in texts
+    assert at.button(key="generate").label == "Generar la suite"
+    assert "restrictions" not in [area.key for area in at.text_area]
+    _assert_nothing_written(composed)
+
+
+def test_smoke_qa_generate_iterate_and_approve_simulated(qa_composed: Container) -> None:
+    """UI.md §6.1–6.4 · RF-22…RF-27 · T-28 (y T-31): QA 1 → QA 3 → recibo → simulada."""
+    at = _app()
+    _to_qa_origin(at)
+    at.checkbox(key="qa-type-alterno").uncheck().run()
+    assert not at.exception, at.exception
+    at.button(key="generate").click().run()
+    assert not at.exception, at.exception
+
+    # QA 3: el primer feedback refleja las casillas y la vista es una suite.
+    session = _session(at)
+    assert session.screen == "iterar", _texts(at)
+    assert session.workspace is not None and session.current is not None
+    conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)
+    values = session.workspace.graph.get_state(conv.config).values
+    assert "alternos" not in values["feedback"][0]
+    assert "de excepción" in values["feedback"][0]
+    assert conv.view is not None and isinstance(conv.view.artifact.content, TestSuite)
+
+    labels = [str(tab.label) for tab in at.tabs]
+    n_cases = len(conv.view.artifact.content.cases)
+    for label in (f"Casos ({n_cases})", "Cobertura", "Datos y riesgos", "Estrategia"):
+        assert label in labels, labels
+    assert any("Todos los CA cubiertos" in str(s.value) for s in at.success)
+    assert at.button(key="edit-suite").disabled is True
+
+    # Estrategia en texto plano (st.text), nunca interpretada como Markdown.
+    assert any(str(t.value) == QA_STRATEGY_MD for t in at.text)
+    for element in at.markdown:
+        value = str(element.value)
+        assert "# Título de estrategia ficticia" not in value, value
+        assert "](https://example.invalid/guia)" not in value, value
+    assert any(str(code.value) == QA_GHERKIN for code in at.code)
+
+    # Recibo QA: subtareas, estrategia y matriz; «Volver a la suite».
+    at.button(key="approve").click().run()
+    assert not at.exception, at.exception
+    assert _session(at).screen == "recibo", _texts(at)
+    boxes = list(at.checkbox)
+    assert len(boxes) == 3, [str(box.label) for box in boxes]
+    box_labels = " | ".join(str(box.label) for box in boxes)
+    assert "subtareas" in box_labels
+    assert "estrategia" in box_labels and "matriz" in box_labels
+    assert at.button(key="receipt-back").label == "Volver a la suite"
+    for box in boxes:
+        box.check()
+    at.run()
+    at.button(key="receipt-approve").click().run()
+    assert not at.exception, at.exception
+    assert any("Aprobada · simulada" in str(s.value) for s in at.success)
+    _assert_nothing_written(qa_composed)
+
+
+def test_smoke_qa_receipt_back_returns_to_suite(composed: Container) -> None:
+    """UI.md §6.4 · T-28: «Volver a la suite» vuelve a QA 3 sin aprobar."""
+    at = _app()
+    _to_qa_origin(at)
+    at.button(key="generate").click().run()
+    at.button(key="approve").click().run()
+    assert _session(at).screen == "recibo", _texts(at)
+    at.button(key="receipt-back").click().run()
+    assert not at.exception, at.exception
+    session = _session(at)
+    assert session.screen == "iterar"
+    conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)  # type: ignore[union-attr]
+    assert conv.outcome is None and conv.view is not None
+    _assert_nothing_written(composed)
+
+
+def test_smoke_functional_user_sees_tests_card_disabled_with_qa_hint(composed: Container) -> None:
+    """UI.md §3 · T-28 (negativa): el analista funcional ve «Preparar pruebas» desactivada."""
+    at = _app()
+    _login(at, "af-demo", _password("af-demo"))
+    card = at.button(key="flow-tests")
+    assert "Preparar pruebas" in str(card.label)
+    assert card.disabled is True
+    assert card.help == "Disponible para el rol QA."
     _assert_nothing_written(composed)
 
 
@@ -204,6 +361,7 @@ def test_smoke_key_of_other_project_changes_and_remembers_project(
     monkeypatch.setattr(app_session, "model_router", lambda _config: None)
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _c: memory_checkpointer())
+    monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
 
     at = _app()
     _login(at, "af-demo", _password("af-demo"))
@@ -397,4 +555,207 @@ def test_smoke_approval_error_offers_restart_with_same_origin(
     assert session.current is not None and session.current != old
     new = next(c for c in session.workspace.conversations if c.thread_id == session.current)  # type: ignore[union-attr]
     assert new.request == old_request
+    _assert_nothing_written(composed)
+
+
+# --- Mixta 5 · Revisar la calidad (app/views/calidad.py · UI.md §4.8, T-48, RF-18) -----------
+
+
+def _to_quality_origin(at: AppTest, key: str = "DEMO-3") -> None:
+    """Login como analista → tarjeta «Revisar la calidad» → clave → Mixta 2 (origen)."""
+    _login(at, "af-demo", _password("af-demo"))
+    at.button(key="flow-review").click().run()
+    assert not at.exception, at.exception
+    at.text_area(key="start_text").input(key)
+    at.button(key="continue").click().run()
+    assert not at.exception, at.exception
+
+
+def _to_quality(at: AppTest) -> None:
+    _to_quality_origin(at)
+    at.button(key="review").click().run()
+    assert not at.exception, at.exception
+
+
+def _download_buttons(at: AppTest) -> list[Any]:
+    return list(at.get("download_button"))
+
+
+def test_smoke_review_quality_shows_report_without_writing_jira(composed: Container) -> None:
+    """UI.md §4.8 · T-48 (RF-18): origen sin restricciones → informe INVEST, hallazgos y .md."""
+    at = _app()
+    _to_quality_origin(at)
+    session = _session(at)
+    assert session.screen == "origen", _texts(at)
+    assert session.request is not None
+    assert (session.request.flow, session.request.key) == ("review", "DEMO-3")
+    assert "restrictions" not in [area.key for area in at.text_area]
+    assert at.button(key="review").label == "Revisar la calidad"
+    assert "generate" not in [button.key for button in at.button]
+
+    at.button(key="review").click().run()
+    assert not at.exception, at.exception
+    session = _session(at)
+    assert session.screen == "calidad", _texts(at)
+    assert session.quality is not None and session.quality.jira_key == "DEMO-3"
+    texts = _texts(at)
+    assert md_escape("He revisado DEMO-3 con INVEST") in texts
+    for letter, name in INVEST_NAMES.items():
+        assert f"**{letter} · {name}**" in texts
+    assert "Hallazgos" in texts
+    assert md_escape("Avisar en menos de 15 minutos.") in texts
+    downloads = _download_buttons(at)
+    assert len(downloads) == 1
+    assert "quality-download" in str(downloads[0].proto.id)
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_report_is_not_rendered_with_to_markdown(
+    composed: Container,
+) -> None:
+    """PA-64 · UI.md §4.8 (seguridad): el informe se pinta campo a campo, no con `to_markdown`."""
+    at = _app()
+    _to_quality(at)
+    assert _session(at).screen == "calidad"
+    assert not any("# Calidad de" in str(element.value) for element in at.markdown)
+    assert not any("## INVEST" in str(element.value) for element in at.markdown)
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_evolve_opens_new_conversation_with_proposals(
+    composed: Container,
+) -> None:
+    """UI.md §4.8 · T-48: «Evolucionar con esto» abre una evolución con las propuestas."""
+    at = _app()
+    _to_quality(at)
+    session = _session(at)
+    review = session.quality
+    assert review is not None and session.workspace is not None
+    before = {conv.thread_id for conv in session.workspace.conversations}
+
+    at.button(key="quality-evolve").click().run()
+    assert not at.exception, at.exception
+    session = _session(at)
+    assert session.screen == "iterar", _texts(at)
+    assert session.workspace is not None and session.current is not None
+    assert session.current not in before
+    conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)
+    assert conv.request.flow == "evolve" and conv.request.key == "DEMO-3"
+    values = session.workspace.graph.get_state(conv.config).values
+    for proposal in review.evolve_feedback():
+        assert proposal in values["feedback"]
+    assert session.quality is None
+    _assert_nothing_written(composed)
+
+
+def test_smoke_qa_user_sees_review_card_disabled_with_af_hint(composed: Container) -> None:
+    """UI.md §3 (negativa): QA ve «Revisar la calidad» desactivada con la ayuda del AF."""
+    at = _app()
+    _login(at, "qa-demo", _password("qa-demo"))
+    card = at.button(key="flow-review")
+    assert card.disabled is True
+    assert card.help == "Disponible para el rol de analista funcional."
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_external_error_shows_message_and_actions(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UI.md §4.8 · §7: un `ExternalServiceError` muestra su mensaje, Reintentar y Volver."""
+
+    def failing(*_args: object, **_kwargs: object) -> None:
+        raise ExternalServiceError("Proveedores ficticios caídos.", service="llm")
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", failing)
+    at = _app()
+    _to_quality(at)
+    session = _session(at)
+    assert session.screen == "calidad"
+    assert session.quality is None
+    errors = [str(error.value) for error in at.error]
+    assert any(md_escape("Proveedores ficticios caídos.") in error for error in errors), errors
+    assert at.button(key="quality-retry").label == "Reintentar"
+    assert at.button(key="quality-home").label == "Volver al inicio"
+    assert "quality-download" not in str([d.proto.id for d in _download_buttons(at)])
+
+    at.button(key="quality-home").click().run()
+    assert not at.exception, at.exception
+    assert _session(at).screen == "inicio"
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_unexpected_error_hides_internal_message(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UI.md §7 (seguridad): un error no previsto muestra UNEXPECTED, nunca su mensaje."""
+
+    def failing(*_args: object, **_kwargs: object) -> None:
+        raise ValueError("secreto interno")
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", failing)
+    at = _app()
+    _to_quality(at)
+    assert _session(at).screen == "calidad"
+    errors = [str(error.value) for error in at.error]
+    assert any(md_escape(UNEXPECTED) in error for error in errors), errors
+    assert "secreto interno" not in _texts(at)
+    assert at.button(key="quality-retry") is not None
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_retry_after_failure_shows_report(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UI.md §4.8: sin reintento automático; «Reintentar» vuelve a revisar y pinta el informe."""
+    original = core_quality.QualityReviewer.review
+    calls: list[int] = []
+
+    def flaky(self: Any, *args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        if len(calls) == 1:
+            raise ExternalServiceError("Proveedores ficticios caídos.", service="llm")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", flaky)
+    at = _app()
+    _to_quality(at)
+    assert len(calls) == 1 and _session(at).quality is None
+
+    at.button(key="quality-retry").click().run()
+    assert not at.exception, at.exception
+    session = _session(at)
+    assert session.screen == "calidad"
+    assert session.quality is not None and len(calls) == 2
+    assert len(_download_buttons(at)) == 1
+    _assert_nothing_written(composed)
+
+
+def test_smoke_review_quality_shows_open_questions(composed: Container) -> None:
+    """UI.md §4.8: las preguntas para negocio del informe se pintan escapadas."""
+    at = _app()
+    _to_quality(at)
+    texts = _texts(at)
+    assert "Preguntas para negocio" in texts
+    assert md_escape("¿Hay un máximo de renovaciones por año? (ficticio)") in texts
+
+
+def test_smoke_review_quality_receives_unchecked_sources(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UI.md §4.3 · §4.8 · RF-21: una fuente desmarcada en Mixta 2 no entra en la revisión."""
+    original = core_quality.QualityReviewer.review
+    received: list[list[str]] = []
+
+    def spy(self: Any, user: Any, key: str, excluded: list[str] | None = None) -> Any:
+        received.append(list(excluded or []))
+        return original(self, user, key, excluded)
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", spy)
+    at = _app()
+    _to_quality_origin(at)
+    boxes = {box.key: box for box in at.checkbox}
+    boxes["src-DEMO-3-doc-glosario"].uncheck().run()
+    at.button(key="review").click().run()
+    assert not at.exception, at.exception
+    assert received == [["doc-glosario"]]
     _assert_nothing_written(composed)

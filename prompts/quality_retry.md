@@ -1,5 +1,5 @@
 ---
-version: 1
+version: 2
 task: quality_retry
 ---
 
@@ -19,4 +19,4 @@ Las únicas fuentes que puedes citar son (tipo y ref):
 {allowed}
 </fuentes_permitidas>
 
-Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra), hallazgos solo con IDs de la lista y citas solo de la lista de fuentes.
+Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra), hallazgos solo con IDs de la lista y citas solo de la lista de fuentes (al menos una si la lista no está vacía).

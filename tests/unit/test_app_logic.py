@@ -56,6 +56,33 @@ from app.origin import (
     with_restrictions,
 )
 from app.progress import STEPS, completed_steps, nodes_in_update, phase_label, phase_of
+from app.qa import (
+    CASE_TYPES,
+    COVERAGE_BADGE,
+    EXTRAS,
+    QA_STEPS_LABELS,
+    QA_SUGGESTIONS,
+    REQUIRED_TYPES,
+    TYPE_LABELS,
+    CaseRow,
+    attachment_names,
+    case_rows,
+    coverage_rows,
+    data_rows,
+    qa_feedback,
+    suite_summary,
+)
+from app.quality import (
+    REVIEW_STEPS,
+    FindingRow,
+    InvestRow,
+    evolve_request,
+    finding_rows,
+    invest_rows,
+    report_download,
+    report_filename,
+    review_message,
+)
 from app.review import (
     ReceiptItem,
     ReviewView,
@@ -95,14 +122,17 @@ from core.graph.nodes import ReviewRejectedError
 from core.guided_start import GuidedStart, SourcePreview, StartOption, StartProposal
 from core.permissions import Permission
 from core.projects import normalize_issue_key
+from core.quality import QualityReview, QualityReviewer
 from schemas.artifact import Artifact
-from schemas.common import ArtifactStatus, ArtifactType, SourceRef
+from schemas.common import ArtifactStatus, ArtifactType, Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
+from schemas.quality import FINDING_LABELS, INVEST_NAMES, InvestCheck, QualityFinding, QualityReport
+from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
-from tests.fakes.llm import FakeLLMProvider, renewal_test_suite
+from tests.fakes.llm import FakeLLMProvider, renewal_quality_report, renewal_test_suite
 
 AF_USER = dataset.DEMO_USERS["af-demo"][1]
 QA_USER = dataset.DEMO_USERS["qa-demo"][1]
@@ -149,12 +179,27 @@ def test_flow_cards_functional_enables_story_flows(flow_id: str) -> None:
     assert card.hint == card.flow.hint
 
 
-def test_flow_cards_functional_review_is_pending_t48() -> None:
-    """UI.md §3: Revisar la calidad está permitida al analista pero llega con T-48."""
+def test_flow_cards_review_enabled_for_functional_role() -> None:
+    """UI.md §3 · T-48 (RF-18): Revisar la calidad está activa para el analista funcional."""
     card = _cards(AF_USER)["review"]
+    assert card.flow.pending_task is None
     assert card.allowed is True
-    assert card.enabled is False
-    assert card.hint == f"{card.flow.hint} Disponible pronto (T-48)."
+    assert card.enabled is True
+    assert card.hint == card.flow.hint
+
+
+def test_flow_cards_review_disabled_for_qa_with_af_hint() -> None:
+    """UI.md §3 · T-48 (negativa): QA ve Revisar la calidad desactivada con la ayuda del AF."""
+    card = _cards(QA_USER)["review"]
+    assert (card.allowed, card.enabled) == (False, False)
+    assert card.hint == "Disponible para el rol de analista funcional."
+
+
+def test_flow_cards_review_hidden_for_admin() -> None:
+    """UI.md §3 · D-01 (negativa): el administrador no ve tarjetas ni puede revisar la calidad."""
+    assert shows_flows(ADMIN_USER) is False
+    card = _cards(ADMIN_USER)["review"]
+    assert (card.allowed, card.enabled) == (False, False)
 
 
 def test_flow_cards_functional_tests_card_is_for_qa_role() -> None:
@@ -174,13 +219,21 @@ def test_flow_cards_qa_disables_story_flows_with_af_hint(flow_id: str) -> None:
     assert card.hint == AF_HINT
 
 
-def test_flow_cards_qa_tests_card_is_pending_t28() -> None:
-    """UI.md §3: Preparar pruebas está permitida a QA, pero su pantalla llega con T-28."""
+def test_flow_cards_qa_tests_card_enabled_after_t28() -> None:
+    """UI.md §3 · §6.1 · T-28: Preparar pruebas está activa para QA, sin tarea pendiente."""
     card = _cards(QA_USER)["tests"]
+    assert card.flow.pending_task is None
     assert card.allowed is True
-    assert card.enabled is False
-    assert card.hint == f"{card.flow.hint} Disponible pronto (T-28)."
-    assert not any(c.enabled for c in flow_cards(QA_USER))
+    assert card.enabled is True
+    assert card.hint == card.flow.hint
+    assert [c.flow.id for c in flow_cards(QA_USER) if c.enabled] == ["tests"]
+
+
+def test_no_flow_has_pending_task_after_t28() -> None:
+    """UI.md §3 · T-28: con la pantalla de QA ya no queda ninguna tarjeta «Disponible pronto»."""
+    assert all(flow.pending_task is None for flow in FLOWS)
+    for user in (AF_USER, QA_USER):
+        assert not any("Disponible pronto" in card.hint for card in flow_cards(user))
 
 
 def test_shows_flows_false_for_admin_and_anonymous() -> None:
@@ -198,11 +251,11 @@ def test_shows_flows_true_for_generating_roles(user: Any) -> None:
 
 @pytest.mark.parametrize(
     ("user", "expected"),
-    [(AF_USER, "need"), (QA_USER, None), (ADMIN_USER, None), (None, None)],
+    [(AF_USER, "need"), (QA_USER, "tests"), (ADMIN_USER, None), (None, None)],
     ids=["functional", "qa", "admin", "anonimo"],
 )
 def test_default_flow_by_role(user: Any, expected: str | None) -> None:
-    """UI.md §4.1: el primer flujo habilitado; QA no tiene ninguno hasta T-28."""
+    """UI.md §4.1 · T-28: el primer flujo habilitado; para QA, Preparar pruebas."""
     assert default_flow(user) == expected
 
 
@@ -2212,3 +2265,531 @@ def test_outcome_is_none_for_status_not_approved(status: ArtifactStatus) -> None
 def test_field_label_is_readable(field: str, expected: str) -> None:
     """UI.md §4.6: el recibo nombra los campos cambiados en español o por su ID de CA/RN."""
     assert field_label(field) == expected
+
+
+# --- Mixta 5 · Revisar la calidad (app/quality.py, app/origin.py · UI.md §4.8, T-48, RF-18) ----
+
+
+def _invest(improvable: str = "") -> list[InvestCheck]:
+    """Seis valoraciones ficticias, desordenadas a propósito (T, S, E, V, N, I)."""
+    return [
+        InvestCheck(
+            letter=letter,  # type: ignore[arg-type]
+            verdict="improvable" if letter in improvable else "ok",
+            reason=f"Motivo ficticio de {letter}.",
+        )
+        for letter in ("T", "S", "E", "V", "N", "I")
+    ]
+
+
+def _finding(target: str | None = "CA-02", kind: str = "ambiguity") -> QualityFinding:
+    about = target or "la HU"
+    return QualityFinding(
+        kind=kind,  # type: ignore[arg-type]
+        target_id=target,
+        explanation=f"Explicación ficticia sobre {about}.",
+        proposal=f"Propuesta ficticia para {about}.",
+    )
+
+
+def _quality(findings: list[QualityFinding] | None = None, improvable: str = "T") -> QualityReport:
+    return QualityReport(
+        summary="Resumen ficticio de la calidad.",
+        invest=_invest(improvable),
+        findings=findings or [],
+    )
+
+
+def _review(report: QualityReport, key: str = "DEMO-3") -> QualityReview:
+    return QualityReview(
+        jira_key=key,
+        report=report,
+        story=dataset.renewal_story(key),
+        provider="fake",
+        model="modelo-ficticio",
+        prompt_version="1",
+        input_tokens=1,
+        output_tokens=1,
+    )
+
+
+def test_review_steps_are_three_and_mention_two_model_calls() -> None:
+    """UI.md §4.8: el progreso enumera leer el contexto y las dos llamadas al modelo."""
+    assert len(REVIEW_STEPS) == 3
+    assert sum("llamada al modelo" in step for step in REVIEW_STEPS) == 2
+
+
+def test_invest_rows_six_in_invest_order_with_spanish_names() -> None:
+    """UI.md §4.8 · RF-18: seis filas I N V E S T en orden con los nombres de INVEST_NAMES."""
+    rows = invest_rows(_quality(improvable="NT"))
+    assert [row.letter for row in rows] == ["I", "N", "V", "E", "S", "T"]
+    assert [row.name for row in rows] == [INVEST_NAMES[letter] for letter in "INVEST"]
+    assert all(isinstance(row, InvestRow) for row in rows)
+    assert rows[0] == InvestRow("I", "Independiente", "Bien", "Motivo ficticio de I.")
+
+
+def test_invest_rows_verdicts_are_bien_or_mejorable() -> None:
+    """UI.md §4.8: «ok» → «Bien» e «improvable» → «Mejorable»; nunca el valor en inglés."""
+    rows = {row.letter: row.verdict for row in invest_rows(_quality(improvable="NT"))}
+    assert rows == {
+        "I": "Bien",
+        "N": "Mejorable",
+        "V": "Bien",
+        "E": "Bien",
+        "S": "Bien",
+        "T": "Mejorable",
+    }
+
+
+def test_finding_rows_use_spanish_label_and_target_id() -> None:
+    """UI.md §4.8 · RF-18: cada hallazgo con su etiqueta de FINDING_LABELS y su CA/RN."""
+    report = _quality([_finding("CA-02"), _finding("RN-01", kind="inconsistency")])
+    assert finding_rows(report) == [
+        FindingRow(
+            kind=FINDING_LABELS["ambiguity"],
+            target="CA-02",
+            explanation="Explicación ficticia sobre CA-02.",
+            proposal="Propuesta ficticia para CA-02.",
+        ),
+        FindingRow(
+            kind="Incoherencia con las fuentes",
+            target="RN-01",
+            explanation="Explicación ficticia sobre RN-01.",
+            proposal="Propuesta ficticia para RN-01.",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("kind", sorted(FINDING_LABELS))
+def test_finding_rows_label_for_each_kind_without_target_is_hu(kind: str) -> None:
+    """UI.md §4.8 (límite): sin `target_id` el hallazgo es de la «HU»; todas las etiquetas."""
+    (row,) = finding_rows(_quality([_finding(None, kind=kind)]))
+    assert row.kind == FINDING_LABELS[kind]
+    assert row.target == "HU"
+
+
+def test_finding_rows_empty_without_findings() -> None:
+    """UI.md §4.8 (límite): un informe sin hallazgos no da filas."""
+    assert finding_rows(_quality([])) == []
+
+
+@pytest.mark.parametrize(
+    ("count", "points"),
+    [(0, "ningún punto a mejorar"), (1, "1 punto a mejorar"), (3, "3 puntos a mejorar")],
+    ids=["cero", "uno", "varios"],
+)
+def test_review_message_counts_findings_and_says_nothing_changed(count: int, points: str) -> None:
+    """UI.md §4.8: el mensaje cuenta los hallazgos y siempre dice que no ha cambiado Jira."""
+    findings = [_finding(f"CA-0{i + 1}") for i in range(count)]
+    message = review_message(_review(_quality(findings), key="DEMO-4"))
+    assert message.startswith("He revisado DEMO-4 con INVEST")
+    assert f"Hay {points}." in message
+    assert message.endswith("No he cambiado nada en Jira.")
+
+
+def test_report_filename_uses_the_key() -> None:
+    """UI.md §4.8 · PA-64: el informe se descarga como `calidad-<clave>.md`."""
+    assert report_filename("DEMO-3") == "calidad-DEMO-3.md"
+
+
+def test_report_download_is_escaped_markdown_in_utf8() -> None:
+    """PA-64: *Descargar informe* = `to_markdown(clave)` en UTF-8 (con tildes ficticias)."""
+    review = _review(renewal_quality_report())
+    data = report_download(review)
+    assert isinstance(data, bytes)
+    assert data == review.report.to_markdown("DEMO-3").encode("utf-8")
+    text = data.decode("utf-8")
+    assert text.startswith("# Calidad de DEMO-3")
+    assert "Ambigüedad" in text
+
+
+def test_report_download_escapes_markdown_from_the_llm() -> None:
+    """PA-64 (seguridad): un enlace o imagen del LLM llega escapado al `.md` descargable."""
+    finding = QualityFinding(
+        kind="gap",
+        explanation="Ver ![img](https://ejemplo.invalid/x.png)",
+        proposal="[pulsa](https://ejemplo.invalid)",
+    )
+    text = report_download(_review(_quality([finding]))).decode("utf-8")
+    assert "![img](" not in text and "[pulsa](" not in text
+    assert "\\!\\[img\\]" in text
+
+
+def test_evolve_request_opens_evolution_with_report_proposals() -> None:
+    """UI.md §4.8 · T-48: «Evolucionar con esto» → evolución de la clave con las propuestas."""
+    review = _review(_quality([_finding("CA-02"), _finding(None, kind="gap")]))
+    request = evolve_request(review, "DEMO")
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "evolve",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert request.extra_feedback == tuple(review.evolve_feedback())
+    assert request.extra_feedback == (
+        "CA-02: Propuesta ficticia para CA-02.",
+        "Propuesta ficticia para la HU.",
+    )
+    feedback = build_initial_state("af-demo", request)["feedback"]
+    assert all(item in feedback for item in review.evolve_feedback())
+
+
+def test_evolve_request_key_of_other_project_changes_project() -> None:
+    """UI.md §4.8 · decisión del día 6: el proyecto sale de la clave, no del que se pasa."""
+    request = evolve_request(_review(_quality([_finding()]), key="OTRO-7"), "DEMO")
+    assert (request.key, request.project) == ("OTRO-7", "OTRO")
+
+
+def test_evolve_request_without_findings_has_no_extra_feedback() -> None:
+    """UI.md §4.8 (límite): sin hallazgos, la evolución empieza sin feedback previo."""
+    request = evolve_request(_review(_quality([])), "DEMO")
+    assert request.extra_feedback == ()
+    assert build_initial_state("af-demo", request)["feedback"] == []
+
+
+def test_evolve_request_with_real_reviewer_and_fake_llm(tmp_path: Path) -> None:
+    """T-48 · RF-18: `QualityReviewer` con el fake LLM y la evolución con sus propuestas."""
+    container = fake_container(tmp_path)
+    review = QualityReviewer(container).review(AF_USER, "DEMO-3")
+    assert review.jira_key == "DEMO-3"
+    assert [row.letter for row in invest_rows(review.report)] == list("INVEST")
+    rows = finding_rows(review.report)
+    assert [(row.kind, row.target) for row in rows] == [("Ambigüedad", "CA-02"), ("Hueco", "HU")]
+    assert "Hay 2 puntos a mejorar." in review_message(review)
+    request = evolve_request(review, "DEMO")
+    state = build_initial_state("af-demo", request)
+    assert state["feedback"] == list(review.evolve_feedback())
+    assert "CA-02: Avisar en menos de 15 minutos." in state["feedback"]
+    tracker = container.issue_tracker
+    assert isinstance(tracker, FakeIssueTracker) and tracker.writes == []
+
+
+def test_describe_review_is_read_only_operation() -> None:
+    """UI.md §4.8: la operación fijada de la revisión dice que es de solo lectura."""
+    request = fix_origin("review", "DEMO", key="demo-4")
+    assert (request.flow, request.kind, request.key, request.mode) == (
+        "review",
+        "story",
+        "DEMO-4",
+        "functional",
+    )
+    assert request.describe() == "Revisar la calidad de DEMO-4 (solo lectura, no publica)"
+
+
+def test_request_from_option_review_keeps_review_flow() -> None:
+    """UI.md §4.8 · T-53: la opción «evolve» de `GuidedStart` en el flujo review sigue en review."""
+    request = request_from_option("review", _option("evolve", "DEMO-3"), "Revisar DEMO-3")
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "review",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert request.describe().startswith("Revisar la calidad de DEMO-3")
+
+
+def test_request_from_option_review_with_epic_raises() -> None:
+    """UI.md §4.8 (negativa): una épica no se puede revisar como HU."""
+    with pytest.raises(ValueError, match=EPIC_NOT_ALLOWED):
+        request_from_option("review", _option("new_story_in_epic", "DEMO-1"))
+
+
+def test_build_feedback_story_appends_extra_feedback_after_restrictions() -> None:
+    """T-48 · T-51: en una HU, lo pedido, las restricciones y después las propuestas previas."""
+    request = StartRequest(
+        flow="evolve",
+        kind="story",
+        project="DEMO",
+        key="DEMO-3",
+        text="DEMO-3 renovar desde la app",
+        restrictions=RESTRICTIONS,
+        extra_feedback=("CA-02: propuesta ficticia.", "Otra propuesta ficticia."),
+    )
+    assert build_feedback(request) == [
+        "renovar desde la app",
+        RESTRICTIONS,
+        "CA-02: propuesta ficticia.",
+        "Otra propuesta ficticia.",
+    ]
+
+
+def test_build_feedback_need_returns_only_extra_feedback() -> None:
+    """T-48 · UI.md §4.3: en una necesidad las restricciones van al texto; solo va el extra."""
+    common: dict[str, Any] = {"flow": "need", "kind": "need", "project": "DEMO"}
+    request = StartRequest(
+        **common, text=NEED_TEXT, restrictions=RESTRICTIONS, extra_feedback=("Propuesta.",)
+    )
+    assert build_feedback(request) == ["Propuesta."]
+    assert build_feedback(StartRequest(**common, text=NEED_TEXT, restrictions=RESTRICTIONS)) == []
+
+
+def test_plan_start_review_with_recognized_key_chooses_review(tmp_path: Path) -> None:
+    """UI.md §4.8 · T-53: «Revisar DEMO-3» en el flujo review elige DEMO-3 y sigue en review."""
+    proposal = _guided(tmp_path).propose("Revisar DEMO-3", "DEMO")
+    plan = plan_start("review", proposal, "DEMO")
+    assert plan.error is None
+    assert plan.chosen is not None and plan.chosen.origin.get("key") == "DEMO-3"
+    request = request_from_option("review", plan.chosen, "Revisar DEMO-3")
+    assert (request.flow, request.key) == ("review", "DEMO-3")
+
+
+def test_plan_start_review_with_epic_is_not_allowed(tmp_path: Path) -> None:
+    """UI.md §4.8 (negativa): en el flujo review, una épica da EPIC_NOT_ALLOWED."""
+    plan = plan_start("review", _guided(tmp_path).propose("Revisar DEMO-1", "DEMO"), "DEMO")
+    assert plan.chosen is None
+    assert plan.error == EPIC_NOT_ALLOWED
+
+
+def test_plan_start_review_without_anything_requires_key() -> None:
+    """UI.md §4.8 (negativa): sin clave ni HU parecidas, se pide la clave."""
+    plan = plan_start("review", _proposal([]), "DEMO")
+    assert (plan.chosen, plan.error) == (None, KEY_REQUIRED)
+
+
+def test_evolve_request_keeps_sources_excluded_while_reviewing(tmp_path: Path) -> None:
+    """UI.md §4.8: las fuentes desmarcadas al revisar siguen fuera al evolucionar con el informe."""
+    review = QualityReviewer(fake_container(tmp_path)).review(AF_USER, "DEMO-3")
+    request = evolve_request(review, "DEMO", ("doc-glosario",))
+    assert request.excluded_sources == ("doc-glosario",)
+    assert build_initial_state(AF_USER.username, request)["excluded_sources"] == ["doc-glosario"]
+
+
+# --- T-28 · QA 1 … QA 3: lógica pura de `app/qa.py` (UI.md §6.1–6.3, RF-22…RF-27) ------------
+
+QA_STRATEGY_TEXT = (
+    "estrategia de pruebas (alcance, niveles, entornos, criterios de entrada y salida, prioridad)"
+)
+QA_DATA_TEXT = "datos sintéticos de prueba (identificadores ficticios)"
+QA_RISKS_TEXT = "riesgos, dependencias y áreas de impacto"
+
+
+def _extra_case(internal_id: str = "CP-03") -> TestCase:
+    """Caso ficticio adicional que cubre CA-01 (para simular una v2 con un caso nuevo)."""
+    return TestCase(
+        internal_id=internal_id,
+        title="Renovar con datos de un socio ficticio",
+        criterion_ids=["CA-01"],
+        type=TestCaseType.ALTERNATE,
+        preconditions=[],
+        steps=[
+            TestStep(action="Abrir la ficha", data="Socio S-0000 (ficticio)", expected="Ficha"),
+            TestStep(action="Pulsar «Renovar»", expected="Vencimiento +21 días"),
+        ],
+        gherkin="Escenario: renovar (ficticio)\n  Dado un préstamo activo",
+        priority=Priority.SHOULD,
+    )
+
+
+def _suite_with(*extra: TestCase, **update: Any) -> TestSuite:
+    suite = renewal_test_suite()
+    return suite.model_copy(update={"cases": [*suite.cases, *extra], **update})
+
+
+def test_qa_case_types_cover_every_test_case_type_in_order() -> None:
+    """UI.md §6.1 · RF-22 · T-28: cuatro casillas de tipo, en el orden del diseño."""
+    assert [kind for kind, _ in CASE_TYPES] == list(TestCaseType)
+    assert [label for _, label in CASE_TYPES] == [
+        "Positivos",
+        "Negativos",
+        "Alternos",
+        "De excepción",
+    ]
+    assert {TestCaseType.POSITIVE, TestCaseType.NEGATIVE} == REQUIRED_TYPES
+    assert set(TYPE_LABELS) == set(TestCaseType)
+    assert TYPE_LABELS[TestCaseType.EXCEPTION] == "de excepción"
+
+
+def test_qa_extras_are_data_risks_and_strategy() -> None:
+    """UI.md §6.1 · RF-25/26/27 · T-28: «Incluir además» con datos, riesgos y estrategia."""
+    assert [key for key, _ in EXTRAS] == ["data", "risks", "strategy"]
+    assert all(label for _, label in EXTRAS)
+
+
+def test_qa_feedback_always_includes_positive_and_negative_when_not_passed() -> None:
+    """UI.md §6.1 · RF-22 · T-28 (límite): sin tipos ni extras siguen positivos y negativos."""
+    assert qa_feedback(set(), set()) == ("Incluye casos: positivos, negativos.",)
+
+
+def test_qa_feedback_keeps_case_types_order_regardless_of_input() -> None:
+    """UI.md §6.1 · T-28: los tipos salen en el orden de CASE_TYPES, no en el de la selección."""
+    feedback = qa_feedback({TestCaseType.EXCEPTION, TestCaseType.ALTERNATE}, set())
+    assert feedback == ("Incluye casos: positivos, negativos, alternos, de excepción.",)
+
+
+def test_qa_feedback_without_alternate_omits_it() -> None:
+    """UI.md §6.1 · T-28 (negativa): un tipo desmarcado no aparece en el primer feedback."""
+    feedback = qa_feedback({TestCaseType.POSITIVE, TestCaseType.EXCEPTION}, set())
+    assert feedback == ("Incluye casos: positivos, negativos, de excepción.",)
+    assert "alternos" not in feedback[0]
+
+
+def test_qa_feedback_extras_in_extras_order() -> None:
+    """UI.md §6.1 · RF-25/26/27 · T-28: los extras van en una segunda frase y en orden."""
+    feedback = qa_feedback(set(TestCaseType), {"strategy", "data", "risks"})
+    assert feedback == (
+        "Incluye casos: positivos, negativos, alternos, de excepción.",
+        f"Incluye además: {QA_DATA_TEXT}; {QA_RISKS_TEXT}; {QA_STRATEGY_TEXT}.",
+    )
+
+
+def test_qa_feedback_single_extra() -> None:
+    """UI.md §6.1 · RF-26 · T-28: solo la estrategia."""
+    assert qa_feedback(set(), {"strategy"})[1] == f"Incluye además: {QA_STRATEGY_TEXT}."
+
+
+def test_qa_feedback_ignores_unknown_extras_and_has_no_second_sentence() -> None:
+    """UI.md §6.1 · T-28 (negativa): sin extras válidos no hay segunda frase."""
+    assert qa_feedback(set(), {"desconocido"}) == ("Incluye casos: positivos, negativos.",)
+
+
+def test_case_rows_v1_without_previous_has_no_new_marks() -> None:
+    """UI.md §6.3 · RF-23 · T-28: en v1 sin versión previa nunca se marca «Nuevo»."""
+    rows = case_rows(renewal_test_suite(), 1, None)
+    assert [row.id for row in rows] == ["CP-01", "CP-02"]
+    assert all(row.new_in is None for row in rows)
+
+
+def test_case_rows_maps_trace_type_priority_and_steps() -> None:
+    """UI.md §6.3 · RF-23 (trazabilidad) · T-28: «Verifica CA-…, RN-…», tipo en español."""
+    first, second = case_rows(renewal_test_suite(), 1, None)
+    assert first == CaseRow(
+        id="CP-01",
+        title="Renovar un préstamo sin reservas",
+        type="positivo",
+        priority="Must",
+        verifies="Verifica CA-01, RN-01",
+        new_in=None,
+        gherkin=None,
+        steps=[("Pulsar «Renovar»", "", "Vencimiento +21 días")],
+        preconditions=["Préstamo activo con 0 renovaciones"],
+    )
+    assert (second.type, second.verifies) == ("negativo", "Verifica CA-02, RN-02")
+
+
+def test_case_rows_without_rules_lists_only_criteria() -> None:
+    """UI.md §6.3 · RF-23 · T-28 (límite): un caso sin RN muestra solo sus CA."""
+    extra = case_rows(_suite_with(_extra_case()), 1, None)[-1]
+    assert extra.verifies == "Verifica CA-01"
+    assert (extra.type, extra.priority) == ("alterno", "Should")
+    assert extra.steps[0] == ("Abrir la ficha", "Socio S-0000 (ficticio)", "Ficha")
+    assert extra.steps[1][1] == ""  # sin datos → cadena vacía
+    assert extra.gherkin is not None and extra.gherkin.startswith("Escenario")
+    assert extra.preconditions == []
+
+
+def test_case_rows_marks_only_cases_absent_in_previous_version() -> None:
+    """UI.md §6.3 · T-28: «Nuevo en v2» solo para los IDs que no estaban en la versión previa."""
+    rows = case_rows(_suite_with(_extra_case()), 2, renewal_test_suite())
+    assert {row.id: row.new_in for row in rows} == {
+        "CP-01": None,
+        "CP-02": None,
+        "CP-03": "Nuevo en v2",
+    }
+
+
+def test_case_rows_same_ids_as_previous_marks_none() -> None:
+    """UI.md §6.3 · T-28 (negativa): una versión que solo cambia títulos no marca nada nuevo."""
+    previous = renewal_test_suite()
+    retitled = previous.model_copy(
+        update={
+            "cases": [c.model_copy(update={"title": "Otro (ficticio)"}) for c in previous.cases]
+        }
+    )
+    assert all(row.new_in is None for row in case_rows(retitled, 3, previous))
+
+
+def test_case_rows_uses_version_number_in_mark() -> None:
+    """UI.md §6.3 · T-28: la marca lleva el número de la versión mostrada."""
+    rows = case_rows(_suite_with(_extra_case("CP-04")), 5, renewal_test_suite())
+    assert rows[-1].new_in == "Nuevo en v5"
+
+
+def test_coverage_rows_follow_suite_coverage() -> None:
+    """UI.md §6.3 · RF-24 · T-28: la matriz sale de `TestSuite.coverage()`, no del Markdown."""
+    suite = _suite_with(_extra_case())
+    rows = coverage_rows(suite)
+    assert rows == [
+        {"CA/RN": ref, "Casos de prueba": ", ".join(cases), "Nº": str(len(cases))}
+        for ref, cases in suite.coverage().items()
+    ]
+    assert rows[0] == {"CA/RN": "CA-01", "Casos de prueba": "CP-01, CP-03", "Nº": "2"}
+    assert [row["CA/RN"] for row in rows] == ["CA-01", "CA-02", "RN-01", "RN-02"]
+
+
+def test_coverage_badge_text() -> None:
+    """UI.md §6.3 · RF-24 · T-28: insignia «Todos los CA cubiertos»."""
+    assert COVERAGE_BADGE == "Todos los CA cubiertos"
+
+
+def test_data_rows_union_of_columns_and_empty_values() -> None:
+    """UI.md §6.3 · RF-25 · T-28: columnas unidas de todas las filas; lo que falta queda vacío."""
+    suite = _suite_with(
+        synthetic_data=[
+            {"socio": "S-0001 (ficticio)", "libro": "L-0001"},
+            {"socio": "S-0002 (ficticio)", "fecha": "2099-01-01"},
+        ]
+    )
+    assert data_rows(suite) == [
+        {"socio": "S-0001 (ficticio)", "libro": "L-0001", "fecha": ""},
+        {"socio": "S-0002 (ficticio)", "libro": "", "fecha": "2099-01-01"},
+    ]
+
+
+def test_data_rows_without_synthetic_data_is_empty() -> None:
+    """UI.md §6.3 · RF-25 · T-28 (límite): sin datos sintéticos no hay filas."""
+    assert data_rows(renewal_test_suite()) == []
+
+
+def test_suite_summary_without_risks() -> None:
+    """UI.md §6.2 · T-28: mensaje del asistente con versión y nº de casos."""
+    assert suite_summary(renewal_test_suite(), 1) == (
+        "Suite lista · versión 1: 2 casos y la cobertura comprobada. "
+        "Revisa la suite en el panel y pídeme los cambios que quieras."
+    )
+
+
+def test_suite_summary_with_risks_mentions_the_first() -> None:
+    """UI.md §6.3 · RF-27 · T-28: con riesgos, se cita el principal (el primero)."""
+    suite = _suite_with(_extra_case(), risks=["Reservas concurrentes (ficticio)", "Otro riesgo"])
+    assert suite_summary(suite, 2) == (
+        "Suite lista · versión 2: 3 casos y la cobertura comprobada. "
+        "Riesgo principal: Reservas concurrentes (ficticio). "
+        "Revisa la suite en el panel y pídeme los cambios que quieras."
+    )
+
+
+def test_attachment_names_for_story() -> None:
+    """UI.md §6.3 · D-09 · T-28: adjuntos `matriz-<CLAVE>.md` y `estrategia-<CLAVE>.md`."""
+    assert attachment_names("DEMO-3") == ("matriz-DEMO-3.md", "estrategia-DEMO-3.md")
+
+
+def test_qa_steps_and_suggestions_are_three() -> None:
+    """UI.md §6.2–6.3 · T-28: un texto QA por paso de `STEPS` y tres sugerencias distintas."""
+    assert len(QA_STEPS_LABELS) == len(STEPS) == 3  # `completed_steps` cuenta sobre STEPS
+    assert len(set(QA_SUGGESTIONS)) == 3
+
+
+def test_summarize_test_suite_view_uses_suite_summary() -> None:
+    """UI.md §6.2 · T-28: `summarize` de una vista con TestSuite → `suite_summary`."""
+    suite = _suite_with(risks=["Riesgo ficticio"])
+    artifact = Artifact(
+        id=uuid4(),
+        type=ArtifactType.TEST_SUITE,
+        status=ArtifactStatus.IN_REVIEW,
+        version=2,
+        origin_key="DEMO-3",
+        content=suite,
+        created_by=QA_USER.username,
+    )
+    view = ReviewView(
+        artifact=artifact,
+        version=2,
+        fingerprint="0" * 64,
+        target="Publicar los casos de prueba de DEMO-3 · proyecto DEMO",
+        plan=[],
+        impact=None,
+        decisions=[],
+        error=None,
+    )
+    assert summarize(view) == suite_summary(suite, 2)
+    assert "Riesgo principal: Riesgo ficticio" in summarize(view)

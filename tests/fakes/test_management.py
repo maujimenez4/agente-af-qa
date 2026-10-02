@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 
 from adapters.base import IssueSummary, PublishResult
 from adapters.errors import PublishError
-from adapters.testmgmt.jira_native import MAX_EVIDENCE_CHARS, ExecutionStatus
-from schemas.test_case import TestSuite
+from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus, TestSuite
 
 EXECUTION_VALUES = {status.value for status in ExecutionStatus}
 
@@ -54,7 +53,7 @@ class FakeTestManagement:
         return list(self.cases.get(story_key, []))
 
     def record_execution(self, case_key: str, status: str, evidence_md: str) -> None:
-        """T-47 (PA-206): aún fuera del protocolo; mismas reglas que `JiraNativeTests`."""
+        """T-47: mismas reglas que `JiraNativeTests.record_execution`."""
         value = str(getattr(status, "value", status))
         if value not in EXECUTION_VALUES:
             raise PublishError(f"«{value[:30]}» no es un resultado de ejecución.")

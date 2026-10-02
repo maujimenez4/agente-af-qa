@@ -76,14 +76,6 @@ def _assert_safe(exc: BaseException) -> None:
 # --- 1 · retry-after no válido (D-14) -------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-220): "
-        "_retry_after acepta retry-after negativo, nan o inf; el adaptador LLM lo "
-        "acota con max(0.0, …) (adapters/embeddings/ollama.py:91)"
-    ),
-)
 @pytest.mark.parametrize("value", ["-5", "nan", "inf", "-inf"])
 def test_retry_after_is_finite_and_non_negative_when_header_is_odd(value: str) -> None:
     """D-14 (negativo): retry_after debe ser None o un número finito ≥ 0."""
@@ -124,29 +116,11 @@ BAD_INDICES = [
 ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-220): "
-        "solo se compara el número de vectores; índices repetidos o fuera de rango "
-        "con el recuento correcto asignan vectores al texto equivocado sin error "
-        "(adapters/embeddings/ollama.py:72-73)"
-    ),
-)
 @pytest.mark.parametrize("data", BAD_INDICES)
 def test_raises_when_response_indices_are_not_a_permutation(data: list[Any]) -> None:
     """RF-10 (negativo): los índices deben ser exactamente 0..n-1; si no, ExternalServiceError."""
     with pytest.raises(ExternalServiceError):
         _provider(ScriptedEndpoint([data])).embed(["texto-a", "texto-b"])
-
-
-def test_duplicate_indices_currently_return_vectors_silently() -> None:
-    """RF-10 (comportamiento observado que motiva el defecto): (0, 0) no da error."""
-    data = [(0, _vector(1.0)), (0, _vector(2.0))]
-
-    vectors = _provider(ScriptedEndpoint([data])).embed(["texto-a", "texto-b"])
-
-    assert [v[0] for v in vectors] == [1.0, 2.0]  # el texto-b recibe un vector del índice 0
 
 
 def test_extra_vector_raises_when_more_than_texts() -> None:
@@ -178,14 +152,13 @@ def test_non_finite_values_are_returned_unvalidated() -> None:
     assert math.isnan(vector[0])
 
 
-# --- 3 · 400, 403 y 422 frente a AuthenticationError ----------------------------------------
+# --- 3 · 400, 409 y 422 frente a 401 y 403 (AuthenticationError) -------------------------
 
 
 @pytest.mark.parametrize(
     ("error_type", "status"),
     [
         (openai.BadRequestError, 400),
-        (openai.PermissionDeniedError, 403),
         (openai.UnprocessableEntityError, 422),
         (openai.ConflictError, 409),
     ],
@@ -193,10 +166,7 @@ def test_non_finite_values_are_returned_unvalidated() -> None:
 def test_status_errors_map_to_generic_external_error(
     error_type: type[openai.APIStatusError], status: int
 ) -> None:
-    """CA-00-03 (comportamiento fijado): 400/403/409/422 → ExternalServiceError genérico.
-
-    El 403 no es AuthenticationError aquí, a diferencia del adaptador LLM.
-    """
+    """CA-00-03: 400/409/422 → ExternalServiceError genérico (el 403 es AuthenticationError)."""
     error = error_type(DETAIL, response=_response(status), body=None)
 
     with pytest.raises(ExternalServiceError) as info:
@@ -345,3 +315,14 @@ def test_real_client_is_configured_with_timeout_retries_and_placeholder_key() ->
     assert client.timeout == 12.5
     assert client.max_retries == 2
     assert client.api_key == "ollama"
+
+
+def test_forbidden_maps_to_authentication_error_like_llm_adapter() -> None:
+    """PA-220: un 403 («sin permisos suficientes») es AuthenticationError, como en el LLM."""
+    error = openai.PermissionDeniedError(DETAIL, response=_response(403), body=None)
+
+    with pytest.raises(AuthenticationError) as info:
+        _provider(ScriptedEndpoint([error])).embed(["texto"])
+
+    assert info.value.service == "ollama"
+    _assert_safe(info.value)

@@ -1,5 +1,6 @@
 """EmbeddingProvider sobre Ollama (bge-m3) mediante su API compatible con OpenAI (D-14)."""
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -50,7 +51,7 @@ class OllamaEmbeddings:
                 service=SERVICE,
                 retry_after=_retry_after(exc),
             ) from None
-        except openai.AuthenticationError:
+        except (openai.AuthenticationError, openai.PermissionDeniedError):  # 401 y 403 (PA-220)
             raise AuthenticationError(
                 "Ollama ha rechazado la petición de embeddings.", service=SERVICE
             ) from None
@@ -74,6 +75,11 @@ class OllamaEmbeddings:
             raise ExternalServiceError(
                 "Ollama devolvió un número de embeddings distinto al de textos.", service=SERVICE
             )
+        if [item.index for item in data] != list(range(len(batch))):  # PA-220
+            raise ExternalServiceError(
+                "Ollama devolvió embeddings con índices repetidos o fuera de rango.",
+                service=SERVICE,
+            )
         vectors = [list(item.embedding) for item in data]
         for vector in vectors:
             if len(vector) != self.dimensions:
@@ -88,6 +94,9 @@ class OllamaEmbeddings:
 def _retry_after(exc: openai.RateLimitError) -> float | None:
     value = exc.response.headers.get("retry-after") if exc.response is not None else None
     try:
-        return float(value) if value is not None else None
+        seconds = float(value) if value is not None else None
     except ValueError:
         return None
+    if seconds is None or not math.isfinite(seconds):  # PA-220: nan o inf no son una espera
+        return None
+    return max(0.0, seconds)  # como el adaptador del LLM

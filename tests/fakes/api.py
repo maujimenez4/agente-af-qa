@@ -14,6 +14,7 @@ from api.runtime import Runtime, Workspace, new_runtime
 from core.config import Settings
 from core.container import Container
 from core.graph import build_graph, memory_checkpointer
+from core.graph.execution import build_execution_graph
 from tests.fakes.container import fake_container
 from tests.fakes.llm import FakeLLMProvider
 
@@ -45,7 +46,13 @@ def fake_runtime(
         router = ModelRouter(FAKE_CHAINS, lambda _c: FakeLLMProvider(), providers={"ollama": True})
         graph = build_graph(base, checkpointer=checkpointer)
         chains = {task: list(chain) for task, chain in FAKE_CHAINS.items()}
-        return Workspace(container=base, graph=graph, router=router, chains=chains)
+        return Workspace(
+            container=base,
+            graph=graph,
+            router=router,
+            chains=chains,
+            execution_graph=build_execution_graph(base, checkpointer=checkpointer),
+        )
 
     rt = new_runtime(settings or api_settings(), base.auth, workspace)
     rt.run_inline = run_inline

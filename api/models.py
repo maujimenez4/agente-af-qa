@@ -15,7 +15,7 @@ from core.guided_start import SourcePreview, StartProposal
 from schemas.artifact import Artifact
 from schemas.impact import ImpactAnalysis
 from schemas.quality import QualityReport
-from schemas.test_case import TestSuite
+from schemas.test_case import MAX_EVIDENCE_CHARS, TestSuite
 from schemas.user_story import UserStory
 
 Role = Literal["functional", "qa", "admin"]
@@ -283,6 +283,80 @@ class QualityReviewOut(BaseModel):
     report_markdown: str | None = Field(
         default=None, description="Informe escapado, **solo para descargar** (no pintarlo)."
     )
+    error: ErrorBody | None = None
+
+
+# --- Registrar la ejecución (QA 6, T-47) ---------------------------------------------------------
+
+ExecutionStatusValue = Literal["paso", "fallo", "bloqueado", "sin-ejecutar"]
+ExecutionState = Literal[
+    "in_review", "recording", "simulated", "recorded", "partial", "discarded", "error"
+]
+
+
+class ExecutionCreateIn(BaseModel):
+    story_key: str = Field(
+        pattern=KEY_PATTERN, max_length=50, description="HU con su suite publicada."
+    )
+
+
+class ExecutionResultIn(BaseModel):
+    case_key: str = Field(pattern=KEY_PATTERN, max_length=50, description="Subtarea CP en Jira.")
+    status: ExecutionStatusValue = Field(description="Lo elige la persona, nunca la IA.")
+    evidence_md: str = Field(
+        default="",
+        max_length=MAX_EVIDENCE_CHARS,
+        description="Obligatoria si el caso falla (`fallo`).",
+    )
+
+
+class ExecutionResultsIn(BaseModel):
+    results: list[ExecutionResultIn] = Field(max_length=200)
+    environment: str = Field(default="", max_length=100, description="P. ej. «preproducción».")
+
+
+class ExecutionCaseOut(BaseModel):
+    key: str
+    summary: str
+    status: str = Field(description="Estado actual de la subtarea en Jira.")
+
+
+class ExecutionResultOut(BaseModel):
+    case_key: str
+    status: ExecutionStatusValue
+    evidence_md: str
+
+
+class ExecutionOutcome(BaseModel):
+    recorded: list[str] = Field(description="Subtareas en las que se registró el resultado.")
+    failed: list[str] = Field(default=[], description="Subtareas que fallaron (parcial, RNF-13).")
+    errors: list[str] = []
+    approved_by: str
+    approved_at: datetime | None = None
+    simulated: bool = Field(
+        default=False, description="Modo simulación: no se escribió nada en Jira."
+    )
+
+
+class ExecutionOut(BaseModel):
+    """Registro de la ejecución de las pruebas de una HU (UI.md §6.6).
+
+    `in_review`: borrador editable con `PUT /results`; `fingerprint` es la huella del registro
+    tal como está, y se devuelve exacta al aprobar. Si una respuesta no se pudo aplicar, la revisión
+    sigue con `review_error`. Tras aprobar: `recorded` o `partial` (con `outcome.failed`).
+    """
+
+    id: str
+    story_key: str
+    project: str
+    state: ExecutionState
+    cases: list[ExecutionCaseOut]
+    results: list[ExecutionResultOut] = []
+    environment: str = ""
+    plan: list[dict[str, str]] = Field(default=[], description="Recibo: una operación por caso.")
+    fingerprint: str | None = None
+    review_error: str | None = None
+    outcome: ExecutionOutcome | None = None
     error: ErrorBody | None = None
 
 

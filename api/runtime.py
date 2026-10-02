@@ -37,6 +37,8 @@ class Workspace:
     router: ModelRouter | None = None
     chains: Chains = field(default_factory=dict)  # cadenas configuradas (D-14)
     overrides: dict[TaskType, ModelChoice] = field(default_factory=dict)
+    # T-47: registro de la ejecución (grafo propio, mismo checkpointer).
+    execution_graph: CompiledStateGraph | None = None
 
 
 WorkspaceFactory = Callable[[], Workspace]
@@ -125,6 +127,7 @@ class Runtime:
     sessions: SessionStore[Workspace]
     limiter: LoginLimiter
     runs: RunRegistry = field(default_factory=RunRegistry)
+    execution_runs: RunRegistry = field(default_factory=RunRegistry)  # T-47
     quality: dict[str, QualityJob] = field(default_factory=dict)
     quality_lock: threading.Lock = field(default_factory=threading.Lock)
     executor: ThreadPoolExecutor | None = None
@@ -188,6 +191,7 @@ def build_runtime() -> Runtime:
         model_router,
     )
     from core.graph import build_graph
+    from core.graph.execution import build_execution_graph
     from core.usage import SqlUsageQueries
 
     config = build_config()
@@ -204,7 +208,13 @@ def build_runtime() -> Runtime:
         router = model_router(config)
         container = build_session_container(config, base, router, recorder)
         graph = build_graph(container, checkpointer=checkpointer)
-        return Workspace(container=container, graph=graph, router=router, chains=chains)
+        return Workspace(
+            container=container,
+            graph=graph,
+            router=router,
+            chains=chains,
+            execution_graph=build_execution_graph(container, checkpointer=checkpointer),
+        )
 
     rt = new_runtime(config.settings, base.auth, workspace)
     rt.usage = SqlUsageQueries.from_url(config.settings.sqlalchemy_url())

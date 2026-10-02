@@ -33,7 +33,7 @@ from adapters.base import TaskType, User
 from adapters.errors import AgentError, NotFoundError
 from adapters.llm.router import ModelChoice
 from api import examples as ex
-from api import service
+from api import executions, service
 from api.errors import UNEXPECTED, ApiError, to_api_error
 from api.models import (
     ID_PATTERN,
@@ -47,6 +47,9 @@ from api.models import (
     ConversationSummary,
     EditIn,
     ErrorResponse,
+    ExecutionCreateIn,
+    ExecutionOut,
+    ExecutionResultsIn,
     HandoffOut,
     IssueCard,
     IssueSummary,
@@ -176,6 +179,7 @@ start = APIRouter(prefix="/start", tags=["Arranque guiado"])
 conversations = APIRouter(prefix="/conversations", tags=["Conversaciones"])
 quality = APIRouter(prefix="/quality-reviews", tags=["Revisar la calidad"])
 qa = APIRouter(prefix="/qa", tags=["QA encadenada (provisional, T-54)"])
+executions_router = APIRouter(prefix="/executions", tags=["Registrar la ejecución (QA 6)"])
 settings_router = APIRouter(prefix="/settings", tags=["Ajustes de la sesión"])
 
 ConversationId = Path(description="Identificador de la conversación.", pattern=ID_PATTERN)
@@ -817,6 +821,126 @@ def get_quality_review(
     return _quality_out(job)
 
 
+# --- Registrar la ejecución (QA 6, T-47) ---------------------------------------------------------
+
+ExecutionId = Path(description="Identificador del registro de la ejecución.", pattern=ID_PATTERN)
+EXECUTION_NOT_IN_REVIEW = {
+    409: _err(
+        "not_in_review",
+        executions.NOT_IN_REVIEW_EXECUTION.message,
+        "El registro no está en revisión o hay otra operación en curso.",
+    ),
+}
+EXECUTION_NOT_FOUND = {
+    404: _err(
+        "not_found",
+        "No existe ese registro o no es tuyo.",
+        "No existe o no pertenece a la persona (mismo mensaje en los dos casos).",
+    ),
+}
+
+
+@executions_router.post(
+    "",
+    response_model=ExecutionOut,
+    summary="Empezar a registrar la ejecución de las pruebas de una HU",
+    description="Lee de Jira las subtareas CP de la HU (su suite tiene que estar publicada) y "
+    "devuelve el registro en revisión, sin resultados. Nada se escribe en Jira.",
+    responses={
+        200: _json(ex.dump(ex.EXECUTION.model_copy(update={"results": [], "plan": []}))),
+        **AUTH,
+        404: _err("not_found", "La incidencia DEMO-999 no existe.", "HU que no existe."),
+        409: _err(
+            "publish_failed",
+            "La HU DEMO-3 no tiene casos de prueba publicados en Jira: publica antes su suite.",
+            "La HU no tiene subtareas CP.",
+        ),
+    },
+)
+def create_execution(body: ExecutionCreateIn, request: Request) -> ExecutionOut:
+    rt, _s, ws, user = _ctx(request)
+    thread_id = executions.create(rt, ws, user, body.story_key)
+    return executions.describe(rt, ws, user, thread_id)
+
+
+@executions_router.get(
+    "/{execution_id}",
+    response_model=ExecutionOut,
+    summary="Estado del registro de la ejecución (recibo, huella y resultado)",
+    responses={200: _json(ex.dump(ex.EXECUTION)), **AUTH, **EXECUTION_NOT_FOUND},
+)
+def get_execution(request: Request, execution_id: str = ExecutionId) -> ExecutionOut:
+    rt, _s, ws, user = _ctx(request)
+    return executions.describe(rt, ws, user, execution_id)
+
+
+@executions_router.put(
+    "/{execution_id}/results",
+    response_model=ExecutionOut,
+    summary="Guardar el borrador de resultados (nada se escribe en Jira)",
+    description="Sustituye los resultados y el entorno. Un resultado no válido (caso ajeno, "
+    "«fallo» sin evidencia…) no da error HTTP: el registro sigue en revisión con "
+    "`review_error`. Cada guardado cambia la `fingerprint`.",
+    responses={
+        200: _json(ex.dump(ex.EXECUTION)),
+        **AUTH,
+        **EXECUTION_NOT_FOUND,
+        **EXECUTION_NOT_IN_REVIEW,
+    },
+)
+def save_execution(
+    body: ExecutionResultsIn, request: Request, execution_id: str = ExecutionId
+) -> ExecutionOut:
+    rt, _s, ws, user = _ctx(request)
+    executions.save(rt, ws, user, execution_id, body)
+    return executions.describe(rt, ws, user, execution_id)
+
+
+@executions_router.post(
+    "/{execution_id}/approve",
+    response_model=ExecutionOut,
+    summary="Aprobar el recibo y registrar en Jira",
+    description="Con la `fingerprint` exacta del último registro mostrado. Si no casa, sigue en "
+    "revisión con `review_error`. Escribe en cada subtarea (transición, etiqueta y comentario con "
+    "la evidencia); las que fallan quedan en `outcome.failed` (`state=partial`).",
+    responses={
+        200: _json(ex.dump(ex.EXECUTION_RECORDED)),
+        **AUTH,
+        **EXECUTION_NOT_FOUND,
+        **EXECUTION_NOT_IN_REVIEW,
+    },
+)
+def approve_execution(
+    body: ApproveIn, request: Request, execution_id: str = ExecutionId
+) -> ExecutionOut:
+    rt, _s, ws, user = _ctx(request)
+    executions.approve(rt, ws, user, execution_id, body.fingerprint)
+    return executions.describe(rt, ws, user, execution_id)
+
+
+@executions_router.post(
+    "/{execution_id}/discard",
+    response_model=ExecutionOut,
+    summary="Descartar el registro (nada se escribe en Jira)",
+    responses={
+        200: _json(
+            ex.dump(
+                ex.EXECUTION.model_copy(
+                    update={"state": "discarded", "plan": [], "fingerprint": None}
+                )
+            )
+        ),
+        **AUTH,
+        **EXECUTION_NOT_FOUND,
+        **EXECUTION_NOT_IN_REVIEW,
+    },
+)
+def discard_execution(request: Request, execution_id: str = ExecutionId) -> ExecutionOut:
+    rt, _s, ws, user = _ctx(request)
+    executions.discard(rt, ws, user, execution_id)
+    return executions.describe(rt, ws, user, execution_id)
+
+
 # --- QA encadenada (provisional) -----------------------------------------------------------------
 
 
@@ -968,7 +1092,16 @@ def create_app(
         openapi_url="/api/openapi.json" if development else None,
     )
     app.state.runtime = holder
-    for router in (auth, projects, start, conversations, quality, qa, settings_router):
+    for router in (
+        auth,
+        projects,
+        start,
+        conversations,
+        quality,
+        executions_router,
+        qa,
+        settings_router,
+    ):
         app.include_router(router, prefix=API_PREFIX)
 
     @app.exception_handler(RequestValidationError)

@@ -3261,6 +3261,721 @@ paths:
                   retry_after: null
       security:
       - sessionCookie: []
+  /api/v1/executions:
+    post:
+      tags:
+      - Registrar la ejecución (QA 6)
+      summary: Empezar a registrar la ejecución de las pruebas de una HU
+      description: Lee de Jira las subtareas CP de la HU (su suite tiene que estar publicada) y devuelve
+        el registro en revisión, sin resultados. Nada se escribe en Jira.
+      operationId: create_execution_api_v1_executions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionCreateIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOut'
+              example:
+                id: 5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b
+                story_key: DEMO-3
+                project: DEMO
+                state: in_review
+                cases:
+                - key: DEMO-501
+                  summary: '[CP-01] Renovar dentro del plazo'
+                  status: Por hacer
+                - key: DEMO-502
+                  summary: '[CP-02] Renovar con una reserva'
+                  status: Por hacer
+                results: []
+                environment: preproducción
+                plan: []
+                fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+        '404':
+          description: HU que no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: not_found
+                  message: La incidencia DEMO-999 no existe.
+        '409':
+          description: La HU no tiene subtareas CP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: publish_failed
+                  message: 'La HU DEMO-3 no tiene casos de prueba publicados en Jira: publica antes su
+                    suite.'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/executions/{execution_id}:
+    get:
+      tags:
+      - Registrar la ejecución (QA 6)
+      summary: Estado del registro de la ejecución (recibo, huella y resultado)
+      operationId: get_execution_api_v1_executions__execution_id__get
+      parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador del registro de la ejecución.
+          title: Execution Id
+        description: Identificador del registro de la ejecución.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOut'
+              example:
+                id: 5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b
+                story_key: DEMO-3
+                project: DEMO
+                state: in_review
+                cases:
+                - key: DEMO-501
+                  summary: '[CP-01] Renovar dentro del plazo'
+                  status: Por hacer
+                - key: DEMO-502
+                  summary: '[CP-02] Renovar con una reserva'
+                  status: Por hacer
+                results:
+                - case_key: DEMO-501
+                  status: paso
+                  evidence_md: ''
+                - case_key: DEMO-502
+                  status: fallo
+                  evidence_md: El botón no se desactiva (ficticio).
+                environment: preproducción
+                plan:
+                - op: record_execution
+                  key: DEMO-501
+                  status: paso
+                  label: Pasó
+                  evidence: 'no'
+                - op: record_execution
+                  key: DEMO-502
+                  status: fallo
+                  label: Falló
+                  evidence: sí
+                fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe ese registro o no es tuyo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/executions/{execution_id}/results:
+    put:
+      tags:
+      - Registrar la ejecución (QA 6)
+      summary: Guardar el borrador de resultados (nada se escribe en Jira)
+      description: 'Sustituye los resultados y el entorno. Un resultado no válido (caso ajeno, «fallo»
+        sin evidencia…) no da error HTTP: el registro sigue en revisión con `review_error`. Cada guardado
+        cambia la `fingerprint`.'
+      operationId: save_execution_api_v1_executions__execution_id__results_put
+      parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador del registro de la ejecución.
+          title: Execution Id
+        description: Identificador del registro de la ejecución.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionResultsIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOut'
+              example:
+                id: 5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b
+                story_key: DEMO-3
+                project: DEMO
+                state: in_review
+                cases:
+                - key: DEMO-501
+                  summary: '[CP-01] Renovar dentro del plazo'
+                  status: Por hacer
+                - key: DEMO-502
+                  summary: '[CP-02] Renovar con una reserva'
+                  status: Por hacer
+                results:
+                - case_key: DEMO-501
+                  status: paso
+                  evidence_md: ''
+                - case_key: DEMO-502
+                  status: fallo
+                  evidence_md: El botón no se desactiva (ficticio).
+                environment: preproducción
+                plan:
+                - op: record_execution
+                  key: DEMO-501
+                  status: paso
+                  label: Pasó
+                  evidence: 'no'
+                - op: record_execution
+                  key: DEMO-502
+                  status: fallo
+                  label: Falló
+                  evidence: sí
+                fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe ese registro o no es tuyo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El registro no está en revisión o hay otra operación en curso.
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: El registro no está en revisión (se está registrando, ya se registró o se descartó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/executions/{execution_id}/approve:
+    post:
+      tags:
+      - Registrar la ejecución (QA 6)
+      summary: Aprobar el recibo y registrar en Jira
+      description: Con la `fingerprint` exacta del último registro mostrado. Si no casa, sigue en revisión
+        con `review_error`. Escribe en cada subtarea (transición, etiqueta y comentario con la evidencia);
+        las que fallan quedan en `outcome.failed` (`state=partial`).
+      operationId: approve_execution_api_v1_executions__execution_id__approve_post
+      parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador del registro de la ejecución.
+          title: Execution Id
+        description: Identificador del registro de la ejecución.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOut'
+              example:
+                id: 5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b
+                story_key: DEMO-3
+                project: DEMO
+                state: recorded
+                cases:
+                - key: DEMO-501
+                  summary: '[CP-01] Renovar dentro del plazo'
+                  status: Por hacer
+                - key: DEMO-502
+                  summary: '[CP-02] Renovar con una reserva'
+                  status: Por hacer
+                results:
+                - case_key: DEMO-501
+                  status: paso
+                  evidence_md: ''
+                - case_key: DEMO-502
+                  status: fallo
+                  evidence_md: El botón no se desactiva (ficticio).
+                environment: preproducción
+                plan: []
+                outcome:
+                  recorded:
+                  - DEMO-501
+                  - DEMO-502
+                  failed: []
+                  errors: []
+                  approved_by: qa-demo
+                  approved_at: '2026-10-02T10:30:00Z'
+                  simulated: false
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe ese registro o no es tuyo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El registro no está en revisión o hay otra operación en curso.
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: El registro no está en revisión (se está registrando, ya se registró o se descartó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/executions/{execution_id}/discard:
+    post:
+      tags:
+      - Registrar la ejecución (QA 6)
+      summary: Descartar el registro (nada se escribe en Jira)
+      operationId: discard_execution_api_v1_executions__execution_id__discard_post
+      parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador del registro de la ejecución.
+          title: Execution Id
+        description: Identificador del registro de la ejecución.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionOut'
+              example:
+                id: 5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b
+                story_key: DEMO-3
+                project: DEMO
+                state: discarded
+                cases:
+                - key: DEMO-501
+                  summary: '[CP-01] Renovar dentro del plazo'
+                  status: Por hacer
+                - key: DEMO-502
+                  summary: '[CP-02] Renovar con una reserva'
+                  status: Por hacer
+                results:
+                - case_key: DEMO-501
+                  status: paso
+                  evidence_md: ''
+                - case_key: DEMO-502
+                  status: fallo
+                  evidence_md: El botón no se desactiva (ficticio).
+                environment: preproducción
+                plan: []
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe ese registro o no es tuyo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El registro no está en revisión o hay otra operación en curso.
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_review
+                  message: El registro no está en revisión (se está registrando, ya se registró o se descartó).
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
   /api/v1/qa/handoffs:
     get:
       tags:
@@ -4306,6 +5021,224 @@ components:
       required:
       - error
       title: ErrorResponse
+    ExecutionCaseOut:
+      properties:
+        key:
+          type: string
+          title: Key
+        summary:
+          type: string
+          title: Summary
+        status:
+          type: string
+          title: Status
+          description: Estado actual de la subtarea en Jira.
+      type: object
+      required:
+      - key
+      - summary
+      - status
+      title: ExecutionCaseOut
+    ExecutionCreateIn:
+      properties:
+        story_key:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          title: Story Key
+          description: HU con su suite publicada.
+      type: object
+      required:
+      - story_key
+      title: ExecutionCreateIn
+    ExecutionOut:
+      properties:
+        id:
+          type: string
+          title: Id
+        story_key:
+          type: string
+          title: Story Key
+        project:
+          type: string
+          title: Project
+        state:
+          type: string
+          enum:
+          - in_review
+          - recording
+          - simulated
+          - recorded
+          - partial
+          - discarded
+          - error
+          title: State
+        cases:
+          items:
+            $ref: '#/components/schemas/ExecutionCaseOut'
+          type: array
+          title: Cases
+        results:
+          items:
+            $ref: '#/components/schemas/ExecutionResultOut'
+          type: array
+          title: Results
+          default: []
+        environment:
+          type: string
+          title: Environment
+          default: ''
+        plan:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          type: array
+          title: Plan
+          description: 'Recibo: una operación por caso.'
+          default: []
+        fingerprint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fingerprint
+        review_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Error
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/ExecutionOutcome'
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorBody'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - story_key
+      - project
+      - state
+      - cases
+      title: ExecutionOut
+      description: 'Registro de la ejecución de las pruebas de una HU (UI.md §6.6).
+
+
+        `in_review`: borrador editable con `PUT /results`; `fingerprint` es la huella del registro
+
+        tal como está, y se devuelve exacta al aprobar. Si una respuesta no se pudo aplicar, la revisión
+
+        sigue con `review_error`. Tras aprobar: `recorded` o `partial` (con `outcome.failed`).'
+    ExecutionOutcome:
+      properties:
+        recorded:
+          items:
+            type: string
+          type: array
+          title: Recorded
+          description: Subtareas en las que se registró el resultado.
+        failed:
+          items:
+            type: string
+          type: array
+          title: Failed
+          description: Subtareas que fallaron (parcial, RNF-13).
+          default: []
+        errors:
+          items:
+            type: string
+          type: array
+          title: Errors
+          default: []
+        approved_by:
+          type: string
+          title: Approved By
+        approved_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Approved At
+        simulated:
+          type: boolean
+          title: Simulated
+          description: 'Modo simulación: no se escribió nada en Jira.'
+          default: false
+      type: object
+      required:
+      - recorded
+      - approved_by
+      title: ExecutionOutcome
+    ExecutionResultIn:
+      properties:
+        case_key:
+          type: string
+          maxLength: 50
+          pattern: ^[A-Za-z][A-Za-z0-9_]+-\d+$
+          title: Case Key
+          description: Subtarea CP en Jira.
+        status:
+          type: string
+          enum:
+          - paso
+          - fallo
+          - bloqueado
+          - sin-ejecutar
+          title: Status
+          description: Lo elige la persona, nunca la IA.
+        evidence_md:
+          type: string
+          maxLength: 20000
+          title: Evidence Md
+          description: Obligatoria si el caso falla (`fallo`).
+          default: ''
+      type: object
+      required:
+      - case_key
+      - status
+      title: ExecutionResultIn
+    ExecutionResultOut:
+      properties:
+        case_key:
+          type: string
+          title: Case Key
+        status:
+          type: string
+          enum:
+          - paso
+          - fallo
+          - bloqueado
+          - sin-ejecutar
+          title: Status
+        evidence_md:
+          type: string
+          title: Evidence Md
+      type: object
+      required:
+      - case_key
+      - status
+      - evidence_md
+      title: ExecutionResultOut
+    ExecutionResultsIn:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/ExecutionResultIn'
+          type: array
+          maxItems: 200
+          title: Results
+        environment:
+          type: string
+          maxLength: 100
+          title: Environment
+          description: P. ej. «preproducción».
+          default: ''
+      type: object
+      required:
+      - results
+      title: ExecutionResultsIn
     HandoffOut:
       properties:
         id:

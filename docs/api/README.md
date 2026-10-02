@@ -57,6 +57,13 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
   - un **409** se distingue por `error.code`:
     - `approval_rejected`: el registro de aprobaciones la rechazó; hay que ofrecer «empezar de nuevo»;
     - `not_in_review`: la conversación no está en revisión; hay que actualizar el estado.
+- **Registrar la ejecución (QA 6, T-47):**
+  - `POST /executions` con la HU (su suite tiene que estar publicada en Jira) devuelve los casos y un registro vacío en revisión;
+  - `PUT /executions/{id}/results` guarda el borrador (no escribe en Jira) y devuelve una `fingerprint` nueva;
+  - un resultado no válido no da error HTTP: llega en `review_error`;
+  - `POST /executions/{id}/approve` con la `fingerprint` exacta escribe en Jira, y devuelve `recorded` o `partial` (con `outcome.failed`); en modo simulación (por defecto) no escribe nada y devuelve `simulated`;
+  - el resultado lo elige la persona; un `fallo` exige evidencia;
+  - solo el rol QA (`publish_tests`).
 - **Texto de Jira, del RAG y del LLM:** siempre como texto, nunca como HTML. `report_markdown` es solo para descargarlo.
 - **Errores:** siempre `{"error": {"code", "message", "retry_after"}}`, con `message` en español y listo para mostrar. `code` es una lista cerrada (`ErrorCode` en el contrato, PA-306). Los fallos de la generación llegan en `ConversationOut.error` o en `QualityReviewOut.error`, con su propio código:
   - `citation_failed`, `coverage_failed`, `quality_failed` e `invalid_model_output`: el modelo no dio una salida válida;

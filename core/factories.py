@@ -39,7 +39,7 @@ from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
 from schemas.artifact import Artifact
 from schemas.memory import Memory
-from schemas.test_case import TestSuite
+from schemas.test_case import ExecutionStatus, TestSuite
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
 
@@ -195,6 +195,9 @@ class PendingTestManagement:
         raise ExternalServiceError(
             "La consulta de casos de prueba en Jira llega con T-30.", service="jira"
         )
+
+    def record_execution(self, case_key: str, status: ExecutionStatus, evidence_md: str) -> None:
+        raise PublishError("El registro de la ejecución en Jira llega con T-47.")
 
 
 class PendingMemoryGenerator:

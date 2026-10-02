@@ -334,6 +334,7 @@
 | PA-308 | `safeHref()` en `web/` para los enlaces construidos con datos de la API (Jira, fuentes): solo `http(s)` o rutas relativas, nunca `javascript:`, con su prueba o regla de ESLint. Hacerlo antes de pintar el primer enlace a Jira (security-reviewer) | T-56 | Pendiente (B) |
 | PA-309 | Sacar el catálogo del sistema de diseño y sus datos sintéticos del bundle de producción cuando lleguen las pantallas (ruta solo en desarrollo o import dinámico con `import.meta.env.DEV`). Hoy `App` pinta el catálogo (security-reviewer, BAJO) | T-56 | Pendiente (B) |
 | PA-310 | Pasar `web/` a ESLint 10 cuando `eslint-plugin-jsx-a11y` lo admita: ESLint 9.39.5 está fuera de soporte (solo de desarrollo, sin vulnerabilidades en `npm audit`) | T-56 | Pendiente (B) |
+| PA-311 | **Pantalla de inicio de sesión del frontend** (T-56): no está especificada en `docs/specs/UI.md` ni en el lienzo «Propuesta mixta» (el login de la v2 no se mantuvo). Se hace mínima, con las piezas del sistema, sobre `POST /auth/login` y los errores por `code` (`invalid_credentials`, `too_many_attempts` con cuenta atrás). Validar con la principal y, si se mantiene, añadirla a UI.md | T-56 | Pendiente (P: validar) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

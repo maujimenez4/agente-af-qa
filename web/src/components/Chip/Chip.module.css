@@ -1,0 +1,45 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+.chip:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  cursor: not-allowed;
+}
+
+/* Sugerencia del chat (lienzo .chip): 40 px. */
+.suggestion {
+  min-height: 40px;
+  padding: var(--space-2) 14px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+/* Reciente del proyecto (lienzo .recent): 36 px. */
+.recent {
+  min-height: var(--control-md);
+  padding: 6px var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+}
+
+.key {
+  font-weight: var(--weight-bold);
+}

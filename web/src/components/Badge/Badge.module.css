@@ -1,0 +1,67 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  white-space: nowrap;
+  font-weight: var(--weight-bold);
+}
+
+/* sm: etiquetas en línea (lienzo .new, .kind, .cite); md: distintivo de cabecera o de estado. */
+.sm {
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+}
+
+.md {
+  padding: var(--space-1) 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+}
+
+.neutral {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.cite {
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border-soft);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.new {
+  background: var(--color-primary-tint);
+  color: var(--color-primary-text);
+}
+
+.success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.warning {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+}
+
+.error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.info {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+}
+
+/* Prioridad (lienzo .prio): texto sin fondo. */
+.plain {
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+}

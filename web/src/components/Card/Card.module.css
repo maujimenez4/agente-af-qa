@@ -1,0 +1,71 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 18px;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.description {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Tarjeta de flujo del inicio (lienzo .flow). */
+.flow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  width: 100%;
+  padding: 14px var(--space-4);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q-card);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.flow:hover {
+  border-color: var(--color-primary);
+}
+
+.flow[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-tint);
+}
+
+.flow[aria-disabled='true'] {
+  background: var(--color-bg);
+  border-color: var(--color-border-soft);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.flowIcon {
+  margin-top: 2px;
+}
+
+.flowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flowLabel {
+  font-size: var(--text-body);
+  font-weight: var(--weight-bold);
+}
+
+.flowHint {
+  font-size: var(--text-xs);
+}

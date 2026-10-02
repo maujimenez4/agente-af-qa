@@ -1,0 +1,151 @@
+/* Pantalla de trabajo: conversación a la izquierda y panel a la derecha (UI.md §2). */
+.workspace {
+  flex-grow: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* En ventanas estrechas el panel encoge (hasta 320 px) antes que la conversación (360 px). */
+.conversation {
+  flex-grow: 1;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  height: var(--header-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-soft);
+}
+
+/* La Q de fase y el botón del panel no encogen: el que se corta es el título. */
+.header > :not(.title) {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.title {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.scroll {
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) 28px 0;
+}
+
+.column {
+  width: 100%;
+  max-width: var(--chat-max);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: var(--space-6);
+}
+
+.composer {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 28px var(--space-5);
+}
+
+.composer > * {
+  width: 100%;
+  max-width: var(--chat-max);
+}
+
+.panel {
+  flex-shrink: 1;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  border-left: var(--border-width) solid var(--color-border-soft);
+  background: var(--color-surface-2);
+  animation: slidein var(--dur-slow) var(--ease) both;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panel[data-size='sm'] {
+  width: var(--panel-sm);
+}
+
+.panel[data-size='md'] {
+  width: var(--panel-md);
+}
+
+.panel[data-size='lg'] {
+  width: var(--panel-lg);
+}
+
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+.panelHeader {
+  height: var(--header-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--space-3) 0 var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-soft);
+  background: var(--color-surface);
+}
+
+.panelHeading {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panelTitle {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.panelSubtitle {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.panelBody {
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--space-4) var(--space-5);
+}
+
+.panelFooter {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: var(--border-width) solid var(--color-border-soft);
+  background: var(--color-surface);
+}
+

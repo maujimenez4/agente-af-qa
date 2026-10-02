@@ -1,0 +1,102 @@
+/*
+ * La Q se pinta dos veces: vacía (#E6EAEE) y naranja recortada por un rect que se desplaza en Y
+ * (326 = vacía, 0 = llena; cada cuarto son 81,5).
+ *
+ * Decisión 13: el estilo BASE del rect es siempre el estado final (--q-to). Las animaciones solo
+ * añaden el recorrido «desde» (keyframe sin «to»), así que con «reducir movimiento» la Q se queda
+ * en su estado real y nunca se ve llena por error.
+ */
+.svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.empty {
+  fill: var(--color-border-soft);
+}
+
+.filled {
+  fill: var(--color-primary);
+}
+
+.rect {
+  transform: translateY(var(--q-to));
+}
+
+/* Fase, publicación: un recorrido de --q-from a --q-to. */
+.fill {
+  animation: q-fill var(--q-duration) var(--ease) var(--q-delay) backwards;
+}
+
+@keyframes q-fill {
+  from {
+    transform: translateY(var(--q-from));
+  }
+}
+
+/* «generate» en running: sube y baja dentro de su cuarto para no parecer colgada. */
+.pulse {
+  animation: q-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes q-pulse {
+  from {
+    transform: translateY(var(--q-from));
+  }
+
+  to {
+    transform: translateY(var(--q-pulse-to));
+  }
+}
+
+/* Indeterminada (escribiendo): un cuarto por segundo, en bucle. Sin movimiento queda a la mitad. */
+.loop {
+  animation: q-loop 4s steps(4, jump-none) infinite;
+}
+
+@keyframes q-loop {
+  from {
+    transform: translateY(244.5px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+.phase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.phaseStrong {
+  font-weight: var(--weight-bold);
+  color: var(--color-text);
+}
+
+.typing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-text);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

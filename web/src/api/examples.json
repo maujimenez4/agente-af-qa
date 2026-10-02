@@ -1,0 +1,2745 @@
+{
+  "POST /api/v1/auth/login 200": {
+    "user": {
+      "username": "af-demo",
+      "role": "functional",
+      "permissions": [
+        "view_context",
+        "generate_story",
+        "publish_story",
+        "view_memory"
+      ]
+    },
+    "csrf_token": "csrf-token-ficticio-0123456789abcdef"
+  },
+  "POST /api/v1/auth/login 401": {
+    "error": {
+      "code": "invalid_credentials",
+      "message": "Usuario o contraseña incorrectos."
+    }
+  },
+  "POST /api/v1/auth/login 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "La petición no viene de un origen permitido."
+    }
+  },
+  "POST /api/v1/auth/login 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/auth/login 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/auth/login 429": {
+    "error": {
+      "code": "too_many_attempts",
+      "message": "Demasiados intentos; espera unos minutos."
+    }
+  },
+  "POST /api/v1/auth/login 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/auth/login 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/auth/logout 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/auth/logout 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/auth/logout 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/auth/logout 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/auth/logout 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/auth/logout 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/auth/me 200": {
+    "user": {
+      "username": "af-demo",
+      "role": "functional",
+      "permissions": [
+        "view_context",
+        "generate_story",
+        "publish_story",
+        "view_memory"
+      ]
+    },
+    "csrf_token": "csrf-token-ficticio-0123456789abcdef"
+  },
+  "GET /api/v1/auth/me 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/auth/me 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/auth/me 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/auth/me 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/projects 200": {
+    "projects": [
+      {
+        "key": "DEMO",
+        "name": "Biblioteca"
+      },
+      {
+        "key": "SOCI",
+        "name": "Gestión de personas socias"
+      }
+    ],
+    "preselected": "DEMO"
+  },
+  "GET /api/v1/projects 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/projects 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/projects 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/projects 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/projects 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/projects 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/projects/choose 200": {
+    "project": "DEMO"
+  },
+  "POST /api/v1/projects/choose 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/projects/choose 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/projects/choose 404": {
+    "error": {
+      "code": "project_not_found",
+      "message": "El proyecto DEMO no existe o la conexión no tiene acceso a él."
+    }
+  },
+  "POST /api/v1/projects/choose 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/projects/choose 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/projects/choose 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/projects/choose 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/projects/choose 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 200": [
+    {
+      "key": "DEMO-1",
+      "summary": "Préstamo digital",
+      "issue_type": "Epic",
+      "status": "Abierta"
+    }
+  ],
+  "GET /api/v1/projects/{project}/epics 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/projects/{project}/epics 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/projects/{project}/search 200": [
+    {
+      "key": "DEMO-2",
+      "summary": "Reservar un libro",
+      "issue_type": "Story",
+      "status": "Hecho"
+    },
+    {
+      "key": "DEMO-3",
+      "summary": "Renovar un préstamo",
+      "issue_type": "Story",
+      "status": "Abierta"
+    }
+  ],
+  "GET /api/v1/projects/{project}/search 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/projects/{project}/search 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/projects/{project}/search 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/projects/{project}/search 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/projects/{project}/search 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/projects/{project}/search 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/projects/{project}/search 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 200": [
+    {
+      "key": "DEMO-2",
+      "summary": "Reservar un libro",
+      "issue_type": "Story",
+      "status": "Hecho"
+    },
+    {
+      "key": "DEMO-3",
+      "summary": "Renovar un préstamo",
+      "issue_type": "Story",
+      "status": "Abierta"
+    }
+  ],
+  "GET /api/v1/epics/{key}/stories 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/epics/{key}/stories 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/issues/{key} 200": {
+    "key": "DEMO-3",
+    "project": "DEMO",
+    "summary": "Renovar un préstamo",
+    "issue_type": "Story",
+    "status": "Abierta",
+    "epic_key": "DEMO-1",
+    "criteria_count": 2,
+    "rules_count": 2
+  },
+  "GET /api/v1/issues/{key} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/issues/{key} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/issues/{key} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/issues/{key} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/issues/{key} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/issues/{key} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/issues/{key} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/issues/{key} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/start/propose 200": {
+    "project": "DEMO",
+    "project_changed": false,
+    "ignored_projects": [],
+    "recognized": [],
+    "similar": [
+      {
+        "key": "DEMO-3",
+        "summary": "Renovar un préstamo",
+        "issue_type": "Story",
+        "status": "Abierta"
+      }
+    ],
+    "options": [
+      {
+        "kind": "evolve",
+        "label": "Evolucionar DEMO-3",
+        "origin": {
+          "kind": "story",
+          "key": "DEMO-3",
+          "project": "DEMO"
+        },
+        "issue": {
+          "key": "DEMO-3",
+          "summary": "Renovar un préstamo",
+          "issue_type": "Story",
+          "status": "Abierta"
+        }
+      },
+      {
+        "kind": "new_need",
+        "label": "Crear HU nueva",
+        "origin": {
+          "kind": "need",
+          "text": "Renovar un préstamo desde la app (ficticio).",
+          "project": "DEMO"
+        }
+      }
+    ]
+  },
+  "POST /api/v1/start/propose 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/start/propose 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/start/propose 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/start/propose 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/start/propose 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/start/propose 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/start/propose 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/start/sources 200": [
+    {
+      "ref": "DEMO-3",
+      "kind": "jira",
+      "title": "Renovar un préstamo",
+      "category": "Story",
+      "required": true
+    },
+    {
+      "ref": "DOC-01",
+      "kind": "rag",
+      "title": "Reglamento de préstamo",
+      "category": "politicas",
+      "required": false
+    },
+    {
+      "ref": "memoria-DEMO-2",
+      "kind": "memory",
+      "title": "Memoria de DEMO-2",
+      "category": "memoria",
+      "required": false
+    }
+  ],
+  "POST /api/v1/start/sources 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/start/sources 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/start/sources 404": {
+    "error": {
+      "code": "not_found",
+      "message": "La incidencia DEMO-999 no existe."
+    }
+  },
+  "POST /api/v1/start/sources 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/start/sources 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/start/sources 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/start/sources 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/start/sources 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/conversations 200": [
+    {
+      "thread_id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+      "username": "af-demo",
+      "project_key": "DEMO",
+      "mode": "functional",
+      "origin_kind": "story",
+      "origin_key": "DEMO-3",
+      "title": "Evolucionar DEMO-3",
+      "status": "in_review",
+      "artifact_id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+      "version": 2,
+      "created_at": "2026-10-02T10:30:00Z",
+      "updated_at": "2026-10-02T10:30:00Z"
+    }
+  ],
+  "GET /api/v1/conversations 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/conversations 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/conversations 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/conversations 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/conversations 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/conversations 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/conversations 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations 202": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "generating",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "running"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "pending"
+      }
+    ],
+    "versions": [],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations 404": {
+    "error": {
+      "code": "not_found",
+      "message": "El proyecto DEMO no existe o la conexión no tiene acceso a él."
+    }
+  },
+  "POST /api/v1/conversations 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 200": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "in_review",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "done"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "done"
+      }
+    ],
+    "review": {
+      "artifact": {
+        "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+        "type": "user_story",
+        "status": "in_review",
+        "version": 2,
+        "origin_key": "DEMO-3",
+        "content": {
+          "internal_id": "HU-02",
+          "jira_key": "DEMO-3",
+          "title": "Renovar un préstamo",
+          "role": "persona socia de la biblioteca",
+          "action": "renovar un préstamo activo desde la web o la app",
+          "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+          "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+          "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+          "scope_includes": [
+            "Renovación desde la ficha del préstamo",
+            "Renovación desde la app"
+          ],
+          "scope_excludes": [
+            "Renovación de materiales audiovisuales"
+          ],
+          "acceptance_criteria": [
+            {
+              "id": "CA-01",
+              "title": "Renovación permitida",
+              "given": [
+                "un préstamo activo con menos de 2 renovaciones",
+                "sin reservas pendientes"
+              ],
+              "when": [
+                "la persona socia pulsa «Renovar»"
+              ],
+              "then": [
+                "el vencimiento se amplía 21 días"
+              ]
+            },
+            {
+              "id": "CA-02",
+              "title": "Renovación rechazada por reservas",
+              "given": [
+                "un préstamo activo con reservas pendientes"
+              ],
+              "when": [
+                "la persona socia pulsa «Renovar»"
+              ],
+              "then": [
+                "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+              ]
+            }
+          ],
+          "business_rules": [
+            {
+              "id": "RN-01",
+              "description": "Máximo 2 renovaciones por préstamo."
+            },
+            {
+              "id": "RN-02",
+              "description": "No se renueva si hay reservas pendientes."
+            }
+          ],
+          "assumptions": [
+            "La persona socia ha iniciado sesión."
+          ],
+          "constraints": [
+            "Plazo de préstamo de 21 días (reglamento, art. 7)."
+          ],
+          "dependencies": [
+            "DEMO-2"
+          ],
+          "alternate_flows": [
+            "Renovación desde el correo de aviso de vencimiento."
+          ],
+          "exceptions": [
+            "El servicio de catálogo no responde."
+          ],
+          "related_features": [
+            "Reservas"
+          ],
+          "changes_from_previous": [
+            "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+          ],
+          "related_requirements": [],
+          "priority": "Must",
+          "sources": [
+            {
+              "kind": "rag",
+              "ref": "DOC-01",
+              "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+            },
+            {
+              "kind": "jira",
+              "ref": "DEMO-3",
+              "excerpt": "Renovar un préstamo"
+            }
+          ],
+          "open_questions": []
+        },
+        "impact": {
+          "diffs": [
+            {
+              "field": "acceptance_criteria.CA-02",
+              "after": "Renovación rechazada por reservas"
+            }
+          ],
+          "affected": [
+            {
+              "jira_key": "DEMO-2",
+              "reason": "Comparte la regla de reservas",
+              "kind": "rule"
+            }
+          ],
+          "regression_notes": [
+            "Revisar el flujo de reservas."
+          ]
+        },
+        "created_by": "af-demo",
+        "model_used": "local/qwen3:4b-instruct",
+        "prompt_version": "2"
+      },
+      "version": 2,
+      "target": {
+        "operation": "actualizar HU",
+        "project": "DEMO",
+        "jira_key": "DEMO-3"
+      },
+      "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f",
+      "impact": {
+        "diffs": [
+          {
+            "field": "acceptance_criteria.CA-02",
+            "after": "Renovación rechazada por reservas"
+          }
+        ],
+        "affected": [
+          {
+            "jira_key": "DEMO-2",
+            "reason": "Comparte la regla de reservas",
+            "kind": "rule"
+          }
+        ],
+        "regression_notes": [
+          "Revisar el flujo de reservas."
+        ]
+      },
+      "plan": [
+        {
+          "op": "update_story",
+          "project": "DEMO",
+          "key": "DEMO-3"
+        },
+        {
+          "op": "link",
+          "from": "DEMO-3",
+          "to": "DEMO-2",
+          "type": "relates to"
+        }
+      ],
+      "decisions": [
+        "iterate",
+        "edit",
+        "approve",
+        "discard"
+      ]
+    },
+    "versions": [
+      {
+        "version": 2,
+        "artifact": {
+          "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+          "type": "user_story",
+          "status": "in_review",
+          "version": 2,
+          "origin_key": "DEMO-3",
+          "content": {
+            "internal_id": "HU-02",
+            "jira_key": "DEMO-3",
+            "title": "Renovar un préstamo",
+            "role": "persona socia de la biblioteca",
+            "action": "renovar un préstamo activo desde la web o la app",
+            "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+            "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+            "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+            "scope_includes": [
+              "Renovación desde la ficha del préstamo",
+              "Renovación desde la app"
+            ],
+            "scope_excludes": [
+              "Renovación de materiales audiovisuales"
+            ],
+            "acceptance_criteria": [
+              {
+                "id": "CA-01",
+                "title": "Renovación permitida",
+                "given": [
+                  "un préstamo activo con menos de 2 renovaciones",
+                  "sin reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "el vencimiento se amplía 21 días"
+                ]
+              },
+              {
+                "id": "CA-02",
+                "title": "Renovación rechazada por reservas",
+                "given": [
+                  "un préstamo activo con reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                ]
+              }
+            ],
+            "business_rules": [
+              {
+                "id": "RN-01",
+                "description": "Máximo 2 renovaciones por préstamo."
+              },
+              {
+                "id": "RN-02",
+                "description": "No se renueva si hay reservas pendientes."
+              }
+            ],
+            "assumptions": [
+              "La persona socia ha iniciado sesión."
+            ],
+            "constraints": [
+              "Plazo de préstamo de 21 días (reglamento, art. 7)."
+            ],
+            "dependencies": [
+              "DEMO-2"
+            ],
+            "alternate_flows": [
+              "Renovación desde el correo de aviso de vencimiento."
+            ],
+            "exceptions": [
+              "El servicio de catálogo no responde."
+            ],
+            "related_features": [
+              "Reservas"
+            ],
+            "changes_from_previous": [
+              "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+            ],
+            "related_requirements": [],
+            "priority": "Must",
+            "sources": [
+              {
+                "kind": "rag",
+                "ref": "DOC-01",
+                "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+              },
+              {
+                "kind": "jira",
+                "ref": "DEMO-3",
+                "excerpt": "Renovar un préstamo"
+              }
+            ],
+            "open_questions": []
+          },
+          "impact": {
+            "diffs": [
+              {
+                "field": "acceptance_criteria.CA-02",
+                "after": "Renovación rechazada por reservas"
+              }
+            ],
+            "affected": [
+              {
+                "jira_key": "DEMO-2",
+                "reason": "Comparte la regla de reservas",
+                "kind": "rule"
+              }
+            ],
+            "regression_notes": [
+              "Revisar el flujo de reservas."
+            ]
+          },
+          "created_by": "af-demo",
+          "model_used": "local/qwen3:4b-instruct",
+          "prompt_version": "2"
+        },
+        "created_at": "2026-10-02T10:30:00Z",
+        "edited": false
+      }
+    ],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "GET /api/v1/conversations/{conversation_id} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 200": "event: progress\ndata: {\"node\": \"generate\", \"label\": \"Generar la propuesta, validar las citas y analizar el impacto\", \"state\": \"running\"}\n\nevent: review_ready\ndata: {\"id\": \"8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d\", \"state\": \"in_review\"}\n\n",
+  "GET /api/v1/conversations/{conversation_id}/events 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 429": {
+    "error": {
+      "code": "too_many_streams",
+      "message": "Tienes demasiadas pestañas siguiendo conversaciones."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/conversations/{conversation_id}/events 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 202": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "generating",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "running"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "pending"
+      }
+    ],
+    "versions": [],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "La conversación no tiene una propuesta en revisión (está generando o ya terminó)."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/iterate 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 200": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "in_review",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "done"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "done"
+      }
+    ],
+    "review": {
+      "artifact": {
+        "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+        "type": "user_story",
+        "status": "in_review",
+        "version": 2,
+        "origin_key": "DEMO-3",
+        "content": {
+          "internal_id": "HU-02",
+          "jira_key": "DEMO-3",
+          "title": "Renovar un préstamo",
+          "role": "persona socia de la biblioteca",
+          "action": "renovar un préstamo activo desde la web o la app",
+          "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+          "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+          "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+          "scope_includes": [
+            "Renovación desde la ficha del préstamo",
+            "Renovación desde la app"
+          ],
+          "scope_excludes": [
+            "Renovación de materiales audiovisuales"
+          ],
+          "acceptance_criteria": [
+            {
+              "id": "CA-01",
+              "title": "Renovación permitida",
+              "given": [
+                "un préstamo activo con menos de 2 renovaciones",
+                "sin reservas pendientes"
+              ],
+              "when": [
+                "la persona socia pulsa «Renovar»"
+              ],
+              "then": [
+                "el vencimiento se amplía 21 días"
+              ]
+            },
+            {
+              "id": "CA-02",
+              "title": "Renovación rechazada por reservas",
+              "given": [
+                "un préstamo activo con reservas pendientes"
+              ],
+              "when": [
+                "la persona socia pulsa «Renovar»"
+              ],
+              "then": [
+                "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+              ]
+            }
+          ],
+          "business_rules": [
+            {
+              "id": "RN-01",
+              "description": "Máximo 2 renovaciones por préstamo."
+            },
+            {
+              "id": "RN-02",
+              "description": "No se renueva si hay reservas pendientes."
+            }
+          ],
+          "assumptions": [
+            "La persona socia ha iniciado sesión."
+          ],
+          "constraints": [
+            "Plazo de préstamo de 21 días (reglamento, art. 7)."
+          ],
+          "dependencies": [
+            "DEMO-2"
+          ],
+          "alternate_flows": [
+            "Renovación desde el correo de aviso de vencimiento."
+          ],
+          "exceptions": [
+            "El servicio de catálogo no responde."
+          ],
+          "related_features": [
+            "Reservas"
+          ],
+          "changes_from_previous": [
+            "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+          ],
+          "related_requirements": [],
+          "priority": "Must",
+          "sources": [
+            {
+              "kind": "rag",
+              "ref": "DOC-01",
+              "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+            },
+            {
+              "kind": "jira",
+              "ref": "DEMO-3",
+              "excerpt": "Renovar un préstamo"
+            }
+          ],
+          "open_questions": []
+        },
+        "impact": {
+          "diffs": [
+            {
+              "field": "acceptance_criteria.CA-02",
+              "after": "Renovación rechazada por reservas"
+            }
+          ],
+          "affected": [
+            {
+              "jira_key": "DEMO-2",
+              "reason": "Comparte la regla de reservas",
+              "kind": "rule"
+            }
+          ],
+          "regression_notes": [
+            "Revisar el flujo de reservas."
+          ]
+        },
+        "created_by": "af-demo",
+        "model_used": "local/qwen3:4b-instruct",
+        "prompt_version": "2"
+      },
+      "version": 2,
+      "target": {
+        "operation": "actualizar HU",
+        "project": "DEMO",
+        "jira_key": "DEMO-3"
+      },
+      "fingerprint": "4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f",
+      "impact": {
+        "diffs": [
+          {
+            "field": "acceptance_criteria.CA-02",
+            "after": "Renovación rechazada por reservas"
+          }
+        ],
+        "affected": [
+          {
+            "jira_key": "DEMO-2",
+            "reason": "Comparte la regla de reservas",
+            "kind": "rule"
+          }
+        ],
+        "regression_notes": [
+          "Revisar el flujo de reservas."
+        ]
+      },
+      "plan": [
+        {
+          "op": "update_story",
+          "project": "DEMO",
+          "key": "DEMO-3"
+        },
+        {
+          "op": "link",
+          "from": "DEMO-3",
+          "to": "DEMO-2",
+          "type": "relates to"
+        }
+      ],
+      "decisions": [
+        "iterate",
+        "edit",
+        "approve",
+        "discard"
+      ]
+    },
+    "versions": [
+      {
+        "version": 2,
+        "artifact": {
+          "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+          "type": "user_story",
+          "status": "in_review",
+          "version": 2,
+          "origin_key": "DEMO-3",
+          "content": {
+            "internal_id": "HU-02",
+            "jira_key": "DEMO-3",
+            "title": "Renovar un préstamo",
+            "role": "persona socia de la biblioteca",
+            "action": "renovar un préstamo activo desde la web o la app",
+            "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+            "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+            "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+            "scope_includes": [
+              "Renovación desde la ficha del préstamo",
+              "Renovación desde la app"
+            ],
+            "scope_excludes": [
+              "Renovación de materiales audiovisuales"
+            ],
+            "acceptance_criteria": [
+              {
+                "id": "CA-01",
+                "title": "Renovación permitida",
+                "given": [
+                  "un préstamo activo con menos de 2 renovaciones",
+                  "sin reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "el vencimiento se amplía 21 días"
+                ]
+              },
+              {
+                "id": "CA-02",
+                "title": "Renovación rechazada por reservas",
+                "given": [
+                  "un préstamo activo con reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                ]
+              }
+            ],
+            "business_rules": [
+              {
+                "id": "RN-01",
+                "description": "Máximo 2 renovaciones por préstamo."
+              },
+              {
+                "id": "RN-02",
+                "description": "No se renueva si hay reservas pendientes."
+              }
+            ],
+            "assumptions": [
+              "La persona socia ha iniciado sesión."
+            ],
+            "constraints": [
+              "Plazo de préstamo de 21 días (reglamento, art. 7)."
+            ],
+            "dependencies": [
+              "DEMO-2"
+            ],
+            "alternate_flows": [
+              "Renovación desde el correo de aviso de vencimiento."
+            ],
+            "exceptions": [
+              "El servicio de catálogo no responde."
+            ],
+            "related_features": [
+              "Reservas"
+            ],
+            "changes_from_previous": [
+              "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+            ],
+            "related_requirements": [],
+            "priority": "Must",
+            "sources": [
+              {
+                "kind": "rag",
+                "ref": "DOC-01",
+                "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+              },
+              {
+                "kind": "jira",
+                "ref": "DEMO-3",
+                "excerpt": "Renovar un préstamo"
+              }
+            ],
+            "open_questions": []
+          },
+          "impact": {
+            "diffs": [
+              {
+                "field": "acceptance_criteria.CA-02",
+                "after": "Renovación rechazada por reservas"
+              }
+            ],
+            "affected": [
+              {
+                "jira_key": "DEMO-2",
+                "reason": "Comparte la regla de reservas",
+                "kind": "rule"
+              }
+            ],
+            "regression_notes": [
+              "Revisar el flujo de reservas."
+            ]
+          },
+          "created_by": "af-demo",
+          "model_used": "local/qwen3:4b-instruct",
+          "prompt_version": "2"
+        },
+        "created_at": "2026-10-02T10:30:00Z",
+        "edited": false
+      }
+    ],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "La conversación no tiene una propuesta en revisión (está generando o ya terminó)."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/edit 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 202": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "simulated",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "done"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "done"
+      }
+    ],
+    "versions": [
+      {
+        "version": 2,
+        "artifact": {
+          "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+          "type": "user_story",
+          "status": "in_review",
+          "version": 2,
+          "origin_key": "DEMO-3",
+          "content": {
+            "internal_id": "HU-02",
+            "jira_key": "DEMO-3",
+            "title": "Renovar un préstamo",
+            "role": "persona socia de la biblioteca",
+            "action": "renovar un préstamo activo desde la web o la app",
+            "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+            "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+            "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+            "scope_includes": [
+              "Renovación desde la ficha del préstamo",
+              "Renovación desde la app"
+            ],
+            "scope_excludes": [
+              "Renovación de materiales audiovisuales"
+            ],
+            "acceptance_criteria": [
+              {
+                "id": "CA-01",
+                "title": "Renovación permitida",
+                "given": [
+                  "un préstamo activo con menos de 2 renovaciones",
+                  "sin reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "el vencimiento se amplía 21 días"
+                ]
+              },
+              {
+                "id": "CA-02",
+                "title": "Renovación rechazada por reservas",
+                "given": [
+                  "un préstamo activo con reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                ]
+              }
+            ],
+            "business_rules": [
+              {
+                "id": "RN-01",
+                "description": "Máximo 2 renovaciones por préstamo."
+              },
+              {
+                "id": "RN-02",
+                "description": "No se renueva si hay reservas pendientes."
+              }
+            ],
+            "assumptions": [
+              "La persona socia ha iniciado sesión."
+            ],
+            "constraints": [
+              "Plazo de préstamo de 21 días (reglamento, art. 7)."
+            ],
+            "dependencies": [
+              "DEMO-2"
+            ],
+            "alternate_flows": [
+              "Renovación desde el correo de aviso de vencimiento."
+            ],
+            "exceptions": [
+              "El servicio de catálogo no responde."
+            ],
+            "related_features": [
+              "Reservas"
+            ],
+            "changes_from_previous": [
+              "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+            ],
+            "related_requirements": [],
+            "priority": "Must",
+            "sources": [
+              {
+                "kind": "rag",
+                "ref": "DOC-01",
+                "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+              },
+              {
+                "kind": "jira",
+                "ref": "DEMO-3",
+                "excerpt": "Renovar un préstamo"
+              }
+            ],
+            "open_questions": []
+          },
+          "impact": {
+            "diffs": [
+              {
+                "field": "acceptance_criteria.CA-02",
+                "after": "Renovación rechazada por reservas"
+              }
+            ],
+            "affected": [
+              {
+                "jira_key": "DEMO-2",
+                "reason": "Comparte la regla de reservas",
+                "kind": "rule"
+              }
+            ],
+            "regression_notes": [
+              "Revisar el flujo de reservas."
+            ]
+          },
+          "created_by": "af-demo",
+          "model_used": "local/qwen3:4b-instruct",
+          "prompt_version": "2"
+        },
+        "created_at": "2026-10-02T10:30:00Z",
+        "edited": false
+      }
+    ],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "result": {
+      "simulated": true,
+      "plan": [
+        {
+          "op": "update_story",
+          "project": "DEMO",
+          "key": "DEMO-3"
+        },
+        {
+          "op": "link",
+          "from": "DEMO-3",
+          "to": "DEMO-2",
+          "type": "relates to"
+        }
+      ],
+      "approved_by": "af-demo",
+      "approved_at": "2026-10-02T10:30:00Z",
+      "published_keys": [],
+      "errors": [],
+      "failed_ids": []
+    },
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 409": {
+    "error": {
+      "code": "approval_rejected",
+      "message": "La aprobación no corresponde a la versión revisada; empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/approve 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 200": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "discarded",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "done"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "done"
+      }
+    ],
+    "versions": [
+      {
+        "version": 2,
+        "artifact": {
+          "id": "6f1c2a9e-3b7d-4c11-9a40-2d8e5f7b1c03",
+          "type": "user_story",
+          "status": "in_review",
+          "version": 2,
+          "origin_key": "DEMO-3",
+          "content": {
+            "internal_id": "HU-02",
+            "jira_key": "DEMO-3",
+            "title": "Renovar un préstamo",
+            "role": "persona socia de la biblioteca",
+            "action": "renovar un préstamo activo desde la web o la app",
+            "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+            "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+            "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+            "scope_includes": [
+              "Renovación desde la ficha del préstamo",
+              "Renovación desde la app"
+            ],
+            "scope_excludes": [
+              "Renovación de materiales audiovisuales"
+            ],
+            "acceptance_criteria": [
+              {
+                "id": "CA-01",
+                "title": "Renovación permitida",
+                "given": [
+                  "un préstamo activo con menos de 2 renovaciones",
+                  "sin reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "el vencimiento se amplía 21 días"
+                ]
+              },
+              {
+                "id": "CA-02",
+                "title": "Renovación rechazada por reservas",
+                "given": [
+                  "un préstamo activo con reservas pendientes"
+                ],
+                "when": [
+                  "la persona socia pulsa «Renovar»"
+                ],
+                "then": [
+                  "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                ]
+              }
+            ],
+            "business_rules": [
+              {
+                "id": "RN-01",
+                "description": "Máximo 2 renovaciones por préstamo."
+              },
+              {
+                "id": "RN-02",
+                "description": "No se renueva si hay reservas pendientes."
+              }
+            ],
+            "assumptions": [
+              "La persona socia ha iniciado sesión."
+            ],
+            "constraints": [
+              "Plazo de préstamo de 21 días (reglamento, art. 7)."
+            ],
+            "dependencies": [
+              "DEMO-2"
+            ],
+            "alternate_flows": [
+              "Renovación desde el correo de aviso de vencimiento."
+            ],
+            "exceptions": [
+              "El servicio de catálogo no responde."
+            ],
+            "related_features": [
+              "Reservas"
+            ],
+            "changes_from_previous": [
+              "CA-02: se añade el aviso de reservas pendientes (fuente DOC-01)."
+            ],
+            "related_requirements": [],
+            "priority": "Must",
+            "sources": [
+              {
+                "kind": "rag",
+                "ref": "DOC-01",
+                "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+              },
+              {
+                "kind": "jira",
+                "ref": "DEMO-3",
+                "excerpt": "Renovar un préstamo"
+              }
+            ],
+            "open_questions": []
+          },
+          "impact": {
+            "diffs": [
+              {
+                "field": "acceptance_criteria.CA-02",
+                "after": "Renovación rechazada por reservas"
+              }
+            ],
+            "affected": [
+              {
+                "jira_key": "DEMO-2",
+                "reason": "Comparte la regla de reservas",
+                "kind": "rule"
+              }
+            ],
+            "regression_notes": [
+              "Revisar el flujo de reservas."
+            ]
+          },
+          "created_by": "af-demo",
+          "model_used": "local/qwen3:4b-instruct",
+          "prompt_version": "2"
+        },
+        "created_at": "2026-10-02T10:30:00Z",
+        "edited": false
+      }
+    ],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 409": {
+    "error": {
+      "code": "not_in_review",
+      "message": "La conversación no tiene una propuesta en revisión (está generando o ya terminó)."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/discard 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 200": {
+    "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+    "title": "Renovar un préstamo",
+    "project": "DEMO",
+    "story_key": "DEMO-3",
+    "version": 2,
+    "from_user": "af-demo",
+    "created_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 501": {
+    "error": {
+      "code": "not_implemented",
+      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/handoff 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/quality-reviews 202": {
+    "id": "b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c",
+    "issue_key": "DEMO-3",
+    "state": "done",
+    "report": {
+      "summary": "La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco (ficticio).",
+      "invest": [
+        {
+          "letter": "I",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de I."
+        },
+        {
+          "letter": "N",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de N."
+        },
+        {
+          "letter": "V",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de V."
+        },
+        {
+          "letter": "E",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de E."
+        },
+        {
+          "letter": "S",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de S."
+        },
+        {
+          "letter": "T",
+          "verdict": "improvable",
+          "reason": "Motivo ficticio de T."
+        }
+      ],
+      "findings": [
+        {
+          "kind": "ambiguity",
+          "target_id": "CA-02",
+          "explanation": "«Avisar pronto» no se puede probar.",
+          "proposal": "Avisar en menos de 15 minutos."
+        },
+        {
+          "kind": "gap",
+          "explanation": "No dice qué pasa si la renovación falla.",
+          "proposal": "Añadir un criterio de error."
+        }
+      ],
+      "open_questions": [
+        "¿Hay un máximo de renovaciones por año? (ficticio)"
+      ],
+      "sources": [
+        {
+          "kind": "rag",
+          "ref": "DOC-01"
+        }
+      ]
+    },
+    "evolve_feedback": [
+      "CA-02: Avisar en menos de 15 minutos.",
+      "Añadir un criterio de error."
+    ],
+    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+  },
+  "POST /api/v1/quality-reviews 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/quality-reviews 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/quality-reviews 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/quality-reviews 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/quality-reviews 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/quality-reviews 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/quality-reviews 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 200": {
+    "id": "b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c",
+    "issue_key": "DEMO-3",
+    "state": "done",
+    "report": {
+      "summary": "La HU es valiosa y pequeña; hay un criterio ambiguo y un hueco (ficticio).",
+      "invest": [
+        {
+          "letter": "I",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de I."
+        },
+        {
+          "letter": "N",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de N."
+        },
+        {
+          "letter": "V",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de V."
+        },
+        {
+          "letter": "E",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de E."
+        },
+        {
+          "letter": "S",
+          "verdict": "ok",
+          "reason": "Motivo ficticio de S."
+        },
+        {
+          "letter": "T",
+          "verdict": "improvable",
+          "reason": "Motivo ficticio de T."
+        }
+      ],
+      "findings": [
+        {
+          "kind": "ambiguity",
+          "target_id": "CA-02",
+          "explanation": "«Avisar pronto» no se puede probar.",
+          "proposal": "Avisar en menos de 15 minutos."
+        },
+        {
+          "kind": "gap",
+          "explanation": "No dice qué pasa si la renovación falla.",
+          "proposal": "Añadir un criterio de error."
+        }
+      ],
+      "open_questions": [
+        "¿Hay un máximo de renovaciones por año? (ficticio)"
+      ],
+      "sources": [
+        {
+          "kind": "rag",
+          "ref": "DOC-01"
+        }
+      ]
+    },
+    "evolve_feedback": [
+      "CA-02: Avisar en menos de 15 minutos.",
+      "Añadir un criterio de error."
+    ],
+    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+  },
+  "GET /api/v1/quality-reviews/{review_id} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/quality-reviews/{review_id} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/qa/handoffs 200": [
+    {
+      "id": "c3e5a7b9-2d4f-4a6b-8c0d-1e2f3a4b5c6d",
+      "title": "Renovar un préstamo",
+      "project": "DEMO",
+      "story_key": "DEMO-3",
+      "version": 2,
+      "from_user": "af-demo",
+      "created_at": "2026-10-02T10:30:00Z"
+    }
+  ],
+  "GET /api/v1/qa/handoffs 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/qa/handoffs 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/qa/handoffs 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/qa/handoffs 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/qa/handoffs 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/qa/handoffs 501": {
+    "error": {
+      "code": "not_implemented",
+      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
+    }
+  },
+  "GET /api/v1/qa/handoffs 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 202": {
+    "id": "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e",
+    "title": "Preparar pruebas de DEMO-3",
+    "project": "DEMO",
+    "flow": "tests",
+    "mode": "qa",
+    "state": "generating",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "running"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "pending"
+      }
+    ],
+    "versions": [],
+    "feedback": [],
+    "updated_at": "2026-10-02T10:30:00Z"
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 501": {
+    "error": {
+      "code": "not_implemented",
+      "message": "Disponible cuando T-54 (QA encadenada) cierre su diseño."
+    }
+  },
+  "POST /api/v1/qa/handoffs/{handoff_id}/take 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/settings 200": {
+    "publish_mode": "simulation",
+    "tasks": [
+      {
+        "task": "generate_story",
+        "chain": [
+          {
+            "provider": "local",
+            "model": "qwen3:4b-instruct"
+          }
+        ]
+      }
+    ]
+  },
+  "GET /api/v1/settings 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/settings 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/settings 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/settings 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/settings 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/settings 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/settings/usage 200": {
+    "tokens_today": 42000,
+    "warning_threshold": 180000,
+    "scope": "global"
+  },
+  "GET /api/v1/settings/usage 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/settings/usage 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/settings/usage 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/settings/usage 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/settings/usage 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/settings/usage 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 200": {
+    "task": "generate_story",
+    "chain": [
+      {
+        "provider": "local",
+        "model": "qwen3:4b-instruct"
+      }
+    ]
+  },
+  "PUT /api/v1/settings/models/{task} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "PUT /api/v1/settings/models/{task} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 200": {
+    "task": "generate_story",
+    "chain": [
+      {
+        "provider": "local",
+        "model": "qwen3:4b-instruct"
+      }
+    ]
+  },
+  "DELETE /api/v1/settings/models/{task} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "DELETE /api/v1/settings/models/{task} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  }
+}

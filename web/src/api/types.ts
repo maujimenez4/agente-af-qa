@@ -28,6 +28,7 @@ export type LoginIn = Schemas['LoginIn']
 
 export type ProjectsOut = Schemas['ProjectsOut']
 export type ProjectSummary = Schemas['ProjectSummary']
+export type ChooseProjectIn = Schemas['ChooseProjectIn']
 export type IssueSummary = Schemas['IssueSummary']
 export type IssueCard = Schemas['IssueCard']
 export type ProposeIn = Schemas['ProposeIn']

@@ -4,6 +4,7 @@
   "description": "Generador de los tipos del contrato (openapi-typescript). Aislado porque pide TypeScript 5 y web/ usa la 6.",
   "type": "module",
   "dependencies": {
+    "js-yaml": "4.3.2",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3"
   }

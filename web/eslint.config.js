@@ -12,7 +12,7 @@ const HTML_INJECTION = 'El contenido de la API se muestra como texto: no se inse
 const BROWSER_STORAGE = 'No se usa el almacenamiento del navegador: la sesión va como diga el contrato de T-55.'
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'src/api/schema.d.ts', 'tools']),
+  globalIgnores(['dist', 'coverage', 'mock-public', 'src/api/schema.d.ts', 'tools']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

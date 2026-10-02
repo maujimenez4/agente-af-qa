@@ -1,6 +1,7 @@
 import { Icon, ICON_NAMES } from '../components/Icon/index.ts'
 import styles from './Catalog.module.css'
 import { COLOR_GROUPS, TYPE_SCALE } from './catalogTokens.ts'
+import { ComponentsDemo } from './ComponentsDemo.tsx'
 import { QDemo } from './QDemo.tsx'
 import { ShellDemo } from './ShellDemo.tsx'
 
@@ -16,6 +17,8 @@ export function Catalog() {
       </header>
 
       <ShellDemo />
+
+      <ComponentsDemo />
 
       <QDemo />
 

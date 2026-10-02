@@ -157,6 +157,17 @@
   line-height: var(--leading-relaxed);
 }
 
+.flows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  max-width: var(--hero-max);
+}
+
+.cards {
+  max-width: var(--panel-sm);
+}
+
 .frame {
   height: 640px;
   display: flex;

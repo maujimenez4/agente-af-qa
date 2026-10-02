@@ -1,80 +1,71 @@
-# SESIÓN MODELOS · Ronda 5: preparar la demo (T-36, parte 1)
+# SESIÓN MODELOS · Ronda 6: cerrar huecos funcionales (PA-272, PA-103, PA-113, PA-275 y PA-273)
 
-> Este archivo era el encargo de T-54 (ya fusionada). Ahora es el de la **sesión Modelos**.
+> Este archivo era el encargo de T-54 y después el de la demo (T-36, parte 1). La demo queda aparcada hasta que el sistema esté terminado (decisión del usuario). Ahora es el encargo de la **sesión Modelos**.
 
-Tu T-54 ya está fusionada en `PreProduccion`, y la API ya la usa (PA-105). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu T-36 (parte 1) se queda en la rama `ses-demo`. De ella se ha fusionado solo el README de instalación y las PA-270…PA-275. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-demo origin/PreProduccion
+git -C .claude/worktrees/area-b switch -C ses-huecos origin/PreProduccion
 cd .claude/worktrees/area-b
 uv sync
-uv run pytest -m "not integration"          # en verde, con 50 xfailed (los de T-34)
+uv run pytest -m "not integration"          # en verde, con 84 xfailed (defectos de T-35 en curso)
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-demo`**, creada desde `PreProduccion`. Tus T-58 y T-54 ya están fusionadas.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-huecos`**, creada desde `PreProduccion`.
 
-**En esta ronda preparas la demo (T-36, parte 1).**
-
-**Contexto:** con el modelo local en CPU (`qwen3:1.7b`, unos 6 tok/s) una HU tarda unos 5–6 min y el flujo HU → QA completo, 15–20 min. Por eso la demo se hará sobre todo con **conversaciones preparadas de antemano** (generadas de verdad con el modelo local y guardadas en el checkpointer), y en directo solo uno o dos pasos cortos. Si el usuario decide otra cosa (acelerar con la GPU o usar un modelo en la nube para la demo), la principal te lo dirá.
+La demo queda aparcada (`ses-demo` se conserva tal cual): los documentos de la demo se harán cuando el sistema esté terminado. **En esta ronda cierras huecos funcionales del sistema.** Ninguno necesita el LLM real.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`; contratos, API y composición.
-- **Ollama:** fase 3, la prueba real de punta a punta. **Usa el LLM en esta misma máquina.**
-- **UI:** `ses-ui`, con T-35 (solo pruebas).
-- **Jira:** `ses-jira`, corrigiendo los defectos de T-34 en `core/rag/`, `core/memory/`, `core/quality.py` y `core/guided_start.py`.
-- **Responsable del área B:** frontend en React (`web/`).
+- **Principal:** integra y revisa. **En esta ronda no toca `api/`**: la API es tuya para estas PA.
+- **UI:** `ses-ui`, corrigiendo los defectos de T-35 en `core/approvals.py`, `core/state_machine.py`, `core/graph/execution.py`, `core/context/`, `core/impact/`, `adapters/llm/` y `adapters/auth/`.
+- **Jira:** `ses-jira`, corrigiendo defectos en `adapters/jira/`, `adapters/testmgmt/` y `core/memory/`, y moviendo `escape_data` (PA-227).
+- **Ollama:** la prueba real de punta a punta. **Usa el LLM y el contenedor de Ollama en esta máquina: no lo reinicies ni cambies su configuración en caliente.**
+- **Responsable del área B:** frontend en React contra `docs/api/openapi.yaml`.
 
-## Tareas
-1. **`README.md` de instalación desde cero**, probado paso a paso en tu worktree sin usar el `.env` real:
-   - requisitos;
-   - `uv sync`;
-   - `docker compose up -d db ollama`;
-   - `uv run alembic upgrade head` (hasta la 0005);
-   - descargar los modelos de `config/models.yaml` (`qwen3:1.7b`, `phi4-mini`, `bge-m3`);
-   - indexar el corpus;
-   - crear los usuarios locales;
-   - copiar `.env.example`;
-   - arrancar la API (`uv run python -m api`) y Streamlit;
-   - pruebas.
-
-   Sin secretos ni valores reales: solo los placeholders de `.env.example`. Si el `README.md` actual ya tiene partes, complétalo en lugar de rehacerlo.
-2. **Guion de la demo** (`docs/demo/GUION.md`), unos 15 minutos sobre los 8 pasos de la presentación. Incluye:
-   - nueva necesidad;
-   - fuentes;
-   - generar e iterar;
-   - recibo y aprobar en simulación;
-   - **pasar a QA** (lo que pidió dirección, T-54);
-   - suite y aprobar;
-   - registrar la ejecución (T-47);
-   - revisar la calidad;
-   - memoria en `live` en el sandbox.
-
-   Para cada paso: qué se muestra, qué se dice, qué conversación preparada se abre o qué se hace en directo, y el plan B si algo falla (por ejemplo, Ollama caído o Jira sin red). Datos 100 % sintéticos del corpus y del proyecto de pruebas.
-3. **Script de preparación** (`eval/demo_prepare.py`). Ejecuta, sobre la composición real (API o grafo con `build_app_container`), las conversaciones del guion hasta el punto en que se retoman en directo, y deja un resumen (`docs/demo/preparadas.md`) con los ids, el estado, el modelo usado y el tiempo de cada una.
-   - Siempre en `JIRA_PUBLISH_MODE=simulation`, salvo el paso de memoria, que el guion hace en el sandbox `AFQP` y solo con autorización expresa del usuario.
-   - Idempotente: si ya existe una conversación preparada con el mismo nombre, no la repite.
-   - **No lo ejecutes contra el LLM real sin preguntarme, y nunca mientras la sesión Ollama esté en su fase 3** (comparten la CPU y se falsearían sus tiempos). Pruébalo con los fakes: `--fake` o equivalente, con pruebas unitarias.
-4. **Lista de comprobación previa a la demo** (`docs/demo/CHECKLIST.md`): servicios, modelos cargados (`keep_alive`), migraciones, corpus indexado, usuarios, conversaciones preparadas, modo `simulation` y red.
+## Tareas (en este orden)
+1. **PA-272 y PA-103 · Revisar la calidad persistente y en la lista.** Hoy `QualityJob` vive en memoria (`api/runtime.py`, `rt.quality`) y se pierde al reiniciar.
+   - Guárdala en PostgreSQL. Propón el diseño en el plan, por ejemplo una tabla `quality_reviews` con la migración `0006`: persona, clave, estado, informe JSON, fechas y errores en la forma común.
+   - Al terminar, debe aparecer en la lista de conversaciones de la persona como «Informe listo» (UI.md §2). Decide en el plan si se une a `GET /conversations` (con un campo de tipo) o va en una lista aparte, y **cómo cambia el contrato**. Avisa: el frontend en React lo consume.
+   - La propiedad (404 idéntico) y la regla de no escribir en Jira se mantienen.
+2. **PA-113 · Recoger una HU que falla.** Si la generación de la conversación de QA falla después de `take`, que no quede bloqueada. Propón en el plan una opción y justifícala:
+   - devolver la entrega a pendiente;
+   - o reintentar desde la conversación de QA.
+3. **PA-275 · `keep_alive` de Ollama.** Que el modelo no se descargue a los 5 minutos sin uso.
+   - Opción simple: `OLLAMA_KEEP_ALIVE` en el servicio `ollama` de `docker-compose.yml`. Si lo haces así, **no reinicies el contenedor**: el cambio se aplicará en el próximo arranque.
+   - Documenta en el README cómo se aplica.
+4. **PA-273 · `docker compose --profile full`.** El servicio `app` usa `build: .`, pero no hay `Dockerfile`.
+   - Añade uno mínimo y reproducible (uv con el lockfile, usuario no root y sin copiar el `.env`) que arranque la API (`python -m api`), o quita el servicio si no tiene sentido.
+   - Justifícalo en el plan.
 
 ## Reglas
-- **Solo creas o cambias:** `README.md`, `docs/demo/`, `eval/demo_prepare.py` y sus pruebas (`tests/unit/test_demo_prepare.py`).
-  - Nada de `core/`, `api/`, `app/`, `adapters/`, `config/`, `prompts/`, `schemas/` ni `migrations/`.
-  - Si el script necesita algo de esas capas que no existe, **para y escríbelo como propuesta**.
+- **Puedes tocar:**
+  - `api/` (con regeneración del contrato: `uv run python -m api.export_openapi`, sin argumentos);
+  - `core/quality.py` y `core/handoff.py`;
+  - `migrations/versions/0006_*.py`;
+  - `docker-compose.yml`, `Dockerfile` (nuevo), `.dockerignore` (nuevo) y `README.md`;
+  - `app/` solo si la persistencia de la calidad lo necesita en Streamlit;
+  - y sus pruebas.
+
+  No toques `core/graph/`, `core/approvals.py`, `adapters/`, `schemas/` ni `config/`. Si necesitas un contrato congelado, **para y propónlo**.
+- **Pruebas:**
+  - con `fake_runtime` y fakes;
+  - las de PostgreSQL de la migración llevan la marca `integration` y usan bases de datos temporales;
+  - no ejecutes la suite `integration` completa.
 - **Kanban:**
-  - Pon T-36 a 🔄, con la nota «parte 1: README, guion y preparación».
-  - Añade tu fila al registro diario.
-  - No toques el tablero.
-  - **Propuestas en PA-270…PA-299.**
-- **Seguridad:** no leas ni muestres el `.env`; nada de secretos en el README ni en el guion; datos sintéticos.
-- **LLM:** solo fakes en las pruebas. Nada real sin preguntarme.
+  - cierra las PA que hagas con la fecha;
+  - añade tu fila al registro;
+  - no toques el tablero;
+  - **propuestas en PA-276…PA-299**.
+- **Seguridad:** no leas el `.env`; el `Dockerfile` no copia secretos; datos ficticios; los logs sin contenido.
+- **CPU:** Ollama está midiendo. Ejecuta solo las pruebas de lo que tocas y la suite completa una vez al final.
 - **Antes del commit:**
-  - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
+  - `uv run pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Commit:** `T-36 (parte 1): README de instalación, guion de la demo y preparación de conversaciones`. **Sin fusionar:** `git push -u origin ses-demo` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-huecos` y avísame.
 
-Empieza presentándome el plan (sobre todo el guion por pasos y cómo prepara las conversaciones el script) antes de escribir.
+Empieza presentándome el plan (sobre todo el diseño de la persistencia de la calidad, cómo cambia el contrato y la opción para PA-113) antes de escribir código.

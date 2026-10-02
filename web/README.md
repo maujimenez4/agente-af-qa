@@ -32,7 +32,19 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
 - Ni secretos ni claves en el frontend. La sesión, como diga el contrato; nunca en `localStorage`.
 - En mocks y pruebas, solo datos sintéticos.
 
-## Stack previsto
-Vite, React y TypeScript; CSS con variables (los tokens del lienzo y DM Sans); Vitest y Testing Library; API simulada con MSW o similar.
+## Stack
+Vite, React y TypeScript; CSS con variables (los tokens del lienzo y DM Sans); Vitest y Testing Library; API simulada con MSW o similar (cuando exista el contrato de T-55). Versiones y motivos en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) §3.
+
+## Cómo arrancar
+Requisito: Node.js 20.19 o superior.
+
+```bash
+cd web
+npm ci            # instala exactamente lo del package-lock.json
+npm run dev       # servidor de desarrollo en http://localhost:5173
+```
 
 Antes de cada entrega: `npm run lint`, `npm run test` y `npm run build` sin errores.
+
+## Decisiones de diseño
+Las incoherencias del lienzo y las demás decisiones (tokens, foco, fuentes, la Q) están resueltas en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md).

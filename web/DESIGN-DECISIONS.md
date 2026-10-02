@@ -73,9 +73,10 @@ Acordado con la sesión principal en la PR #2 (PA-303).
 - **Mismo origen:** el frontend llama a rutas relativas `/api/v1/…`.
   - En desarrollo, un proxy de Vite reenvía `/api` a `http://127.0.0.1:8000` **sin `changeOrigin`**: la API compara `Origin` con `Host`. El destino va en una variable del servidor de Vite sin prefijo `VITE_`, así que no llega al navegador.
   - No hace falta CORS.
-- **Operaciones largas:** crear, iterar, aprobar y revisar la calidad responden **202**. El avance llega por SSE (`EventSource` en el mismo origen) y, como respaldo, consultando `GET /conversations/{id}`.
+- **Operaciones largas:** crear, iterar, aprobar y revisar la calidad responden **202**. El avance llega por SSE y, como respaldo, consultando `GET /conversations/{id}`.
+  - **El SSE se lee con `fetch` y un `ReadableStream`, no con `EventSource`** (`src/api/events.ts`). Así se cierra con `AbortController`, no reconecta solo y se prueba con MSW en Vitest (jsdom no tiene `EventSource`). Si el flujo se corta sin `result`, quien escucha consulta `GET /conversations/{id}`.
   - Mientras hay una operación en curso, otra sobre la misma conversación da 409 `not_in_review`.
-  - El cliente **cierra el `EventSource` tras `result`** de una conversación terminada (simulada, publicada o descartada), para que no reconecte.
+  - El cliente **cierra el flujo tras `result`** de una conversación terminada (simulada, publicada o descartada) y no entrega nada de lo que llegue después.
   - Como mucho 3 flujos abiertos por persona: el cuarto da 429 `too_many_streams`.
 - **Errores:**
   - Siempre `{"error": {"code", "message", "retry_after"}}`. `code` es una lista cerrada (`ErrorBody.code`, PA-306).

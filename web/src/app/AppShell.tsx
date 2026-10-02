@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import type { UserOut } from '../api/types.ts'
+import type { ConversationOut, UserOut } from '../api/types.ts'
 import { Button } from '../components/Button/index.ts'
 import { ConversationList } from '../components/ConversationList/index.ts'
 import { homeZone, Rail, type Zone } from '../components/Rail/index.ts'
 import { useUsage } from '../hooks/useUsage.ts'
 import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJira.tsx'
 import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
+import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -46,7 +47,22 @@ export function AppShell({ user }: AppShellProps) {
   )
 }
 
-type WorkView = { name: 'home' } | { name: 'origin'; request: StartRequest }
+type WorkView =
+  | { name: 'home' }
+  | { name: 'origin'; request: StartRequest }
+  | { name: 'generating'; conversation: ConversationOut }
+
+// Flujos fuera de la demo de T-57 (DESIGN-DECISIONS.md §4 bis).
+const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: string }>> = {
+  review: {
+    title: 'Revisar la calidad: disponible pronto',
+    text: 'El informe INVEST y los hallazgos de una HU llegan después del punto de control de la demo.',
+  },
+  tests: {
+    title: 'Preparar pruebas: disponible pronto',
+    text: 'El flujo de QA (casos, cobertura, datos y estrategia) llega después del punto de control de la demo.',
+  },
+}
 
 function WorkZone({ user }: { user: UserOut }) {
   const { conversations, error: conversationsError, reload } = useConversations()
@@ -80,7 +96,13 @@ function WorkZone({ user }: { user: UserOut }) {
             pickedProject={picked?.project}
           />
         )}
-        {view.name === 'origin' && <OriginPending request={view.request} onBack={() => setView({ name: 'home' })} />}
+        {view.name === 'origin' && <OriginOrSoon request={view.request} onBack={() => setView({ name: 'home' })} onGenerating={(conversation) => {
+          setView({ name: 'generating', conversation })
+          reload()
+        }} />}
+        {view.name === 'generating' && (
+          <SoonScreen title="Generando la propuesta" text={`Conversación «${view.conversation.title}» creada. La pantalla Generando llega en el siguiente paso.`} />
+        )}
       </main>
       {jira && (
         <ChooseInJira
@@ -96,27 +118,24 @@ function WorkZone({ user }: { user: UserOut }) {
   )
 }
 
-// Provisional hasta la pantalla Origen y fuentes (Mixta 2): enseña lo que llegaría.
-function OriginPending({ request, onBack }: { request: StartRequest; onBack: () => void }) {
-  const options = request.proposal?.options.map((option) => option.label).join(' · ')
+function OriginOrSoon({
+  request,
+  onBack,
+  onGenerating,
+}: {
+  request: StartRequest
+  onBack: () => void
+  onGenerating: (conversation: ConversationOut) => void
+}) {
+  const soon = SOON_FLOWS[request.flow]
+  if (!soon) return <OriginScreen request={request} onBack={onBack} onGenerating={onGenerating} />
   return (
     <div className={styles.centered}>
-      <section className={styles.soon} aria-labelledby="origin-pending">
-        <h1 id="origin-pending" className={styles.soonTitle}>
-          Origen y fuentes
+      <section className={styles.soon} aria-labelledby="flow-soon">
+        <h1 id="flow-soon" className={styles.soonTitle}>
+          {soon.title}
         </h1>
-        <p className={styles.soonText}>Siguiente pantalla del bloque de la demo. Esto es lo que recibiría:</p>
-        <p>
-          Proyecto <b>{request.project}</b>
-          {request.origin && (
-            <>
-              {' '}
-              · origen <b>{request.origin.key}</b>
-            </>
-          )}
-          {request.text && <> · «{request.text}»</>}
-        </p>
-        {options && <p className={styles.soonText}>Opciones del arranque guiado: {options}</p>}
+        <p className={styles.soonText}>{soon.text}</p>
         <Button onClick={onBack}>Volver al inicio</Button>
       </section>
     </div>

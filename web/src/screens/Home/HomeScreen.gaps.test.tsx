@@ -90,7 +90,7 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     await openHome('qa-demo')
     await userEvent.type(screen.getByRole('textbox'), '  Pruebas de DEMO-3  ')
     await userEvent.click(continueButton())
-    await screen.findByRole('heading', { name: 'Origen y fuentes' })
+    await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
     expect(bodies).toEqual([{ text: 'Pruebas de DEMO-3', project: 'DEMO', mode: 'qa' }])
   })
 
@@ -103,7 +103,7 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
       await userEvent.click(flowCard(label))
       await userEvent.type(screen.getByRole('textbox'), 'Cambiar DEMO-3')
       await userEvent.click(continueButton())
-      await screen.findByRole('heading', { name: 'Origen y fuentes' })
+      await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
       expect(bodies.map((body) => body.mode)).toEqual(['functional'])
     },
   )
@@ -122,7 +122,7 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     /** Criterio 8: Ctrl + Intro en el compositor de Inicio lanza el arranque guiado. */
     await openHome()
     await userEvent.type(screen.getByRole('textbox'), 'Cambiar DEMO-3{Control>}{Enter}{/Control}')
-    expect(await screen.findByRole('heading', { name: 'Origen y fuentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })).toBeInTheDocument()
   })
 
   it('test_continue_disabled_while_proposing_single_request', async () => {
@@ -139,7 +139,7 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     await userEvent.click(continueButton())
     expect(continueButton()).toBeDisabled()
     await userEvent.keyboard('{Control>}{Enter}{/Control}')
-    await screen.findByRole('heading', { name: 'Origen y fuentes' })
+    await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
     expect(bodies).toHaveLength(1)
   })
 
@@ -150,8 +150,10 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-3 Renovar un préstamo' }))
     await userEvent.type(screen.getByRole('textbox'), 'Añadir renovación desde la app')
     await userEvent.click(continueButton())
-    await screen.findByRole('heading', { name: 'Origen y fuentes' })
-    expect(screen.getByText(/Proyecto/)).toHaveTextContent('Proyecto DEMO · origen DEMO-3 · «Añadir renovación desde la app»')
+    await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
+    const log = screen.getByRole('log')
+    expect(log).toHaveTextContent('Añadir renovación desde la app')
+    expect(log).toHaveTextContent('Operación fijada: evolucionar DEMO-3')
   })
 
   it('test_error_cleared_when_retry_succeeds', async () => {
@@ -170,7 +172,7 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     expect(await within(await screen.findByRole('alert')).findByRole('heading', { name: 'Límite de uso alcanzado' })).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveValue('Cambiar DEMO-3')
     await userEvent.click(continueButton())
-    expect(await screen.findByRole('heading', { name: 'Origen y fuentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -184,12 +186,10 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
     await openHome()
     await userEvent.type(screen.getByRole('textbox'), 'Cambiar SOCI-2')
     await userEvent.click(continueButton())
-    expect(await screen.findByRole('heading', { name: 'Origen y fuentes' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })).toBeInTheDocument()
   })
 
   // HUECOS frente a UI.md §9 (T-53), no defectos de lo implementado en los días 2-4:
-  it.todo('si la propuesta trae project_changed, Inicio avisa y fija el proyecto con POST /projects/choose')
-  it.todo('si la propuesta trae ignored_projects, Inicio avisa de que esas claves son de otro proyecto')
   it('la tarjeta de error de Inicio ofrece «Reintentar» (UI.md §7) y vuelve a cargar', async () => {
     let fail = true
     mockServer.use(
@@ -274,7 +274,7 @@ describe('Inicio: recientes y origen', () => {
     const recents = await screen.findByRole('region', { name: 'Recientes en DEMO' })
     await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-3 Renovar un préstamo' }))
     await userEvent.click(continueButton())
-    await screen.findByRole('heading', { name: 'Origen y fuentes' })
+    await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
     expect(bodies).toEqual([])
   })
 

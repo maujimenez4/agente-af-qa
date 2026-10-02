@@ -108,12 +108,15 @@ describe('API simulada: ejemplos del contrato', () => {
   })
 
   it('test_propose_without_key_keeps_contract_options_and_project', async () => {
-    /** Criterio 3: sin clave en el texto, el arranque guiado devuelve las opciones del ejemplo y el proyecto pedido. */
+    /** Criterio 3: sin clave en el texto, el arranque guiado propone evolucionar la HU parecida o crear una nueva, en el proyecto pedido. */
     const csrf = await csrfOf()
     const proposal = await (await send('POST', '/start/propose', csrf, { text: 'Renovar un préstamo', project: 'DEMO', mode: 'functional' })).json()
     const example = examples['POST /api/v1/start/propose 200']
     expect(proposal).toMatchObject({ project: 'DEMO', project_changed: false, ignored_projects: [], recognized: [] })
-    expect(proposal.options).toEqual(example.options)
+    expect(proposal.similar.map((issue: { key: string }) => issue.key)).toEqual(['DEMO-3'])
+    expect(proposal.options.map((option: { kind: string }) => option.kind)).toEqual(example.options.map((option) => option.kind))
+    expect(proposal.options[0]).toMatchObject({ kind: 'evolve', origin: { kind: 'story', key: 'DEMO-3', project: 'DEMO' } })
+    expect(proposal.options[1]).toMatchObject({ kind: 'new_need', origin: { kind: 'need', text: 'Renovar un préstamo', project: 'DEMO' } })
   })
 
   it('test_issue_card_counts_and_epic_of_story', async () => {

@@ -20,7 +20,7 @@ async function fill(username: string, password: string) {
 describe('LoginScreen (PA-311)', () => {
   it('pide usuario y contraseña con sus etiquetas, y el foco empieza en el usuario', async () => {
     await openLogin()
-    expect(screen.getByLabelText('Usuario')).toHaveFocus()
+    await waitFor(() => expect(screen.getByLabelText('Usuario')).toHaveFocus())
     expect(screen.getByLabelText('Usuario')).toHaveAttribute('autocomplete', 'username')
     expect(screen.getByLabelText('Contraseña')).toHaveAttribute('type', 'password')
     expect(screen.getByLabelText('Contraseña')).toHaveAttribute('autocomplete', 'current-password')

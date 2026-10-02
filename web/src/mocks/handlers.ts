@@ -8,10 +8,14 @@ import type {
   ConversationOut,
   ConversationSummary,
   ErrorCode,
+  IssueSummary,
   LoginIn,
   ProgressStep,
   ProposeIn,
   SessionOut,
+  SourcePreview,
+  SourcesIn,
+  StartOption,
   StartProposal,
 } from '../api/types.ts'
 import {
@@ -27,6 +31,14 @@ import {
 import { example } from './examples.ts'
 
 const API = '/api/v1'
+
+// Documentos y memoria sintéticos del RAG simulado (categorías de core/rag/documents.py).
+const MOCK_SOURCES: SourcePreview[] = [
+  { ref: 'DOC-01', kind: 'rag', title: 'Reglamento de préstamo', category: 'politicas', required: false },
+  { ref: 'DOC-08', kind: 'rag', title: 'Especificación del préstamo digital', category: 'documentacion', required: false },
+  { ref: 'DOC-20', kind: 'rag', title: 'Acta de la comisión de abril', category: 'procesos', required: false },
+  { ref: 'memoria-DEMO-2', kind: 'memory', title: 'Memoria validada de reservas', category: 'memoria', required: false },
+]
 
 function error(status: number, code: ErrorCode, message: string, retryAfter?: number) {
   const body: { error: ApiError } = { error: { code, message, retry_after: retryAfter ?? null } }
@@ -143,13 +155,59 @@ export function createHandlers(db: MockDb) {
         const proposal = example<StartProposal>('POST /api/v1/start/propose 200')
         const keys = [...body.text.toUpperCase().matchAll(/\b([A-Z]+-\d+)\b/g)].map((match) => match[1] ?? '')
         const recognized = keys.map((key) => issueCard(key)).filter((card) => card !== undefined)
-        proposal.project = body.project
-        proposal.recognized = recognized.map(({ key, summary, issue_type, status }) => ({ key, summary, issue_type, status }))
-        proposal.similar = recognized.length > 0 ? [] : searchIssues(body.project, body.text.split(/\s+/)[0] ?? '').slice(0, 1)
+        // Una clave de otro proyecto cambia el de la conversación (T-50, T-53).
+        const project = recognized[0]?.project ?? body.project
+        const summaryOf = (issue: IssueSummary): IssueSummary => ({
+          key: issue.key,
+          summary: issue.summary,
+          issue_type: issue.issue_type,
+          status: issue.status,
+        })
+        const words = body.text.split(/\s+/).filter((word) => word.length > 3)
+        const similar =
+          recognized.length > 0
+            ? []
+            : (words.map((word) => searchIssues(project, word)).find((found) => found.length > 0) ?? [])
+                .filter((issue) => issue.issue_type !== 'Epic')
+                .slice(0, 1)
+        const issue = recognized[0] ? summaryOf(recognized[0]) : similar[0]
+        const options: StartOption[] = []
+        if (issue) {
+          options.push(
+            body.mode === 'qa'
+              ? { kind: 'tests', label: `Preparar pruebas de ${issue.key}`, origin: { kind: 'story', key: issue.key, project }, issue }
+              : { kind: 'evolve', label: `Evolucionar ${issue.key}`, origin: { kind: 'story', key: issue.key, project }, issue },
+          )
+        }
+        if (body.mode !== 'qa') options.push({ kind: 'new_need', label: 'Crear HU nueva', origin: { kind: 'need', text: body.text, project } })
+        proposal.project = project
+        proposal.project_changed = project !== body.project
+        proposal.ignored_projects = []
+        proposal.recognized = recognized.map(summaryOf)
+        proposal.similar = similar
+        proposal.options = options
         return HttpResponse.json(proposal as JsonBodyType)
       }),
     ),
-    http.post(`${API}/start/sources`, mutation(() => HttpResponse.json(example('POST /api/v1/start/sources 200')))),
+    http.post(
+      `${API}/start/sources`,
+      mutation(async ({ request }) => {
+        const { origin } = (await request.json()) as SourcesIn
+        const card = origin.key ? issueCard(origin.key) : undefined
+        const required: SourcePreview[] = card
+          ? [
+              {
+                ref: card.key,
+                kind: 'jira',
+                title: card.issue_type === 'Epic' ? `Épica de origen: ${card.summary}` : `HU de origen: ${card.summary}`,
+                category: card.issue_type,
+                required: true,
+              },
+            ]
+          : []
+        return HttpResponse.json([...required, ...MOCK_SOURCES] as JsonBodyType)
+      }),
+    ),
 
     // Conversaciones
     http.get(`${API}/conversations`, query(() => HttpResponse.json(db.conversations as JsonBodyType))),

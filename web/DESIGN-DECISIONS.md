@@ -110,7 +110,22 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Admin:** una pantalla simple «Disponible pronto». Ajustes queda para después de T-57.
 - **Elegir en Jira:** además de *Usar la épica* y *Usar DEMO-3* (UI.md §4.2), si solo se cambia de proyecto aparece **«Usar el proyecto X»**: el selector de proyecto de Inicio abre este diálogo (UI.md §4.1) y hace falta poder cambiarlo sin fijar un origen. El buscador espera 300 ms entre pulsaciones.
 - **Lista de conversaciones con error:** si `GET /conversations` falla, la lista muestra la tarjeta de error con *Reintentar* (UI.md §7), no el estado vacío.
-- **Arranque guiado:** el aviso de `project_changed` e `ignored_projects` (T-53) se hace en Origen y fuentes, donde se fija la operación.
+- **Arranque guiado:** el aviso de `project_changed` e `ignored_projects` (T-53, PA-313) se hace en Origen y fuentes, donde se fija la operación. Con `project_changed`, el proyecto se fija una vez con `POST /projects/choose`.
+- **Origen y fuentes** (Mixta 2):
+  - **Operación según lo elegido:**
+    - una opción del arranque guiado trae su `origin` listo;
+    - una HU de Jira o de los recientes se evoluciona;
+    - una épica crea una HU nueva dentro de ella (flujo `need`, origen `epic`).
+  - **Restricciones:**
+    - en una necesidad nueva se añaden al texto del origen («Restricciones: …»);
+    - al evolucionar van como primer `feedback`;
+    - los detalles que se escriben en el compositor van con ellas.
+  - **Fuentes:**
+    - la de origen es obligatoria (casilla desactivada);
+    - la memoria sale como «prioritaria»;
+    - una fuente desmarcada indica que no influirá en la propuesta y va en `excluded_sources`.
+  - **Presupuesto de tokens** del panel: no está en el contrato (PA-102) y no se pinta.
+- **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Anillo de consumo:**
   - en el carril, «24 %» y debajo «instalación». El porcentaje es `tokens_today / warning_threshold`, acotado a 100;

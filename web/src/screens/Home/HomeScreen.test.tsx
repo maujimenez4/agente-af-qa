@@ -70,8 +70,8 @@ describe('Inicio (Mixta 1, UI.md §4.1)', () => {
     const recents = await screen.findByRole('region', { name: 'Recientes en DEMO' })
     await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-3 Renovar un préstamo' }))
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    expect(await screen.findByRole('heading', { name: 'Origen y fuentes' })).toBeInTheDocument()
-    expect(screen.getByText(/origen/)).toHaveTextContent('Proyecto DEMO · origen DEMO-3')
+    expect(await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })).toBeInTheDocument()
+    expect(screen.getByRole('log')).toHaveTextContent('Operación fijada: evolucionar DEMO-3')
   })
 
   it('con texto pide el arranque guiado sin IA y pasa sus opciones', async () => {
@@ -79,8 +79,9 @@ describe('Inicio (Mixta 1, UI.md §4.1)', () => {
     await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
     await userEvent.type(screen.getByRole('textbox'), 'Cambiar DEMO-3 para la app')
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    expect(await screen.findByRole('heading', { name: 'Origen y fuentes' })).toBeInTheDocument()
-    expect(screen.getByText(/Opciones del arranque guiado/)).toHaveTextContent('Evolucionar DEMO-3 · Crear HU nueva')
+    expect(await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Evolucionar DEMO-3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Crear HU nueva' })).toBeInTheDocument()
   })
 
   it('si el arranque guiado falla, muestra la tarjeta de error y se queda en Inicio', async () => {
@@ -106,7 +107,7 @@ describe('Inicio (Mixta 1, UI.md §4.1)', () => {
     const recents = await screen.findByRole('region', { name: 'Recientes en DEMO' })
     await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-3 Renovar un préstamo' }))
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    await screen.findByRole('heading', { name: 'Origen y fuentes' })
+    await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
     await userEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }))
     expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
   })

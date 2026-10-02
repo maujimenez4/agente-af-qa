@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
+import './styles/fonts.ts'
+import './styles/tokens.css'
+import './styles/base.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('No se encuentra el elemento #root en index.html.')

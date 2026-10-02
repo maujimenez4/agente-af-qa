@@ -1,0 +1,122 @@
+/*
+ * Tokens del sistema de diseño «Propuesta mixta» (T-56).
+ * Origen: docs/diseno/lienzo/ con las decisiones de web/DESIGN-DECISIONS.md.
+ * Los componentes usan solo estas variables, nunca hex sueltos.
+ */
+:root {
+  /* Neutros y marca */
+  --color-text: #233441;
+  --color-text-muted: #5c6e7c;
+  --color-surface: #ffffff;
+  --color-surface-2: #fafbfc;
+  --color-bg: #f4f6f8;
+  --color-border-soft: #e6eaee;
+  --color-border: #c7cfd6;
+  --color-border-strong: #93a0ab;
+  --color-primary: #ff7932;
+  --color-primary-tint: #fff3ec;
+  --color-primary-text: #b23e00;
+  --color-flash: #ffe5d5;
+  --color-navy: #1e2d3d;
+  --color-navy-hover: #2c3e4d;
+  --color-on-navy: #c9d2db;
+  --color-overlay: #1e2d3d66;
+
+  /* Aviso y simulación (decisión 1) */
+  --color-warn-bg: #fff8e6;
+  --color-warn-border: #f0d48a;
+  --color-warn-text: #6b4a00;
+  --color-warn: #b35c00;
+  --color-warn-on-dark: #ffb48a;
+
+  /* Error */
+  --color-error-bg: #fdecea;
+  --color-error-border: #f1b8b2;
+  --color-error-text: #8c1d18;
+  --color-error: #c9453c;
+
+  /* Éxito (decisión 3) */
+  --color-success-bg: #e7f4ec;
+  --color-success-row: #f3faf6;
+  --color-success-border: #a7d3b8;
+  --color-success-text: #1e5e38;
+  --color-success: #1e7a46;
+
+  /* Tipo de caso «Alterno»: el único azul */
+  --color-info-bg: #e8f0fb;
+  --color-info-text: #1d4f91;
+
+  /* Foco (decisión 12, opción A) */
+  --focus-ring: var(--color-primary);
+  --focus-halo: var(--color-primary-text);
+
+  /* Tipografía (decisión 14) */
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --text-hero: 30px;
+  --text-xl: 20px;
+  --text-lg: 17px;
+  --text-md: 16px;
+  --text-body: 15px;
+  --text-sm: 14px;
+  --text-xs: 13px;
+  --text-2xs: 12px;
+  --text-3xs: 11px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --tracking-hero: -0.01em;
+  --tracking-label: 0.04em;
+
+  /* Espaciado normalizado */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  /* Radios (decisión 4) y geometría Q: tres esquinas redondas y la de abajo a la derecha casi recta */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-btn: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  --radius-q: 16px 16px 4px 16px;
+  --radius-q-md: 12px 12px 4px 12px;
+  --radius-q-sm: 9px 9px 3px 9px;
+
+  /* Bordes y sombra única */
+  --border-width: 1px;
+  --ring-composer: 0 0 0 3px var(--color-primary-tint);
+
+  /* Alturas de control */
+  --control-lg: 44px;
+  --control-md: 36px;
+  --control-sm: 28px;
+  --step-mark: 22px;
+
+  /* Layout (decisión 10) */
+  --rail-width: 88px;
+  --conversations-width: 248px;
+  --header-height: 64px;
+  --panel-sm: 420px;
+  --panel-md: 480px;
+  --panel-lg: 540px;
+  --chat-max: 640px;
+  --hero-max: 760px;
+  --modal-width: 980px;
+  --modal-height: 600px;
+
+  /* Movimiento */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 0.22s;
+  --dur-base: 0.32s;
+  --dur-slow: 0.42s;
+}

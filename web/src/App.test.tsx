@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { App } from './App.tsx'
 
 describe('App', () => {
-  it('pinta el título de la aplicación en español', () => {
+  it('muestra el catálogo del sistema de diseño en español', () => {
     render(<App />)
-    expect(screen.getByRole('heading', { level: 1, name: 'Agente AF y QA' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Sistema de diseño · Propuesta mixta' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Colores' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Tipografía · DM Sans' })).toBeInTheDocument()
   })
 })

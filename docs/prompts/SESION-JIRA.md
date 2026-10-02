@@ -1,6 +1,6 @@
-# SESIÓN JIRA · Ronda 4: corregir los defectos de la prueba cruzada T-34
+# SESIÓN JIRA · Ronda 6: PA-114, que el contexto nunca se trunque en silencio
 
-Tu T-34 ya está fusionada en `PreProduccion` (240 pruebas, 50 `xfail` estrictos, PA-211…PA-224). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu ronda 5 ya está fusionada en `PreProduccion` (PA-208 real ✅, PA-183…PA-190, PA-195, PA-226 y PA-227). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
@@ -8,69 +8,64 @@ git fetch origin
 git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
 cd .claude/worktrees/area-a
 uv sync
-uv run pytest -m "not integration"          # en verde, con 50 xfailed
+uv run pytest -m "not integration"          # en verde, con 62 xfailed (defectos de T-35 en curso)
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu T-34 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu ronda 5 ya está fusionada.
 
-**En esta ronda corriges los defectos que encontraste.** El área B ya no tiene responsable de backend: su responsable hace el frontend en React. La principal te autoriza a tocar el código de esas PA.
+**PA-187 (ReDoS del ADF) no es tuya:** está en el bloque 1 de la sesión UI.
+
+**En esta ronda haces PA-114, prioridad alta**, que sale de la prueba real de punta a punta. Al evolucionar AFQP-3 con `qwen3:1.7b`, el agente envió 7362 tokens de entrada con un tope de salida de 2500, en una ventana de 8192. Ollama hizo *context shift*:
+- descartó 4093 tokens del principio (las instrucciones y la HU de Jira);
+- devolvió 200 con una salida válida.
+
+**El agente no se entera:** la HU se escribe sin parte de su prompt. Hay que garantizar que eso no pase nunca.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`; contratos, API y composición.
-- **Modelos:** `ses-flujo`, con T-54, en `core/graph/`, `core/conversations.py`, `core/qa/` y una migración nueva.
-- **UI:** `ses-ui`, con T-28 en `app/` (Streamlit).
-- **Ollama:** medición y configuración de modelos (`config/models.yaml`).
+- **Principal:** integra.
+- **UI:** `ses-ui`, con los defectos de T-35 en:
+  - `core/approvals.py`, `core/state_machine.py` y `core/graph/execution.py`;
+  - **`core/context/`**, `core/impact/`, **`adapters/llm/`** y `adapters/auth/`.
+- **Modelos:** `ses-huecos`, en `api/`, `core/quality.py`, `core/handoff.py`, `migrations/0006`, `docker-compose.yml` y `Dockerfile`.
+- **Ollama:** e2e real y medición de `limits.context_token_budget` (4500/4000). **Usa el LLM en esta máquina.**
 
-## Orden de trabajo (de más a menos impacto en la demo)
-**Bloque 1 · datos y flujo de la demo:**
-1. **PA-214:** ids de documento duplicados (un documento borra a otro al indexar). Rechaza o desambigua el id, con un error claro.
-2. **PA-216:** indexación no atómica y `zip(strict=True)` sin envolver. Que un fallo no deje el documento fuera del índice.
-3. **PA-218:** falso positivo de secreto en la memoria, que acaba en error tras publicar una HU.
-4. **PA-222:** revisar la calidad.
-   - Comprueba el tipo de la incidencia.
-   - Valida los IDs que se mencionan en el texto, no solo `target_id`.
-5. **PA-223:**
-   - la vista previa de fuentes aplica `normalize_excluded_sources`, como el grafo;
-   - el tipo «Épica» se reconoce también en NFD.
-6. **PA-211:** solapamiento nulo en prosa al trocear. Afecta a la calidad del RAG.
-   - Si cambia el troceado, avisa: habrá que reindexar el corpus.
+## Qué hay que construir (presenta el plan antes de tocar código)
+1. **Configuración** (autorizado por la principal en `core/config.py`, solo esto):
+   - un campo `limits.context_window` (tokens de la ventana del modelo, p. ej. 8192), con un valor por defecto que no rompa los `models.yaml` actuales;
+   - un margen de seguridad si hace falta.
 
-**Bloque 2 · robustez:**
-- PA-212 (encabezados y vallas);
-- PA-213 (BOM en la ingesta);
-- PA-215 (delimitadores en el prompt de clasificación);
-- PA-217 (CLI de indexación);
-- PA-220 (embeddings: `retry-after` e índices);
-- PA-221 (pgvector: vector de consulta y categorías mezcladas);
-- PA-224 (prompts: BOM, cuerpo vacío y nombre).
+   **No cambies `config/models.yaml`:** lo hará la sesión Ollama con los valores medidos. Documenta el campo.
+2. **Guarda antes de llamar al LLM**, en los escritores que generan con mucho contexto:
+   - `core/functional/writer.py` (generar, evolucionar, estructurar);
+   - `core/qa/writer.py` (suite);
+   - y valora `core/impact/` y `core/memory/` (impacto y memoria) si pueden pasarse.
 
-**Fuera de esta ronda:**
-- La parte de **PA-219** que pide `min_length` en `schemas/memory.py` (congelado): propónla y la hace la principal. La parte del `CP-99` en `TRACE_ID` sí es tuya.
-- No toques `core/qa/` (T-54).
+   El cálculo y la respuesta:
+   - estima los tokens del mensaje completo (instrucciones + contexto + HU previa + feedback) con `core.context.budget.estimate_tokens` u otro estimador conservador;
+   - comprueba que **estimado + `max_output_tokens` de la tarea ≤ `context_window`**;
+   - si no cabe, recorta primero las fuentes de menos prioridad (los últimos fragmentos del RAG y después las HU relacionadas), **nunca** la HU de origen ni las instrucciones;
+   - si ni así cabe, un error claro en español (`AgentError`), nunca un truncado silencioso.
 
-## Cómo
-- Por cada PA, quita el `xfail` de sus pruebas (o invierte las de comportamiento fijado, como indicaste en cada PA) y corrige el código hasta que pasen.
-- Un commit por PA o por grupo pequeño: `T-34: corrige PA-2XX … [RF-YY]`.
-- Cierra cada PA en el Kanban con la fecha.
-- Si una corrección necesita cambiar un contrato (`schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`), **para y escríbelo como propuesta**.
+   Que el recorte quede en el log (sin contenido: solo recuentos) y, si el diseño lo permite, en las fuentes que se muestran.
+3. **Estimación conservadora:** la estimación por caracteres puede quedarse corta con texto en español. Mide con algún caso de prueba frente a un tokenizador real si hay uno en las dependencias, y deja un margen.
+4. **Imports de `escape_data`:** de paso, cambia los de `core/qa/` a `core.text` (los de `core/impact/` son de la sesión UI).
 
 ## Reglas
 - **Puedes tocar:**
-  - `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py` y `core/context/service.py` (solo para `NOT_STORIES`, PA-223);
-  - `adapters/embeddings/` y `adapters/vectorstore/`;
-  - `prompts/` (solo PA-215, si hace falta);
-  - sus pruebas y `tests/unit/test_cross_b_*.py`.
+  - `core/functional/` y `core/qa/`;
+  - `core/memory/` (si aplica);
+  - `core/config.py` (solo el campo autorizado);
+  - sus pruebas.
 
-  No toques `core/graph/`, `core/conversations.py`, `core/qa/`, `api/`, `app/`, `web/`, `config/`, `schemas/` ni los contratos.
-- **Kanban:** cambia solo las PA que cierres y añade tu fila al registro. No toques el tablero. **Propuestas en PA-225…PA-249.**
-- **Seguridad:** no leas el `.env`; datos ficticios; los logs no llevan contenido.
-- **LLM:** solo fakes.
-- **Antes de cada commit:**
-  - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
-  - `spec-checker` CONFORME y `security-reviewer` APTO al terminar cada bloque.
-  - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push origin ses-jira` al terminar cada bloque y avísame.
+  **No toques `core/context/` ni `adapters/llm/`**, que están en la sesión UI. Si la guarda necesita algo de ahí, **para y avísame**.
+- **Kanban:** cierra PA-114 con la fecha; tu fila en el registro; propuestas en PA-228…PA-249.
+- **Pruebas:**
+  - con fakes, incluido el caso límite (justo cabe, no cabe y se recorta, ni recortando cabe → error) y que la HU de origen y las instrucciones nunca se recortan;
+  - nada contra el LLM real.
+- **CPU:** Ollama está midiendo. Solo las pruebas de lo que tocas, y la suite completa una vez al final.
+- **Antes del commit:** pytest, `ruff check` y `ruff format --check` en verde; `spec-checker` CONFORME y `security-reviewer` APTO. Pide a los subagentes que no maten procesos globales.
+- **Sin fusionar:** `git push origin ses-jira` y avísame.
 
-Empieza por el bloque 1 y preséntame el plan breve antes de tocar código.
+Empieza presentándome el plan (dónde va la guarda, cómo estima y qué recorta) antes de escribir código.

@@ -16,7 +16,7 @@ from typing import Any
 from langgraph.types import Command
 
 from adapters.base import TaskType, User
-from adapters.errors import NotFoundError
+from adapters.errors import AgentError, NotFoundError
 from adapters.llm.router import ModelChoice
 from api.errors import ApiError, to_api_error
 from api.models import (
@@ -99,6 +99,25 @@ def nodes_in_update(update: object) -> list[str]:
     if not isinstance(update, dict):
         return []
     return [str(name) for name in update if not str(name).startswith("__")]
+
+
+def count_test_cases(ws: Workspace, story_key: str) -> int | None:
+    """Subtareas CP de la HU en Jira (PA-104); None si no se pudo consultar."""
+    try:
+        return len(ws.container.test_management.list_cases(story_key))
+    except AgentError:
+        return None
+
+
+def published_by_agent(ws: Workspace, story_key: str) -> bool | None:
+    """El agente publicó esta HU (tabla `artifacts`, PA-104); None si no hay almacén o falla."""
+    check = getattr(ws.container.versions, "published_by_agent", None)
+    if check is None:
+        return None
+    try:
+        return bool(check(story_key))
+    except AgentError:
+        return None
 
 
 def count_ids(text: str) -> tuple[int, int]:

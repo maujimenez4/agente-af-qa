@@ -10,6 +10,7 @@ from uuid import UUID
 
 from adapters.base import IssueSummary, ProjectSummary
 from api.models import (
+    ContextBudgetOut,
     ConversationOut,
     ErrorBody,
     ErrorResponse,
@@ -27,6 +28,7 @@ from api.models import (
     ReviewPayload,
     SessionOut,
     SettingsOut,
+    SourcesOut,
     TaskModelsOut,
     UserOut,
     VersionOut,
@@ -147,6 +149,8 @@ CARD = IssueCard(
     epic_key="DEMO-1",
     criteria_count=2,
     rules_count=2,
+    test_cases=0,
+    published_by_agent=False,
 )
 PROPOSAL = StartProposal(
     project="DEMO",
@@ -339,6 +343,10 @@ EXECUTION_RECORDED = EXECUTION.model_copy(
             recorded=["DEMO-501", "DEMO-502"], approved_by="qa-demo", approved_at=NOW
         ),
     }
+)
+SOURCES_OUT = SourcesOut(
+    sources=SOURCES,
+    budget=ContextBudgetOut(used=2350, limit=6000, dropped_sources=0, truncated_sources=1),
 )
 HANDOFFS = [
     HandoffOut(

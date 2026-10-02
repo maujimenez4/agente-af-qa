@@ -33,7 +33,7 @@ PromptLoader = Callable[[str], Prompt]
 
 log = get_logger("core.memory")
 
-TRACE_ID = re.compile(r"\b(?:CA|RN)-\d+\b")
+TRACE_ID = re.compile(r"\b(?:CA|RN|CP)-\d+\b")  # PA-219: también los CP de una suite
 _HEADING = re.compile(r"^#+\s*")
 _RULE_LINE = re.compile(r"[-=*_~\s]+")
 # Formas habituales de secretos: no deben llegar a la memoria, que se reindexa en el RAG.
@@ -43,7 +43,11 @@ _SECRET = re.compile(
     r"|\b(?:sk|gsk|ghp|xox[bp])[-_][\w-]{16,}"
     r"|\bAKIA[0-9A-Z]{16}\b"
     r"|\b[a-z][\w+.-]*://[^\s:/@]+:[^\s@]+@"  # cadena de conexión con credenciales
-    r"|\b(?:api[_ -]?key|clave(?:[_ ]api)?|password|contraseña|secret)\s*[:=]\s*\S{6,}"
+    # PA-218: tras «contraseña:» solo cuenta un valor que lo parezca: con dígitos o símbolos,
+    # con una mayúscula en medio (frase de paso, «CorrectoCaballo») o de 16 letras o más.
+    # «La contraseña: mínimo ocho caracteres» es una regla de negocio, no un secreto.
+    r"|\b(?:api[_ -]?key|clave(?:[_ ]api)?|password|contraseña|secret)\s*[:=]\s*"
+    r"(?:(?=\S*[\d_\-+/=@#$%&*!~])\S{6,}|(?-i:(?=\S*[a-zà-ÿ][A-Z]))\S{6,}|\w{16,})"
 )
 MAX_SHOWN = 80
 _LIST_FIELDS = (
@@ -67,10 +71,11 @@ class ArtifactFacts:
     criteria: tuple[str, ...]  # CA del artefacto, en orden
     rules: tuple[str, ...]  # RN del artefacto, en orden
     references: tuple[str, ...]  # `ref` de las fuentes que cita
+    cases: tuple[str, ...] = ()  # CP de una suite (PA-219); vacío en una HU
 
     @property
     def ids(self) -> tuple[str, ...]:
-        return (*self.criteria, *self.rules)
+        return (*self.criteria, *self.rules, *self.cases)
 
 
 def artifact_facts(artifact: Artifact) -> ArtifactFacts:
@@ -93,6 +98,7 @@ def artifact_facts(artifact: Artifact) -> ArtifactFacts:
         criteria=tuple(i for i in ids if i.startswith("CA-")),
         rules=tuple(i for i in ids if i.startswith("RN-")),
         references=tuple(dict.fromkeys(s.ref for s in content.sources)),
+        cases=tuple(c.internal_id for c in content.cases) if isinstance(content, TestSuite) else (),
     )
 
 
@@ -138,6 +144,10 @@ def memory_errors(memory: Memory, facts: ArtifactFacts) -> list[str]:
     unknown = sorted({i for text in _texts(memory) for i in TRACE_ID.findall(text)} - known)
     if unknown:
         errors.append(f"IDs que no existen en el artefacto: {', '.join(unknown)}")
+    # PA-219 (RF-36): objetivo y alcance son obligatorios; vacíos o solo «---» piden reintento.
+    for label, text in (("objetivo", memory.objective), ("alcance", memory.scope)):
+        if not _one_line(text):
+            errors.append(f"falta el {label} de la memoria")
     missing = _missing(facts.criteria, memory.acceptance_criteria)
     if missing:
         errors.append(f"faltan criterios de aceptación: {', '.join(missing)}")

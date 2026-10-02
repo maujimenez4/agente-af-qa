@@ -113,13 +113,6 @@ def _doc_ids(store: FakeVectorStore) -> set[str]:
 # --------------------------------------------------------------------------- fallos a mitad
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-216): si upsert falla tras delete_by_document, el documento reindexado "
-        "desaparece del índice (core/rag/indexing.py:91-94)"
-    ),
-)
 def test_index_dir_keeps_previous_chunks_when_upsert_fails_after_delete(tmp_path: Path) -> None:
     """RF-38: un reindexado fallido no pierde los fragmentos que ya había."""
     root = _corpus(tmp_path / "corpus")
@@ -157,13 +150,6 @@ def test_index_dir_deletes_nothing_when_embeddings_fail(tmp_path: Path) -> None:
     assert store.chunks == before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-216): si los embeddings devuelven menos vectores, zip(strict=True) lanza "
-        "ValueError en vez de un AgentError con mensaje en español (core/rag/indexing.py:87-90)"
-    ),
-)
 def test_index_dir_raises_agent_error_when_embeddings_return_fewer_vectors(
     tmp_path: Path,
 ) -> None:
@@ -180,7 +166,7 @@ def test_index_dir_deletes_nothing_when_embeddings_return_fewer_vectors(tmp_path
     before = dict(store.chunks)
     store.calls.clear()
 
-    with pytest.raises(Exception):  # noqa: B017 - hoy ValueError; ver el xfail anterior
+    with pytest.raises(ExternalServiceError, match="vectores"):  # PA-216
         _indexer(store, ShortEmbeddings()).index_dir(root)
 
     assert store.calls == []
@@ -203,15 +189,6 @@ def test_index_dir_keeps_orphan_chunks_when_document_removed_from_corpus(tmp_pat
     assert _doc_ids(store) == {"DOC-81", "DOC-82"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos archivos con el mismo nombre en carpetas distintas comparten id; "
-        "el segundo borra los fragmentos del primero (core/rag/ingest.py:137, "
-        "core/rag/indexing.py:91)"
-    ),
-)
 def test_index_dir_keeps_both_documents_when_same_name_in_different_folders(
     tmp_path: Path,
 ) -> None:
@@ -279,14 +256,6 @@ def cli(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     return state
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-217): "
-        "la CLI con una carpeta inexistente indexa 0 documentos y sale con 0 "
-        "(core/rag/indexing.py:108-120)"
-    ),
-)
 def test_indexing_main_returns_nonzero_when_folder_does_not_exist(
     tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -299,25 +268,6 @@ def test_indexing_main_returns_nonzero_when_folder_does_not_exist(
     assert "no-existe" in capsys.readouterr().err
 
 
-def test_indexing_main_reports_zero_documents_when_folder_does_not_exist(
-    tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
-) -> None:
-    """RF-10 (comportamiento observado, ver el xfail anterior): imprime 0 documentos."""
-    import core.rag.indexing as indexing
-
-    indexing.main([str(tmp_path / "no-existe")])
-
-    assert capsys.readouterr().out.startswith("Indexados 0 documentos y 0 fragmentos")
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-217): "
-        "la CLI no captura AgentError; un fallo externo sale como traceback en "
-        "vez de un mensaje en español y código distinto de 0 (core/rag/indexing.py:116)"
-    ),
-)
 def test_indexing_main_prints_spanish_error_when_external_service_fails(
     tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -333,13 +283,22 @@ def test_indexing_main_prints_spanish_error_when_external_service_fails(
     assert "No se pudo guardar" in capsys.readouterr().err
 
 
-def test_indexing_main_propagates_external_error_when_store_fails(
-    tmp_path: Path, cli: dict[str, object]
+def test_indexing_main_prints_spanish_error_when_config_is_invalid(
+    tmp_path: Path,
+    cli: dict[str, object],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CLAUDE.md (comportamiento observado, ver el xfail anterior): la excepción se propaga."""
+    """PA-217: un `ConfigError` (no es `AgentError`) también sale como mensaje, sin traceback."""
+    import core.config
     import core.rag.indexing as indexing
 
-    cli["store"] = FailingUpsertStore(fail=True)
+    def broken() -> None:
+        raise core.config.ConfigError("Falta configurar el modelo de embeddings ficticio.")
 
-    with pytest.raises(ExternalServiceError):
-        indexing.main([str(_corpus(tmp_path / "corpus"))])
+    monkeypatch.setattr(core.config, "build_config", broken)
+    code = indexing.main([str(_corpus(tmp_path / "corpus"))])
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Falta configurar" in err and "Traceback" not in err

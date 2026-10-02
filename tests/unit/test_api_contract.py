@@ -171,9 +171,19 @@ def test_frontend_needs_are_in_the_contract() -> None:
     assert "failed_ids" in schemas["PublishOutcome"]["properties"]
 
 
-def test_validation_message_for_model_errors_and_bad_json() -> None:
-    """El 422 da un mensaje listo para mostrar también sin campo concreto (revisión de T-55)."""
-    client = TestClient(create_app())
+def test_validation_message_for_model_errors_and_bad_json(tmp_path: Path) -> None:
+    """El 422 da un mensaje listo para mostrar también sin campo concreto (revisión de T-55).
+
+    Con sesión y CSRF: sin ellos la API responde 401 o 403 antes de validar el cuerpo (PA-161).
+    """
+    client = TestClient(
+        create_app(runtime_instance=fake_runtime(tmp_path)), base_url="https://testserver"
+    )
+    login = client.post(
+        f"{API_PREFIX}/auth/login",
+        json={"username": "af-demo", "password": dataset.DEMO_USERS["af-demo"][0]},
+    )
+    client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
     response = client.post(
         f"{API_PREFIX}/conversations",
         json={"flow": "tests", "origin": {"kind": "need", "text": "x", "project": "DEMO"}},

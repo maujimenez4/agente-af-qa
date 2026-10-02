@@ -668,18 +668,21 @@ def test_preview_sources_rag_chunks_of_same_document_once(container: Container) 
 
 
 def test_preview_sources_excluded_respected(container: Container) -> None:
-    """RF-21 (T-51, T-53): las fuentes excluidas no aparecen; la de origen no se excluye."""
+    """RF-21 (T-51, T-53): las fuentes excluidas no aparecen; el origen no se puede excluir."""
     origin: Origin = {"kind": "story", "key": "DEMO-3", "project": "DEMO"}
     service = GuidedStart(container)
     before = {r.ref for r in service.preview_sources(origin)}
     assert {"DEMO-2", "doc-reglamento"} <= before
 
-    rows = service.preview_sources(origin, excluded=["DEMO-2", "doc-reglamento", "DEMO-3"])
+    rows = service.preview_sources(origin, excluded=["DEMO-2", "doc-reglamento"])
 
     refs = {r.ref for r in rows}
     assert "DEMO-2" not in refs and "doc-reglamento" not in refs
     assert "DEMO-3" in refs
     assert next(r for r in rows if r.ref == "DEMO-3").required is True
+    # PA-223: como en el grafo, excluir el origen es un error (antes se ignoraba).
+    with pytest.raises(ValueError, match="no se puede excluir"):
+        service.preview_sources(origin, excluded=["DEMO-2", "DEMO-3"])
 
 
 def test_preview_sources_need_has_no_required(tmp_path: Path) -> None:

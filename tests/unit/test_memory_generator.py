@@ -647,7 +647,7 @@ def test_test_suite_facts_come_from_coverage() -> None:
     assert facts.jira_key == "DEMO-7"
     assert facts.criteria == ("CA-01", "CA-02")
     assert facts.rules == ("RN-01", "RN-02")
-    assert facts.ids == tuple(suite.coverage())
+    assert facts.ids == (*suite.coverage(), *(c.internal_id for c in suite.cases))  # PA-219
 
 
 def test_test_suite_unknown_id_triggers_retry() -> None:

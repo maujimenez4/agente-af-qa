@@ -817,6 +817,8 @@ paths:
                 epic_key: DEMO-1
                 criteria_count: 2
                 rules_count: 2
+                test_cases: 0
+                published_by_agent: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -1027,8 +1029,9 @@ paths:
       tags:
       - Arranque guiado
       summary: Fuentes que usaría la propuesta (panel «Antes de generar»)
-      description: Las desmarcadas van en `excluded_sources` al crear la conversación; la fila `required`
-        (la incidencia de origen) no se puede desmarcar.
+      description: 'Las desmarcadas van en `excluded_sources` al crear la conversación; la fila `required`
+        (la incidencia de origen) no se puede desmarcar. `budget`: tokens estimados de las fuentes frente
+        a los disponibles (PA-102); las que no caben no se envían al LLM.'
       operationId: sources_api_v1_start_sources_post
       requestBody:
         content:
@@ -1042,26 +1045,29 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/SourcePreview'
-                type: array
-                title: Response Sources Api V1 Start Sources Post
+                $ref: '#/components/schemas/SourcesOut'
               example:
-              - ref: DEMO-3
-                kind: jira
-                title: Renovar un préstamo
-                category: Story
-                required: true
-              - ref: DOC-01
-                kind: rag
-                title: Reglamento de préstamo
-                category: politicas
-                required: false
-              - ref: memoria-DEMO-2
-                kind: memory
-                title: Memoria de DEMO-2
-                category: memoria
-                required: false
+                sources:
+                - ref: DEMO-3
+                  kind: jira
+                  title: Renovar un préstamo
+                  category: Story
+                  required: true
+                - ref: DOC-01
+                  kind: rag
+                  title: Reglamento de préstamo
+                  category: politicas
+                  required: false
+                - ref: memoria-DEMO-2
+                  kind: memory
+                  title: Memoria de DEMO-2
+                  category: memoria
+                  required: false
+                budget:
+                  used: 2350
+                  limit: 6000
+                  dropped_sources: 0
+                  truncated_sources: 1
         '401':
           description: Sin sesión o caducada.
           content:
@@ -1710,9 +1716,10 @@ paths:
       summary: Eventos en vivo (SSE)
       description: '`text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), `review_ready`,
         `result` (publicación simulada, real o parcial, o descarte) y `error` (`data`: la conversación
-        completa, como en `GET /conversations/{id}`). El servidor cierra el flujo tras `result` de una
-        conversación terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay
-        un comentario `: ping` cada 15 s. Si se corta, basta con consultar el estado.'
+        completa, como en `GET /conversations/{id}`; si falla la lectura a mitad del flujo, la última
+        conocida con `state=error` y `error`). El servidor cierra el flujo tras `result` de una conversación
+        terminada: ciérralo también en el cliente para que `EventSource` no reconecte. Hay un comentario
+        `: ping` cada 15 s. Si se corta, basta con consultar el estado.'
       operationId: events_api_v1_conversations__conversation_id__events_get
       parameters:
       - name: conversation_id
@@ -4733,6 +4740,36 @@ components:
       required:
       - project
       title: ChooseProjectOut
+    ContextBudgetOut:
+      properties:
+        used:
+          type: integer
+          minimum: 0.0
+          title: Used
+          description: Tokens estimados de las fuentes seleccionadas.
+        limit:
+          type: integer
+          minimum: 0.0
+          title: Limit
+          description: Tokens disponibles para las fuentes.
+        dropped_sources:
+          type: integer
+          minimum: 0.0
+          title: Dropped Sources
+          description: Fuentes que no caben y no se enviarán (incidencias y fragmentos).
+        truncated_sources:
+          type: integer
+          minimum: 0.0
+          title: Truncated Sources
+          description: Incidencias recortadas para que quepan.
+      type: object
+      required:
+      - used
+      - limit
+      - dropped_sources
+      - truncated_sources
+      title: ContextBudgetOut
+      description: Presupuesto de tokens del contexto que se enviará al LLM (PA-102).
     ConversationCreateIn:
       properties:
         flow:
@@ -5375,6 +5412,19 @@ components:
           minimum: 0.0
           title: Rules Count
           description: RN contadas en la descripción, sin IA.
+        test_cases:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Test Cases
+          description: Subtareas CP («caso-prueba») de la HU en Jira (PA-104); `null` si no se pudo consultar.
+        published_by_agent:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Published By Agent
+          description: El agente publicó esta HU en Jira (PA-104); `null` si no se sabe.
       type: object
       required:
       - key
@@ -5949,6 +5999,20 @@ components:
       required:
       - origin
       title: SourcesIn
+    SourcesOut:
+      properties:
+        sources:
+          items:
+            $ref: '#/components/schemas/SourcePreview'
+          type: array
+          title: Sources
+        budget:
+          $ref: '#/components/schemas/ContextBudgetOut'
+      type: object
+      required:
+      - sources
+      - budget
+      title: SourcesOut
     StartOption:
       properties:
         kind:

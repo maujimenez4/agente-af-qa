@@ -43,6 +43,7 @@ from api.models import (
     ApproveIn,
     ChooseProjectIn,
     ChooseProjectOut,
+    ContextBudgetOut,
     ConversationCreateIn,
     ConversationOut,
     ConversationSummary,
@@ -63,8 +64,8 @@ from api.models import (
     QualityReviewOut,
     SessionOut,
     SettingsOut,
-    SourcePreview,
     SourcesIn,
+    SourcesOut,
     StartProposal,
     TaskModelsOut,
     UsageTodayOut,
@@ -80,6 +81,7 @@ from api.security import (
     RuntimeHolder,
     SecurityHeadersMiddleware,
     Session,
+    SessionGuardMiddleware,
     check_origin,
     client_ip,
     current_session,
@@ -97,6 +99,7 @@ from core.quality import REVIEW_PERMISSION, QualityReviewer
 log = get_logger("api")
 
 API_PREFIX = "/api/v1"
+LOGIN_PATH = f"{API_PREFIX}/auth/login"
 VERSION = "0.2.0"
 MAX_QUALITY_JOBS = 20  # por persona
 SSE_POLL_S = 0.5
@@ -404,6 +407,8 @@ def issue_card(request: Request, key: str = Path(pattern=KEY_PATTERN)) -> IssueC
         epic_key=issue.parent_key,
         criteria_count=criteria,
         rules_count=rules,
+        test_cases=service.count_test_cases(ws, issue.key),
+        published_by_agent=service.published_by_agent(ws, issue.key),
     )
 
 
@@ -426,12 +431,13 @@ def propose(body: ProposeIn, request: Request) -> StartProposal:
 
 @start.post(
     "/sources",
-    response_model=list[SourcePreview],
+    response_model=SourcesOut,
     summary="Fuentes que usaría la propuesta (panel «Antes de generar»)",
     description="Las desmarcadas van en `excluded_sources` al crear la conversación; la fila "
-    "`required` (la incidencia de origen) no se puede desmarcar.",
+    "`required` (la incidencia de origen) no se puede desmarcar. `budget`: tokens estimados de las "
+    "fuentes frente a los disponibles (PA-102); las que no caben no se envían al LLM.",
     responses={
-        200: _json(ex.dump(ex.SOURCES)),
+        200: _json(ex.dump(ex.SOURCES_OUT)),
         **AUTH,
         404: _err(
             "not_found",
@@ -440,12 +446,21 @@ def propose(body: ProposeIn, request: Request) -> StartProposal:
         ),
     },
 )
-def sources(body: SourcesIn, request: Request) -> list[SourcePreview]:
+def sources(body: SourcesIn, request: Request) -> SourcesOut:
     _rt, _s, ws, user = _ctx(request)
     require(user, Permission.VIEW_CONTEXT)
     origin = service.preview_origin(body.origin)
     excluded = service.excluded_for(body.excluded_sources, origin.get("key"))
-    return GuidedStart(ws.container).preview_sources(origin, excluded)
+    rows, report = GuidedStart(ws.container).preview_sources_with_budget(origin, excluded)
+    return SourcesOut(
+        sources=rows,
+        budget=ContextBudgetOut(
+            used=report.used,
+            limit=report.budget,
+            dropped_sources=report.dropped_issues + report.dropped_chunks,
+            truncated_sources=report.truncated_issues,
+        ),
+    )
 
 
 # --- Conversaciones ------------------------------------------------------------------------------
@@ -507,7 +522,8 @@ def get_conversation(request: Request, conversation_id: str = ConversationId) ->
     summary="Eventos en vivo (SSE)",
     description="`text/event-stream`. Eventos: `progress` (`data`: un `ProgressStep` completo), "
     "`review_ready`, `result` (publicación simulada, real o parcial, o descarte) y `error` "
-    "(`data`: la conversación completa, como en `GET /conversations/{id}`). El servidor cierra "
+    "(`data`: la conversación completa, como en `GET /conversations/{id}`; si falla la lectura "
+    "a mitad del flujo, la última conocida con `state=error` y `error`). El servidor cierra "
     "el flujo tras `result` de una conversación terminada: ciérralo también en el cliente para "
     "que `EventSource` no reconecte. Hay un comentario `: ping` cada 15 s. Si se corta, basta "
     "con consultar el estado.",
@@ -594,6 +610,7 @@ async def _event_stream(
     steps: dict[str, str] = {}
     last_seq, last_final, waited = -1, "", 0.0
     out: ConversationOut | None = first
+    last: ConversationOut = first
     try:
         while True:
             if await request.is_disconnected() or not rt.sessions.alive(session):
@@ -608,7 +625,11 @@ async def _event_stream(
                             service.conversation_out, rt, ws, user, thread_id
                         )
                     except Exception as exc:  # mensaje con lista blanca, sin trazas
-                        yield _sse("error", {"error": to_api_error(exc).body.model_dump()})
+                        # Contrato: `data` es la conversación; la última conocida, en error.
+                        failed = last.model_copy(
+                            update={"state": "error", "error": to_api_error(exc).body}
+                        )
+                        yield _sse("error", failed.model_dump(mode="json"))
                         return
                 for step in out.progress:
                     if steps.get(step.node) != step.state:
@@ -623,7 +644,7 @@ async def _event_stream(
                     yield _sse(final, out.model_dump(mode="json"))
                 if out.state in ("simulated", "published", "discarded"):
                     return
-                out = None
+                last, out = out, None
             elif waited >= SSE_HEARTBEAT_S:
                 waited = 0.0
                 yield ": ping\n\n"
@@ -649,6 +670,7 @@ async def _event_stream(
 def iterate(
     body: IterateIn, request: Request, conversation_id: str = ConversationId
 ) -> ConversationOut:
+    _ctx(request)  # PA-162: sesión, origen y CSRF antes de validar el feedback
     return _resume(request, conversation_id, "iterate", service.iterate_answer(body.feedback))
 
 
@@ -1150,6 +1172,7 @@ def create_app(
     for exc_type in (AgentError, ValueError):
         app.add_exception_handler(exc_type, _domain_error)
 
+    app.add_middleware(SessionGuardMiddleware, prefix=API_PREFIX, public={LOGIN_PATH})
     app.add_middleware(RequestLogMiddleware)
     app.add_middleware(CatchAllMiddleware, on_error=_unexpected)
     if settings.api_origins:  # sin orígenes: solo el mismo origen (proxy), sin CORS

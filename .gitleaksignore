@@ -1,0 +1,8 @@
+# Falsos positivos de gitleaks (regla generic-api-key), revisados uno a uno el 2026-10-02.
+# Son valores ficticios de las pruebas, que imitan un secreto para comprobar que nunca llega a
+# logs ni respuestas. Se ignoran por su huella exacta (commit:archivo:regla:línea), así que
+# cualquier otro hallazgo, incluso en el mismo archivo, sigue haciendo fallar el CI.
+18e9a7f3f3c66a76d3e0e151d0f6ebb02536bd10:tests/unit/test_conversations.py:generic-api-key:69
+193aded869cb681ee11d2264ef1e664bb3c533fc:tests/unit/test_api_errors.py:generic-api-key:22
+193aded869cb681ee11d2264ef1e664bb3c533fc:tests/unit/test_api_app.py:generic-api-key:46
+7885809bc46fa49f980de4a92d7ebe979419e121:tests/unit/test_api_composition.py:generic-api-key:31

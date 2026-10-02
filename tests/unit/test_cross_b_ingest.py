@@ -13,12 +13,12 @@ import pytest
 
 from adapters.base import Message
 from core.rag.documents import MEMORY_CATEGORY, IngestionError, SourceClassification
-from core.rag.ingest import DoclingExtractor, Ingestor, split_front_matter
+from core.rag.ingest import DoclingExtractor, Ingestor, normalize_text, split_front_matter
 from core.rag.prompts import Prompt
 from tests.fakes.llm import FakeLLMProvider
 
 TEST_PROMPT = Prompt(name="classify_source", version="99", text="Prompt ficticio de prueba.")
-BOM = "﻿"
+BOM = "\ufeff"
 
 
 class HeaderlessExtractor:
@@ -54,14 +54,6 @@ def _md(path: Path, body: str, **header: str) -> Path:
 # --------------------------------------------------------------------------- BOM
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-213): un .md con BOM pierde la cabecera YAML; se lee con utf-8 (no "
-        "utf-8-sig) y split_front_matter exige '---' en la posición 0 "
-        "(core/rag/ingest.py:51-53, 166)"
-    ),
-)
 def test_ingest_md_uses_header_when_file_starts_with_bom(tmp_path: Path) -> None:
     """RF-12: la cabecera de un .md guardado con BOM se usa y no llega al texto."""
     path = _write(
@@ -83,13 +75,6 @@ def test_ingest_md_uses_header_when_file_starts_with_bom(tmp_path: Path) -> None
     assert llm.calls == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-213): el BOM de un .txt llega al texto normalizado; se lee con utf-8 y "
-        "normalize_text no lo quita (core/rag/ingest.py:83 y 41-46)"
-    ),
-)
 def test_ingest_txt_drops_bom_when_file_starts_with_bom(tmp_path: Path) -> None:
     """RF-08: el texto normalizado no empieza por '\\ufeff'."""
     path = _write(tmp_path / "nota-ficticia.txt", BOM + "# Nota ficticia\n\nTexto ficticio.")
@@ -103,14 +88,6 @@ def test_ingest_txt_drops_bom_when_file_starts_with_bom(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- ids
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos archivos con el mismo nombre en carpetas distintas reciben el mismo "
-        "id (path.stem) y en la indexación el segundo borra al primero (core/rag/ingest.py:137)"
-    ),
-)
 def test_ingest_dir_gives_distinct_ids_when_same_name_in_different_folders(
     tmp_path: Path,
 ) -> None:
@@ -125,24 +102,13 @@ def test_ingest_dir_gives_distinct_ids_when_same_name_in_different_folders(
     assert len({d.id for d in docs}) == 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-214): "
-        "dos cabeceras con el mismo id se aceptan sin aviso y en la indexación "
-        "el segundo documento borra al primero (core/rag/ingest.py:137)"
-    ),
-)
 def test_ingest_dir_rejects_duplicate_header_ids(tmp_path: Path) -> None:
     """RF-07: un id de cabecera repetido en el corpus se detecta."""
     _md(tmp_path / "a.md", "# A\n\nTexto a.", id="DOC-FIC-20", category="politicas")
     _md(tmp_path / "b.md", "# B\n\nTexto b.", id="DOC-FIC-20", category="politicas")
 
-    try:
-        docs = _ingestor().ingest_dir(tmp_path)
-    except IngestionError:
-        return
-    assert len({d.id for d in docs}) == 2
+    with pytest.raises(IngestionError, match="«DOC-FIC-20»"):  # PA-214: se rechaza
+        _ingestor().ingest_dir(tmp_path)
 
 
 def test_ingest_falls_back_to_stem_and_heading_when_header_id_and_title_are_empty(
@@ -266,15 +232,6 @@ def test_source_classification_rejects_memory_category() -> None:
         SourceClassification(category=MEMORY_CATEGORY, justification="Ficticia")  # type: ignore[arg-type]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-215): "
-        "el texto se inserta sin escapar entre <documento> y </documento>; un "
-        "'</documento>' del propio documento cierra el delimitador antes de tiempo "
-        "(core/rag/ingest.py:187-188; core/functional/context.py usa escape_data)"
-    ),
-)
 def test_classification_message_escapes_delimiters_when_text_contains_them(
     tmp_path: Path,
 ) -> None:
@@ -290,3 +247,19 @@ def test_classification_message_escapes_delimiters_when_text_contains_them(
     user = llm.calls[0]["messages"][1].content
     assert user.count("</documento>") == 1
     assert user.count("<documento>") == 1
+
+
+def test_duplicate_id_error_names_both_files_and_the_id(tmp_path: Path) -> None:
+    """PA-214: el error dice qué archivos chocan, con qué id y cómo resolverlo."""
+    _md(tmp_path / "politicas" / "nota.md", "# Uno\n\nTexto uno.", category="politicas")
+    _md(tmp_path / "procesos" / "nota.md", "# Dos\n\nTexto dos.", category="procesos")
+    with pytest.raises(IngestionError) as info:
+        _ingestor().ingest_dir(tmp_path)
+    message = str(info.value)
+    assert "politicas/nota.md" in message and "procesos/nota.md" in message
+    assert "«nota»" in message and "id:" in message
+
+
+def test_normalize_text_removes_bom_in_the_middle() -> None:
+    """PA-213 (límite): un BOM en medio del texto (p. ej. el que deja Docling) también se quita."""
+    assert normalize_text("Uno\ufeff dos\n\ufeffTres") == "Uno dos\nTres"

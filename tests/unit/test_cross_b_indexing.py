@@ -256,14 +256,6 @@ def cli(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     return state
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-217): "
-        "la CLI con una carpeta inexistente indexa 0 documentos y sale con 0 "
-        "(core/rag/indexing.py:108-120)"
-    ),
-)
 def test_indexing_main_returns_nonzero_when_folder_does_not_exist(
     tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -276,25 +268,6 @@ def test_indexing_main_returns_nonzero_when_folder_does_not_exist(
     assert "no-existe" in capsys.readouterr().err
 
 
-def test_indexing_main_reports_zero_documents_when_folder_does_not_exist(
-    tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
-) -> None:
-    """RF-10 (comportamiento observado, ver el xfail anterior): imprime 0 documentos."""
-    import core.rag.indexing as indexing
-
-    indexing.main([str(tmp_path / "no-existe")])
-
-    assert capsys.readouterr().out.startswith("Indexados 0 documentos y 0 fragmentos")
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-217): "
-        "la CLI no captura AgentError; un fallo externo sale como traceback en "
-        "vez de un mensaje en español y código distinto de 0 (core/rag/indexing.py:116)"
-    ),
-)
 def test_indexing_main_prints_spanish_error_when_external_service_fails(
     tmp_path: Path, cli: dict[str, object], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -308,15 +281,3 @@ def test_indexing_main_prints_spanish_error_when_external_service_fails(
 
     assert code != 0
     assert "No se pudo guardar" in capsys.readouterr().err
-
-
-def test_indexing_main_propagates_external_error_when_store_fails(
-    tmp_path: Path, cli: dict[str, object]
-) -> None:
-    """CLAUDE.md (comportamiento observado, ver el xfail anterior): la excepción se propaga."""
-    import core.rag.indexing as indexing
-
-    cli["store"] = FailingUpsertStore(fail=True)
-
-    with pytest.raises(ExternalServiceError):
-        indexing.main([str(_corpus(tmp_path / "corpus"))])

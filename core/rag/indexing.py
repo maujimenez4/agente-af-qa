@@ -18,7 +18,7 @@ from typing import Protocol, runtime_checkable
 from pydantic import BaseModel
 
 from adapters.base import Chunk, EmbeddingProvider, VectorStore
-from adapters.errors import ExternalServiceError
+from adapters.errors import AgentError, ExternalServiceError
 from core.rag.documents import IngestedDocument
 from core.rag.ingest import Ingestor
 
@@ -132,16 +132,25 @@ def main(argv: list[str] | None = None) -> int:
 
     args = sys.argv[1:] if argv is None else argv
     root = Path(args[0]) if args else DEFAULT_CORPUS
-    config = build_config()
-    indexer = CorpusIndexer(
-        Ingestor(build_llm_provider(config)),
-        lambda doc: chunk_with_config(doc, config),
-        build_embeddings(config),
-        build_vector_store(config),
-    )
-    report = indexer.index_dir(root)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")  # consolas de Windows en cp1252
+    if not root.is_dir():  # PA-217: no se informa de «0 documentos» como si fuera un éxito
+        print(f"No existe la carpeta del corpus «{root.name}».", file=sys.stderr)
+        return 2
+    try:
+        config = build_config()
+        indexer = CorpusIndexer(
+            Ingestor(build_llm_provider(config)),
+            lambda doc: chunk_with_config(doc, config),
+            build_embeddings(config),
+            build_vector_store(config),
+        )
+        report = indexer.index_dir(root)
+    except AgentError as exc:  # PA-217: mensaje en español, sin traceback
+        print(f"No se ha completado la indexación: {exc}", file=sys.stderr)
+        return 1
     categories = ", ".join(f"{k}: {v}" for k, v in sorted(report.by_category.items()))
-    sys.stdout.reconfigure(encoding="utf-8")  # consolas de Windows en cp1252
     print(f"Indexados {report.documents} documentos y {report.chunks} fragmentos ({categories}).")
     return 0
 

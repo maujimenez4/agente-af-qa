@@ -1,0 +1,63 @@
+{
+  "jira_key": "AFQP-3",
+  "model": "local/qwen3:1.7b",
+  "prompt_version": "2",
+  "tokens": [
+    10472,
+    2596
+  ],
+  "invest": {
+    "I": "ok",
+    "N": "improvable",
+    "V": "ok",
+    "E": "improvable",
+    "S": "ok",
+    "T": "improvable"
+  },
+  "findings": 3,
+  "open_questions": 2,
+  "sources": [
+    "jira:AFQP-3",
+    "jira:AFQP-1",
+    "jira:AFQP-2",
+    "jira:AFQP-15",
+    "jira:AFQP-16",
+    "jira:AFQP-4",
+    "jira:AFQP-5",
+    "rag:DOC-01",
+    "rag:DOC-20",
+    "rag:DOC-02",
+    "rag:DOC-03",
+    "rag:DOC-04",
+    "rag:DOC-16",
+    "rag:DOC-08",
+    "rag:DOC-17",
+    "rag:DOC-11",
+    "rag:DOC-13"
+  ],
+  "seconds": 674.4,
+  "llm": [
+    {
+      "task": "evolve_story",
+      "model": "local/qwen3:1.7b",
+      "input_tokens": 1071,
+      "output_tokens": 891,
+      "seconds": 90.4
+    },
+    {
+      "task": "review_story",
+      "model": "local/qwen3:1.7b",
+      "input_tokens": 7510,
+      "output_tokens": 690,
+      "seconds": 398.3
+    },
+    {
+      "task": "review_story",
+      "model": "local/qwen3:1.7b",
+      "input_tokens": 1891,
+      "output_tokens": 1015,
+      "seconds": 149.4
+    }
+  ],
+  "scenario_seconds": 674.4
+}

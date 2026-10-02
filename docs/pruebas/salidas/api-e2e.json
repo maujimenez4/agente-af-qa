@@ -1,0 +1,256 @@
+[
+  {
+    "paso": "login e2e-af",
+    "status": 200,
+    "segundos": 0.17
+  },
+  {
+    "paso": "me",
+    "status": 200,
+    "segundos": 0.0,
+    "rol": null
+  },
+  {
+    "paso": "projects",
+    "status": 200,
+    "segundos": 0.78,
+    "proyectos": [
+      "AFQP",
+      "PA"
+    ],
+    "preseleccionado": "AFQP"
+  },
+  {
+    "paso": "start/propose",
+    "status": 200,
+    "segundos": 0.62,
+    "opciones": [
+      "Evolucionar AFQP-23"
+    ]
+  },
+  {
+    "paso": "retomar conversación en curso",
+    "id_corto": "ebabdfb7"
+  },
+  {
+    "paso": "generar HU",
+    "estado": "in_review",
+    "segundos": 78.8,
+    "progreso": [
+      "load_origin:done",
+      "retrieve_context:done",
+      "generate:running",
+      "publish:pending",
+      "memorize:pending",
+      "generate:done"
+    ],
+    "version": 1,
+    "ca": 2,
+    "rn": 3,
+    "casos": null,
+    "fuentes": [
+      "AFQP-17",
+      "AFQP-15",
+      "DOC-02",
+      "DOC-19",
+      "DOC-20",
+      "DOC-10"
+    ],
+    "plan": [
+      {
+        "op": "create_story",
+        "project": "AFQP",
+        "epic": ""
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-17",
+        "type": "relates to"
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-15",
+        "type": "relates to"
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-5",
+        "type": "relates to"
+      }
+    ],
+    "review_error": null,
+    "error": null,
+    "result": null
+  },
+  {
+    "paso": "aprobar con huella incorrecta",
+    "status": 202,
+    "segundos": 0.12
+  },
+  {
+    "paso": "tras huella incorrecta",
+    "estado": "in_review",
+    "segundos": 0.0,
+    "progreso": [
+      "load_origin:done",
+      "retrieve_context:done",
+      "generate:done",
+      "publish:pending",
+      "memorize:pending"
+    ],
+    "version": 1,
+    "ca": 2,
+    "rn": 3,
+    "casos": null,
+    "fuentes": [
+      "AFQP-17",
+      "AFQP-15",
+      "DOC-02",
+      "DOC-19",
+      "DOC-20",
+      "DOC-10"
+    ],
+    "plan": [
+      {
+        "op": "create_story",
+        "project": "AFQP",
+        "epic": ""
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-17",
+        "type": "relates to"
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-15",
+        "type": "relates to"
+      },
+      {
+        "op": "link",
+        "from": "(HU nueva)",
+        "to": "AFQP-5",
+        "type": "relates to"
+      }
+    ],
+    "review_error": "La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.",
+    "error": null,
+    "result": null
+  },
+  {
+    "paso": "aprobar",
+    "status": 202,
+    "segundos": 0.06
+  },
+  {
+    "paso": "publicar (simulación)",
+    "estado": "simulated",
+    "segundos": 3.2,
+    "progreso": [
+      "load_origin:done",
+      "retrieve_context:done",
+      "generate:done",
+      "publish:done",
+      "memorize:running",
+      "memorize:done"
+    ],
+    "version": null,
+    "ca": null,
+    "rn": null,
+    "casos": null,
+    "fuentes": [],
+    "plan": null,
+    "review_error": null,
+    "error": null,
+    "result": {
+      "simulated": true,
+      "plan": [
+        {
+          "op": "create_story",
+          "project": "AFQP",
+          "epic": ""
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-17",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-15",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-5",
+          "type": "relates to"
+        }
+      ],
+      "approved_by": "e2e-af",
+      "approved_at": "2026-10-02T22:46:25.138749Z",
+      "published_keys": [],
+      "errors": [],
+      "failed_ids": []
+    }
+  },
+  {
+    "paso": "lista de conversaciones",
+    "status": 200,
+    "segundos": 0.0,
+    "estados": [
+      "simulated"
+    ]
+  },
+  {
+    "paso": "login e2e-qa",
+    "status": 200,
+    "segundos": 0.07
+  },
+  {
+    "paso": "crear ejecución",
+    "status": 200,
+    "segundos": 1.01,
+    "estado": "in_review",
+    "casos": [
+      "AFQP-24"
+    ]
+  },
+  {
+    "paso": "fallo sin evidencia (debe rechazarse)",
+    "status": 200,
+    "segundos": 0.21,
+    "review_error": "Un caso fallido necesita evidencia (AFQP-24)."
+  },
+  {
+    "paso": "guardar borrador",
+    "status": 200,
+    "segundos": 0.21,
+    "estado": "in_review",
+    "review_error": null
+  },
+  {
+    "paso": "aprobar ejecución",
+    "status": 200,
+    "segundos": 0.25,
+    "estado": "simulated",
+    "simulated": true
+  },
+  {
+    "paso": "consumo de hoy",
+    "status": 200,
+    "segundos": 0.03,
+    "uso": {
+      "tokens_today": 25943,
+      "warning_threshold": 180000,
+      "scope": "global"
+    }
+  }
+]

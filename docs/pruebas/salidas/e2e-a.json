@@ -1,0 +1,150 @@
+{
+  "user": "af-demo",
+  "mode": "functional",
+  "origin": {
+    "kind": "need",
+    "text": "Como persona socia de la Biblioteca Municipal de Villaficticia quiero reservar un ejemplar desde la web para recogerlo en el mostrador (necesidad ficticia).",
+    "project": "AFQP"
+  },
+  "steps": [
+    {
+      "node": "load_origin",
+      "seconds": 0.2,
+      "llm": []
+    },
+    {
+      "node": "retrieve_context",
+      "seconds": 32.3,
+      "llm": []
+    },
+    {
+      "node": "generate",
+      "seconds": 715.5,
+      "llm": [
+        {
+          "task": "generate_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 3856,
+          "output_tokens": 1549,
+          "seconds": 303.2
+        },
+        {
+          "task": "generate_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 5474,
+          "output_tokens": 1549,
+          "seconds": 372.4
+        },
+        {
+          "task": "analyze_impact",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 1043,
+          "output_tokens": 346,
+          "seconds": 39.4
+        }
+      ]
+    },
+    {
+      "node": "human_review",
+      "seconds": 0.1,
+      "llm": []
+    },
+    {
+      "node": "publish",
+      "seconds": 0.0,
+      "llm": []
+    },
+    {
+      "node": "memorize",
+      "seconds": 0.3,
+      "llm": []
+    }
+  ],
+  "thread_id": "3e4dfea5-34e6-4d72-982c-a9e4a6af936c",
+  "review": [
+    {
+      "version": 1,
+      "status": "in_review",
+      "model_used": "local/qwen3:1.7b",
+      "prompt_version": "2",
+      "target": {
+        "operation": "crear HU",
+        "project": "AFQP",
+        "jira_key": null,
+        "epic_key": null
+      },
+      "plan": [
+        {
+          "op": "create_story",
+          "project": "AFQP",
+          "epic": ""
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-12",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-2",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-23",
+          "type": "relates to"
+        }
+      ],
+      "error": null,
+      "fingerprint": "2128e9a62afbb000…",
+      "title": "Historia de Usuario (HU) para reservar un ejemplar desde la web",
+      "acceptance_criteria": 3,
+      "business_rules": 5,
+      "sources": [
+        "jira:AFQP-12",
+        "jira:AFQP-2",
+        "jira:AFQP-23",
+        "rag:DOC-02",
+        "rag:DOC-10",
+        "rag:DOC-19",
+        "rag:DOC-20",
+        "rag:DOC-03",
+        "rag:DOC-11",
+        "rag:DOC-01",
+        "rag:DOC-04",
+        "rag:DOC-23"
+      ],
+      "open_questions": 2,
+      "impact": {
+        "diffs": 0,
+        "affected": [
+          "AFQP-12",
+          "AFQP-2",
+          "AFQP-23"
+        ],
+        "regression_notes": 2
+      }
+    }
+  ],
+  "total_seconds": 748.6,
+  "after_approve": {
+    "artifact_status": "approved",
+    "audit_actions": [
+      "create",
+      "approve",
+      "publish"
+    ],
+    "audit_publish": [
+      {
+        "action": "publish",
+        "detail_simulated": true
+      }
+    ],
+    "conversation_status": "simulated",
+    "errors": []
+  },
+  "scenario_seconds": 748.6
+}

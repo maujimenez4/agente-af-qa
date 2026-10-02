@@ -1,0 +1,116 @@
+{
+  "user": "qa-demo",
+  "mode": "qa",
+  "origin": {
+    "kind": "story",
+    "key": "AFQP-3"
+  },
+  "steps": [
+    {
+      "node": "load_origin",
+      "seconds": 0.9,
+      "llm": []
+    },
+    {
+      "node": "retrieve_context",
+      "seconds": 28.7,
+      "llm": []
+    },
+    {
+      "node": "generate",
+      "seconds": 808.7,
+      "llm": [
+        {
+          "task": "evolve_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 1071,
+          "output_tokens": 897,
+          "seconds": 125.4
+        },
+        {
+          "task": "generate_tests",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 9433,
+          "output_tokens": 1738,
+          "seconds": 593.1
+        },
+        {
+          "task": "generate_tests",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 2156,
+          "output_tokens": 653,
+          "seconds": 89.8
+        }
+      ]
+    },
+    {
+      "node": "human_review",
+      "seconds": 0.1,
+      "llm": []
+    },
+    {
+      "node": "publish",
+      "seconds": 0.0,
+      "llm": []
+    },
+    {
+      "node": "memorize",
+      "seconds": 0.3,
+      "llm": []
+    }
+  ],
+  "thread_id": "7469916a-38ac-46f3-a424-e74b0d4671e9",
+  "review": [
+    {
+      "version": 1,
+      "status": "in_review",
+      "model_used": "local/qwen3:1.7b",
+      "prompt_version": "2",
+      "target": {
+        "operation": "publicar casos de prueba",
+        "project": "AFQP",
+        "jira_key": "AFQP-3",
+        "epic_key": null
+      },
+      "plan": [
+        {
+          "op": "publish_suite",
+          "project": "AFQP",
+          "story": "AFQP-3",
+          "cases": "3"
+        }
+      ],
+      "error": null,
+      "fingerprint": "247b3e98c1236a6f…",
+      "story_jira_key": "AFQP-3",
+      "cases": 3,
+      "coverage": [
+        "CA-01",
+        "CA-02",
+        "CA-03"
+      ],
+      "sources": [
+        "rag:DOC-01",
+        "rag:DOC-08"
+      ]
+    }
+  ],
+  "total_seconds": 838.9,
+  "after_approve": {
+    "artifact_status": "approved",
+    "audit_actions": [
+      "create",
+      "approve",
+      "publish"
+    ],
+    "audit_publish": [
+      {
+        "action": "publish",
+        "detail_simulated": true
+      }
+    ],
+    "conversation_status": "simulated",
+    "errors": []
+  },
+  "scenario_seconds": 839.0
+}

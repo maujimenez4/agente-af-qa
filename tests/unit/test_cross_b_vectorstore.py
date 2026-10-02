@@ -680,3 +680,16 @@ def test_replace_document_maps_db_errors_without_url() -> None:
     with pytest.raises(ExternalServiceError) as info:
         _store(engine).replace_document("doc-a", [_chunk()])
     assert SECRET_URL not in str(info.value)
+
+
+def test_replace_document_rejects_mixed_categories_without_opening_a_transaction() -> None:
+    """PA-221 · PA-216: el camino del indexador también rechaza categorías mezcladas, sin borrar
+    los fragmentos que ya había."""
+    engine = FakeEngine()
+    chunks = [
+        _chunk("doc-a#0", metadata={"category": "normativa"}),
+        _chunk("doc-a#1", ordinal=1, metadata={"category": "memoria"}),
+    ]
+    with pytest.raises(ValueError, match="mezcla categorías"):
+        _store(engine).replace_document("doc-a", chunks)
+    assert engine.begins == 0 and engine.executed == []

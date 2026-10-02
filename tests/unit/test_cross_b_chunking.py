@@ -171,7 +171,7 @@ def test_split_sections_ignores_setext_headings() -> None:
 
 def test_split_sections_recognizes_first_heading_when_text_starts_with_bom() -> None:
     """RF-09: '\\ufeff# Título' sigue siendo el encabezado «Título»."""
-    assert split_sections("﻿# Título ficticio\n\ntexto")[0].path == ("Título ficticio",)
+    assert split_sections("\ufeff# Título ficticio\n\ntexto")[0].path == ("Título ficticio",)
 
 
 # --------------------------------------------------------------------------- memorias
@@ -214,3 +214,9 @@ def test_table_rows_still_do_not_overlap_partially() -> None:
     for fragment in fragments:
         for line in fragment.splitlines():
             assert line.startswith("|") and line.endswith("|")
+
+
+def test_longer_fence_is_not_closed_by_a_shorter_one() -> None:
+    """PA-212 (límite): «~~~~» no se cierra con «~~~»; el «#» de dentro sigue siendo código."""
+    text = "# A\n\n~~~~\n~~~\n# no es título\n~~~~\n\n# B\n\nTexto."
+    assert [s.path for s in split_sections(text)] == [("A",), ("B",)]

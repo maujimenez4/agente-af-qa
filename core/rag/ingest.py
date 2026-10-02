@@ -42,7 +42,7 @@ _H1 = re.compile(r"^#\s+(.+?)\s*#*\s*$", re.MULTILINE)
 def normalize_text(text: str) -> str:
     """NFC, saltos de línea `\\n`, sin BOM, caracteres de control ni espacios finales (RF-08)."""
     text = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
-    text = text.replace("﻿", "")  # PA-213: el BOM (también el que llega de Docling)
+    text = text.replace("\ufeff", "")  # PA-213: el BOM (también el que llega de Docling)
     text = _CONTROL_CHARS.sub("", text)
     text = _TRAILING_SPACES.sub("", text)
     return _BLANK_LINES.sub("\n\n", text).strip()
@@ -50,7 +50,7 @@ def normalize_text(text: str) -> str:
 
 def split_front_matter(raw: str) -> tuple[dict[str, Any], str]:
     """Separa la cabecera YAML (`---` … `---`) del cuerpo; sin cabecera válida → ({}, raw)."""
-    raw = raw.removeprefix("﻿")  # PA-213: un BOM inicial no oculta la cabecera
+    raw = raw.removeprefix("\ufeff")  # PA-213: un BOM inicial no oculta la cabecera
     text = raw.replace("\r\n", "\n")
     if not text.startswith("---\n"):
         return {}, raw

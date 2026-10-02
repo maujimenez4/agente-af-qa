@@ -23,7 +23,7 @@ def _write(directory: Path, name: str, content: str) -> Path:
 
 def test_load_prompt_reads_header_when_file_starts_with_bom(tmp_path: Path) -> None:
     """PA-224: un BOM inicial no oculta la cabecera (se lee con `utf-8-sig`)."""
-    _write(tmp_path, "con_bom", "﻿---\nversion: 1\n---\n\nCuerpo ficticio.")
+    _write(tmp_path, "con_bom", "\ufeff---\nversion: 1\n---\n\nCuerpo ficticio.")
 
     prompt = load_prompt("con_bom", tmp_path)
 

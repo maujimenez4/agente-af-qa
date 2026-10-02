@@ -19,7 +19,7 @@ from core.rag.documents import MEMORY_CATEGORY, IngestedDocument
 # PA-212: el «#» de cierre necesita un espacio delante («# C#» es el título «C#»).
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")  # valla de código (CommonMark)
-_BOM = "﻿"
+_BOM = "\ufeff"
 _SEPARATORS = ("\n\n", "\n", ". ", " ")
 _CHARS_PER_TOKEN = 4
 

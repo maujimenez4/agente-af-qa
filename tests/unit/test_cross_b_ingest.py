@@ -13,12 +13,12 @@ import pytest
 
 from adapters.base import Message
 from core.rag.documents import MEMORY_CATEGORY, IngestionError, SourceClassification
-from core.rag.ingest import DoclingExtractor, Ingestor, split_front_matter
+from core.rag.ingest import DoclingExtractor, Ingestor, normalize_text, split_front_matter
 from core.rag.prompts import Prompt
 from tests.fakes.llm import FakeLLMProvider
 
 TEST_PROMPT = Prompt(name="classify_source", version="99", text="Prompt ficticio de prueba.")
-BOM = "﻿"
+BOM = "\ufeff"
 
 
 class HeaderlessExtractor:
@@ -258,3 +258,8 @@ def test_duplicate_id_error_names_both_files_and_the_id(tmp_path: Path) -> None:
     message = str(info.value)
     assert "politicas/nota.md" in message and "procesos/nota.md" in message
     assert "«nota»" in message and "id:" in message
+
+
+def test_normalize_text_removes_bom_in_the_middle() -> None:
+    """PA-213 (límite): un BOM en medio del texto (p. ej. el que deja Docling) también se quita."""
+    assert normalize_text("Uno\ufeff dos\n\ufeffTres") == "Uno dos\nTres"

@@ -92,6 +92,13 @@ def _before_generating(session: SessionState, request: StartRequest, username: s
     st.caption("Se puede cambiar solo antes de generar.")
     if st.button("Cambiar", key="change_op"):
         go(session, "inicio", request=None, alternatives=[])
+    if request.flow == "review":  # Mixta 5: solo lectura, sin restricciones ni conversación
+        excluded = _sources(session, request)
+        if st.button("Revisar la calidad", type="primary", key="review"):
+            clear_composer()
+            go(session, "calidad", request=with_excluded(request, excluded), quality=None)
+        st.caption("Dos llamadas al modelo. No cambia nada en Jira.")
+        return
     restrictions = st.text_area(
         "Restricciones (opcional)",
         placeholder="Por ejemplo: mismas reglas que en la web.",

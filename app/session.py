@@ -26,6 +26,7 @@ from core.factories import build_app_container, build_checkpointer, model_router
 from core.graph import build_graph
 from core.guided_start import StartOption
 from core.logging import get_logger
+from core.quality import QualityReview
 
 log = get_logger(__name__)
 
@@ -54,6 +55,7 @@ class SessionState:
     notices: list[str] = field(default_factory=list)  # avisos para la pantalla siguiente
     current: str | None = None  # thread_id de la conversación abierta
     pending: Conversation | None = None  # conversación por arrancar (Mixta 2b)
+    quality: QualityReview | None = None  # informe de «Revisar la calidad» (Mixta 5)
     model_label: str | None = None
     previous_phase: int | None = None
     failed_logins: int = 0

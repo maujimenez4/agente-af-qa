@@ -5,9 +5,11 @@ Datos 100 % sintéticos; la base de datos es SQLite en memoria (sin servicios ex
 """
 
 import dataclasses
+import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from pathlib import Path
+from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
@@ -19,7 +21,10 @@ from adapters.llm.usage import (
     SqlUsageRecorder,
     UsageRecord,
     UsageRecorder,
+    current_artifact_id,
+    usage_scope,
 )
+from core.usage import SqlUsageQueries
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
 
@@ -217,3 +222,113 @@ def test_sql_recorder_tokens_since_excludes_older_records(engine: sa.Engine) -> 
 def test_sql_recorder_tokens_since_returns_zero_when_empty(engine: sa.Engine) -> None:
     """RNF-27: sin filas, el consumo es 0 (no None)."""
     assert SqlUsageRecorder(engine).tokens_since(NOW) == 0
+
+
+# --- T-32 · usage_scope y current_artifact_id (RF-43) --------------------------------------
+
+
+def test_current_artifact_id_is_none_when_outside_scope() -> None:
+    """CA-5: sin bloque, no hay artefacto asociado."""
+    assert current_artifact_id() is None
+
+
+def test_usage_scope_sets_and_restores_artifact_id() -> None:
+    """CA-5: dentro del bloque se ve el artifact_id; al salir, el anterior (anidado)."""
+    outer, inner = uuid4(), uuid4()
+
+    with usage_scope(artifact_id=outer):
+        assert current_artifact_id() == outer
+        with usage_scope(artifact_id=inner):
+            assert current_artifact_id() == inner
+        assert current_artifact_id() == outer
+        with usage_scope(artifact_id=None):
+            assert current_artifact_id() is None
+        assert current_artifact_id() == outer
+    assert current_artifact_id() is None
+
+
+def test_usage_scope_restores_artifact_id_when_block_raises() -> None:
+    """CA-5: una excepción dentro del bloque no deja el artifact_id puesto."""
+    with pytest.raises(RuntimeError), usage_scope(artifact_id=uuid4()):
+        raise RuntimeError("fallo ficticio")
+
+    assert current_artifact_id() is None
+
+
+def test_usage_scope_is_not_visible_from_other_thread() -> None:
+    """CA-5: cada hilo (sesión) ve solo su artefacto."""
+    seen: list[UUID | None] = []
+
+    with usage_scope(artifact_id=uuid4()):
+        thread = threading.Thread(target=lambda: seen.append(current_artifact_id()))
+        thread.start()
+        thread.join(timeout=10)
+
+    assert seen == [None]
+
+
+# --- T-32 · SqlUsageRecorder.from_url y SqlUsageQueries (RF-43) ----------------------------
+
+
+def test_sql_recorder_from_url_writes_and_reads_sqlite_file(tmp_path: Path) -> None:
+    """CA-6: `from_url` con una URL de SQLite crea un recorder operativo."""
+    url = sa.make_url(f"sqlite:///{(tmp_path / 'uso-ficticio.db').as_posix()}")
+    recorder = SqlUsageRecorder.from_url(url)
+    engine = recorder._engine
+    try:
+        assert engine.url.drivername == "sqlite"
+        LLM_USAGE_TABLE.metadata.create_all(engine)
+
+        recorder.record(_record(7, 3, at=NOW))
+
+        assert recorder.tokens_since(NOW - timedelta(minutes=1)) == 10
+        assert len(_rows(engine)) == 1
+    finally:
+        engine.dispose()
+
+
+def test_sql_recorder_round_trips_with_sql_usage_queries(engine: sa.Engine) -> None:
+    """CA-6: lo que escribe SqlUsageRecorder lo lee SqlUsageQueries con los mismos valores."""
+    artifact_id = uuid4()
+    SqlUsageRecorder(engine).record(
+        _record(
+            11,
+            4,
+            at=NOW,
+            task=TaskType.NL_TO_JQL,
+            est_cost=Decimal("0.000250"),
+            artifact_id=artifact_id,
+        )
+    )
+
+    calls = SqlUsageQueries(engine).calls()
+
+    assert len(calls) == 1
+    call = calls[0]
+    assert call.task == "nl_to_jql"
+    assert (call.provider, call.model) == ("proveedor-ficticio", "modelo-ficticio")
+    assert (call.input_tokens, call.output_tokens, call.total_tokens) == (11, 4, 15)
+    assert call.est_cost == Decimal("0.000250")
+    assert isinstance(call.est_cost, Decimal)
+    assert call.latency_ms == 42
+    assert call.artifact_id == artifact_id
+    # SQLite no guarda la zona: la hora vuelve sin tzinfo pero con el mismo valor UTC.
+    assert call.at.replace(tzinfo=UTC) == NOW
+
+
+def test_sql_queries_from_url_reads_sqlite_file(tmp_path: Path) -> None:
+    """CA-6: `SqlUsageQueries.from_url` lee lo que escribe `SqlUsageRecorder.from_url`."""
+    url = sa.make_url(f"sqlite:///{(tmp_path / 'uso-ficticio.db').as_posix()}")
+    recorder = SqlUsageRecorder.from_url(url)
+    queries = SqlUsageQueries.from_url(url)
+    try:
+        LLM_USAGE_TABLE.metadata.create_all(recorder._engine)
+        recorder.record(_record(1, 2, at=NOW))
+        recorder.record(_record(3, 4, at=NOW + timedelta(hours=1)))
+
+        calls = queries.calls()
+
+        assert [c.total_tokens for c in calls] == [7, 3]  # de la más reciente a la más antigua
+    finally:
+        recorder._engine.dispose()
+        queries._engine.dispose()

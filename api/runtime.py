@@ -180,6 +180,7 @@ def build_runtime() -> Runtime:
         build_app_container,
         build_checkpointer,
         build_session_container,
+        build_usage_recorder,
         model_router,
     )
     from core.graph import build_graph
@@ -187,6 +188,7 @@ def build_runtime() -> Runtime:
     config = build_config()
     bootstrap_logging(config)
     base = build_app_container(config)
+    recorder = build_usage_recorder(config)  # consumo del LLM de todas las sesiones (T-32)
     checkpointer = build_checkpointer(config)
     chains: Chains = {
         task: [ModelChoice(r.provider, r.model) for r in config.task_chain(task)]
@@ -195,7 +197,7 @@ def build_runtime() -> Runtime:
 
     def workspace() -> Workspace:
         router = model_router(config)
-        container = build_session_container(config, base, router)
+        container = build_session_container(config, base, router, recorder)
         graph = build_graph(container, checkpointer=checkpointer)
         return Workspace(container=container, graph=graph, router=router, chains=chains)
 

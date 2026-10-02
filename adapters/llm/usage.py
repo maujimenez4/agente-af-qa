@@ -2,8 +2,15 @@
 
 Cada llamada correcta genera un `UsageRecord`. `SqlUsageRecorder` lo guarda en PostgreSQL y
 `InMemoryUsageRecorder` sirve para pruebas y para ejecutar sin base de datos.
+
+`usage_scope(artifact_id=...)` asocia las llamadas hechas dentro del bloque a un artefacto sin
+cambiar el protocolo `LLMProvider`: el valor viaja en una `ContextVar`, así que cada hilo o tarea
+(una sesión de Streamlit, por ejemplo) ve solo el suyo.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -30,6 +37,23 @@ LLM_USAGE_TABLE = sa.Table(
     sa.Column("artifact_id", sa.Uuid()),
     sa.Column("at", sa.DateTime(timezone=True), nullable=False),
 )
+
+
+_ARTIFACT_ID: ContextVar[UUID | None] = ContextVar("llm_usage_artifact_id", default=None)
+
+
+@contextmanager
+def usage_scope(*, artifact_id: UUID | None) -> Iterator[None]:
+    """Las llamadas al LLM dentro del bloque se registran con `artifact_id` (RF-43)."""
+    token = _ARTIFACT_ID.set(artifact_id)
+    try:
+        yield
+    finally:
+        _ARTIFACT_ID.reset(token)
+
+
+def current_artifact_id() -> UUID | None:
+    return _ARTIFACT_ID.get()
 
 
 @dataclass(frozen=True)
@@ -71,6 +95,10 @@ class SqlUsageRecorder:
 
     def __init__(self, engine: sa.Engine) -> None:
         self._engine = engine
+
+    @classmethod
+    def from_url(cls, url: sa.URL) -> "SqlUsageRecorder":
+        return cls(sa.create_engine(url, pool_pre_ping=True, hide_parameters=True))
 
     def record(self, usage: UsageRecord) -> None:
         with self._engine.begin() as conn:

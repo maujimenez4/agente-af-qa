@@ -159,6 +159,21 @@ class PgVectorStore:
         with self._connection() as conn:
             conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
 
+    def replace_document(self, document_id: str, chunks: list[Chunk]) -> None:
+        """Sustituye los fragmentos de un documento en **una sola transacción** (PA-216).
+
+        Si algo falla, se conservan los fragmentos anteriores. Aún no está en el protocolo
+        `VectorStore` (PA-225); `core/rag/indexing.py` lo usa si el almacén lo ofrece.
+        """
+        for chunk in chunks:
+            self._validate(chunk)
+            if chunk.document_id != document_id:
+                raise ValueError(f"El fragmento {chunk.id} no es del documento {document_id}.")
+        with self._connection() as conn:
+            conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
+            if chunks:
+                self._upsert_document(conn, document_id, chunks)
+
     def _validate(self, chunk: Chunk) -> None:
         if chunk.embedding is None:
             raise ValueError(f"El fragmento {chunk.id} no tiene embedding.")

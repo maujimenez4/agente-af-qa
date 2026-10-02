@@ -13,10 +13,12 @@ import sys
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 from adapters.base import Chunk, EmbeddingProvider, VectorStore
+from adapters.errors import ExternalServiceError
 from core.rag.documents import IngestedDocument
 from core.rag.ingest import Ingestor
 
@@ -24,6 +26,16 @@ from core.rag.ingest import Ingestor
 DEFAULT_CORPUS = Path("data/seed/corpus")
 
 Chunker = Callable[[IngestedDocument], list[Chunk]]
+
+
+@runtime_checkable
+class ReplacingStore(Protocol):
+    """Almacén que sustituye un documento de forma atómica (PA-216).
+
+    Aún no está en `VectorStore` (`adapters/base.py`, congelado): PA-225 propone añadirlo.
+    """
+
+    def replace_document(self, document_id: str, chunks: list[Chunk]) -> None: ...
 
 
 class IndexReport(BaseModel):
@@ -84,19 +96,33 @@ class CorpusIndexer:
         for doc in documents:
             chunks = prepare_chunks(doc, self._chunker(doc), root)
             vectors = self._embeddings.embed([embedding_text(c) for c in chunks]) if chunks else []
+            if len(vectors) != len(chunks):  # antes de borrar nada (PA-216)
+                raise ExternalServiceError(
+                    f"El servicio de embeddings devolvió {len(vectors)} vectores para "
+                    f"{len(chunks)} fragmentos de «{doc.title[:80]}»; no se ha cambiado el índice.",
+                    service="embeddings",
+                )
             indexed = [
                 chunk.model_copy(update={"embedding": vector})
                 for chunk, vector in zip(chunks, vectors, strict=True)
             ]
-            self._store.delete_by_document(doc.id)  # sin fragmentos antiguos (RF-38)
+            self._replace(doc.id, indexed)  # sin fragmentos antiguos (RF-38)
             if not indexed:
                 continue
-            self._store.upsert(indexed)
             by_category[doc.category] = by_category.get(doc.category, 0) + 1
             total += len(indexed)
         return IndexReport(
             documents=sum(by_category.values()), chunks=total, by_category=by_category
         )
+
+    def _replace(self, document_id: str, chunks: list[Chunk]) -> None:
+        """Sustituye los fragmentos del documento; atómico si el almacén lo permite (PA-216)."""
+        if isinstance(self._store, ReplacingStore):
+            self._store.replace_document(document_id, chunks)
+            return
+        self._store.delete_by_document(document_id)
+        if chunks:
+            self._store.upsert(chunks)
 
 
 def main(argv: list[str] | None = None) -> int:

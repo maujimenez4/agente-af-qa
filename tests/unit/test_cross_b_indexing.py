@@ -113,13 +113,6 @@ def _doc_ids(store: FakeVectorStore) -> set[str]:
 # --------------------------------------------------------------------------- fallos a mitad
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-216): si upsert falla tras delete_by_document, el documento reindexado "
-        "desaparece del índice (core/rag/indexing.py:91-94)"
-    ),
-)
 def test_index_dir_keeps_previous_chunks_when_upsert_fails_after_delete(tmp_path: Path) -> None:
     """RF-38: un reindexado fallido no pierde los fragmentos que ya había."""
     root = _corpus(tmp_path / "corpus")
@@ -157,13 +150,6 @@ def test_index_dir_deletes_nothing_when_embeddings_fail(tmp_path: Path) -> None:
     assert store.chunks == before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-216): si los embeddings devuelven menos vectores, zip(strict=True) lanza "
-        "ValueError en vez de un AgentError con mensaje en español (core/rag/indexing.py:87-90)"
-    ),
-)
 def test_index_dir_raises_agent_error_when_embeddings_return_fewer_vectors(
     tmp_path: Path,
 ) -> None:
@@ -180,7 +166,7 @@ def test_index_dir_deletes_nothing_when_embeddings_return_fewer_vectors(tmp_path
     before = dict(store.chunks)
     store.calls.clear()
 
-    with pytest.raises(Exception):  # noqa: B017 - hoy ValueError; ver el xfail anterior
+    with pytest.raises(ExternalServiceError, match="vectores"):  # PA-216
         _indexer(store, ShortEmbeddings()).index_dir(root)
 
     assert store.calls == []

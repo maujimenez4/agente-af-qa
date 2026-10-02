@@ -23,8 +23,8 @@ Decidido el 2 de octubre de 2026.
 | 13 | Q con «reducir movimiento» | El estado final de cada Q va en el **estilo base** y la animación solo recorre «desde → hasta». Al anular las animaciones, la Q queda en su fase (no llena). La Q de carga muestra los cuartos ya hechos, sin movimiento (§3) |
 | 14 | Fuentes | Solo DM Sans. IBM Plex Mono no se usa. Cifras con `font-variant-numeric: tabular-nums` |
 | 15 | Casillas | Naranja (`accent-color`) para elegir fuentes y tipos de caso. Verde para confirmar operaciones del recibo |
-| 16 | Historial en el carril | **Solo `admin`**, como dice UI.md §3 (PA-62), aunque el lienzo lo muestre a todos. Duda abierta para la sesión principal: PA-302 |
-| 17 | Anillo de consumo de tokens del carril | **Opcional**: el contrato de T-55 no da el dato (PA-305). Sin dato, el anillo no se pinta |
+| 16 | Historial en el carril | **Solo `admin`**, como dice UI.md §3 (PA-62), aunque el lienzo lo muestre a todos. Confirmado por la principal (PA-302): en el carril aparece como **«disponible pronto»**, porque T-45 es Could y no está en el contrato |
+| 17 | Anillo de consumo de tokens del carril | Dato de `GET /api/v1/settings/usage` (`tokens_today`, `warning_threshold`, `scope: "global"`, PA-305). Es el consumo **de toda la instalación** en el día, no de la persona: el texto visible y el nombre accesible lo dicen («Consumo de hoy de la instalación»). Aviso desde `warning_threshold`. Con 503 u otro error, o sin dato, el anillo no se pinta |
 
 ## 2. Otras decisiones
 
@@ -71,13 +71,20 @@ Acordado con la sesión principal en la PR #2 (PA-303).
   - El `csrf_token` de `POST /auth/login` se guarda **solo en memoria** y se envía en `X-CSRF-Token` en todo POST, PUT o DELETE.
   - Al recargar, se pide de nuevo con `GET /auth/me`. Nunca en `localStorage` ni `sessionStorage` (ESLint lo impide).
 - **Mismo origen:** el frontend llama a rutas relativas `/api/v1/…`.
-  - En desarrollo, un proxy de Vite las reenvía al backend. El destino va en una variable del servidor de Vite sin prefijo `VITE_`, así que no llega al navegador.
+  - En desarrollo, un proxy de Vite reenvía `/api` a `http://127.0.0.1:8000` **sin `changeOrigin`**: la API compara `Origin` con `Host`. El destino va en una variable del servidor de Vite sin prefijo `VITE_`, así que no llega al navegador.
   - No hace falta CORS.
 - **Operaciones largas:** crear, iterar, aprobar y revisar la calidad responden **202**. El avance llega por SSE (`EventSource` en el mismo origen) y, como respaldo, consultando `GET /conversations/{id}`.
+  - Mientras hay una operación en curso, otra sobre la misma conversación da 409 `not_in_review`.
+  - El cliente **cierra el `EventSource` tras `result`** de una conversación terminada (simulada, publicada o descartada), para que no reconecte.
+  - Como mucho 3 flujos abiertos por persona: el cuarto da 429 `too_many_streams`.
 - **Errores:**
-  - Siempre `{"error": {"code", "message", "retry_after"}}`.
-  - El **título**, el tono y la acción se eligen por `code`. El **mensaje** se muestra tal cual.
-  - Un `code` desconocido usa un título genérico y el mismo mensaje.
+  - Siempre `{"error": {"code", "message", "retry_after"}}`. `code` es una lista cerrada (`ErrorBody.code`, PA-306).
+  - El **título**, el tono y la acción se eligen por `code` (§6). El **mensaje** se muestra tal cual.
+  - Los fallos de la generación llegan en `ConversationOut.error` o `QualityReviewOut.error`, no como error HTTP.
+  - Un `code` que no esté en la lista (versión futura de la API) usa un título genérico y el mismo mensaje.
+- **Aún sin implementar en la API:**
+  - `/conversations/{id}/handoff` y `/qa/*` dan 501 `not_implemented` hasta que se cierre T-54. La pantalla los trata como «disponible pronto».
+  - El registro de la ejecución (QA 6, `/executions`) llegará más tarde con T-47.
 - **Aprobar:** se devuelve la `fingerprint` exacta del último `review`. Una respuesta no válida llega en `review.error`, no como error HTTP. Un 409 se distingue por `error.code` (`approval_rejected` → empezar de nuevo; `not_in_review` → actualizar el estado).
 - **API simulada:**
   - **MSW** para desarrollo y pruebas, con un único conjunto de handlers construido con los ejemplos del contrato y un estado en memoria que también simula el SSE.
@@ -107,22 +114,39 @@ Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `
 
 ## 6. Tarjetas de error por `code`
 
-El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el frontend:
+El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el frontend, para los 25 valores de `ErrorBody.code` (`docs/api/README.md`, `api/errors.py`):
 
-| `code` | Título | Tono | Acción |
-|---|---|---|---|
-| `rate_limited` | Límite de uso alcanzado | Aviso | Reintentar, tras la cuenta atrás de `retry_after` |
-| `too_many_attempts` | Demasiados intentos | Aviso | Reintentar, tras `retry_after` |
-| `service_unavailable` | Servicio no disponible | Error | Reintentar |
-| `unauthenticated` | Sesión caducada | Neutro | Iniciar sesión |
-| `invalid_credentials` | No se pudo iniciar sesión | Error | — |
-| `forbidden` | Sin permiso | Neutro | — |
-| `not_found` | No se encuentra | Neutro | — |
-| `project_not_found` | No se encuentra el proyecto | Neutro | — |
-| `approval_rejected` | Aprobación rechazada | Error | Empezar de nuevo |
-| `not_in_review` | La revisión ya no está abierta | Aviso | Actualizar |
-| `invalid_request` | Petición no válida | Error | — |
-| Cualquier otro | No se pudo completar la acción | Error | — |
+| Grupo | `code` | Título | Tono | Acción |
+|---|---|---|---|---|
+| Sesión y permisos | `unauthenticated` | Sesión caducada | Neutro | Iniciar sesión |
+| | `invalid_credentials` | No se pudo iniciar sesión | Error | — |
+| | `too_many_attempts` | Demasiados intentos | Aviso | Reintentar, tras la cuenta atrás de `retry_after` |
+| | `forbidden` | Sin permiso | Neutro | — |
+| Petición | `invalid_request` | Petición no válida | Error | — |
+| | `payload_too_large` | Contenido demasiado grande | Error | — |
+| | `not_found` | No se encuentra | Neutro | — |
+| | `project_not_found` | No se encuentra el proyecto | Neutro | — |
+| | `method_not_allowed` | Acción no permitida | Error | — |
+| | `http_error` | Petición no válida | Error | — |
+| Conversación | `not_in_review` | La revisión ya no está abierta | Aviso | Actualizar |
+| | `approval_rejected` | Aprobación rechazada | Error | Empezar de nuevo |
+| | `operation_failed` | No se pudo completar la operación | Error | Actualizar |
+| | `restart` | La conversación no puede continuar | Error | Empezar de nuevo |
+| | `too_many_streams` | Demasiadas pestañas abiertas | Aviso | Reintentar |
+| Servicios externos | `rate_limited` | Límite de uso alcanzado | Aviso | Reintentar, tras la cuenta atrás de `retry_after` |
+| | `service_unavailable` | Servicio no disponible | Error | Reintentar |
+| | `provider_timeout` | El modelo no respondió a tiempo | Aviso | Volver a generar |
+| Generación | `invalid_model_output` | La respuesta del modelo no es válida | Error | Volver a generar |
+| | `citation_failed` | La propuesta no es válida | Error | Volver a generar |
+| | `coverage_failed` | La suite no es válida | Error | Volver a generar |
+| | `quality_failed` | No se pudo revisar la calidad | Error | Reintentar |
+| | `publish_failed` | No se puede publicar | Error | Volver al recibo |
+| Otros | `not_implemented` | Disponible pronto | Neutro | — |
+| | `unexpected` | Error inesperado | Error | Reintentar |
+| Respaldo | Cualquier otro (versión futura de la API) | No se pudo completar la acción | Error | — |
+
+- Los títulos de `citation_failed`, `coverage_failed` y `publish_failed` son los de UI.md §7.
+- Una publicación **parcial** no es un error: llega en `result.errors`, con el estado `approved`, y la pinta la pantalla de Resultado (días 6 a 8).
 
 - `retry_after` se acota a 0–600 s en la UI (un valor infinito vale 600). La acción solo aparece si la pantalla le da un manejador.
 - La cuenta atrás es solo visual (`aria-hidden`). Dentro de la alerta va una frase fija para lectores de pantalla («Podrás reintentar dentro de N segundos.»), así la alerta no se anuncia cada segundo.
@@ -133,7 +157,6 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 - **Tarjeta de flujo:** el nombre accesible es la etiqueta («Preparar pruebas»). La ayuda, o el motivo por el que está desactivada, va como descripción (`aria-describedby`), para que no se lea pegada al nombre.
 - **Q de fase:** al bajar de fase (otra conversación con la cabecera montada), anima desde la fase anterior a la nueva, nunca desde una Q más llena.
 - **Anillo de consumo:** un valor que no es un número se trata como ausente y el anillo no se pinta.
-- El contrato aún no enumera los códigos de los errores de generación (citas no válidas, cobertura, proveedores agotados): van con el título genérico hasta que se decida PA-306.
 
 ## 7. Herramientas
 

@@ -17,7 +17,16 @@ import streamlit as st  # noqa: E402
 
 from app.session import compose, retry_compose, state  # noqa: E402
 from app.text import md_escape  # noqa: E402
-from app.views import frame, generando, inicio, iterar, login, origen, recibo  # noqa: E402
+from app.views import (  # noqa: E402
+    calidad,
+    frame,
+    generando,
+    inicio,
+    iterar,
+    login,
+    origen,
+    recibo,
+)
 
 SCREENS = {
     "inicio": inicio.render,
@@ -25,6 +34,7 @@ SCREENS = {
     "generando": generando.render,
     "iterar": iterar.render,
     "recibo": recibo.render,
+    "calidad": calidad.render,
 }
 
 

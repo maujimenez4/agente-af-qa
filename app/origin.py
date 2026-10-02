@@ -47,6 +47,9 @@ class StartRequest:
     text: str = ""
     restrictions: str = ""
     excluded_sources: tuple[str, ...] = field(default_factory=tuple)
+    # Indicaciones previas a la primera versión que no escribe la persona, p. ej. las mejoras
+    # del informe de calidad en «Evolucionar con esto» (Mixta 5, T-48).
+    extra_feedback: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def mode(self) -> Mode:
@@ -54,6 +57,8 @@ class StartRequest:
 
     def describe(self) -> str:
         """Texto de la tarjeta «Operación fijada»."""
+        if self.flow == "review" and self.key:
+            return f"Revisar la calidad de {self.key} (solo lectura, no publica)"
         if self.flow == "tests" and self.key:
             return f"Suite de pruebas de {self.key}"
         if self.kind == "story" and self.key:
@@ -114,8 +119,12 @@ def request_from_option(flow: FlowId, option: StartOption, text: str = "") -> St
     if option.kind == "new_need":
         return fix_origin("need", origin.get("project", ""), text=origin.get("text") or text)
     kind: OriginKind = "epic" if origin["kind"] == "epic" else "story"
+    if flow == "review":
+        target: FlowId = "review"
+    else:
+        target = "tests" if flow == "tests" else "need" if kind == "epic" else "evolve"
     return fix_origin(
-        "tests" if flow == "tests" else "need" if kind == "epic" else "evolve",
+        target,
         origin.get("project", ""),
         key=origin.get("key"),
         kind=kind,
@@ -203,8 +212,9 @@ def build_feedback(request: StartRequest) -> list[str]:
     previo a la primera versión (T-51); en `origin.text` sustituirían la consulta al RAG.
     """
     if request.kind == "need":
-        return []
-    return [part for part in (change_request(request), request.restrictions) if part]
+        return list(request.extra_feedback)
+    parts = [part for part in (change_request(request), request.restrictions) if part]
+    return [*parts, *request.extra_feedback]
 
 
 def build_initial_state(user: str, request: StartRequest) -> AgentState:

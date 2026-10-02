@@ -56,6 +56,17 @@ from app.origin import (
     with_restrictions,
 )
 from app.progress import STEPS, completed_steps, nodes_in_update, phase_label, phase_of
+from app.quality import (
+    REVIEW_STEPS,
+    FindingRow,
+    InvestRow,
+    evolve_request,
+    finding_rows,
+    invest_rows,
+    report_download,
+    report_filename,
+    review_message,
+)
 from app.review import (
     ReceiptItem,
     ReviewView,
@@ -95,14 +106,16 @@ from core.graph.nodes import ReviewRejectedError
 from core.guided_start import GuidedStart, SourcePreview, StartOption, StartProposal
 from core.permissions import Permission
 from core.projects import normalize_issue_key
+from core.quality import QualityReview, QualityReviewer
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
+from schemas.quality import FINDING_LABELS, INVEST_NAMES, InvestCheck, QualityFinding, QualityReport
 from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
-from tests.fakes.llm import FakeLLMProvider, renewal_test_suite
+from tests.fakes.llm import FakeLLMProvider, renewal_quality_report, renewal_test_suite
 
 AF_USER = dataset.DEMO_USERS["af-demo"][1]
 QA_USER = dataset.DEMO_USERS["qa-demo"][1]
@@ -149,12 +162,27 @@ def test_flow_cards_functional_enables_story_flows(flow_id: str) -> None:
     assert card.hint == card.flow.hint
 
 
-def test_flow_cards_functional_review_is_pending_t48() -> None:
-    """UI.md §3: Revisar la calidad está permitida al analista pero llega con T-48."""
+def test_flow_cards_review_enabled_for_functional_role() -> None:
+    """UI.md §3 · T-48 (RF-18): Revisar la calidad está activa para el analista funcional."""
     card = _cards(AF_USER)["review"]
+    assert card.flow.pending_task is None
     assert card.allowed is True
-    assert card.enabled is False
-    assert card.hint == f"{card.flow.hint} Disponible pronto (T-48)."
+    assert card.enabled is True
+    assert card.hint == card.flow.hint
+
+
+def test_flow_cards_review_disabled_for_qa_with_af_hint() -> None:
+    """UI.md §3 · T-48 (negativa): QA ve Revisar la calidad desactivada con la ayuda del AF."""
+    card = _cards(QA_USER)["review"]
+    assert (card.allowed, card.enabled) == (False, False)
+    assert card.hint == "Disponible para el rol de analista funcional."
+
+
+def test_flow_cards_review_hidden_for_admin() -> None:
+    """UI.md §3 · D-01 (negativa): el administrador no ve tarjetas ni puede revisar la calidad."""
+    assert shows_flows(ADMIN_USER) is False
+    card = _cards(ADMIN_USER)["review"]
+    assert (card.allowed, card.enabled) == (False, False)
 
 
 def test_flow_cards_functional_tests_card_is_for_qa_role() -> None:
@@ -2212,3 +2240,290 @@ def test_outcome_is_none_for_status_not_approved(status: ArtifactStatus) -> None
 def test_field_label_is_readable(field: str, expected: str) -> None:
     """UI.md §4.6: el recibo nombra los campos cambiados en español o por su ID de CA/RN."""
     assert field_label(field) == expected
+
+
+# --- Mixta 5 · Revisar la calidad (app/quality.py, app/origin.py · UI.md §4.8, T-48, RF-18) ----
+
+
+def _invest(improvable: str = "") -> list[InvestCheck]:
+    """Seis valoraciones ficticias, desordenadas a propósito (T, S, E, V, N, I)."""
+    return [
+        InvestCheck(
+            letter=letter,  # type: ignore[arg-type]
+            verdict="improvable" if letter in improvable else "ok",
+            reason=f"Motivo ficticio de {letter}.",
+        )
+        for letter in ("T", "S", "E", "V", "N", "I")
+    ]
+
+
+def _finding(target: str | None = "CA-02", kind: str = "ambiguity") -> QualityFinding:
+    about = target or "la HU"
+    return QualityFinding(
+        kind=kind,  # type: ignore[arg-type]
+        target_id=target,
+        explanation=f"Explicación ficticia sobre {about}.",
+        proposal=f"Propuesta ficticia para {about}.",
+    )
+
+
+def _quality(findings: list[QualityFinding] | None = None, improvable: str = "T") -> QualityReport:
+    return QualityReport(
+        summary="Resumen ficticio de la calidad.",
+        invest=_invest(improvable),
+        findings=findings or [],
+    )
+
+
+def _review(report: QualityReport, key: str = "DEMO-3") -> QualityReview:
+    return QualityReview(
+        jira_key=key,
+        report=report,
+        story=dataset.renewal_story(key),
+        provider="fake",
+        model="modelo-ficticio",
+        prompt_version="1",
+        input_tokens=1,
+        output_tokens=1,
+    )
+
+
+def test_review_steps_are_three_and_mention_two_model_calls() -> None:
+    """UI.md §4.8: el progreso enumera leer el contexto y las dos llamadas al modelo."""
+    assert len(REVIEW_STEPS) == 3
+    assert sum("llamada al modelo" in step for step in REVIEW_STEPS) == 2
+
+
+def test_invest_rows_six_in_invest_order_with_spanish_names() -> None:
+    """UI.md §4.8 · RF-18: seis filas I N V E S T en orden con los nombres de INVEST_NAMES."""
+    rows = invest_rows(_quality(improvable="NT"))
+    assert [row.letter for row in rows] == ["I", "N", "V", "E", "S", "T"]
+    assert [row.name for row in rows] == [INVEST_NAMES[letter] for letter in "INVEST"]
+    assert all(isinstance(row, InvestRow) for row in rows)
+    assert rows[0] == InvestRow("I", "Independiente", "Bien", "Motivo ficticio de I.")
+
+
+def test_invest_rows_verdicts_are_bien_or_mejorable() -> None:
+    """UI.md §4.8: «ok» → «Bien» e «improvable» → «Mejorable»; nunca el valor en inglés."""
+    rows = {row.letter: row.verdict for row in invest_rows(_quality(improvable="NT"))}
+    assert rows == {
+        "I": "Bien",
+        "N": "Mejorable",
+        "V": "Bien",
+        "E": "Bien",
+        "S": "Bien",
+        "T": "Mejorable",
+    }
+
+
+def test_finding_rows_use_spanish_label_and_target_id() -> None:
+    """UI.md §4.8 · RF-18: cada hallazgo con su etiqueta de FINDING_LABELS y su CA/RN."""
+    report = _quality([_finding("CA-02"), _finding("RN-01", kind="inconsistency")])
+    assert finding_rows(report) == [
+        FindingRow(
+            kind=FINDING_LABELS["ambiguity"],
+            target="CA-02",
+            explanation="Explicación ficticia sobre CA-02.",
+            proposal="Propuesta ficticia para CA-02.",
+        ),
+        FindingRow(
+            kind="Incoherencia con las fuentes",
+            target="RN-01",
+            explanation="Explicación ficticia sobre RN-01.",
+            proposal="Propuesta ficticia para RN-01.",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("kind", sorted(FINDING_LABELS))
+def test_finding_rows_label_for_each_kind_without_target_is_hu(kind: str) -> None:
+    """UI.md §4.8 (límite): sin `target_id` el hallazgo es de la «HU»; todas las etiquetas."""
+    (row,) = finding_rows(_quality([_finding(None, kind=kind)]))
+    assert row.kind == FINDING_LABELS[kind]
+    assert row.target == "HU"
+
+
+def test_finding_rows_empty_without_findings() -> None:
+    """UI.md §4.8 (límite): un informe sin hallazgos no da filas."""
+    assert finding_rows(_quality([])) == []
+
+
+@pytest.mark.parametrize(
+    ("count", "points"),
+    [(0, "ningún punto a mejorar"), (1, "1 punto a mejorar"), (3, "3 puntos a mejorar")],
+    ids=["cero", "uno", "varios"],
+)
+def test_review_message_counts_findings_and_says_nothing_changed(count: int, points: str) -> None:
+    """UI.md §4.8: el mensaje cuenta los hallazgos y siempre dice que no ha cambiado Jira."""
+    findings = [_finding(f"CA-0{i + 1}") for i in range(count)]
+    message = review_message(_review(_quality(findings), key="DEMO-4"))
+    assert message.startswith("He revisado DEMO-4 con INVEST")
+    assert f"Hay {points}." in message
+    assert message.endswith("No he cambiado nada en Jira.")
+
+
+def test_report_filename_uses_the_key() -> None:
+    """UI.md §4.8 · PA-64: el informe se descarga como `calidad-<clave>.md`."""
+    assert report_filename("DEMO-3") == "calidad-DEMO-3.md"
+
+
+def test_report_download_is_escaped_markdown_in_utf8() -> None:
+    """PA-64: *Descargar informe* = `to_markdown(clave)` en UTF-8 (con tildes ficticias)."""
+    review = _review(renewal_quality_report())
+    data = report_download(review)
+    assert isinstance(data, bytes)
+    assert data == review.report.to_markdown("DEMO-3").encode("utf-8")
+    text = data.decode("utf-8")
+    assert text.startswith("# Calidad de DEMO-3")
+    assert "Ambigüedad" in text
+
+
+def test_report_download_escapes_markdown_from_the_llm() -> None:
+    """PA-64 (seguridad): un enlace o imagen del LLM llega escapado al `.md` descargable."""
+    finding = QualityFinding(
+        kind="gap",
+        explanation="Ver ![img](https://ejemplo.invalid/x.png)",
+        proposal="[pulsa](https://ejemplo.invalid)",
+    )
+    text = report_download(_review(_quality([finding]))).decode("utf-8")
+    assert "![img](" not in text and "[pulsa](" not in text
+    assert "\\!\\[img\\]" in text
+
+
+def test_evolve_request_opens_evolution_with_report_proposals() -> None:
+    """UI.md §4.8 · T-48: «Evolucionar con esto» → evolución de la clave con las propuestas."""
+    review = _review(_quality([_finding("CA-02"), _finding(None, kind="gap")]))
+    request = evolve_request(review, "DEMO")
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "evolve",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert request.extra_feedback == tuple(review.evolve_feedback())
+    assert request.extra_feedback == (
+        "CA-02: Propuesta ficticia para CA-02.",
+        "Propuesta ficticia para la HU.",
+    )
+    feedback = build_initial_state("af-demo", request)["feedback"]
+    assert all(item in feedback for item in review.evolve_feedback())
+
+
+def test_evolve_request_key_of_other_project_changes_project() -> None:
+    """UI.md §4.8 · decisión del día 6: el proyecto sale de la clave, no del que se pasa."""
+    request = evolve_request(_review(_quality([_finding()]), key="OTRO-7"), "DEMO")
+    assert (request.key, request.project) == ("OTRO-7", "OTRO")
+
+
+def test_evolve_request_without_findings_has_no_extra_feedback() -> None:
+    """UI.md §4.8 (límite): sin hallazgos, la evolución empieza sin feedback previo."""
+    request = evolve_request(_review(_quality([])), "DEMO")
+    assert request.extra_feedback == ()
+    assert build_initial_state("af-demo", request)["feedback"] == []
+
+
+def test_evolve_request_with_real_reviewer_and_fake_llm(tmp_path: Path) -> None:
+    """T-48 · RF-18: `QualityReviewer` con el fake LLM y la evolución con sus propuestas."""
+    container = fake_container(tmp_path)
+    review = QualityReviewer(container).review(AF_USER, "DEMO-3")
+    assert review.jira_key == "DEMO-3"
+    assert [row.letter for row in invest_rows(review.report)] == list("INVEST")
+    rows = finding_rows(review.report)
+    assert [(row.kind, row.target) for row in rows] == [("Ambigüedad", "CA-02"), ("Hueco", "HU")]
+    assert "Hay 2 puntos a mejorar." in review_message(review)
+    request = evolve_request(review, "DEMO")
+    state = build_initial_state("af-demo", request)
+    assert state["feedback"] == list(review.evolve_feedback())
+    assert "CA-02: Avisar en menos de 15 minutos." in state["feedback"]
+    tracker = container.issue_tracker
+    assert isinstance(tracker, FakeIssueTracker) and tracker.writes == []
+
+
+def test_describe_review_is_read_only_operation() -> None:
+    """UI.md §4.8: la operación fijada de la revisión dice que es de solo lectura."""
+    request = fix_origin("review", "DEMO", key="demo-4")
+    assert (request.flow, request.kind, request.key, request.mode) == (
+        "review",
+        "story",
+        "DEMO-4",
+        "functional",
+    )
+    assert request.describe() == "Revisar la calidad de DEMO-4 (solo lectura, no publica)"
+
+
+def test_request_from_option_review_keeps_review_flow() -> None:
+    """UI.md §4.8 · T-53: la opción «evolve» de `GuidedStart` en el flujo review sigue en review."""
+    request = request_from_option("review", _option("evolve", "DEMO-3"), "Revisar DEMO-3")
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "review",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert request.describe().startswith("Revisar la calidad de DEMO-3")
+
+
+def test_request_from_option_review_with_epic_raises() -> None:
+    """UI.md §4.8 (negativa): una épica no se puede revisar como HU."""
+    with pytest.raises(ValueError, match=EPIC_NOT_ALLOWED):
+        request_from_option("review", _option("new_story_in_epic", "DEMO-1"))
+
+
+def test_build_feedback_story_appends_extra_feedback_after_restrictions() -> None:
+    """T-48 · T-51: en una HU, lo pedido, las restricciones y después las propuestas previas."""
+    request = StartRequest(
+        flow="evolve",
+        kind="story",
+        project="DEMO",
+        key="DEMO-3",
+        text="DEMO-3 renovar desde la app",
+        restrictions=RESTRICTIONS,
+        extra_feedback=("CA-02: propuesta ficticia.", "Otra propuesta ficticia."),
+    )
+    assert build_feedback(request) == [
+        "renovar desde la app",
+        RESTRICTIONS,
+        "CA-02: propuesta ficticia.",
+        "Otra propuesta ficticia.",
+    ]
+
+
+def test_build_feedback_need_returns_only_extra_feedback() -> None:
+    """T-48 · UI.md §4.3: en una necesidad las restricciones van al texto; solo va el extra."""
+    common: dict[str, Any] = {"flow": "need", "kind": "need", "project": "DEMO"}
+    request = StartRequest(
+        **common, text=NEED_TEXT, restrictions=RESTRICTIONS, extra_feedback=("Propuesta.",)
+    )
+    assert build_feedback(request) == ["Propuesta."]
+    assert build_feedback(StartRequest(**common, text=NEED_TEXT, restrictions=RESTRICTIONS)) == []
+
+
+def test_plan_start_review_with_recognized_key_chooses_review(tmp_path: Path) -> None:
+    """UI.md §4.8 · T-53: «Revisar DEMO-3» en el flujo review elige DEMO-3 y sigue en review."""
+    proposal = _guided(tmp_path).propose("Revisar DEMO-3", "DEMO")
+    plan = plan_start("review", proposal, "DEMO")
+    assert plan.error is None
+    assert plan.chosen is not None and plan.chosen.origin.get("key") == "DEMO-3"
+    request = request_from_option("review", plan.chosen, "Revisar DEMO-3")
+    assert (request.flow, request.key) == ("review", "DEMO-3")
+
+
+def test_plan_start_review_with_epic_is_not_allowed(tmp_path: Path) -> None:
+    """UI.md §4.8 (negativa): en el flujo review, una épica da EPIC_NOT_ALLOWED."""
+    plan = plan_start("review", _guided(tmp_path).propose("Revisar DEMO-1", "DEMO"), "DEMO")
+    assert plan.chosen is None
+    assert plan.error == EPIC_NOT_ALLOWED
+
+
+def test_plan_start_review_without_anything_requires_key() -> None:
+    """UI.md §4.8 (negativa): sin clave ni HU parecidas, se pide la clave."""
+    plan = plan_start("review", _proposal([]), "DEMO")
+    assert (plan.chosen, plan.error) == (None, KEY_REQUIRED)
+
+
+def test_evolve_request_keeps_sources_excluded_while_reviewing(tmp_path: Path) -> None:
+    """UI.md §4.8: las fuentes desmarcadas al revisar siguen fuera al evolucionar con el informe."""
+    review = QualityReviewer(fake_container(tmp_path)).review(AF_USER, "DEMO-3")
+    request = evolve_request(review, "DEMO", ("doc-glosario",))
+    assert request.excluded_sources == ("doc-glosario",)
+    assert build_initial_state(AF_USER.username, request)["excluded_sources"] == ["doc-glosario"]

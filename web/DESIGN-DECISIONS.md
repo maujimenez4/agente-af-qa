@@ -153,7 +153,8 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 
 Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `version`) con el formato «flujo · estado» del lienzo.
 
-- **Flujo:** `qa` → «Pruebas de DEMO-3»; `functional` con origen `story` → «Evolucionar DEMO-3»; con `need` o `epic` → «Nueva necesidad».
+- **Flujo:** `qa` → «Pruebas de DEMO-3»; `functional` con origen `story` → «Evolucionar DEMO-3»; con `epic` → «HU nueva en la épica DEMO-1»; con `need` → «Nueva necesidad».
+- **Título:** el de la API, salvo «Nueva HU en DEMO-1» (`core/conversations.py`), que se muestra como «HU nueva en la épica DEMO-1» en la cabecera, el evento, la lista y el buscador (`conversationTitle`, PA-317).
 - **Estado:**
   - `in_review` → «Versión N»;
   - `simulated` → «Simulado»;

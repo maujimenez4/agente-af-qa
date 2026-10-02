@@ -59,6 +59,14 @@ const GENERATION_STEPS: ReadonlyArray<Pick<ProgressStep, 'node' | 'label'>> = [
   { node: 'generate', label: 'Generar la propuesta, validar las citas y analizar el impacto' },
 ]
 
+// Como conversation_title() de core/conversations.py: flujo y clave, sin texto libre.
+function mockTitle(body: ConversationCreateIn): string {
+  const { kind, key, project } = body.origin
+  const flow =
+    body.flow === 'tests' ? 'Preparar pruebas de' : kind === 'story' ? 'Evolucionar' : kind === 'epic' ? 'Nueva HU en' : 'Nueva necesidad'
+  return key ? `${flow} ${key}` : `${flow} · ${project}`
+}
+
 function generationScript(): ProgressStep[] {
   return GENERATION_STEPS.flatMap((step) => [
     { ...step, state: 'running' as const },
@@ -269,7 +277,7 @@ export function createHandlers(db: MockDb) {
         const body = (await request.json()) as ConversationCreateIn
         const id = crypto.randomUUID()
         const now = new Date().toISOString()
-        const title = body.origin.key ? `Evolucionar ${body.origin.key}` : 'Nueva necesidad'
+        const title = mockTitle(body)
         const conversation: ConversationOut = {
           ...example<ConversationOut>('POST /api/v1/conversations 202'),
           id,

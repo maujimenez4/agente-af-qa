@@ -8,6 +8,7 @@ import { Composer, ModelTag } from '../../components/Composer/index.ts'
 import { ChangesView, changesLabel, ImpactView, SourcesView, StoryView, Tabs, VersionSelector, versionSummary } from '../../components/Proposal/index.ts'
 import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts'
 import { ErrorCard } from '../../components/States/index.ts'
+import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
@@ -117,7 +118,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
   const panel = shown && (
     <SidePanel
       title="Propuesta de HU"
-      subtitle={`${conversation.title} · ${iterating ? 'generando' : 'en revisión'}`}
+      subtitle={`${conversationTitle(conversation.title)} · ${iterating ? 'generando' : 'en revisión'}`}
       size="md"
       headerActions={<VersionSelector versions={versions.map((item) => item.version)} selected={selected} onSelect={setSelected} />}
       footer={
@@ -158,7 +159,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
 
   return (
     <Workspace
-      title={conversation.title}
+      title={conversationTitle(conversation.title)}
       phase={2}
       panel={panel}
       composer={

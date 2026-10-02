@@ -3,7 +3,7 @@ import { api, ApiRequestError } from '../api/client.ts'
 import type { ApiError, ConversationOut, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
 import { Button } from '../components/Button/index.ts'
-import { ConversationList } from '../components/ConversationList/index.ts'
+import { ConversationList, conversationTitle } from '../components/ConversationList/index.ts'
 import { homeZone, Rail, type Zone } from '../components/Rail/index.ts'
 import { useUsage } from '../hooks/useUsage.ts'
 import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJira.tsx'
@@ -176,7 +176,7 @@ function WorkZone({ user }: { user: UserOut }) {
         )}
         {view.name === 'closed' && (
           <SoonScreen
-            title={view.conversation.title}
+            title={conversationTitle(view.conversation.title)}
             text={CLOSED_TEXT[view.conversation.state] ?? 'Esta conversación ya terminó.'}
           />
         )}

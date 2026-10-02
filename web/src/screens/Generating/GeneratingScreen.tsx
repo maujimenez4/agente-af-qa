@@ -3,6 +3,7 @@ import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatEvent, ChatLog } from '../../components/Chat/index.ts'
 import { Composer } from '../../components/Composer/index.ts'
 import { ErrorCard, LoadingState, Skeleton } from '../../components/States/index.ts'
+import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import styles from './Generating.module.css'
 import { readyHeadline } from './headline.ts'
@@ -36,7 +37,7 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
 
   return (
     <Workspace
-      title={conversation.title}
+      title={conversationTitle(conversation.title)}
       phase={2}
       panel={panel}
       composer={
@@ -51,7 +52,7 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
       }
     >
       <ChatLog>
-        <ChatEvent>Generar propuesta · {conversation.title}</ChatEvent>
+        <ChatEvent>Generar propuesta · {conversationTitle(conversation.title)}</ChatEvent>
         <AssistantMessage>
           {state.status === 'error' ? (
             <ErrorCard key={`${state.error.code}-${state.error.message}`} error={state.error} onAction={onRetry} />

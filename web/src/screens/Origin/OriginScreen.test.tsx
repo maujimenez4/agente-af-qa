@@ -171,6 +171,25 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     expect(await within(panel()).findByRole('checkbox', { name: /Épica de origen: Préstamo digital/ })).toBeDisabled()
   })
 
+  it('desde la épica DEMO-1 la conversación se titula «HU nueva en la épica DEMO-1», no «Evolucionar»', async () => {
+    mockServer.use(http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })))
+    mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
+    render(<App />)
+    const recents = await screen.findByRole('region', { name: 'Recientes en DEMO' })
+    await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-1 Épica · Préstamo digital' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Crear una HU nueva en la épica DEMO-1' })).toBeInTheDocument()
+    await within(panel()).findByRole('checkbox', { name: /Épica de origen/ })
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'HU nueva en la épica DEMO-1' })).toBeInTheDocument()
+    expect(within(screen.getByRole('log')).getByText('Generar propuesta · HU nueva en la épica DEMO-1')).toBeInTheDocument()
+    const list = screen.getByRole('complementary', { name: 'Conversaciones' })
+    expect(await within(list).findByText('HU nueva en la épica DEMO-1')).toBeInTheDocument()
+    expect(within(list).getByText(/^HU nueva en la épica DEMO-1 · /)).toBeInTheDocument()
+    expect(screen.queryByText(/Evolucionar DEMO-1/)).toBeNull()
+  })
+
   it('«Revisar la calidad» queda como «disponible pronto» en la demo', async () => {
     await startWithText('Revisar DEMO-4', 'Revisar la calidad de una HU')
     expect(await screen.findByRole('heading', { name: 'Revisar la calidad: disponible pronto' })).toBeInTheDocument()

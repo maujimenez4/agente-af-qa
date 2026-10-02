@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DEMO_CONVERSATIONS, DEMO_NOW } from '../../fixtures/conversations.ts'
 import { ConversationList, type ConversationListProps } from './ConversationList.tsx'
 import {
+  conversationTitle,
   flowLabel,
   groupByDay,
   matchesSearch,
@@ -43,15 +44,32 @@ describe('«flujo · estado» (§5)', () => {
     [{ mode: 'qa', origin_kind: 'story', origin_key: 'DEMO-3', status: 'in_review', version: 1 }, 'Pruebas de DEMO-3 · Versión 1'],
     [{ mode: 'functional', origin_kind: 'story', origin_key: 'DEMO-3', status: 'published' }, 'Evolucionar DEMO-3 · Publicado'],
     [{ mode: 'functional', origin_kind: 'need', origin_key: null, status: 'simulated' }, 'Nueva necesidad · Simulado'],
-    [{ mode: 'functional', origin_kind: 'epic', origin_key: 'DEMO-1', status: 'started' }, 'Nueva necesidad · En curso'],
+    [{ mode: 'functional', origin_kind: 'epic', origin_key: 'DEMO-1', status: 'started' }, 'HU nueva en la épica DEMO-1 · En curso'],
     [{ mode: 'functional', origin_kind: 'story', origin_key: 'DEMO-3', status: 'approved' }, 'Evolucionar DEMO-3 · Aprobada'],
     [{ mode: 'qa', origin_kind: 'story', origin_key: 'DEMO-3', status: 'discarded' }, 'Pruebas de DEMO-3 · Descartada'],
   ] as const)('%j → «%s»', (overrides, text) => {
     expect(subtitle(conversation(overrides))).toBe(text)
   })
 
-  it('una épica nunca se muestra como «Evolucionar», aunque tenga clave', () => {
-    expect(flowLabel(conversation({ origin_kind: 'epic', origin_key: 'DEMO-1' }))).toBe('Nueva necesidad')
+  it('una épica nunca se muestra como «Evolucionar»: «HU nueva en la épica DEMO-1»', () => {
+    expect(flowLabel(conversation({ origin_kind: 'epic', origin_key: 'DEMO-1' }))).toBe('HU nueva en la épica DEMO-1')
+    expect(flowLabel(conversation({ origin_kind: 'epic', origin_key: null }))).toBe('HU nueva en una épica')
+  })
+
+  it.each([
+    ['Nueva HU en DEMO-1', 'HU nueva en la épica DEMO-1'],
+    ['Evolucionar DEMO-3', 'Evolucionar DEMO-3'],
+    ['Nueva necesidad · DEMO', 'Nueva necesidad · DEMO'],
+    ['Nueva HU en DEMO-1 y más', 'Nueva HU en DEMO-1 y más'],
+  ])('título de la API «%s» → «%s»', (title, shown) => {
+    expect(conversationTitle(title)).toBe(shown)
+  })
+
+  it('la lista y el buscador usan el título que se muestra', async () => {
+    render(<ConversationList conversations={[conversation({ title: 'Nueva HU en DEMO-1', origin_kind: 'epic', origin_key: 'DEMO-1' })]} onNew={() => {}} onSelect={() => {}} />)
+    expect(screen.getByText('HU nueva en la épica DEMO-1')).toBeInTheDocument()
+    expect(screen.queryByText('Nueva HU en DEMO-1')).toBeNull()
+    expect(matchesSearch(conversation({ title: 'Nueva HU en DEMO-1', origin_kind: 'epic', origin_key: 'DEMO-1' }), 'la épica demo-1')).toBe(true)
   })
 
   it('una necesidad con clave sigue siendo «Nueva necesidad»', () => {

@@ -3,7 +3,7 @@ import type { ApiError } from '../../api/types.ts'
 import { Icon } from '../Icon/index.ts'
 import { ErrorCard } from '../States/index.ts'
 import styles from './ConversationList.module.css'
-import { groupByDay, matchesSearch, subtitle, type ConversationSummaryView } from './conversationLabels.ts'
+import { conversationTitle, groupByDay, matchesSearch, subtitle, type ConversationSummaryView } from './conversationLabels.ts'
 
 export interface ConversationListProps {
   /** Id para enlazarla con `ConversationsToggle` (aria-controls). */
@@ -66,7 +66,7 @@ export function ConversationList({ id, conversations, currentId, onNew, onSelect
                     onClick={() => onSelect(conversation.thread_id)}
                   >
                     <span className={styles.projectKey}>{conversation.project_key}</span>
-                    <span className={styles.title}>{conversation.title}</span>
+                    <span className={styles.title}>{conversationTitle(conversation.title)}</span>
                     <span className={styles.subtitle}>{subtitle(conversation)}</span>
                   </button>
                 </li>

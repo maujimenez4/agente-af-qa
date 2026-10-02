@@ -9,11 +9,21 @@ export type ConversationSummaryView = Pick<
   'thread_id' | 'project_key' | 'mode' | 'origin_kind' | 'origin_key' | 'title' | 'status' | 'version' | 'updated_at'
 >
 
-/** Flujo de la conversación («Evolucionar DEMO-3», «Nueva necesidad», «Pruebas de DEMO-3»). */
+// La API titula «Nueva HU en DEMO-1» la HU nueva dentro de una épica (core/conversations.py, PA-317).
+const EPIC_TITLE = /^Nueva HU en (\S+)$/
+
+/** Título que se muestra: el de la API, salvo la HU nueva en una épica («HU nueva en la épica DEMO-1»). */
+export function conversationTitle(title: string): string {
+  const epic = EPIC_TITLE.exec(title)
+  return epic ? `HU nueva en la épica ${epic[1]}` : title
+}
+
+/** Flujo de la conversación («Evolucionar DEMO-3», «HU nueva en la épica DEMO-1», «Pruebas de DEMO-3»). */
 export function flowLabel(conversation: ConversationSummaryView): string {
   const key = conversation.origin_key
   if (conversation.mode === 'qa') return key ? `Pruebas de ${key}` : 'Preparar pruebas'
   if (conversation.origin_kind === 'story') return key ? `Evolucionar ${key}` : 'Evolucionar una HU'
+  if (conversation.origin_kind === 'epic') return key ? `HU nueva en la épica ${key}` : 'HU nueva en una épica'
   return 'Nueva necesidad'
 }
 
@@ -92,5 +102,5 @@ function normalize(text: string): string {
 export function matchesSearch(conversation: ConversationSummaryView, query: string): boolean {
   const needle = normalize(query.trim())
   if (!needle) return true
-  return normalize(`${conversation.title} ${conversation.project_key} ${subtitle(conversation)}`).includes(needle)
+  return normalize(`${conversationTitle(conversation.title)} ${conversation.project_key} ${subtitle(conversation)}`).includes(needle)
 }

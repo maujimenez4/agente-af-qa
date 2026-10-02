@@ -26,7 +26,7 @@ describe('textos de la lista', () => {
     [published, 'Evolucionar DEMO-3'],
     [qaReview, 'Pruebas de DEMO-3'],
     [newNeed, 'Nueva necesidad'],
-    [epicSimulated, 'Nueva necesidad'],
+    [epicSimulated, 'HU nueva en la épica DEMO-1'],
   ])('flujo de %#: «%s»', (conversation, label) => {
     expect(flowLabel(conversation)).toBe(label)
   })

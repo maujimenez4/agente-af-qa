@@ -169,6 +169,7 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
             config.api_key_for(choice.provider),
             prompts=prompts,
             max_retries_on_429=config.models.limits.max_retries_on_429,
+            timeout_s=config.models.limits.request_timeout_s,
         )
 
     return create

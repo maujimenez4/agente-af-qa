@@ -73,6 +73,8 @@ class LimitsConfig(_StrictModel):
     max_retries_on_429: NonNegativeInt
     context_token_budget: PositiveInt
     daily_token_warning: PositiveInt
+    # Segundos por llamada al LLM: un modelo local en CPU tarda más que uno en la nube.
+    request_timeout_s: PositiveFloat = 60.0
 
 
 class RagConfig(_StrictModel):

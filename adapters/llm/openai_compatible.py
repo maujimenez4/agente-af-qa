@@ -80,6 +80,7 @@ class OpenAICompatibleProvider:
         api_key: SecretStr | None,
         *,
         http_client: httpx.Client | None = None,
+        timeout_s: float = _DEFAULT_TIMEOUT_S,
         **kwargs: Any,
     ) -> Self:
         """Crea el cliente del SDK; `api_key=None` para proveedores sin clave (Ollama)."""
@@ -87,7 +88,7 @@ class OpenAICompatibleProvider:
             base_url=base_url,
             api_key=api_key.get_secret_value() if api_key else _LOCAL_PLACEHOLDER_KEY,
             max_retries=0,  # los reintentos los controla este adaptador
-            timeout=_DEFAULT_TIMEOUT_S,
+            timeout=timeout_s,
             http_client=http_client,
         )
         return cls(provider, model, client, **kwargs)

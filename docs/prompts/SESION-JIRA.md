@@ -1,9 +1,9 @@
-# SESIÓN JIRA · T-27 y T-30: escritura en Jira (área A · `adapters/jira/`, `adapters/testmgmt/`)
+# SESIÓN JIRA · Ronda 2: escritura real en el sandbox y T-47 (área A · `adapters/`)
 
-Prepara un worktree propio y abre Claude Code **en esa carpeta**. Pega como primer mensaje todo lo que hay debajo de la línea.
+Tu rama `ses-jira` ya está fusionada en `PreProduccion`. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
-# desde la carpeta del repositorio (agente-af-qa): se reutiliza el worktree area-a
+# desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
 git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
 cd .claude/worktrees/area-a
@@ -11,88 +11,76 @@ uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
 
-Las pruebas `integration` contra tu sandbox de Jira necesitan tu `.env` en esta carpeta: cópialo tú (está en `.gitignore`).
+Las pruebas reales necesitan tu `.env` en esta carpeta: cópialo tú, porque está en `.gitignore`.
 
 ---
 
-Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`** (worktree propio). Hay **otras sesiones de Claude Code trabajando a la vez**:
-- **Principal:** `PreProduccion`. Integra, es dueña de los contratos, del grafo y de la composición.
-- **UI:** `ses-ui`, en `app/`.
-- **Memoria:** `ses-memoria`, en `core/memory/`.
-- **Ollama:** modelos locales (`qwen3:4b-instruct` y `bge-m3`), ya configurados en `config/models.yaml`.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tus T-27 y T-30 ya están fusionadas (✅). La principal ha conectado `JiraNativeTests` en `build_app_container` (`core/factories.build_test_management`) y ha corregido PA-201: en `_diff_comment_md` tu prueba ya pasa sin `xfail`.
 
-**Solo tocas lo de esta sesión**; si necesitas algo de otra, para y propónlo.
+Hay **otras sesiones de Claude Code trabajando a la vez**:
+- **Principal:** `PreProduccion`. Integra y es dueña de los contratos, el grafo y la composición.
+- **UI:** `ses-ui`, con T-31, Mixta 5, T-28 y la pestaña Memoria.
+- **T-32:** `ses-memoria`, en `adapters/llm/`.
+- **Ollama:** la prueba real de punta a punta.
 
-Lee antes:
-- `CLAUDE.md`, sobre todo el principio 1: **solo el nodo `publish` escribe en Jira**;
-- en `docs/specs/SPEC-00-fundacional.md`: §4 (`IssueTracker`, `TestManagement`), §8 (ADF, reintentos solo en lecturas, publicación parcial) y el anexo §11 (contratos de T-25, T-50 y T-51);
-- en `docs/decisiones/01_declaraciones_proyecto.md`: D-09 (Jira nativo, sin Xray), R-05 (prefijo `[HU-XX]` / `[CP-XX]` en el título) y RF-04, RF-05, RF-06, RF-30 y RNF-13;
-- en `docs/KANBAN.md`, las propuestas PA-05, PA-46 y PA-49.
+**Solo tocas lo de esta sesión.**
 
-## Estado de partida
-- `adapters/jira/tracker.py`, `JiraCloudTracker`:
-  - **lecturas hechas:** `get_issue`, `search` con `/rest/api/3/search/jql` y `nextPageToken`, `list_projects`, `list_epics` y `list_children`, con backoff ante 429/5xx;
-  - **escrituras con `NotImplementedError`:** `create_story(story, epic_key, project)`, `update_story(key, story, diff_comment_md)` y `link(from_key, to_key, link_type, comment_md)`.
-- `adapters/jira/adf.py` tiene `adf_to_text`; falta `markdown_to_adf`.
-- `adapters/testmgmt/` está vacío. Hoy la app usa `core/factories.PendingTestManagement`.
-- El nodo `publish` (`core/graph/nodes.py`) ya llama a estos métodos con la operación aprobada. Su plan está en la auditoría: `update_story`/`create_story` con `project`, `link` «relates to» y `publish_suite`.
+## 1. Escritura real en el sandbox de Jira (**autorizada por el usuario**) [RF-04, RF-05, RF-06, RF-30, RNF-13]
+Es lo que falta para desbloquear `JIRA_PUBLISH_MODE=live`. Las pruebas **escriben de verdad** en el proyecto `JIRA_PROJECT_KEY` del sandbox: crean HU sintéticas con el título `[PRUEBA-AGENTE] …`, un comentario de diff, vínculos «relates to», subtareas `caso-prueba` y dos adjuntos `.md`.
 
-## Tareas, en este orden (con la skill `/tarea`)
+1. **Antes de escribir**, comprueba que la conexión y la lectura van bien: `uv run pytest -m integration tests/integration/test_jira_live.py`.
+2. **Ejecuta las pruebas de escritura:**
+   ```bash
+   # PowerShell: $env:JIRA_WRITE_TESTS = "1"   ·   Git Bash: export JIRA_WRITE_TESTS=1
+   uv run pytest -m integration -s tests/integration/test_jira_write_live.py tests/integration/test_jira_testmgmt_live.py
+   ```
+3. **Si algo falla**, diagnostícalo y corrígelo **en `adapters/`**. Lo que se suele ver en un sitio real:
+   - el nombre del tipo de HU («Story» / «Historia», PA-200);
+   - el tipo de subtarea;
+   - pantallas de creación con campos obligatorios;
+   - permisos del token para adjuntar o enlazar.
 
-### 1. `/tarea T-27`: `markdown_to_adf`, `create_story`, `update_story` y `link` [RF-04, RF-05, RF-06]
-- **`markdown_to_adf(md)`** (SPEC §8): títulos, párrafos, listas, tablas, negrita y bloques de código.
-  - **PA-49:** el contenido llega de una HU editada a mano o generada por el LLM, así que no es fiable. Escapa `|` y los saltos de línea en las celdas, y en los enlaces admite solo `http(s)`. Nada de HTML.
-  - Pruebas de ida y vuelta con `adf_to_text`.
-- **`create_story(story, epic_key, project)`:**
-  - crea la HU en `project`, con título `[HU-XX] …` (R-05) y la descripción en ADF a partir de la plantilla de `UserStory` (CA en Gherkin, RN, alcance…), con la épica como `parent`;
-  - **PA-46:** comprueba que la clave devuelta es de `project`; si no, `PublishError`.
-- **`update_story(key, story, diff_comment_md)`:** actualiza título y descripción y añade el comentario del diff en ADF (RF-05).
-- **`link(...)`:** vínculo «relates to» con comentario opcional.
-- **Errores:**
-  - las **escrituras no se reintentan** (§8: backoff solo en lecturas);
-  - envuelve en `adapters/errors.py` (`PublishError`, `AuthenticationError`, `NotFoundError`, `RateLimitError`), con mensajes en español y sin cuerpos de respuesta ni cabeceras.
-- **Tipo de incidencia:** si hace falta configurar el nombre del tipo («Story» / «Historia»), **no toques `core/config.py`**. Propónlo y, mientras, usa una constante en el adaptador.
-- **Pruebas unitarias** con `httpx.MockTransport`: el cuerpo de cada petición, los errores y que no se escriba nada fuera de estos métodos.
+   Si el arreglo necesita un cambio en `core/config.py` (por ejemplo `JIRA_STORY_ISSUE_TYPE`), **para y avísame**: lo hace la principal.
+4. **Repite la publicación de QA** para comprobar la idempotencia de PA-05: no duplica subtareas ni adjuntos.
+5. **Deja constancia** en tu fila del registro diario: las **claves creadas**, las pruebas que pasan, el tiempo y los ajustes hechos.
+   - El agente no borra nada en Jira. Pide al usuario que borre a mano lo creado: el JQL `summary ~ "PRUEBA-AGENTE"` lo localiza todo, y al borrar la HU se borran sus subtareas.
+   - **Ninguna otra escritura:** nada fuera de esas dos pruebas y del proyecto `JIRA_PROJECT_KEY`.
 
-### 2. `/tarea T-30`: `JiraNativeTests` en `adapters/testmgmt/` [RF-30, RF-06, RNF-13]
-- **`publish_suite(suite) -> PublishResult`:**
-  - cada CP es una subtarea de la HU con la etiqueta `caso-prueba` y el título `[CP-XX] …`;
-  - el tipo de subtarea sale de `Settings.jira_test_subtask_type`: recíbelo por el constructor;
-  - la estrategia (`suite.strategy_md`) y la matriz (`suite.coverage_md()`) van como adjuntos `.md` de la HU;
-  - **publicación parcial (RNF-13):** uno a uno, y devuelve `created` y `failed`.
-- **PA-05 · idempotencia:** al reintentar, no duplica las subtareas que ya existen. Usa `list_cases(story_key)`, que busca por la etiqueta, y el `[CP-XX]` del título.
-- **`list_cases(story_key)`.**
-- **Composición:** `core/factories.py` es de la sesión principal. No lo toques. Indica en tu informe cómo se construye `JiraNativeTests`, y la principal la cableará en `build_app_container` al fusionar.
+## 2. `/tarea T-47`: registro de la ejecución por caso (parte del adaptador) [RF-28, R-01 opción A]
+El estado (*Pasó*, *Falló*, *Bloqueado*, *Sin ejecutar*) y la evidencia, como comentario en la subtarea CP. Lo publica **solo el nodo `publish`, con aprobación humana**.
 
-## Pruebas reales contra Jira (sandbox)
-- Márcalas con `@pytest.mark.integration` y que **además se salten salvo con `JIRA_WRITE_TESTS=1`**, porque escriben en Jira.
-- **No las ejecutes sin preguntarme antes.** Cuando lo autorice:
-  - usa un proyecto de pruebas;
-  - deja constancia de las claves creadas;
-  - y, si se puede, bórralas o márcalas al terminar.
+- **Tu parte:** `JiraNativeTests.record_execution(case_key, status, evidence_md) -> None`.
+  - Transición de la subtarea al estado que corresponda: busca la transición por nombre con `GET /issue/{key}/transitions` y documenta el mapeo configurable.
+  - Comentario ADF con el resultado y la evidencia, con `markdown_to_adf`.
+  - Una etiqueta `ejecucion-<estado>` si te parece útil.
+  - Errores envueltos en `adapters/errors.py` y escritura de un solo intento.
+- **Contrato:** el método no está todavía en el protocolo `TestManagement` (`adapters/base.py`, congelado) ni en el grafo.
+  - **No lo toques:** escribe en tu informe la firma exacta que propones y la principal la añadirá al protocolo, al artefacto y a `publish`.
+  - En el fake (`tests/fakes/test_management.py`) **añade** el método sin romper nada.
+- **Pruebas:**
+  - unitarias con `httpx.MockTransport`;
+  - `integration` con `JIRA_WRITE_TESTS=1`, sobre una subtarea creada por la propia prueba. Ya está autorizada, pero avísame antes de ejecutarla.
 
 ## Reglas comunes a todas las sesiones
-- **Solo tus archivos:** `adapters/jira/`, `adapters/testmgmt/`, `tests/unit/test_jira_*.py`, `tests/unit/test_testmgmt*.py`, `tests/unit/test_adf*.py` y `tests/integration/test_jira_*`.
+- **Solo tus archivos:** `adapters/jira/`, `adapters/testmgmt/`, `tests/unit/test_jira_*.py`, `tests/unit/test_testmgmt*.py`, `tests/integration/test_jira_*` y, para añadir, `tests/fakes/test_management.py`.
   - No toques `core/`, `app/`, `schemas/`, `adapters/base.py`, `adapters/errors.py`, `prompts/`, `config/` ni la SPEC.
-  - En `tests/fakes/` solo puedes añadir, sin romper nada.
-  - Si necesitas cambiar un contrato, **para** y propónlo.
 - **Kanban:**
-  - Cambia solo el estado de tus filas (T-27, T-30, PA-05, PA-46 y PA-49).
+  - Cambia solo el estado de tus filas (T-47 y las PA que cierres).
   - Añade tu fila al registro diario.
   - No toques el tablero resumen.
-  - **Numera tus propuestas en PA-200…PA-249.**
+  - **Propuestas en PA-206…PA-249.**
 - **Seguridad:**
-  - Los tokens, solo vía `SecretStr` y `core/config.py` (los recibe el adaptador ya resueltos).
+  - Tokens solo vía `SecretStr`.
   - Nunca registres `Authorization` ni cuerpos de respuesta.
-  - Nada escribe en Jira salvo estos métodos, llamados desde `publish`.
-  - Ni secretos ni datos personales en pruebas o fixtures.
-- **LLM:** esta sesión no lo necesita; no lo llames.
+  - No imprimas valores del `.env`; las claves de las incidencias creadas sí puedes mostrarlas.
+  - Ni secretos ni datos personales en pruebas o fixtures; usa datos ficticios.
+- **LLM:** esta sesión no lo necesita.
 - **Antes de cada commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
   - subagentes `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
 - **Commits:**
   - Formato `T-XX: descripción [RF-YY]`.
-  - **Sin fusionar.** Haz `git push -u origin ses-jira` y avísame.
+  - **Sin fusionar.** Haz `git push origin ses-jira` y avísame.
 
-Empieza por `/tarea T-27` y preséntame el plan antes de escribir código.
+Empieza por el punto 1 y dime el resultado de las pruebas de escritura antes de seguir con T-47.

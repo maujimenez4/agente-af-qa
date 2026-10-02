@@ -245,3 +245,18 @@ def test_groq_variant_has_a_keyed_provider_in_every_chain() -> None:
     models = load_models_config(GROQ_MODELS)
     for task, chain in models.tasks.items():
         assert any(models.providers[ref.provider].api_key_env for ref in chain), task.value
+
+
+def test_request_timeout_defaults_to_60_and_local_config_raises_it() -> None:
+    """El modelo local en CPU necesita más tiempo por llamada que uno en la nube."""
+    assert load_models_config(GROQ_MODELS).limits.request_timeout_s == 60.0
+    assert load_models_config().limits.request_timeout_s == 600
+
+
+def test_request_timeout_reaches_the_sdk_client() -> None:
+    from adapters.llm.router import ModelChoice
+    from core.factories import _openai_factory
+
+    config = AppConfig(Settings(_env_file=None), load_models_config())  # type: ignore[call-arg]
+    provider = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
+    assert provider._client.timeout == 600

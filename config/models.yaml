@@ -33,6 +33,7 @@ limits:
   max_retries_on_429: 2
   context_token_budget: 6000
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
+  request_timeout_s: 600          # qwen3:4b en CPU: una HU completa puede pasar de varios minutos
 
 rag:
   chunk_tokens: 650

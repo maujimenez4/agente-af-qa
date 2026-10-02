@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-02
 
-**Estado:** T-56 🔄 en la rama `area-b`, con `PreProduccion` fusionada. 1000 pruebas Vitest en verde; lint, build y `npm run api:check` limpios. Origen, Generando e Iterar revisados (test-writer, spec-checker y security-reviewer).
+**Estado:** T-56 🔄 en la rama `area-b`, con `PreProduccion` fusionada. 1002 pruebas Vitest en verde; lint, build y `npm run api:check` limpios. Origen, Generando e Iterar revisados (test-writer, spec-checker y security-reviewer).
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md` (todas las decisiones), `README.md`, `docs/api/README.md` y las filas PA-300 en adelante del Kanban.
 

@@ -147,6 +147,54 @@ describe('Iterar · Reintentar repite la operación que falló (R-1) e Iniciar s
     expect(calls).toEqual(['discard', 'discard'])
   })
 
+  it('si falla la relectura de «Actualizar», «Reintentar» vuelve a leer y no itera', async () => {
+    await openFromList()
+    const calls: string[] = []
+    mockServer.events.on('request:start', ({ request }) => {
+      const path = new URL(request.url).pathname
+      if (path.endsWith('/iterate')) calls.push('iterate')
+      else if (request.method === 'GET' && /\/conversations\/[^/]+$/.test(path)) calls.push('read')
+    })
+    mockServer.use(
+      http.post('/api/v1/conversations/:id/iterate', () =>
+        HttpResponse.json({ error: { code: 'not_in_review', message: 'No está en revisión (ficticio).', retry_after: null } }, { status: 409 }),
+      ),
+      http.get(
+        '/api/v1/conversations/:id',
+        () => HttpResponse.json({ error: { code: 'service_unavailable', message: 'Servicio no disponible (ficticio).', retry_after: null } }, { status: 503 }),
+        { once: true },
+      ),
+    )
+    await userEvent.type(composer(), 'Cambio ficticio')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Actualizar' }))
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Reintentar' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(calls).toEqual(['iterate', 'read', 'read'])
+  })
+
+  it('tras un `event: error` del SSE de la iteración, «Volver a generar» reenvía el mismo cambio', async () => {
+    await openFromList()
+    const sent: string[] = []
+    mockServer.events.on('request:start', async ({ request }) => {
+      if (new URL(request.url).pathname.endsWith('/iterate')) sent.push(((await request.clone().json()) as { feedback: string }).feedback)
+    })
+    const failure = { ...EXAMPLE, state: 'error', error: { code: 'citation_failed', message: 'Citas no válidas (ficticio).' } }
+    mockServer.use(
+      http.get(
+        '/api/v1/conversations/:id/events',
+        () => new HttpResponse(`event: error\ndata: ${JSON.stringify(failure)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } }),
+        { once: true },
+      ),
+    )
+    await userEvent.type(composer(), 'Cambio ficticio')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Volver a generar' }))
+    expect(sent[0]).toBe('Cambio ficticio')
+    expect(sent.at(-1)).toBe('Cambio ficticio')
+    expect(sent.length).toBe(2)
+  })
+
   it('«Iniciar sesión» (unauthenticated) cierra la sesión y lleva al inicio de sesión', async () => {
     await openFromList()
     mockServer.use(

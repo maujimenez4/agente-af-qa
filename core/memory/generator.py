@@ -43,10 +43,11 @@ _SECRET = re.compile(
     r"|\b(?:sk|gsk|ghp|xox[bp])[-_][\w-]{16,}"
     r"|\bAKIA[0-9A-Z]{16}\b"
     r"|\b[a-z][\w+.-]*://[^\s:/@]+:[^\s@]+@"  # cadena de conexión con credenciales
-    # PA-218: tras «contraseña:» solo cuenta un valor que lo parezca (con dígitos o símbolos);
+    # PA-218: tras «contraseña:» solo cuenta un valor que lo parezca: con dígitos o símbolos,
+    # con una mayúscula en medio (frase de paso, «CorrectoCaballo») o de 16 letras o más.
     # «La contraseña: mínimo ocho caracteres» es una regla de negocio, no un secreto.
     r"|\b(?:api[_ -]?key|clave(?:[_ ]api)?|password|contraseña|secret)\s*[:=]\s*"
-    r"(?=\S*[\d_\-+/=@#$%&*!~])\S{6,}"
+    r"(?:(?=\S*[\d_\-+/=@#$%&*!~])\S{6,}|(?-i:(?=\S*[a-zà-ÿ][A-Z]))\S{6,}|\w{16,})"
 )
 MAX_SHOWN = 80
 _LIST_FIELDS = (

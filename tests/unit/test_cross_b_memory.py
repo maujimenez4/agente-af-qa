@@ -505,10 +505,14 @@ def test_generator_does_not_check_status(status: ArtifactStatus) -> None:
         "RN-01: contraseña: Sup3rClaveFicticia",
         "RN-01: clave=valor_ficticio",
         "RN-01: secret: a1b2c3d4",
+        "RN-01: contraseña: CorrectoCaballoBateria",  # frase de paso solo de letras
+        "RN-01: password: Ficticiopassword",  # 16 letras
+        "RN-01: api_key: abcdefghijklmnopqrstuvwxyzABCDEF",
     ],
 )
 def test_value_with_digits_or_symbols_is_still_a_secret(rule: str) -> None:
-    """PA-218 (negativo): un valor con dígitos o símbolos tras «contraseña:» sigue rechazándose."""
+    """PA-218 (negativo): un valor que parece un secreto (dígitos, símbolos, mayúscula en medio
+    o 16 letras o más) tras «contraseña:» sigue rechazándose."""
     artifact = _artifact(_password_story(), origin_key="DEMO-8")
     assert _errors(_password_memory(rule), artifact) == [
         "«business_rules» parece contener un secreto"

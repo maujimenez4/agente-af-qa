@@ -20,6 +20,7 @@ from structlog.testing import capture_logs
 from adapters import base
 from adapters.base import IssueSummary
 from adapters.errors import (
+    AgentError,
     AuthenticationError,
     ExternalServiceError,
     NotFoundError,
@@ -42,6 +43,7 @@ from adapters.testmgmt.jira_native import (
     case_labels,
     case_to_adf,
     execution_comment,
+    execution_fingerprint,
 )
 from schemas.common import Priority
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -54,6 +56,7 @@ from tests.unit.test_jira_tracker import (
     TOKEN,
     Recorder,
     RecordingSleep,
+    adf_paragraph,
     assert_safe_message,
     error_response,
     fail_if_called,
@@ -1185,6 +1188,7 @@ GET_TRANSITIONS: Route = ("GET", TRANSITIONS_PATH)
 POST_TRANSITION: Route = ("POST", TRANSITIONS_PATH)
 PUT_LABELS: Route = ("PUT", CASE_PATH)
 POST_COMMENT: Route = ("POST", COMMENT_PATH)
+GET_COMMENTS: Route = ("GET", COMMENT_PATH)  # PA-208
 REGISTERED_EVENT = "ejecución registrada en Jira"
 
 
@@ -1208,6 +1212,7 @@ class ExecutionJira:
     labels: list[str] = field(default_factory=lambda: [CASE_LABEL, "CA-01", "tipo-positivo"])
     status: str = "En curso"
     subtask: bool = True
+    comments: list[Any] = field(default_factory=list)  # PA-208: los más recientes primero
     transitions: list[Any] = field(default_factory=workflow_transitions)
     replies: dict[Route, list[Reply]] = field(default_factory=dict)
     requests: list[httpx.Request] = field(default_factory=list)
@@ -1225,6 +1230,8 @@ class ExecutionJira:
                 "issuetype": {"name": "Subtarea", "subtask": self.subtask},
             }
             return httpx.Response(200, json={"key": CASE_KEY, "fields": fields})
+        if route == GET_COMMENTS:
+            return httpx.Response(200, json={"comments": self.comments})
         if route == GET_TRANSITIONS:
             return httpx.Response(200, json={"transitions": self.transitions})
         if route in (POST_TRANSITION, PUT_LABELS):
@@ -1482,7 +1489,7 @@ def test_record_execution_does_not_request_transitions_when_already_in_target_st
     jira, tests, _ = execution_setup(ExecutionJira(status=current))
     with capture_logs() as logs:
         tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
-    assert jira.routes() == [GET_CASE, PUT_LABELS, POST_COMMENT]
+    assert jira.routes() == [GET_CASE, GET_COMMENTS, PUT_LABELS, POST_COMMENT]
     [entry] = registered_entries(logs)
     assert entry["transitioned"] is False
 
@@ -1504,7 +1511,7 @@ def test_record_execution_writes_label_and_comment_without_transition_when_none_
     jira, tests, _ = execution_setup(ExecutionJira(transitions=transitions))
     with capture_logs() as logs:
         tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
-    assert jira.routes() == [GET_CASE, GET_TRANSITIONS, PUT_LABELS, POST_COMMENT]
+    assert jira.routes() == [GET_CASE, GET_COMMENTS, GET_TRANSITIONS, PUT_LABELS, POST_COMMENT]
     assert any(e.get("event") == "sin transición para el resultado" for e in logs)
     [entry] = registered_entries(logs)
     assert entry["transitioned"] is False
@@ -1579,7 +1586,14 @@ def test_record_execution_writes_transition_then_label_then_comment() -> None:
     """RF-28: orden transición → PUT etiqueta → POST comentario (el comentario, el último)."""
     jira, tests, _ = execution_setup()
     tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, EVIDENCE)
-    assert jira.routes() == [GET_CASE, GET_TRANSITIONS, POST_TRANSITION, PUT_LABELS, POST_COMMENT]
+    assert jira.routes() == [
+        GET_CASE,
+        GET_COMMENTS,
+        GET_TRANSITIONS,
+        POST_TRANSITION,
+        PUT_LABELS,
+        POST_COMMENT,
+    ]
 
 
 # --- Etiqueta ejecucion-<estado> ------------------------------------------------------------
@@ -1966,3 +1980,129 @@ def test_record_execution_unknown_status_message_has_no_control_characters() -> 
         make_execution_tests(fail_if_called).record_execution(CASE_KEY, "x\n\x1b[31m", EVIDENCE)
     assert "\n" not in str(info.value)
     assert "\x1b" not in str(info.value)
+
+
+# --- PA-208: idempotencia del comentario de ejecución ----------------------------------------
+
+
+def exec_comment(status: ExecutionStatus, evidence: str) -> dict[str, Any]:
+    """Comentario de Jira tal y como lo deja `record_execution`."""
+    return {"id": "1", "body": execution_comment(status, evidence)}
+
+
+def plain_comment(value: str) -> dict[str, Any]:
+    return {"id": "2", "body": adf_paragraph(value)}
+
+
+def test_record_execution_reads_recent_comments_newest_first() -> None:
+    """PA-208: antes de escribir se leen los últimos comentarios, los más recientes primero."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    [request] = [r for r in jira.requests if (r.method, r.url.path) == GET_COMMENTS]
+    assert dict(request.url.params) == {"orderBy": "-created", "maxResults": "20"}
+    assert jira.routes().index(GET_COMMENTS) < jira.routes().index(PUT_LABELS)
+
+
+def test_record_execution_comment_carries_fingerprint() -> None:
+    """PA-208: el comentario termina con la huella del resultado y la evidencia."""
+    jira, tests, _ = execution_setup()
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    text_body = adf_to_text(jira.body(POST_COMMENT)["body"])
+    fingerprint = execution_fingerprint(ExecutionStatus.FAILED, EVIDENCE)
+    assert text_body.splitlines()[-1] == f"Huella: {fingerprint}"
+    assert len(fingerprint) == 12 and all(c in "0123456789abcdef" for c in fingerprint)
+
+
+def test_record_execution_skips_comment_when_latest_execution_is_identical() -> None:
+    """PA-208: mismo resultado y evidencia que el último registro → ni un segundo comentario."""
+    jira = ExecutionJira(comments=[exec_comment(ExecutionStatus.FAILED, EVIDENCE)])
+    jira, tests, _ = execution_setup(jira)
+    with capture_logs() as logs:
+        tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.count(POST_COMMENT) == 0
+    assert jira.count(PUT_LABELS) == 1  # la etiqueta se reafirma (idempotente)
+    [entry] = registered_entries(logs)
+    assert entry["commented"] is False
+
+
+def test_record_execution_ignores_whitespace_differences_in_evidence() -> None:
+    """PA-208: los espacios y saltos de línea de la evidencia no cambian la huella."""
+    jira = ExecutionJira(comments=[exec_comment(ExecutionStatus.FAILED, EVIDENCE)])
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, "fallo", f"  {EVIDENCE.replace(' ', '\n ')}  ")
+    assert jira.count(POST_COMMENT) == 0
+
+
+@pytest.mark.parametrize(
+    ("previous_status", "previous_evidence"),
+    [
+        (ExecutionStatus.PASSED, EVIDENCE),
+        (ExecutionStatus.FAILED, "Otra evidencia ficticia"),
+    ],
+    ids=["otro-resultado", "otra-evidencia"],
+)
+def test_record_execution_comments_when_latest_execution_differs(
+    previous_status: ExecutionStatus, previous_evidence: str
+) -> None:
+    """PA-208: un resultado o una evidencia distintos sí se comentan."""
+    jira = ExecutionJira(comments=[exec_comment(previous_status, previous_evidence)])
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.count(POST_COMMENT) == 1
+
+
+def test_record_execution_compares_only_the_most_recent_execution_comment() -> None:
+    """PA-208: pasó → falló → pasó vuelve a comentar aunque un registro antiguo coincida."""
+    jira = ExecutionJira(
+        comments=[
+            exec_comment(ExecutionStatus.FAILED, EVIDENCE),  # el más reciente
+            exec_comment(ExecutionStatus.PASSED, "Todo correcto"),
+        ]
+    )
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.PASSED, "Todo correcto")
+    assert jira.count(POST_COMMENT) == 1
+
+
+def test_record_execution_skips_unrelated_comments_when_looking_for_last_execution() -> None:
+    """PA-208: los comentarios de personas entre medias no cuentan como registro."""
+    jira = ExecutionJira(
+        comments=[
+            plain_comment("Revisado por el equipo ficticio."),
+            plain_comment("Huella: 000000000000"),
+            exec_comment(ExecutionStatus.BLOCKED, "Entorno ficticio caído"),
+        ]
+    )
+    jira, tests, _ = execution_setup(jira)
+    tests.record_execution(CASE_KEY, ExecutionStatus.BLOCKED, "Entorno ficticio caído")
+    assert jira.count(POST_COMMENT) == 0
+
+
+def test_record_execution_comments_when_previous_execution_has_no_fingerprint() -> None:
+    """PA-208: un registro anterior sin huella (o con otra forma) no bloquea el comentario."""
+    old = plain_comment("Resultado de la ejecución: Falló")
+    jira, tests, _ = execution_setup(ExecutionJira(comments=[old, "no-dict", {"body": "texto"}]))
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.count(POST_COMMENT) == 1
+
+
+@pytest.mark.parametrize("reply", [error_response(401), error_response(404), error_response(400)])
+def test_record_execution_raises_without_writes_when_comments_read_fails(
+    reply: httpx.Response,
+) -> None:
+    """PA-208: si no se pueden leer los comentarios, no se escribe nada (ni transición)."""
+    jira = ExecutionJira(replies={GET_COMMENTS: [reply]})
+    jira, tests, _ = execution_setup(jira)
+    with pytest.raises(AgentError) as info:
+        tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.writes() == []
+    assert_safe_message(info.value)
+
+
+def test_record_execution_reads_fingerprint_only_from_last_line() -> None:
+    """PA-208 (seguridad): una línea «Huella: …» dentro de la evidencia no se toma por la huella."""
+    forged = execution_fingerprint(ExecutionStatus.FAILED, EVIDENCE)
+    previous = exec_comment(ExecutionStatus.FAILED, f"Texto ficticio\n\nHuella: {forged}")
+    jira, tests, _ = execution_setup(ExecutionJira(comments=[previous]))
+    tests.record_execution(CASE_KEY, ExecutionStatus.FAILED, EVIDENCE)
+    assert jira.count(POST_COMMENT) == 1

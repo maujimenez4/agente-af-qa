@@ -14,15 +14,19 @@ from typing import Any
 import pytest
 from langgraph.types import Command
 
+import app.conversation as app_conversation
 from adapters.base import User
-from adapters.errors import NotFoundError, RateLimitError
+from adapters.errors import ExternalServiceError, NotFoundError, PublishError, RateLimitError
 from app.conversation import (
     _ENDED,
+    MEMORY_FAILED,
+    PUBLISH_INCOMPLETE,
     RESTART,
     UNEXPECTED,
     Conversation,
     Workspace,
     _refresh,
+    publish_permission,
     reopen,
     resume,
     run_start,
@@ -38,6 +42,7 @@ from app.origin import (
 )
 from app.progress import STEPS, phase_of
 from app.review import (
+    approve_answer,
     describe_operation,
     discard_answer,
     edit_answer,
@@ -46,9 +51,12 @@ from app.review import (
     pending_from_state,
     summarize,
 )
+from core.approvals import ApprovalError
 from core.container import Container
 from core.conversations import NOT_YOURS, THREAD_ID
 from core.graph import build_graph, memory_checkpointer
+from core.permissions import Permission
+from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus
 from schemas.user_story import UserStory
 from tests.fakes import dataset
@@ -468,7 +476,7 @@ def test_whole_conversation_never_writes_to_jira(tmp_path: Path) -> None:
     resume(ws, conv, iterate_answer("Cambio ficticio"))
     assert conv.view is not None
     resume(ws, conv, edit_answer(conv.view, _edited(conv)))
-    resume(ws, conv, {"decision": "approve", "fingerprint": "f" * 64})  # rechazada: huella falsa
+    resume(ws, conv, {"decision": "approve", "fingerprint": "f" * 64}, AF_ACTOR)  # huella falsa
     assert conv.view is not None and conv.view.error
     resume(ws, conv, discard_answer())
 
@@ -872,3 +880,315 @@ def test_refresh_after_simulated_approval_sets_status_and_finished(tmp_path: Pat
     assert conv.status == "simulated"
     assert conv.finished == "Publicación simulada: no se ha escrito nada en Jira."
     _assert_nothing_written(ws.container)
+
+
+# --- T-31 · Recibo, aprobación y resultado (UI.md §4.6, §4.7, §5, §6.4, §6.5) ---------------
+
+MEMORY_FAILURE = "El generador de memoria ficticio no responde."
+LEDGER_FAILURE = "El registro de aprobaciones ficticio no está disponible."
+
+
+class _FailingMemoryGenerator:
+    """MemoryGenerator que falla siempre (PA-251): la HU ya está publicada cuando se llama."""
+
+    def generate(self, artifact: Artifact) -> Any:
+        raise ExternalServiceError(MEMORY_FAILURE, service="llm")
+
+
+def _approved(ws: Workspace, conv: Conversation, actor: User) -> None:
+    assert conv.view is not None
+    resume(ws, conv, approve_answer(conv.view), actor)
+
+
+def test_real_payload_target_is_readable_text(tmp_path: Path) -> None:
+    """UI.md §4.6 · T-31: el `target` del payload real de `human_review` se lee como texto."""
+    ws, _ = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    assert conv.view is not None
+    assert "{" not in conv.view.target
+    assert "DEMO-3" in conv.view.target
+    assert "proyecto DEMO" in conv.view.target
+    assert conv.view.target_info is not None
+    assert conv.view.target_info["jira_key"] == "DEMO-3"
+
+
+def test_approve_answer_after_iterate_uses_last_fingerprint(tmp_path: Path) -> None:
+    """UI.md §5.4: tras iterar, `approve_answer` lleva la huella de la última pausa."""
+    ws, _ = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Cambio ficticio antes de aprobar"), AF_ACTOR)
+    assert conv.view is not None and conv.view.version == 2
+    first, last = conv.versions[0], conv.versions[-1]
+    answer = approve_answer(conv.view)
+    assert answer["fingerprint"] == last.fingerprint
+    assert answer["fingerprint"] != first.fingerprint
+
+
+def test_approve_with_previous_fingerprint_is_rejected(tmp_path: Path) -> None:
+    """UI.md §5.4 (negativa): la huella de una versión anterior ya no vale tras iterar."""
+    ws, _ = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Cambio ficticio"), AF_ACTOR)
+    resume(ws, conv, approve_answer(conv.versions[0]), AF_ACTOR)
+    assert conv.outcome is None
+    assert conv.view is not None and conv.view.error
+    assert conv.view.version == 2
+    _assert_nothing_written(ws.container)
+
+
+def test_approve_in_simulation_gives_simulated_outcome(tmp_path: Path) -> None:
+    """UI.md §4.7 (simulación) · T-25: resultado simulado y nada escrito en Jira."""
+    ws, _ = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.error is None
+    assert conv.outcome is not None
+    assert conv.outcome.kind == "simulated"
+    assert conv.outcome.approved_by == AF_USER
+    assert conv.outcome.operations == ["Actualizar DEMO-3 con la versión revisada"]
+    assert conv.view is None
+    assert conv.finished == _ENDED["simulated"]
+    assert conv.status == "simulated"
+    assert conv.can_restart is False
+    _assert_nothing_written(ws.container)
+
+
+def test_approve_in_live_gives_published_outcome(tmp_path: Path) -> None:
+    """UI.md §4.7 (real) · RF-31: publicado con la clave y la escritura en el fake de Jira."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.error is None
+    assert conv.outcome is not None
+    assert conv.outcome.kind == "published"
+    assert "DEMO-3" in conv.outcome.published_keys
+    assert conv.outcome.errors == []
+    assert conv.status == "published"
+    assert conv.view is None
+    assert conv.finished == "Publicado en Jira."
+    assert ("update_story", {"key": "DEMO-3"}) in _tracker(ws.container).writes
+
+
+def test_approve_qa_suite_in_live_with_failed_case_is_partial(tmp_path: Path) -> None:
+    """UI.md §6.5 · RNF-13: un caso que falla → «en parte» con «No se pudo publicar CP-02.»."""
+    testmgmt = FakeTestManagement(fail_case_ids={"CP-02"})
+    ws, _ = _shared(tmp_path, publish_mode="live", test_management=testmgmt)
+    conv = _started_by(ws, fix_origin("tests", "DEMO", key="DEMO-3"), QA_ACTOR)
+    _approved(ws, conv, QA_ACTOR)
+    assert conv.error is None
+    assert conv.outcome is not None
+    assert conv.outcome.kind == "partial"
+    assert "No se pudo publicar CP-02." in conv.outcome.errors
+    assert conv.outcome.published_keys  # CP-01 sí se creó
+    assert conv.outcome.story is False
+    assert conv.view is None
+    assert testmgmt.publish_calls == 1
+    assert [case.summary for case in testmgmt.list_cases("DEMO-3")] == [
+        "[CP-01] Renovar un préstamo sin reservas"
+    ]
+
+
+def test_memory_failure_after_publishing_is_published_without_memory(tmp_path: Path) -> None:
+    """PA-251 · UI.md §4.7: si la memoria falla tras publicar, se dice y no «nada se ha escrito»."""
+    ws, _ = _shared(tmp_path, publish_mode="live", memory_generator=_FailingMemoryGenerator())
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.outcome is not None
+    assert conv.outcome.kind == "published_without_memory"
+    assert conv.outcome.message == MEMORY_FAILURE
+    assert conv.error == MEMORY_FAILURE
+    assert conv.finished is not None
+    assert "nada se ha escrito" not in conv.finished
+    assert conv.can_restart is False
+    assert conv.view is None
+    assert ("update_story", {"key": "DEMO-3"}) in _tracker(ws.container).writes
+
+
+def test_approve_with_fake_fingerprint_keeps_pause_with_error(tmp_path: Path) -> None:
+    """UI.md §5.3 (negativa): huella falsa → la revisión sigue con `error` y sin resultado."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, {"decision": "approve", "fingerprint": "x"}, AF_ACTOR)
+    assert conv.outcome is None
+    assert conv.error is None
+    assert conv.view is not None
+    assert conv.view.error == (
+        "La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto."
+    )
+    assert conv.finished is None
+    _assert_nothing_written(ws.container)
+
+
+def _ledger_fails(monkeypatch: pytest.MonkeyPatch, container: Container) -> None:
+    def failing(*_args: object, **_kwargs: object) -> Any:
+        raise ApprovalError(LEDGER_FAILURE)
+
+    monkeypatch.setattr(container.approvals, "record", failing)
+
+
+def test_approval_error_shows_message_without_outcome(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """UI.md §5.3 · §7: `ApprovalError` del registro → su mensaje, sin resultado ni escritura."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _ledger_fails(monkeypatch, ws.container)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.error == LEDGER_FAILURE
+    assert conv.outcome is None
+    _assert_nothing_written(ws.container)
+
+
+def test_approval_error_closes_conversation_and_offers_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """UI.md §5.3: el registro de aprobaciones falla cerrado → RESTART y «Empezar de nuevo»."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _ledger_fails(monkeypatch, ws.container)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.finished == RESTART
+    assert conv.can_restart is True
+    assert conv.view is None
+
+
+def test_publish_permission_by_mode() -> None:
+    """UI.md §3 · PA-25: aprobar exige PUBLISH_TESTS en QA y PUBLISH_STORY en funcional."""
+    qa = Conversation(request=fix_origin("tests", "DEMO", key="DEMO-3"), user=QA_USER)
+    functional = Conversation(request=_evolve(), user=AF_USER)
+    assert publish_permission(qa) is Permission.PUBLISH_TESTS
+    assert publish_permission(functional) is Permission.PUBLISH_STORY
+
+
+def test_approve_without_publish_permission_does_not_call_the_graph(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """UI.md §3 (error): sin el permiso de publicar no se invoca el grafo; la pausa sigue."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    view = conv.view
+    # El rol funcional no tiene PUBLISH_TESTS: simula un rol que genera pero no publica.
+    monkeypatch.setattr(app_conversation, "publish_permission", lambda _c: Permission.PUBLISH_TESTS)
+    spy = _SpyGraph(ws.graph)
+    ws.graph = spy  # type: ignore[assignment]
+
+    _approved(ws, conv, AF_ACTOR)
+
+    assert conv.error == NO_PERMISSION
+    assert spy.calls == []
+    assert conv.view is view
+    assert conv.outcome is None and conv.finished is None
+    _assert_nothing_written(ws.container)
+
+
+def test_iterate_does_not_require_publish_permission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """UI.md §3: el permiso de publicar solo se exige al aprobar, no al iterar."""
+    ws, _ = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    monkeypatch.setattr(app_conversation, "publish_permission", lambda _c: Permission.PUBLISH_TESTS)
+    resume(ws, conv, iterate_answer("Cambio ficticio sin publicar"), AF_ACTOR)
+    assert conv.error is None
+    assert conv.view is not None and conv.view.version == 2
+
+
+def test_approve_by_actor_with_other_role_is_rejected(tmp_path: Path) -> None:
+    """UI.md §3 (error): la dueña con rol QA no aprueba una HU («No tienes permiso…»)."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    spy = _SpyGraph(ws.graph)
+    ws.graph = spy  # type: ignore[assignment]
+    _approved(ws, conv, User(username=AF_USER, role="qa"))
+    assert conv.error == NO_PERMISSION
+    assert spy.calls == []
+    assert conv.view is not None and conv.outcome is None
+    _assert_nothing_written(ws.container)
+
+
+def test_reopen_approved_simulated_conversation_has_outcome(tmp_path: Path) -> None:
+    """T-52 · UI.md §4.7: retomar una conversación aprobada en simulación → resultado simulado."""
+    ws, checkpointer = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Cambio ficticio"), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.outcome is not None and conv.outcome.version == 2
+
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+
+    assert reopened.outcome is not None
+    assert reopened.outcome.kind == "simulated"
+    assert reopened.outcome.version == 2
+    assert reopened.outcome.approved_by == AF_USER
+    assert reopened.view is None
+    assert reopened.finished == _ENDED["simulated"]
+    assert reopened.can_restart is False
+    _assert_nothing_written(ws.container)
+
+
+def test_reopen_published_conversation_has_published_outcome(tmp_path: Path) -> None:
+    """T-52 · UI.md §4.7: retomar una conversación publicada → resultado publicado."""
+    ws, checkpointer = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+
+    assert reopened.outcome is not None
+    assert reopened.outcome.kind == "published"
+    assert "DEMO-3" in reopened.outcome.published_keys
+    assert reopened.status == "published"
+
+
+class _FailingUpdateTracker(FakeIssueTracker):
+    """Jira que falla al actualizar la HU (en `live`, a mitad de `publish`)."""
+
+    def update_story(self, key: str, story: UserStory, comment_md: str) -> None:
+        raise PublishError("Jira no ha aceptado la actualización (ficticio).")
+
+
+def test_publish_failure_in_live_does_not_claim_nothing_was_written(tmp_path: Path) -> None:
+    """RNF-13 · UI.md §4.7: si `publish` falla en `live`, no se afirma que Jira esté intacto."""
+    ws, _ = _shared(tmp_path, publish_mode="live", issue_tracker=_FailingUpdateTracker())
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    assert conv.outcome is None
+    assert conv.finished == PUBLISH_INCOMPLETE
+    assert "nada se ha escrito" not in conv.finished
+    assert conv.can_restart is False
+    assert conv.error == "Jira no ha aceptado la actualización (ficticio)."
+
+
+def test_reopen_after_failed_live_publish_is_not_shown_as_simulated(tmp_path: Path) -> None:
+    """UI.md §4.7: un hilo aprobado cuyo `publish` falló no se presenta como «simulado»."""
+    ws, checkpointer = _shared(tmp_path, publish_mode="live", issue_tracker=_FailingUpdateTracker())
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+    assert reopened.outcome is None
+    assert reopened.finished == PUBLISH_INCOMPLETE
+
+
+def test_reopen_after_memory_failure_is_published_without_memory(tmp_path: Path) -> None:
+    """PA-251 · UI.md §4.7: al retomar, una HU publicada sin memoria no dice que la tiene."""
+    ws, checkpointer = _shared(
+        tmp_path, publish_mode="live", memory_generator=_FailingMemoryGenerator()
+    )
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    _approved(ws, conv, AF_ACTOR)
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+    assert reopened.outcome is not None
+    assert reopened.outcome.kind == "published_without_memory"
+    assert reopened.outcome.message == MEMORY_FAILED
+
+
+def test_approve_without_actor_fails_closed_without_calling_the_graph(tmp_path: Path) -> None:
+    """UI.md §3 · principio 1: aprobar exige saber quién aprueba y su permiso de publicar."""
+    ws, _ = _shared(tmp_path, publish_mode="live")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    assert conv.view is not None
+    resume(ws, conv, approve_answer(conv.view))
+    assert conv.error == "No tienes permiso para realizar esta acción."
+    assert conv.view is not None and conv.outcome is None
+    tracker = ws.container.issue_tracker
+    assert isinstance(tracker, FakeIssueTracker) and tracker.writes == []

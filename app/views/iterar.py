@@ -1,7 +1,8 @@
 """Mixta 3 · Iterar (`docs/specs/UI.md` §4.5): chat, versiones, pestañas, editar y descartar.
 
-*Revisar y aprobar* abre el recibo de T-31: aquí queda desactivado. El contenido del artefacto
-viene del LLM y se muestra siempre escapado (`app/text.py`).
+*Revisar y aprobar* abre el recibo (T-31); tras aprobar, esta pantalla muestra el resultado
+(Mixta 4). Los CA y RN cambiados frente a la versión de partida llevan «Cambiado en vN» o
+«Nueva» (PA-73). El contenido del artefacto viene del LLM y se muestra siempre escapado.
 """
 
 import streamlit as st
@@ -12,6 +13,7 @@ from app.editing import LIST_FIELDS, STEP_FIELDS, TEXT_FIELDS, form_to_content, 
 from app.progress import phase_label, phase_of
 from app.review import (
     ReviewView,
+    change_marks,
     describe_operation,
     discard_answer,
     edit_answer,
@@ -20,6 +22,7 @@ from app.review import (
 )
 from app.session import SessionState, current_conversation, go
 from app.text import md_escape, md_lines
+from app.views import resultado
 from app.views.frame import simulation_notice
 from schemas.user_story import UserStory
 
@@ -30,6 +33,9 @@ def render(session: SessionState) -> None:
     conv = current_conversation(session)
     if conv is None or session.workspace is None:
         go(session, "inicio", current=None)  # el aviso de `current_conversation` se ve allí
+        return
+    if conv.outcome is not None:  # aprobada: Mixta 4 · QA 5
+        resultado.render(session, conv, conv.outcome)
         return
     view = conv.view
     phase = phase_of(view.artifact.status if view else None)
@@ -42,10 +48,12 @@ def render(session: SessionState) -> None:
 
     if conv.error:
         st.error(md_escape(conv.error))
-    if view and view.error:
-        st.error(md_escape(view.error))
+    if view and view.error and not st.session_state.get(f"editing-{conv.thread_id}"):
+        st.error(md_escape(view.error))  # con el editor abierto se muestra junto a él
     if conv.finished:
         st.info(md_escape(conv.finished))
+    if conv.can_restart:
+        _restart(session, conv)
 
     chat, panel = st.columns([5, 6], gap="large")
     with chat:
@@ -54,6 +62,15 @@ def render(session: SessionState) -> None:
         if conv.versions:
             _panel(session, conv)
     simulation_notice(session)
+
+
+def _restart(session: SessionState, conv: Conversation) -> None:
+    """«Empezar de nuevo» (UI.md §5): conversación nueva con el mismo origen; el hilo no vuelve."""
+    if session.user is None:
+        return
+    if st.button("Empezar de nuevo", type="primary", key=f"restart-{conv.thread_id}"):
+        new = Conversation(request=conv.request, user=session.user.username)
+        go(session, "generando", pending=new, current=new.thread_id)
 
 
 # --- Conversación ------------------------------------------------------------------------------
@@ -134,7 +151,7 @@ def _panel(session: SessionState, conv: Conversation) -> None:
         ]
     )
     with tabs[0]:
-        _story(story)
+        _story(story, change_marks(view))
     with tabs[1]:
         _changes(view)
     with tabs[2]:
@@ -145,7 +162,7 @@ def _panel(session: SessionState, conv: Conversation) -> None:
         _actions(session, conv, view, story)
 
 
-def _story(story: UserStory) -> None:
+def _story(story: UserStory, marks: dict[str, str]) -> None:
     st.markdown(f"#### {md_escape(story.title)}")
     st.markdown(
         f"**Como** {md_escape(story.role)}, **quiero** {md_escape(story.action)} "
@@ -157,12 +174,21 @@ def _story(story: UserStory) -> None:
     for ca in story.acceptance_criteria:
         with st.container(border=True):
             st.markdown(f"**{md_escape(ca.id)} · {md_escape(ca.title)}**")
+            if ca.id in marks:
+                st.caption(md_escape(marks[ca.id]))
             for step, label in STEP_FIELDS:
                 for line in getattr(ca, step):
                     st.markdown(f"*{label}* {md_escape(line)}")
     if story.business_rules:
         st.markdown("**Reglas de negocio**")
-        st.markdown(md_lines([f"{rn.id} · {rn.description}" for rn in story.business_rules]))
+        st.markdown(
+            md_lines(
+                [
+                    f"{rn.id} · {rn.description}" + (f" · {marks[rn.id]}" if rn.id in marks else "")
+                    for rn in story.business_rules
+                ]
+            )
+        )
     if story.open_questions:
         st.markdown("**Preguntas abiertas**")
         st.markdown(md_lines(story.open_questions))
@@ -222,14 +248,8 @@ def _actions(session: SessionState, conv: Conversation, view: ReviewView, story:
     if cols[1].button("Descartar", key="discard"):
         resume(ws, conv, discard_answer(), session.user)
         st.rerun()
-    cols[2].button(
-        "Revisar y aprobar",
-        key="approve",
-        type="primary",
-        disabled=True,
-        help="El recibo de aprobación estará disponible en T-31.",
-    )
-    st.caption("Revisar y aprobar: disponible en T-31.")
+    if cols[2].button("Revisar y aprobar", key="approve", type="primary"):
+        go(session, "recibo")
     if st.session_state.get(editing_key):
         _editor(session, conv, view, story, editing_key)
 
@@ -240,6 +260,8 @@ def _editor(
     ws = session.workspace
     if ws is None:
         return
+    if view.error:  # la edición anterior se rechazó: el motivo junto al editor (UI.md §5)
+        st.error(md_escape(view.error))
     initial = story_to_form(story)
     prefix = f"ed-{conv.thread_id}-{view.version}"
     with st.form(prefix):

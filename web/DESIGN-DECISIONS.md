@@ -141,6 +141,11 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
     - *Descartar* pide confirmación y llama a `POST /discard`;
     - *Editar a mano* y *Revisar y aprobar* son «disponible pronto»: se pueden enfocar, llevan su descripción y no hacen nada.
   - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`.
+- **Plegar el panel derecho** (fallo reportado en Origen: costaba encontrarlo):
+  - un solo botón con texto, «Ocultar el panel» o «Mostrar el panel», siempre en la cabecera de la conversación, a la derecha de la Q de fase. Ya no hay un icono suelto en la cabecera del panel;
+  - plegado, el panel se oculta (`hidden`) sin desmontarse: conserva la pestaña, las casillas y las restricciones;
+  - el botón cambia de texto y no lleva `aria-pressed` ni `aria-expanded`, para no anunciar dos veces el estado. `aria-controls` apunta al panel;
+  - en ventanas estrechas el panel encoge hasta 320 px antes que la conversación (mínimo 360 px). En la cabecera, la Q y el botón no encogen: se corta el título.
 - **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso).
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.

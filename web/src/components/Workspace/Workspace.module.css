@@ -5,9 +5,10 @@
   display: flex;
 }
 
+/* En ventanas estrechas el panel encoge (hasta 320 px) antes que la conversación (360 px). */
 .conversation {
   flex-grow: 1;
-  min-width: 0;
+  min-width: 360px;
   display: flex;
   flex-direction: column;
 }
@@ -20,6 +21,12 @@
   gap: 10px;
   padding: 0 var(--space-5);
   border-bottom: var(--border-width) solid var(--color-border-soft);
+}
+
+/* La Q de fase y el botón del panel no encogen: el que se corta es el título. */
+.header > :not(.title) {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .title {
@@ -62,12 +69,17 @@
 }
 
 .panel {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   border-left: var(--border-width) solid var(--color-border-soft);
   background: var(--color-surface-2);
   animation: slidein var(--dur-slow) var(--ease) both;
+}
+
+.panel[hidden] {
+  display: none;
 }
 
 .panel[data-size='sm'] {
@@ -137,9 +149,3 @@
   background: var(--color-surface);
 }
 
-.collapsed {
-  flex-shrink: 0;
-  padding: var(--space-3) var(--space-2);
-  border-left: var(--border-width) solid var(--color-border-soft);
-  background: var(--color-surface-2);
-}

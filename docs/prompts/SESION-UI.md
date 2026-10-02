@@ -1,24 +1,27 @@
-# SESIÓN FLUJO (antes UI) · Ronda 3: T-54, flujo unido HU → QA
+# T-54 · flujo unido HU → QA (ronda 4: la hace la sesión Modelos)
 
-Tu T-31 ya está fusionada en `PreProduccion`. **T-54 quedó sin hacer en la ronda anterior** y es ahora lo más urgente: la API (T-55) tiene sus rutas de QA encadenada respondiendo 501 hasta que T-54 esté lista. El frontend pasa a React (T-56, responsable del área B), así que esta sesión ya no toca la UI de Streamlit. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+**Pégalo en la sesión Modelos**, que ya terminó T-58 (fusionada). La sesión UI no llegó a recibir este encargo en dos rondas: sigue con las pantallas de Streamlit (T-48 fusionada; T-28 a medias en `ses-ui`), así que T-54 cambia de sesión. Es lo más urgente: la API (T-55) tiene sus rutas de QA encadenada respondiendo 501 hasta que T-54 esté lista.
+
+Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/ses-ui switch -C ses-flujo origin/PreProduccion
-cd .claude/worktrees/ses-ui
+git -C .claude/worktrees/area-b switch -C ses-flujo origin/PreProduccion
+cd .claude/worktrees/area-b
 uv sync
 uv run pytest -m "not integration"          # debe salir en verde antes de empezar
 ```
 
 ---
 
-Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-flujo`**, creada desde `PreProduccion`. Tu T-31 ya está fusionada. Tu tarea ahora es **T-54: flujo unido HU → QA**, una petición de dirección.
+Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-flujo`**, creada desde `PreProduccion`. Tu T-58 ya está fusionada. Tu tarea ahora es **T-54: flujo unido HU → QA**, una petición de dirección. Antes la tenía otra sesión, que no llegó a empezarla.
 
 Hay **otras sesiones trabajando a la vez**:
 - **Principal:** `PreProduccion`. Integra; dueña de la API (`api/`, T-55 ya hecha) y de los contratos. Cuando fusione T-54 conectará `/conversations/{id}/handoff` y `/qa/*` (PA-105) a tu diseño: deja en tu informe las funciones de servicio que debe llamar la API (listar entregas, pasar a QA y recoger).
-- **Modelos:** `ses-modelos`, con T-58, en `prompts/`, `core/functional/`, `core/qa/` y `adapters/llm/`. Ojo: `_write_suite` está en tu zona y `core/qa/` en la suya; si necesitas tocar `core/qa/`, avísame.
-- **Jira:** `ses-jira`, con PA-208 y la prueba cruzada T-34.
+- **UI:** `ses-ui`, terminando las pantallas de QA en Streamlit (T-28, plan B) en `app/`. No toques `app/`.
+- **Jira:** `ses-jira`, con la prueba cruzada T-34 (solo pruebas nuevas).
+- Tú ya conoces `core/qa/` y `core/functional/` por T-58: puedes tocar `core/qa/` si T-54 lo necesita (por ejemplo, para que `TestWriter` reciba la HU encadenada).
 - **Ollama:** medición de modelos locales.
 - **Responsable del área B:** frontend en React (`web/`, rama `area-b`).
 
@@ -65,7 +68,7 @@ Puedes tocar `core/graph/`, `core/conversations.py`, un módulo nuevo `core/hand
   - las pruebas con PostgreSQL de la migración llevan la marca `integration`.
 - **Kanban:**
   - cambia solo la fila de T-54 y añade tu fila al registro diario;
-  - **propuestas en PA-160…PA-199**.
+  - **propuestas en PA-266…PA-299** (las de tu rango de Modelos).
 - **Seguridad:**
   - nada escribe en Jira salvo `publish` con aprobación;
   - la HU encadenada sale **siempre** del servidor;

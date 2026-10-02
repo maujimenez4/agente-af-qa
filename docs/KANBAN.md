@@ -139,7 +139,7 @@
 |---|---|---|---|---|---|
 | T-54 | **Flujo unido HU → QA** (petición de dirección): al aprobar o publicar una HU, «Preparar pruebas» crea una conversación de QA (rol QA, D-01) con la HU aprobada como entrada, sin releer Jira ni volver a estructurarla; solo desde una versión aprobada o publicada que conste en el registro | P | T-52, PA-61 | RF-14, RF-22 | ⬜ |
 | T-55 | **API HTTP (FastAPI) para el frontend**: primero el contrato OpenAPI y una API simulada; después la API real sobre el contenedor (sesión, proyectos, conversaciones, arranque guiado, fuentes, generar con progreso por SSE, iterar/editar/aprobar/descartar, revisar la calidad, QA encadenada) | P | T-48, T-50 … T-54 | D-04 (revisada) | ⬜ |
-| T-56 | **Frontend propio en React** a partir del lienzo «Propuesta mixta», contra el contrato de T-55 (API simulada primero) | B (responsable del área B) | T-55 (contrato) | RNF-15, D-04 (revisada) | ⬜ |
+| T-56 | **Frontend propio en React** a partir del lienzo «Propuesta mixta», contra el contrato de T-55 (API simulada primero) | B (responsable del área B) | T-55 (contrato) | RNF-15, D-04 (revisada) | 🔄 |
 | T-57 | **Punto de control (día 5 de la ronda)**: la demo se hace con React o con Streamlit (plan B) | Tú | T-56 | — | ⬜ |
 
 ## Días 11–15 · v1.1 y demo final
@@ -296,6 +296,11 @@
 | PA-203 | Vínculos «relates to» del impacto en la publicación de QA (título de T-30, D-09 §6.2): `TestSuite` no trae claves de HU afectadas (`impact_areas` es texto libre) y el plan de `publish` para QA solo tiene `publish_suite`. Decidir el contrato (claves en la suite o `artifact.impact`) y que `publish` llame a `link` | T-30 | Pendiente (P: `schemas/`, `core/graph/nodes.py`) |
 | PA-204 | Adjuntos de QA con nombre fijo (`estrategia-<CLAVE>.md`, `matriz-<CLAVE>.md`): por idempotencia (PA-05) no se vuelven a subir si ya existen, así que una suite posterior de la misma HU no actualiza la estrategia ni la matriz. Opciones: versión en el nombre (`-v2`) o sustituir el adjunto | T-30 | Pendiente (P) |
 | PA-205 | `schemas/test_case.py` valida los IDs de CA/RN con `re.match` y un patrón con `$`, que acepta un salto de línea final (`"CA-01\n"`); usar `re.fullmatch`. En Jira acabaría como un 400 en las etiquetas del CP (sin inyección: JSON y ADF limpio) | T-30 (security-reviewer) | Pendiente (P: `schemas/`, congelado) |
+| PA-300 | `docs/specs/UI.md` v1.0 desfasado tras D-04 revisada: dice «en Streamlit, sin frontend separado», §8 describe las animaciones con `st.html`/`st.session_state`, *Pedir sus pruebas a QA* sigue como PA-63 (ahora T-54) y el panel derecho mide 420 px (el lienzo usa 420/480/540, fijados en `web/DESIGN-DECISIONS.md`). Actualizarlo a React | T-56 | Pendiente (B) |
+| PA-301 | Textos de proveedor y tiempos del lienzo («groq · gpt-oss-120b», «openrouter · qwen3.8-27b», «suele tardar menos de 30 s») no casan con D-14 (Ollama local, minutos por HU). El frontend mostrará el modelo de `Artifact.model_used` y ningún tiempo fijo: el contrato de T-55 debe exponer el modelo usado | T-56 | Pendiente (P: contrato T-55) |
+| PA-302 | **Duda para la principal:** el carril del lienzo muestra Historial a todos los roles; UI.md §3 (PA-62) lo da solo a `admin`. El frontend sigue UI.md (solo `admin`) hasta que se decida | T-56 | Pendiente (P) |
+| PA-303 | Contrato de T-55 para el progreso y la escritura: eventos SSE por proceso real (la Q de carga avanza un cuarto por proceso; hoy solo se distinguen nodos, PA-66) y si la respuesta del chat llega por streaming o completa (el lienzo la escribe letra a letra) | T-56 | Pendiente (P: contrato T-55) |
+| PA-304 | Lienzo «Propuesta mixta»: no tiene `:focus-visible` (promete foco naranja de 2 px; `#FF7932` sobre blanco da 2,6:1) y, con reducir movimiento, la Q de fase se ve llena. Corregido en `web/` (foco con halo `#B23E00`, estado final en el estilo base); falta corregir el lienzo y volver a copiarlo | T-56 | Pendiente (B) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

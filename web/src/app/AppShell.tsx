@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { UserOut } from '../api/types.ts'
+import { Button } from '../components/Button/index.ts'
 import { ConversationList } from '../components/ConversationList/index.ts'
 import { homeZone, Rail, type Zone } from '../components/Rail/index.ts'
 import { useUsage } from '../hooks/useUsage.ts'
+import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -37,27 +39,61 @@ export function AppShell({ user }: AppShellProps) {
           />
         </main>
       ) : (
-        <WorkZone />
+        <WorkZone user={user} />
       )}
     </div>
   )
 }
 
-function WorkZone() {
+type WorkView = { name: 'home' } | { name: 'origin'; request: StartRequest }
+
+function WorkZone({ user }: { user: UserOut }) {
   const { conversations } = useConversations()
   const [currentId, setCurrentId] = useState<string | undefined>()
+  const [view, setView] = useState<WorkView>({ name: 'home' })
 
   return (
     <>
       <ConversationList
         conversations={conversations}
         currentId={currentId}
-        onNew={() => setCurrentId(undefined)}
+        onNew={() => {
+          setCurrentId(undefined)
+          setView({ name: 'home' })
+        }}
         onSelect={setCurrentId}
       />
       <main className={styles.main}>
-        <SoonScreen title="¿En qué trabajamos hoy?" text="La pantalla de inicio llega en el siguiente paso." />
+        {view.name === 'home' && <HomeScreen user={user} onStart={(request) => setView({ name: 'origin', request })} />}
+        {view.name === 'origin' && <OriginPending request={view.request} onBack={() => setView({ name: 'home' })} />}
       </main>
     </>
+  )
+}
+
+// Provisional hasta la pantalla Origen y fuentes (Mixta 2): enseña lo que llegaría.
+function OriginPending({ request, onBack }: { request: StartRequest; onBack: () => void }) {
+  const options = request.proposal?.options.map((option) => option.label).join(' · ')
+  return (
+    <div className={styles.centered}>
+      <section className={styles.soon} aria-labelledby="origin-pending">
+        <h1 id="origin-pending" className={styles.soonTitle}>
+          Origen y fuentes
+        </h1>
+        <p className={styles.soonText}>Siguiente pantalla del bloque de la demo. Esto es lo que recibiría:</p>
+        <p>
+          Proyecto <b>{request.project}</b>
+          {request.origin && (
+            <>
+              {' '}
+              · origen <b>{request.origin.key}</b>
+            </>
+          )}
+          {request.text && <> · «{request.text}»</>}
+        </p>
+        {options && <p className={styles.soonText}>Opciones del arranque guiado: {options}</p>}
+        <Button onClick={onBack}>Volver al inicio</Button>
+      </section>
+    </div>
   )
 }

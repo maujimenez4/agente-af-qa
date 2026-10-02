@@ -1,78 +1,64 @@
-# SESIÓN MODELOS (antes Memoria) · Ronda 3: T-58, ajustes para modelos locales pequeños
+# SESIÓN UI · Ronda 5: T-35, prueba cruzada (el área B prueba el área A)
 
-Tu T-32 ya está fusionada en `PreProduccion`. En esta ronda la sesión cambia de rama y de tarea. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+> Este archivo era el prompt de la sesión Memoria/Modelos (T-32, T-58, ya fusionadas). Ahora lo usa la **sesión UI**.
+
+Tu T-28 ya está fusionada en `PreProduccion`. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-modelos origin/PreProduccion
-cd .claude/worktrees/area-b
+git -C .claude/worktrees/ses-ui switch -C ses-ui origin/PreProduccion
+cd .claude/worktrees/ses-ui
 uv sync
-uv run pytest -m "not integration"          # debe salir en verde antes de empezar
+uv run pytest -m "not integration"          # en verde, con 50 xfailed (los de T-34)
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-modelos`**, creada desde `PreProduccion`. Tu T-32 ya está fusionada (el registro de uso también lo usa la API de T-55). **En esta ronda haces T-58: ajustes para que los modelos locales pequeños generen artefactos válidos a la primera.**
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-ui`**, recién puesta al día desde `PreProduccion`. Tus T-28, T-31 y la pantalla de T-48 ya están fusionadas.
+
+**En esta ronda haces T-35: la prueba cruzada del área A, con mirada de fuera.** Es el espejo de T-34, que hizo la sesión Jira sobre el área B (mira `tests/unit/test_cross_b_*.py` y las PA-211…PA-224 como ejemplo del formato). La pestaña Memoria en Streamlit queda aparcada.
 
 Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`. Integra; es dueña de los contratos, de la API (`api/`) y de la composición.
-- **Ollama:** mide `qwen3:1.7b` sin razonamiento y `phi4-mini` con dos instrucciones nuevas en su script. Sus datos te llegarán por el usuario.
-- **Flujo:** `ses-flujo`, con T-54, en `core/graph/` y `core/conversations.py`.
-- **Jira:** `ses-jira`, con PA-208 y la prueba cruzada T-34.
-- **Responsable del área B:** `web/` (React).
+- **Principal:** `PreProduccion`; contratos, API y composición.
+- **Modelos:** `ses-flujo`, con T-54, en `core/graph/`, `core/conversations.py`, `core/qa/` y una migración nueva.
+- **Jira:** `ses-jira`, corrigiendo los defectos de T-34 en `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py` y `adapters/embeddings|vectorstore/`.
+- **Ollama:** medición de modelos y `config/models.yaml`.
 
-## De dónde sale T-58
-La sesión Ollama midió cinco modelos locales con `StoryWriter.generate` (misma necesidad y mismo RAG, CPU). **Ninguno generó una HU válida a la primera.** Causas comunes:
-1. **IDs de reglas:** 4 de los 5 modelos copian los identificadores del corpus (`RN-RES-01`), y el esquema exige `^RN-\d+$`. Cada fallo cuesta un reintento de 4–5 min.
-2. **`sources` vacío:** los modelos pequeños omiten las citas y salta `CitationError` (phi4-mini falló así en los dos intentos).
-3. **Razonamiento de `qwen3:1.7b`:** gasta ~40 % de los tokens de salida. Se desactiva con `reasoning_effort: "none"` o `think: false` en la petición (la sesión Ollama confirmará cuál funciona contra el endpoint OpenAI de Ollama).
+## `/tarea T-35` [RNF-19]
+**Solo pruebas nuevas e informe: no cambies el código del área A.**
 
-Salidas en bruto: `docs/pruebas/salidas/generate_story-<modelo>.json`, en la carpeta principal, aún sin commit; pídeselas al usuario si las necesitas.
+- **Alcance:**
+  - `adapters/jira/` (búsqueda con `nextPageToken`, ADF, escritura, errores y reintentos);
+  - `adapters/testmgmt/` (subtareas, adjuntos, idempotencia, `record_execution`);
+  - `adapters/llm/` (salida estructurada, reparación de IDs de T-58, `schema_hints`, respaldo y 429, tiempo de espera);
+  - `adapters/auth/` (contraseñas, tiempo constante);
+  - `core/context/` (JQL seguro, presupuesto de contexto);
+  - `core/state_machine.py`, `core/audit.py`, `core/artifact_state.py` y `core/approvals.py` (registro de aprobaciones);
+  - `core/impact/` (diff y análisis de impacto);
+  - `core/graph/execution.py` (T-47);
+  - `api/` (sesión, CSRF, propiedad, SSE, `/executions`).
+- **Fuera del alcance:** `core/graph/nodes.py`, `core/graph/state.py` y `core/conversations.py` (los está cambiando T-54).
+- **Cómo:**
+  - `test-writer` para las pruebas que falten frente a los RF, RNF y requisitos (en `api/`, también `docs/api/requisitos-parte-2.md`);
+  - `spec-checker` para comparar con la SPEC-00 y el contrato `docs/api/openapi.yaml`;
+  - las pruebas van en archivos nuevos `tests/unit/test_cross_a_*.py`.
+- **Si encuentras un fallo:**
+  - marca la prueba con `xfail(strict=True)`, con el archivo y la línea;
+  - anótalo como propuesta.
 
-## Tareas (con la skill `/tarea T-58`) [RNF-09, RNF-10, RNF-12]
-1. **Prompts** (`prompts/generate_story.md`, `evolve_story.md`, `structure_story.md`, `generate_tests.md`, `review_quality.md` y sus `*_retry.md`):
-   - IDs: «numera `RN-01`, `RN-02`… y `CA-01`, `CA-02`… (y `CP-01`… en las suites) aunque las fuentes usen otros; el identificador del documento va en la descripción»;
-   - citas: `sources` nunca vacío si el contexto trae fuentes;
-   - sube la cabecera `version:` de cada prompt que cambies;
-   - mide el efecto en tokens: los prompts largos cuestan ~1,5 min solo de lectura en CPU, así que no los alargues de más.
-2. **Reparación determinista antes del reintento:** si la salida solo falla por IDs con otro formato (`RN-RES-01`, `CA1`…), se renumeran en orden sin llamar otra vez al LLM. El identificador original se conserva en el texto y, en evoluciones, se respetan los IDs que ya existían (`evolve_story`).
-   - Diseña dónde va. Una opción es un registro de reparaciones por esquema en `adapters/llm/`, que importa `schemas/` pero no `core/`.
-   - **No cambies `adapters/base.py` ni `schemas/`:** si el diseño lo necesita, para y escríbelo como propuesta.
-   - Que la auditoría o el log digan cuándo se reparó.
-3. **Razonamiento desactivable por modelo:**
-   - **Autorizado por la principal** solo esto:
-     - en `core/config.py`, un campo opcional en `ModelRef` (por ejemplo `options` o `reasoning: off`) con validación estricta;
-     - en `core/factories.py`, pasarlo en `_openai_factory`.
-   - En `adapters/llm/openai_compatible.py`, enviarlo como `extra_body`.
-   - Sin el campo, todo sigue igual.
-   - **No cambies `config/models.yaml`:** lo hará la sesión Ollama en su fase 2. Documenta el formato en tu informe.
-4. **Cita vacía:** si una HU llega con `sources` vacío y el contexto tiene fuentes, el reintento de citas (`citation_retry.md`) debe pedirlo explícitamente. Revisa que ese camino existe y funciona.
-
-Cuando la sesión Ollama entregue sus datos (vía el usuario), ajusta las prioridades.
+  No lo corrijas: lo decide la principal.
+- **Informe** en tu fila del registro diario: qué cubriste, los fallos (con su PA) y lo que queda sin cubrir.
 
 ## Reglas
-- **Solo tus archivos:**
-  - `prompts/`;
-  - `core/functional/` y `core/qa/` (solo lo que T-58 necesite);
-  - `adapters/llm/`;
-  - en `core/config.py` y `core/factories.py`, **solo** lo autorizado arriba;
-  - `tests/unit/` de esos módulos; en `tests/fakes/`, solo añadir.
-
-  No toques `core/graph/` ni `core/conversations.py` (T-54 está ahí), `api/`, `app/`, `web/`, `schemas/`, `adapters/base.py`, `adapters/errors.py`, `config/` ni la SPEC.
-- **Kanban:**
-  - Cambia solo la fila de T-58 (a 🔄 y luego ✅) y las PA que cierres.
-  - Añade tu fila al registro diario.
-  - No toques el tablero resumen.
-  - **Propuestas en PA-262…PA-299.**
-- **Seguridad:** no leas ni muestres el `.env`; los logs no llevan prompts ni contenido.
-- **LLM:** pruebas con fakes. **No lances pruebas reales con el LLM sin preguntarme** (minutos por llamada en CPU).
-- **Antes de cada commit:**
+- **Solo creas:** `tests/unit/test_cross_a_*.py` (y, para añadir, `tests/fakes/`). No toques código de producción, `app/`, `web/`, los contratos ni la SPEC.
+- **Kanban:** cambia solo T-35 (a 🔄 y luego ✅) y añade tu fila al registro. No toques el tablero. **Propuestas en PA-161…PA-199.**
+- **Seguridad:** no leas el `.env`; datos ficticios; nada contra Jira ni LLM reales (las pruebas `integration` que añadas se saltan sin credenciales).
+- **Cuidado con los hilos:** cierra los `graph.stream` y no dejes generadores abiertos (ya viste el bloqueo en `test_graph.py`).
+- **Antes del commit:**
   - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Commits:**
-  - Formato `T-58: descripción [RNF-09, RNF-10, RNF-12]`.
-  - **Sin fusionar.** Haz `git push -u origin ses-modelos` y avísame.
+- **Commit:** `T-35: prueba cruzada del área A por el área B [RNF-19]`. **Sin fusionar:** `git push origin ses-ui` y avísame.
 
-Empieza por `/tarea T-58` y preséntame el plan (sobre todo el punto 2) antes de escribir código.
+Empieza por `/tarea T-35` y preséntame el plan antes de escribir pruebas.

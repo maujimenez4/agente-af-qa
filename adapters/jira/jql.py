@@ -21,3 +21,13 @@ def children_jql(epic_key: str) -> str:
     if not ISSUE_KEY_RE.fullmatch(epic_key):
         raise ValueError(f"Clave de incidencia no válida: {epic_key[:50]!r}.")
     return f"parent = {epic_key} ORDER BY key"
+
+
+CASE_LABEL = "caso-prueba"  # D-09: etiqueta de las subtareas CP
+
+
+def cases_jql(story_key: str) -> str:
+    """Subtareas CP de una HU (T-30): hijas con la etiqueta `caso-prueba`."""
+    if not ISSUE_KEY_RE.fullmatch(story_key):
+        raise ValueError(f"Clave de incidencia no válida: {story_key[:50]!r}.")
+    return f"parent = {story_key} AND labels = {quote(CASE_LABEL)} ORDER BY key"

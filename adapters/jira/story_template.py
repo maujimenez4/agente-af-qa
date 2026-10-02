@@ -39,9 +39,15 @@ _LIST_SECTIONS: tuple[tuple[str, str], ...] = (
 
 def story_summary(story: UserStory) -> str:
     """Título de la incidencia: `[HU-XX] título` (R-05), en una línea y dentro del límite."""
-    title = _WHITESPACE.sub(" ", clean_text(story.title)).strip()
     internal_id = story.internal_id or ""
-    if _INTERNAL_ID.fullmatch(internal_id) and not title.startswith(f"[{internal_id}]"):
+    valid_id = internal_id if _INTERNAL_ID.fullmatch(internal_id) else None
+    return prefixed_summary(valid_id, story.title)
+
+
+def prefixed_summary(internal_id: str | None, title: str) -> str:
+    """`[ID] título` (R-05) sin duplicar el prefijo, en una línea y dentro del límite de Jira."""
+    title = _WHITESPACE.sub(" ", clean_text(title)).strip()
+    if internal_id and not title.startswith(f"[{internal_id}]"):
         title = f"[{internal_id}] {title}"
     return title[:MAX_SUMMARY_CHARS]
 

@@ -187,6 +187,21 @@ def bullet_list(items: list[list[Node]]) -> Node:
     }
 
 
+def table(header: list[str], rows: list[list[str]]) -> Node:
+    """Tabla con cabecera; cada celda, texto literal."""
+
+    def row(cells: list[str], cell_type: str) -> Node:
+        return {
+            "type": "tableRow",
+            "content": [{"type": cell_type, "content": [paragraph(text(c))]} for c in cells],
+        }
+
+    return {
+        "type": "table",
+        "content": [row(header, "tableHeader"), *(row(cells, "tableCell") for cells in rows)],
+    }
+
+
 def code_block(value: str, language: str = "") -> Node:
     node: Node = {"type": "codeBlock"}
     if language:

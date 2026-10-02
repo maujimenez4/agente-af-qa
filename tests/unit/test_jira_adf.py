@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from adapters.jira.adf import MAX_MARKDOWN_CHARS, adf_to_text, markdown_to_adf
+from adapters.jira.adf import MAX_MARKDOWN_CHARS, adf_to_text, markdown_to_adf, table
 from core.graph.nodes import _diff_comment_md
 from schemas.impact import ImpactAnalysis, StoryDiff
 
@@ -971,3 +971,18 @@ def test_markdown_to_adf_removes_bidi_and_zero_width_characters(char: str) -> No
 def test_markdown_to_adf_keeps_zero_width_joiner_used_by_emojis() -> None:
     """Las secuencias de emoji (U+200D) no se rompen."""
     assert adf_to_text(markdown_to_adf("👩‍💻")) == "👩‍💻"
+
+
+# --- table (T-30) ----------------------------------------------------------------------------
+
+
+def test_table_builds_header_row_and_literal_cells() -> None:
+    """T-30: la tabla de pasos lleva cabecera y celdas de texto literal (sin Markdown)."""
+    node = table(["#", "Acción"], [["1", "**pulsa** <b>Renovar</b>"], ["2", ""]])
+    header, first, second = node["content"]
+    assert [c["type"] for c in header["content"]] == ["tableHeader", "tableHeader"]
+    assert [c["type"] for c in first["content"]] == ["tableCell", "tableCell"]
+    action = first["content"][1]["content"][0]["content"]
+    assert action == [{"type": "text", "text": "**pulsa** <b>Renovar</b>"}]
+    assert second["content"][1]["content"] == [{"type": "paragraph"}]  # sin texto vacío
+    assert adf_to_text({"type": "doc", "content": [node]}).splitlines()[0] == "| # | Acción |"

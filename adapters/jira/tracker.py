@@ -5,7 +5,7 @@ la búsqueda JQL paginada con `nextPageToken` (`/search/jql`), las épicas y las
 la escritura (`create_story`, `update_story`, `link`), solo desde el nodo `publish`.
 
 Con tokens con scopes (RNF-04), las peticiones van a `api.atlassian.com/ex/jira/{cloudId}`.
-Las lecturas se reintentan con backoff ante 429 y 5xx (SPEC-00 §8).
+El HTTP (lecturas con backoff, escrituras de un solo intento) está en `adapters/jira/http.py`.
 """
 
 import re
@@ -17,28 +17,20 @@ import httpx
 from pydantic import SecretStr
 
 from adapters.base import IssueDetail, IssueLink, IssueSummary, ProjectSummary
-from adapters.errors import (
-    AgentError,
-    AuthenticationError,
-    ExternalServiceError,
-    NotFoundError,
-    PublishError,
-    RateLimitError,
-)
+from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
 from adapters.jira.adf import adf_to_text, markdown_to_adf
+from adapters.jira.http import SERVICE as _SERVICE
+from adapters.jira.http import JiraHttp
 from adapters.jira.jql import PROJECT_KEY_RE, children_jql, epics_jql
 from adapters.jira.story_template import story_summary, story_to_adf
 from schemas.user_story import UserStory
 
 JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
 ISSUE_FIELDS = "summary,issuetype,status,description,parent,subtasks,issuelinks,comment,labels"
-_GATEWAY = "https://api.atlassian.com/ex/jira"
-_CLOUD_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 _MAX_KEY_IN_MESSAGE = 50
 SEARCH_FIELDS = "summary,issuetype,status"
 PAGE_SIZE = 100
 MAX_RESULTS = 1000  # tope por búsqueda: el MVP trabaja con un proyecto pequeño
-_SERVICE = "jira"
 # PA-200: el nombre del tipo depende del sitio («Story» / «Historia»); hasta que exista en
 # `Settings`, constante.
 STORY_ISSUE_TYPE = "Story"
@@ -65,29 +57,23 @@ class JiraCloudTracker:
         sleep: Callable[[float], None] = time.sleep,
         timeout: float = 30.0,
     ) -> None:
-        if cloud_id is not None and cloud_id.get_secret_value():
-            if not _CLOUD_ID_RE.fullmatch(cloud_id.get_secret_value()):
-                raise AuthenticationError(
-                    "JIRA_CLOUD_ID no tiene un formato válido.", service=_SERVICE
-                )
-            self._api_root = f"{_GATEWAY}/{cloud_id.get_secret_value()}"
-        else:
-            # Basic auth: las credenciales solo pueden viajar cifradas.
-            if not base_url.lower().startswith("https://"):
-                raise AuthenticationError(
-                    "JIRA_BASE_URL debe empezar por https://.", service=_SERVICE
-                )
-            self._api_root = base_url.rstrip("/")
-        self._auth = httpx.BasicAuth(email.get_secret_value(), api_token.get_secret_value())
-        self._client = http_client or httpx.Client(timeout=timeout)
-        self._timeout = timeout
-        self._max_retries = max_retries
-        self._max_wait_s = max_wait_s
-        self._sleep = sleep
+        self._http = JiraHttp(
+            base_url,
+            email,
+            api_token,
+            cloud_id=cloud_id,
+            http_client=http_client,
+            max_retries=max_retries,
+            max_wait_s=max_wait_s,
+            sleep=sleep,
+            timeout=timeout,
+        )
+        self._get = self._http.get
+        self._send = self._http.send
 
     @property
     def api_root(self) -> str:
-        return self._api_root
+        return self._http.api_root
 
     # --- Lectura ---------------------------------------------------------------------------
 
@@ -123,7 +109,7 @@ class JiraCloudTracker:
                 params["nextPageToken"] = token
             page = self._get("/rest/api/3/search/jql", params=params, invalid="La consulta JQL")
             issues = page.get("issues") or []
-            results += [_to_summary(issue) for issue in issues[:remaining]]
+            results += [to_issue_summary(issue) for issue in issues[:remaining]]
             remaining = min(limit, MAX_RESULTS) - len(results)
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
@@ -242,166 +228,12 @@ class JiraCloudTracker:
             body["comment"] = {"body": markdown_to_adf(comment_md)}
         self._send("POST", "/rest/api/3/issueLink", body, ExternalServiceError)
 
-    # --- HTTP --------------------------------------------------------------------------------
-
-    def _send(
-        self,
-        method: str,
-        path: str,
-        body: dict[str, Any],
-        failure: type[AgentError],
-        key: str | None = None,
-    ) -> dict[str, Any]:
-        """Escritura de un solo intento; los errores, sin cuerpos de respuesta ni cabeceras."""
-
-        def fail(message: str) -> AgentError:
-            if issubclass(failure, ExternalServiceError):
-                return failure(message, service=_SERVICE)
-            return failure(message)
-
-        try:
-            response = self._client.request(
-                method,
-                f"{self._api_root}{path}",
-                json=body,
-                auth=self._auth,
-                headers={"Accept": "application/json"},
-                timeout=self._timeout,
-                follow_redirects=False,  # aunque el cliente inyectado las siga
-            )
-        except httpx.HTTPError:
-            raise fail(
-                "No se pudo confirmar la escritura en Jira (fallo de red). Comprueba en Jira "
-                "si se ha aplicado antes de reintentar."
-            ) from None
-
-        status = response.status_code
-        if status < 300:
-            if not response.content:
-                return {}
-            try:
-                data = response.json()
-            except ValueError:
-                raise fail("Jira ha devuelto una respuesta no válida al escribir.") from None
-            return data if isinstance(data, dict) else {}
-        if status < 400:  # httpx no sigue redirecciones: la escritura no se ha aplicado
-            raise fail(
-                f"Jira ha respondido con una redirección (HTTP {status}) y no se ha escrito "
-                "nada. Revisa la URL del sitio."
-            )
-        if status in (401, 403):
-            raise AuthenticationError(
-                f"Jira no permite esta escritura (HTTP {status}). Revisa el token, sus scopes "
-                "de escritura y los permisos del proyecto.",
-                service=_SERVICE,
-            )
-        if status == 404:
-            target = f"La incidencia {key}" if key else "Alguna de las incidencias"
-            raise NotFoundError(
-                f"{target} no existe o no tienes permiso para verla.", service=_SERVICE
-            )
-        if status == 429:
-            raise RateLimitError(
-                "Jira ha alcanzado su límite de peticiones; la escritura no se ha reintentado. "
-                "Inténtalo más tarde.",
-                service=_SERVICE,
-                retry_after=_retry_after(response),
-            )
-        if status == 400:
-            raise fail(
-                "Jira ha rechazado los datos (HTTP 400). Revisa el tipo de incidencia, la épica "
-                "y los campos obligatorios del proyecto."
-            )
-        raise fail(f"Jira ha respondido con un error al escribir (HTTP {status}).")
-
-    def _get(
-        self,
-        path: str,
-        params: dict[str, str] | None = None,
-        key: str | None = None,
-        invalid: str | None = None,
-    ) -> dict[str, Any]:
-        attempt = 0
-        while True:
-            try:
-                response = self._client.get(
-                    f"{self._api_root}{path}",
-                    params=params,
-                    auth=self._auth,
-                    headers={"Accept": "application/json"},
-                    timeout=self._timeout,
-                )
-            except httpx.HTTPError:
-                if attempt < self._max_retries:
-                    self._sleep(min(float(2**attempt), self._max_wait_s))
-                    attempt += 1
-                    continue
-                raise ExternalServiceError(
-                    "No se pudo conectar con Jira. Revisa la URL del sitio y la red.",
-                    service=_SERVICE,
-                ) from None
-
-            status = response.status_code
-            if status < 400:
-                if not response.content:
-                    return {}
-                try:
-                    return response.json()
-                except ValueError:
-                    raise ExternalServiceError(
-                        "Jira ha devuelto una respuesta no válida.", service=_SERVICE
-                    ) from None
-            if status in (401, 403):
-                raise AuthenticationError(
-                    f"Jira ha rechazado las credenciales (HTTP {status}). Revisa el email, "
-                    "el token y sus scopes.",
-                    service=_SERVICE,
-                )
-            if status == 400 and invalid:
-                raise ExternalServiceError(
-                    f"{invalid} no es válida para Jira (HTTP 400).", service=_SERVICE
-                )
-            if status == 404:
-                target = f"La incidencia {key}" if key else "El recurso solicitado"
-                raise NotFoundError(
-                    f"{target} no existe o no tienes permiso para verla.", service=_SERVICE
-                )
-            if status == 429:
-                retry_after = _retry_after(response)
-                wait = retry_after if retry_after is not None else float(2**attempt)
-                if attempt >= self._max_retries or wait > self._max_wait_s:
-                    raise RateLimitError(
-                        "Jira ha alcanzado su límite de peticiones. Inténtalo más tarde.",
-                        service=_SERVICE,
-                        retry_after=retry_after,
-                    )
-                self._sleep(wait)
-                attempt += 1
-                continue
-            if status >= 500 and attempt < self._max_retries:
-                self._sleep(min(float(2**attempt), self._max_wait_s))
-                attempt += 1
-                continue
-            raise ExternalServiceError(
-                f"Jira ha respondido con un error (HTTP {status}).", service=_SERVICE
-            )
-
-
-def _retry_after(response: httpx.Response) -> float | None:
-    value = response.headers.get("Retry-After")
-    if value is None:
-        return None
-    try:
-        return max(0.0, float(value))
-    except ValueError:
-        return None
-
 
 def _name(field: Any) -> str:
     return str(field.get("name", "")) if isinstance(field, dict) else ""
 
 
-def _to_summary(issue: dict[str, Any]) -> IssueSummary:
+def to_issue_summary(issue: dict[str, Any]) -> IssueSummary:
     fields = issue.get("fields") or {}
     return IssueSummary(
         key=str(issue.get("key", "")),
@@ -426,10 +258,10 @@ def _to_issue_detail(data: dict[str, Any]) -> IssueDetail:
     comments = (fields.get("comment") or {}).get("comments") or []
     links = [_to_link(link) for link in fields.get("issuelinks") or []]
     return IssueDetail(
-        **_to_summary(data).model_dump(),
+        **to_issue_summary(data).model_dump(),
         description_text=adf_to_text(fields.get("description")),
         parent_key=str(parent["key"]) if isinstance(parent, dict) and "key" in parent else None,
-        subtasks=[_to_summary(s) for s in fields.get("subtasks") or []],
+        subtasks=[to_issue_summary(s) for s in fields.get("subtasks") or []],
         links=[link for link in links if link is not None],
         comments=[adf_to_text(c.get("body")) for c in comments if isinstance(c, dict)],
         labels=[str(label) for label in fields.get("labels") or []],

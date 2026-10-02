@@ -1178,3 +1178,28 @@ def test_create_forwards_extra_body_to_constructor() -> None:
     provider.generate(MESSAGES, TaskType.GENERATE_STORY)
 
     assert server.bodies()[0]["think"] is False
+
+
+def test_structured_sends_sources_as_required_for_suites() -> None:
+    """Medición 2026-10-02: la gramática de Ollama solo genera lo `required`; se pide citar."""
+    data = renewal_test_suite().model_dump(mode="json")
+    setup = make_provider(completion(json.dumps(data, ensure_ascii=False)))
+
+    setup.provider.generate_structured(MESSAGES, TestSuite, TaskType.GENERATE_TESTS)
+
+    sent = setup.server.bodies()[0]["response_format"]["json_schema"]["schema"]
+    assert "sources" in sent["required"]
+    assert sent["properties"]["sources"]["minItems"] == 1
+
+
+def test_json_mode_also_sends_sources_as_required() -> None:
+    """El modo JSON (si el proveedor rechaza JSON Schema) lleva el mismo esquema enviado."""
+    data = renewal_test_suite().model_dump(mode="json")
+    setup = make_provider(
+        schema_rejected_response(), completion(json.dumps(data, ensure_ascii=False))
+    )
+
+    setup.provider.generate_structured(MESSAGES, TestSuite, TaskType.GENERATE_TESTS)
+
+    system = [m["content"] for m in setup.server.bodies()[1]["messages"] if m["role"] == "system"]
+    assert any('"minItems": 1' in text and '"sources"' in text for text in system)

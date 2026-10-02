@@ -678,3 +678,13 @@ def test_generate_raises_citation_error_when_suite_sources_stay_empty() -> None:
         TestWriter(llm).generate(dataset.renewal_story(), ctx_with_sources())
 
     assert len(llm.calls) == 2
+
+
+def test_forced_citation_in_suite_without_sources_is_dropped_not_an_error() -> None:
+    """RNF-14 · `schema_hints`: sin fuentes en el contexto, la cita inventada se quita."""
+    llm, _ = fake_llm(INVENTED)
+
+    draft = TestWriter(llm).generate(dataset.renewal_story())  # sin contexto: ninguna fuente
+
+    assert draft.suite.sources == []
+    assert len(llm.calls) == 1

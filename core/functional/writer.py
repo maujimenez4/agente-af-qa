@@ -16,6 +16,7 @@ from core.functional.citations import (
     allowed_refs_text,
     citation_errors,
     with_real_excerpts,
+    without_forced_citations,
 )
 from core.functional.context import StoryContext, render_context
 from core.rag.prompts import Prompt, load_prompt
@@ -83,7 +84,7 @@ class StoryWriter:
         ]
         result = self._llm.generate_structured(messages, UserStory, task)
         story, input_tokens, output_tokens = (
-            result.content,
+            without_forced_citations(result.content, sources),
             result.input_tokens,
             result.output_tokens,
         )
@@ -105,7 +106,7 @@ class StoryWriter:
                 Message(role="user", content=feedback),
             ]
             result = self._llm.generate_structured(retry_messages, UserStory, task)
-            story = result.content
+            story = without_forced_citations(result.content, sources)
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(story, sources):

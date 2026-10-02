@@ -15,6 +15,7 @@ from core.functional.citations import (
     allowed_refs_text,
     citation_errors,
     with_real_excerpts,
+    without_forced_citations,
 )
 from core.functional.context import StoryContext, escape_data, render_context
 from core.functional.writer import PromptLoader, fill_placeholders
@@ -69,7 +70,7 @@ class TestWriter:
             Message(role="user", content=render_context(ctx)),
         ]
         result = self._llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
-        suite = _with_key(result.content, story_key)
+        suite = without_forced_citations(_with_key(result.content, story_key), sources)
         input_tokens, output_tokens = result.input_tokens, result.output_tokens
 
         errors = suite_errors(suite, story, sources)
@@ -93,7 +94,7 @@ class TestWriter:
             result = self._llm.generate_structured(
                 retry_messages, TestSuite, TaskType.GENERATE_TESTS
             )
-            suite = _with_key(result.content, story_key)
+            suite = without_forced_citations(_with_key(result.content, story_key), sources)
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(suite, sources):

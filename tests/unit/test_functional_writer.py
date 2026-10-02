@@ -609,3 +609,23 @@ def test_structure_retries_when_first_story_has_empty_sources() -> None:
     assert len(llm.calls) == 2
     assert "no cita ninguna fuente" in llm.calls[1]["messages"][-1].content
     assert [s.ref for s in draft.story.sources] == ["DEMO-3"]
+
+
+def test_forced_citation_without_sources_is_dropped_not_an_error() -> None:
+    """RNF-14 · `schema_hints`: el esquema pide una cita; sin fuentes en el contexto, la cita
+    que traiga la respuesta solo puede ser inventada y se quita (sin reintento ni error)."""
+    llm, _ = fake_llm(story_citing(("rag", "DOC-INVENTADO")))
+    ctx = StoryContext(origin_kind="need", need="Necesidad ficticia sin fuentes.")
+
+    draft = StoryWriter(llm).generate(ctx)
+
+    assert draft.story.sources == []
+    assert len(llm.calls) == 1
+
+
+def test_invented_citation_with_sources_still_triggers_retry() -> None:
+    """Con fuentes en el contexto, una cita inventada sigue siendo un error (reintento)."""
+    llm, _ = fake_llm(story_citing(("rag", "DOC-INVENTADO")))
+    with pytest.raises(CitationError):
+        StoryWriter(llm).generate(need_ctx())
+    assert len(llm.calls) == 2

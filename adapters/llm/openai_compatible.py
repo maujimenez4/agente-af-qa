@@ -27,6 +27,7 @@ from pydantic import BaseModel, SecretStr, ValidationError
 from adapters.base import LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import AuthenticationError, ExternalServiceError, RateLimitError
 from adapters.llm.repairs import repair_ids
+from adapters.llm.schema_hints import llm_json_schema
 
 log = structlog.get_logger(__name__)
 
@@ -213,7 +214,7 @@ class OpenAICompatibleProvider:
                 "type": "json_schema",
                 "json_schema": {
                     "name": schema.__name__,
-                    "schema": schema.model_json_schema(),
+                    "schema": llm_json_schema(schema),
                     "strict": False,
                 },
             }
@@ -232,7 +233,7 @@ class OpenAICompatibleProvider:
                     model=self.model,
                 )
                 self._json_schema_supported = False
-        schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
+        schema_json = json.dumps(llm_json_schema(schema), ensure_ascii=False)
         instructions = {
             "role": "system",
             "content": self._prompts.json_mode.replace("{schema}", schema_json),

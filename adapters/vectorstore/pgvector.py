@@ -151,6 +151,8 @@ class PgVectorStore:
             by_document.setdefault(chunk.document_id, []).append(chunk)
         if not by_document:
             return
+        for document_key, document_chunks in by_document.items():
+            self._check_one_category(document_key, document_chunks)
         with self._connection() as conn:
             for document_key, document_chunks in by_document.items():
                 self._upsert_document(conn, document_key, document_chunks)
@@ -169,6 +171,8 @@ class PgVectorStore:
             self._validate(chunk)
             if chunk.document_id != document_id:
                 raise ValueError(f"El fragmento {chunk.id} no es del documento {document_id}.")
+        if chunks:
+            self._check_one_category(document_id, chunks)
         with self._connection() as conn:
             conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
             if chunks:
@@ -188,6 +192,16 @@ class PgVectorStore:
             raise ValueError(f"El fragmento {chunk.id} necesita metadata['category'].")
         if _RESERVED & chunk.metadata.keys():
             raise ValueError(f"El fragmento {chunk.id} usa claves reservadas de metadata.")
+
+    @staticmethod
+    def _check_one_category(document_key: str, chunks: list[Chunk]) -> None:
+        """PA-221: `documents.category` es una; fragmentos con varias darían filtros y prioridad
+        de la memoria incoherentes (RF-51)."""
+        categories = {chunk.metadata["category"] for chunk in chunks}
+        if len(categories) > 1:
+            raise ValueError(
+                f"El documento {document_key} mezcla categorías: {', '.join(sorted(categories))}."
+            )
 
     def _upsert_document(self, conn: Connection, document_key: str, chunks: list[Chunk]) -> None:
         meta = chunks[0].metadata
@@ -236,6 +250,8 @@ class PgVectorStore:
                 f"El vector de consulta tiene {len(query_vector)} dimensiones; "
                 f"se esperaban {self.dimensions}."
             )
+        if not all(math.isfinite(v) for v in query_vector):  # PA-221: como en `upsert`
+            raise ValueError("El vector de consulta tiene valores no finitos.")
         params = {
             "query_vector": _vector_literal(query_vector),
             "query_text": query_text or "",

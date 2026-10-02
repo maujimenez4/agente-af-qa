@@ -18,13 +18,13 @@ from adapters.errors import AgentError, AuthenticationError, NotFoundError
 from app.flows import flow_by_id
 from app.origin import StartRequest, build_initial_state, request_from_state
 from app.progress import nodes_in_update
-from app.review import ReviewView, pending_from_state, summarize
+from app.review import Outcome, ReviewView, outcome_from_state, pending_from_state, summarize
 from core.approvals import ApprovalError
 from core.container import Container
 from core.conversations import new_conversation_config, resume_config
 from core.graph.nodes import ReviewRejectedError
 from core.logging import get_logger
-from core.permissions import require
+from core.permissions import Permission, require
 
 log = get_logger(__name__)
 
@@ -71,6 +71,8 @@ class Conversation:
     error: str | None = None  # último error al llamar al grafo
     started: bool = False  # ya se lanzó `start` (evita relanzarlo en otra ejecución)
     status: str | None = None  # estado de la lista de conversaciones (T-52) al terminar
+    outcome: Outcome | None = None  # resultado de la publicación (Mixta 4 · QA 5, T-31)
+    can_restart: bool = False  # el hilo no se recupera: se ofrece «Empezar de nuevo»
 
     def __post_init__(self) -> None:
         if not self.config:
@@ -163,6 +165,12 @@ def _refresh(ws: Workspace, conv: Conversation) -> None:
 
 
 RESTART = "Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira."
+# Tras aprobar en `live`, un fallo no permite afirmar que Jira esté intacto (RNF-13).
+PUBLISH_INCOMPLETE = (
+    "La publicación no se ha completado. Revisa en Jira y en la auditoría qué se ha hecho "
+    "antes de volver a intentarlo."
+)
+MEMORY_FAILED = "No se ha podido generar la memoria de la HU."
 
 
 def _after_failure(ws: Workspace, conv: Conversation) -> None:
@@ -178,6 +186,49 @@ def _after_failure(ws: Workspace, conv: Conversation) -> None:
     _record_view(conv, view)
     if view is None:
         conv.finished = RESTART
+        conv.can_restart = True
+
+
+_OUTCOME_TEXT = {
+    "simulated": _ENDED["simulated"],
+    "published": "Publicado en Jira.",
+    "partial": "Publicada en parte: algunas operaciones no se han podido hacer en Jira.",
+    "published_without_memory": (
+        "Publicado en Jira, pero no se ha podido generar la memoria de la HU."
+    ),
+}
+
+
+def _settle_approval(
+    ws: Workspace, conv: Conversation, approved: ReviewView, failure: str | None
+) -> bool:
+    """Tras aprobar, deja el resultado de la publicación (T-31); False si no hay resultado.
+
+    Si la reanudación falló después de publicar (p. ej. la memoria, PA-251), el resultado lo
+    dice en lugar de «nada se ha escrito en Jira».
+    """
+    try:
+        values = ws.graph.get_state(conv.config).values or {}
+    except Exception:  # sin estado legible: no se puede afirmar nada sobre Jira
+        return False
+    outcome = outcome_from_state(values, approved, conv.user, failure=failure)
+    if outcome is None:
+        return False
+    # Tras `publish` solo viene `memorize`: un fallo con la HU publicada es de la memoria. Si
+    # se añade otro nodo detrás de `publish`, hay que mirar qué tarea falló (`_reopen_outcome`).
+    if failure is not None and outcome.kind != "published_without_memory":
+        return False  # el fallo fue antes de terminar de publicar: lo decide `_after_failure`
+    conv.outcome = outcome
+    conv.status = _ended_status(ws, conv)
+    conv.view = None
+    conv.error = None if failure is None else conv.error
+    conv.finished = _OUTCOME_TEXT[outcome.kind]
+    return True
+
+
+def publish_permission(conv: Conversation) -> Permission:
+    """Permiso de aprobar y publicar del flujo (UI.md §3; complementa la aprobación, PA-25)."""
+    return Permission.PUBLISH_TESTS if conv.request.mode == "qa" else Permission.PUBLISH_STORY
 
 
 def authorize(actor: User | None, conv: Conversation) -> None:
@@ -236,19 +287,37 @@ def resume(
         conv.error = "No hay ninguna propuesta en revisión."
         return
     conv.error = None
+    approving = answer.get("decision") == "approve"
+    if approving and actor is None:  # aprobar exige saber quién aprueba y su permiso
+        conv.error = "No tienes permiso para realizar esta acción."
+        return
     if actor is not None:
         try:
             authorize(actor, conv)
+            if approving:
+                require(actor, publish_permission(conv))
         except AgentError as exc:
             _fail(conv, exc)
             return
+    reviewed = conv.view
     try:
         ws.graph.invoke(Command(resume=answer), conv.config)
-        _refresh(ws, conv)
     except Exception as exc:  # se muestra el mensaje; el tipo va al log
         _fail(conv, exc)
-        _after_failure(ws, conv)
+        if not (approving and _settle_approval(ws, conv, reviewed, conv.error)):
+            _after_failure(ws, conv)
+            if (
+                approving
+                and conv.view is None
+                and ws.container.publish_mode == "live"
+                and not isinstance(exc, ApprovalError)  # falla antes de publicar
+            ):
+                conv.finished = PUBLISH_INCOMPLETE
+                conv.can_restart = False
         return
+    if approving and _settle_approval(ws, conv, reviewed, None):
+        return
+    _refresh(ws, conv)
     if answer.get("decision") == "discard":
         conv.finished = _ENDED["discarded"]
 
@@ -292,5 +361,34 @@ def reopen(ws: Workspace, actor: User, thread_id: str) -> Conversation:
     else:
         conv.status = _ended_status(ws, conv)
         conv.finished = _ENDED.get(conv.status or "", RESTART)
+        conv.can_restart = conv.status not in _ENDED
+        if values.get("decision") == "approve":  # sin resultado claro, no se afirma nada
+            conv.finished, conv.can_restart = PUBLISH_INCOMPLETE, False
+            if conv.versions:
+                _reopen_outcome(conv, snapshot, values)
     _remember(ws, conv)
     return conv
+
+
+def _reopen_outcome(conv: Conversation, snapshot: Any, values: dict[str, Any]) -> None:
+    """Resultado de una conversación aprobada al retomarla.
+
+    «Simulado» solo si la lista lo confirma (`publish` en simulación); un hilo aprobado cuyo
+    `publish` falló no se presenta como simulado. Si `memorize` falló tras publicar (PA-251),
+    se dice que la HU está publicada sin memoria.
+    """
+    memory_failed = any(
+        getattr(task, "name", "") == "memorize" and getattr(task, "error", None) is not None
+        for task in getattr(snapshot, "tasks", ())
+    )
+    outcome = outcome_from_state(
+        values, conv.versions[-1], conv.user, failure=MEMORY_FAILED if memory_failed else None
+    )
+    if outcome is None:
+        return
+    if outcome.kind == "simulated" and conv.status != "simulated":
+        conv.finished = PUBLISH_INCOMPLETE
+        conv.can_restart = False
+        return
+    conv.outcome = outcome
+    conv.finished = _OUTCOME_TEXT[outcome.kind]

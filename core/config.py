@@ -75,6 +75,9 @@ class LimitsConfig(_StrictModel):
     daily_token_warning: PositiveInt
     # Segundos por llamada al LLM: un modelo local en CPU tarda más que uno en la nube.
     request_timeout_s: PositiveFloat = 60.0
+    # Tope de tokens de salida por tarea; sin entrada, sin tope. Acorta la generación y deja sitio
+    # al reintento dentro de la ventana de contexto.
+    max_output_tokens: dict[TaskType, PositiveInt] = {}
 
 
 class RagConfig(_StrictModel):

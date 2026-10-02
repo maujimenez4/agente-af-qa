@@ -12,7 +12,7 @@
 import json
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Self
 
@@ -61,6 +61,7 @@ class OpenAICompatibleProvider:
         max_retries_on_429: int = 2,
         max_wait_s: float = 20.0,
         sleep: Callable[[float], None] = time.sleep,
+        max_output_tokens: Mapping[TaskType, int] | None = None,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -70,6 +71,8 @@ class OpenAICompatibleProvider:
         self._max_wait_s = max_wait_s
         self._sleep = sleep
         self._json_schema_supported = True
+        # Tope de salida por tarea (`limits.max_output_tokens`): sin tope si la tarea no lo tiene.
+        self._max_output_tokens = dict(max_output_tokens or {})
 
     @classmethod
     def create(
@@ -98,7 +101,9 @@ class OpenAICompatibleProvider:
     def generate(self, messages: list[Message], task: TaskType) -> LLMResult:
         start = time.monotonic()
         payload = _to_openai_messages(messages)
-        content, input_tokens, output_tokens = self._complete(payload)
+        content, input_tokens, output_tokens = self._complete(
+            payload, max_tokens=self._max_output_tokens.get(task)
+        )
         return LLMResult(
             content=content,
             provider=self.provider,
@@ -113,7 +118,10 @@ class OpenAICompatibleProvider:
     ) -> StructuredResult[T]:
         start = time.monotonic()
         payload = _to_openai_messages(messages)
-        content, input_tokens, output_tokens = self._complete_structured(payload, schema)
+        max_tokens = self._max_output_tokens.get(task)
+        content, input_tokens, output_tokens = self._complete_structured(
+            payload, schema, max_tokens
+        )
         try:
             parsed = _parse(content, schema)
         except ValidationError as exc:
@@ -126,7 +134,9 @@ class OpenAICompatibleProvider:
                     "content": self._prompts.retry.replace("{errors}", _validation_errors(exc)),
                 },
             ]
-            content, extra_in, extra_out = self._complete_structured(retry_payload, schema)
+            content, extra_in, extra_out = self._complete_structured(
+                retry_payload, schema, max_tokens
+            )
             input_tokens += extra_in
             output_tokens += extra_out
             try:
@@ -150,7 +160,10 @@ class OpenAICompatibleProvider:
     # --- Internos ------------------------------------------------------------------------
 
     def _complete_structured(
-        self, payload: list[dict[str, str]], schema: type[BaseModel]
+        self,
+        payload: list[dict[str, str]],
+        schema: type[BaseModel],
+        max_tokens: int | None = None,
     ) -> tuple[str, int, int]:
         if self._json_schema_supported:
             response_format = {
@@ -162,7 +175,9 @@ class OpenAICompatibleProvider:
                 },
             }
             try:
-                return self._complete(payload, response_format=response_format, raw_400=True)
+                return self._complete(
+                    payload, response_format=response_format, raw_400=True, max_tokens=max_tokens
+                )
             except openai.BadRequestError:
                 # El proveedor o el modelo no admiten JSON Schema: modo JSON desde ahora.
                 log.info(
@@ -177,7 +192,11 @@ class OpenAICompatibleProvider:
             "role": "system",
             "content": self._prompts.json_mode.replace("{schema}", schema_json),
         }
-        return self._complete([*payload, instructions], response_format={"type": "json_object"})
+        return self._complete(
+            [*payload, instructions],
+            response_format={"type": "json_object"},
+            max_tokens=max_tokens,
+        )
 
     def _complete(
         self,
@@ -185,9 +204,12 @@ class OpenAICompatibleProvider:
         *,
         response_format: dict[str, Any] | None = None,
         raw_400: bool = False,
+        max_tokens: int | None = None,
     ) -> tuple[str, int, int]:
         """Llama al endpoint de chat; devuelve (contenido, tokens de entrada, de salida)."""
         extra: dict[str, Any] = {"response_format": response_format} if response_format else {}
+        if max_tokens is not None:
+            extra["max_tokens"] = max_tokens
         attempt = 0
         while True:
             try:

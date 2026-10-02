@@ -28,7 +28,7 @@ from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
-from core.config import AppConfig, ConfigError, Settings
+from core.config import AppConfig, Settings
 from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
@@ -170,6 +170,7 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
             prompts=prompts,
             max_retries_on_429=config.models.limits.max_retries_on_429,
             timeout_s=config.models.limits.request_timeout_s,
+            max_output_tokens=config.models.limits.max_output_tokens,
         )
 
     return create
@@ -216,14 +217,9 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
     Auditoría, versiones y estado de los artefactos van siempre juntos (`audit_log` tiene FK a
     `artifacts`). Para el selector de modelo (RF-42), crea el router con `model_router(config)`,
     consérvalo y pásalo aquí. Escritura en Jira (T-27), casos de prueba (T-30) y memoria (T-33)
-    son los reales. `live` sigue bloqueado hasta que el usuario autorice y pase las pruebas reales
-    de escritura contra el sandbox (`JIRA_WRITE_TESTS=1`).
+    son los reales. `JIRA_PUBLISH_MODE=simulation` por defecto; `live` se activa en el `.env`
+    (escritura validada en el sandbox el 2026-10-02).
     """
-    if config.settings.jira_publish_mode == "live":
-        raise ConfigError(
-            "JIRA_PUBLISH_MODE=live está bloqueado hasta validar la escritura real en el "
-            "sandbox de Jira; usa simulation."
-        )
     llm = build_llm_provider(config, router=router)
     return build_container(
         config,

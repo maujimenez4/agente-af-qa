@@ -34,6 +34,15 @@ limits:
   context_token_budget: 6000
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
   request_timeout_s: 600          # qwen3:4b en CPU: una HU completa puede pasar de varios minutos
+  max_output_tokens:              # tope de salida por tarea (deja sitio al reintento en 8192)
+    generate_story: 2500
+    evolve_story: 2500
+    review_story: 2000
+    generate_tests: 3000
+    analyze_impact: 800
+    synthesize_memory: 1200
+    classify_source: 200
+    nl_to_jql: 200
 
 rag:
   chunk_tokens: 650

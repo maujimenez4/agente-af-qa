@@ -57,7 +57,8 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
   const [seenPick, setSeenPick] = useState({ origin: pickedOrigin, project: pickedProject })
   if (seenPick.origin !== pickedOrigin || seenPick.project !== pickedProject) {
     setSeenPick({ origin: pickedOrigin, project: pickedProject })
-    if (pickedOrigin) setOrigin(pickedOrigin)
+    // Un proyecto nuevo sin origen quita el origen anterior, que era de otro proyecto.
+    setOrigin(pickedOrigin ?? (pickedProject && pickedProject.key !== projectKey ? undefined : origin))
     if (pickedProject) setProjectKey(pickedProject.key)
   }
 

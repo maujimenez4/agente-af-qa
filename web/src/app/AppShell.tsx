@@ -4,6 +4,7 @@ import { Button } from '../components/Button/index.ts'
 import { ConversationList } from '../components/ConversationList/index.ts'
 import { homeZone, Rail, type Zone } from '../components/Rail/index.ts'
 import { useUsage } from '../hooks/useUsage.ts'
+import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJira.tsx'
 import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
@@ -51,6 +52,9 @@ function WorkZone({ user }: { user: UserOut }) {
   const { conversations } = useConversations()
   const [currentId, setCurrentId] = useState<string | undefined>()
   const [view, setView] = useState<WorkView>({ name: 'home' })
+  // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
+  const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
+  const [picked, setPicked] = useState<JiraPick | undefined>()
 
   return (
     <>
@@ -59,14 +63,33 @@ function WorkZone({ user }: { user: UserOut }) {
         currentId={currentId}
         onNew={() => {
           setCurrentId(undefined)
+          setPicked(undefined)
           setView({ name: 'home' })
         }}
         onSelect={setCurrentId}
       />
       <main className={styles.main}>
-        {view.name === 'home' && <HomeScreen user={user} onStart={(request) => setView({ name: 'origin', request })} />}
+        {view.name === 'home' && (
+          <HomeScreen
+            user={user}
+            onStart={(request) => setView({ name: 'origin', request })}
+            onOpenJira={(project) => setJira({ initialProject: project?.key })}
+            pickedOrigin={picked?.origin}
+            pickedProject={picked?.project}
+          />
+        )}
         {view.name === 'origin' && <OriginPending request={view.request} onBack={() => setView({ name: 'home' })} />}
       </main>
+      {jira && (
+        <ChooseInJira
+          initialProject={jira.initialProject}
+          onCancel={() => setJira(null)}
+          onPick={(pick) => {
+            setPicked(pick)
+            setJira(null)
+          }}
+        />
+      )}
     </>
   )
 }

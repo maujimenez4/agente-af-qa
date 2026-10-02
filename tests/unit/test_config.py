@@ -13,6 +13,8 @@ from core.config import (
     ROOT_DIR,
     AppConfig,
     ConfigError,
+    ModelOptions,
+    ModelRef,
     Settings,
     is_placeholder,
     load_models_config,
@@ -342,3 +344,101 @@ def test_api_allowed_origins_empty_means_same_origin_only(
     """Req. 3 (límite): vacío -> sin orígenes extra (solo el mismo origen, sin CORS)."""
     clean_env.setenv("API_ALLOWED_ORIGINS", raw)
     assert Settings(_env_file=None).api_origins == []
+
+
+# --- options por modelo (T-58 · RNF-09, RNF-10) -----------------------------------------------
+
+
+def _with_options(data: dict, options: object) -> dict:
+    data["tasks"]["generate_story"][0]["options"] = options
+    return data
+
+
+def test_model_options_think_false_is_valid_in_models_yaml(
+    tmp_path: Path, models_data: dict
+) -> None:
+    """D · T-58: `options: {think: false}` carga y se conserva en el ModelRef."""
+    models = load_models_config(_write_yaml(tmp_path, _with_options(models_data, {"think": False})))
+
+    ref = models.tasks[TaskType.GENERATE_STORY][0]
+    assert isinstance(ref.options, ModelOptions)
+    assert ref.options.think is False
+    assert ref.options.request_body() == {"think": False}
+
+
+@pytest.mark.parametrize("effort", ["none", "low", "medium", "high"])
+def test_model_options_reasoning_effort_values_are_valid(
+    tmp_path: Path, models_data: dict, effort: str
+) -> None:
+    """D · T-58: `reasoning_effort` admite none/low/medium/high (p. ej. "none")."""
+    data = _with_options(models_data, {"reasoning_effort": effort})
+    models = load_models_config(_write_yaml(tmp_path, data))
+
+    options = models.tasks[TaskType.GENERATE_STORY][0].options
+    assert options is not None
+    assert options.request_body() == {"reasoning_effort": effort}
+
+
+def test_model_options_request_body_has_both_when_both_set() -> None:
+    """D · T-58: con las dos claves, `request_body` devuelve ambas."""
+    options = ModelOptions(think=True, reasoning_effort="low")
+
+    assert options.request_body() == {"think": True, "reasoning_effort": "low"}
+
+
+def test_model_options_request_body_excludes_none() -> None:
+    """D · T-58: `request_body` no incluye las claves sin valor."""
+    assert ModelOptions(think=False).request_body() == {"think": False}
+    assert ModelOptions(reasoning_effort="none").request_body() == {"reasoning_effort": "none"}
+
+
+INVALID_OPTIONS: list[tuple[object, str]] = [
+    ({"reasoning_effort": "VALOR-NO-PERMITIDO-X"}, "reasoning_effort"),
+    ({"think": "VALOR-NO-PERMITIDO-X"}, "think"),
+    ({"think": False, "temperature": "VALOR-NO-PERMITIDO-X"}, "temperature"),
+    ({}, "options"),
+    ({"think": None, "reasoning_effort": None}, "options"),
+    ("VALOR-NO-PERMITIDO-X", "options"),
+]
+
+
+@pytest.mark.parametrize(
+    ("options", "location"),
+    INVALID_OPTIONS,
+    ids=["effort-no-permitido", "think-no-bool", "clave-extra", "vacio", "todo-null", "no-objeto"],
+)
+def test_model_options_invalid_raise_config_error_without_values(
+    tmp_path: Path, models_data: dict, options: object, location: str
+) -> None:
+    """D · T-58 (error): valor no permitido, clave extra u objeto vacío → ConfigError en español."""
+    with pytest.raises(ConfigError) as info:
+        load_models_config(_write_yaml(tmp_path, _with_options(models_data, options)))
+
+    message = str(info.value)
+    assert "no es válida" in message
+    assert "tasks.generate_story.0.options" in message
+    assert location in message
+    assert "VALOR-NO-PERMITIDO-X" not in message
+    assert info.value.__cause__ is None
+
+
+def test_model_options_empty_object_message_explains_requirement() -> None:
+    """D · T-58 (error): el objeto vacío se rechaza con el motivo en español."""
+    with pytest.raises(ValidationError, match="al menos 'think' o 'reasoning_effort'"):
+        ModelOptions()
+
+
+def test_model_ref_without_options_is_still_valid() -> None:
+    """D · T-58: un ModelRef sin `options` sigue siendo válido y queda en None."""
+    ref = ModelRef(provider="local", model="modelo-ficticio")
+
+    assert ref.options is None
+    assert load_models_config(TEST_MODELS).tasks[TaskType.GENERATE_STORY][0].options is None
+
+
+def test_model_options_are_frozen() -> None:
+    """D · T-58 (límite): las opciones son inmutables como el resto de la configuración."""
+    options = ModelOptions(think=False)
+
+    with pytest.raises(ValidationError):
+        options.think = True  # type: ignore[misc]

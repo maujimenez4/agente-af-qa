@@ -500,3 +500,47 @@ def test_policy_word_followed_by_period_is_not_a_secret() -> None:
     """PA-218 (límite): una palabra con punto final («obligatoria.») no es un secreto."""
     artifact = _artifact(_password_story(), origin_key="DEMO-8")
     assert _errors(_password_memory("RN-01: La contraseña: obligatoria."), artifact) == []
+
+
+# --- PA-226: palabras clave y formatos de secreto que faltaban -------------------------------
+
+# Los tokens se componen por partes para que el escáner de secretos de CI no los tome por reales.
+_FAKE_SECRETS = [
+    "token: ghF1ct1c10Tok3n",
+    "pwd: Cl4veFicticia",
+    "pass=Sup3rSecreta!",
+    "PIN: 4821",
+    "secreto: Fict1cio_99",
+    "credencial: abc123xyz",
+    "client_secret: s3cr3t-f1ct1c10",
+    "Authorization: " + "Basic " + "dXN1YXJpbzpmaWN0aWNpbw==",
+    "AI" + "za" + "SyFICTICIO0123456789abcdefghijklm",
+    "gl" + "pat-" + "FICTICIO1234567890abcd",
+    "github" + "_pat_" + "11FICTICIO0123456789abcdef",
+    "-----BEGIN RSA " + "PRIVATE KEY-----",
+]
+
+
+@pytest.mark.parametrize("secret", _FAKE_SECRETS)
+def test_more_secret_formats_are_rejected(secret: str) -> None:
+    """PA-226: el detector reconoce más palabras clave y formatos de credencial."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(f"RN-01: {secret}"), artifact) == [
+        "«business_rules» parece contener un secreto"
+    ]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "RN-01: El token: caduca a los 30 minutos.",
+        "RN-01: PIN: 4 dígitos numéricos.",
+        "RN-01: El pase: válido un año.",
+        "RN-01: Plan basic con soporte ficticio.",
+        "RN-01: bypass: obligatorio en la revisión.",
+    ],
+)
+def test_business_text_with_new_keywords_is_not_a_secret(rule: str) -> None:
+    """PA-226 (falsos positivos): las palabras nuevas con texto de negocio no saltan."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(rule), artifact) == []

@@ -338,6 +338,8 @@
 | PA-312 | ESLint de `web/`: la regla contra el almacenamiento del navegador no cubre `self.localStorage`, `globalThis.indexedDB`, la Cache API (`caches`) ni la desestructuración de `document` (hoy ningún archivo los usa) | T-56 (security-reviewer) | Pendiente (B) |
 | PA-313 | Arranque guiado en el frontend: avisar de `project_changed` (y fijar el proyecto con `POST /projects/choose`) y de `ignored_projects` de `StartProposal` (UI.md §4.1 y §9, T-53). Se hace en la pantalla Origen y fuentes, donde se fija la operación | T-56 (spec-checker) | Pendiente (B · Origen) |
 | PA-314 | Contrato de T-55: el lienzo (Generando) tiene un botón *Detener la generación*, pero no hay ruta para cancelar una generación en curso. El frontend no lo pinta hasta que exista (p. ej. `POST /conversations/{id}/cancel`) | T-56 | Pendiente (P: contrato T-55) |
+| PA-315 | Contrato y schemas: los CA y las RN de `UserStory` no traen su cita (solo `UserStory.sources` a nivel de HU), así que el frontend no puede marcar «CA sin fuente» con *Confirmar* y *Pedir fuente* (UI.md §4.5, lienzo Mixta 3). Propuesta: `sources: string[]` (refs) en `AcceptanceCriterion` y `BusinessRule`, o un mapa CA → fuentes en la revisión | T-56 | Pendiente (P: `schemas/`, contrato T-55) |
+| PA-316 | Contrato de T-55: la versión «Jira» del selector de versiones de Iterar (la HU tal como está en Jira, para compararla) no está en la API: `GET /issues/{key}` solo da la ficha. Propuesta: el contenido estructurado de la HU de origen en la revisión o en `GET /issues/{key}?full=1` | T-56 | Pendiente (P: contrato T-55) |
 
 ## Registro diario
 | Día | Fecha | Hecho | Hito de sincronización | Bloqueos | Plan de mañana |

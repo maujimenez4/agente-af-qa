@@ -947,11 +947,6 @@ def test_markdown_to_adf_builds_header_only_table_when_core_diff_has_no_diffs() 
     assert table_rows(table) == [["Campo", "Antes", "Después"]]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PA-201 (principal): `_diff_comment_md` (core/graph/nodes.py) no escapa `|` ni los "
-    "saltos de línea de los valores; la tabla gana columnas y la fila se parte.",
-)
 def test_markdown_to_adf_keeps_three_cells_when_core_diff_values_have_pipe_and_newline() -> None:
     """PA-49: `|` y saltos de línea de un valor no rompen la tabla del diff."""
     impact = _impact(StoryDiff(field="title", before="a | b", after="línea 1\nlínea 2"))

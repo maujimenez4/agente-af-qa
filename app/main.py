@@ -15,7 +15,7 @@ if _ROOT not in sys.path:
 
 import streamlit as st  # noqa: E402
 
-from app.session import compose, state  # noqa: E402
+from app.session import compose, retry_compose, state  # noqa: E402
 from app.text import md_escape  # noqa: E402
 from app.views import frame, generando, inicio, iterar, login, origen  # noqa: E402
 
@@ -34,7 +34,9 @@ def main() -> None:
     if session.compose_error:
         st.title("Agente de Análisis Funcional y QA")
         st.error(md_escape(session.compose_error))
-        st.caption("Revisa la configuración (`.env` y `config/models.yaml`) y recarga la página.")
+        st.caption("Revisa la configuración (`.env` y `config/models.yaml`) y la base de datos.")
+        if st.button("Reintentar", type="primary", key="retry_compose"):
+            retry_compose(session)
         return
     if session.user is None:
         login.render(session)

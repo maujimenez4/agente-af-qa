@@ -11,6 +11,7 @@ Solo fakes de `tests/fakes/` y datos 100 % ficticios.
 import ast
 import json
 import re
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,7 +20,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from adapters.base import TaskType, User
+import core.projects as core_projects
+from adapters.base import IssueDetail, IssueSummary, TaskType, User
 from adapters.errors import (
     AgentError,
     AuthenticationError,
@@ -32,15 +34,24 @@ from app.anim import phase_q, typing_q
 from app.conversation import UNEXPECTED, Conversation, authorize, message_for
 from app.editing import form_to_content, story_to_form
 from app.flows import FLOWS, FlowCard, default_flow, flow_by_id, flow_cards, shows_flows
+from app.listing import day_label, flow_label, group_by_day, status_label
 from app.models import AUTOMATIC, SELECTABLE_TASKS, apply_model, model_options
 from app.origin import (
+    EPIC_NOT_ALLOWED,
+    KEY_REQUIRED,
+    NEED_TEXT_REQUIRED,
+    QA_NEEDS_STORY,
+    StartPlan,
     StartRequest,
     build_feedback,
     build_initial_state,
     build_origin,
     change_request,
-    find_issue_key,
     fix_origin,
+    plan_start,
+    preview_origin,
+    request_from_option,
+    request_from_state,
     with_excluded,
     with_restrictions,
 )
@@ -55,16 +66,32 @@ from app.review import (
     pending_from_state,
     summarize,
 )
+from app.session import (
+    LOGIN_LOCK_SECONDS,
+    MAX_LOGIN_ATTEMPTS,
+    SessionState,
+    login_locked,
+    record_login_failure,
+    record_login_success,
+)
+from app.sources import IssueCard, describe_card, excluded_refs, issue_card, source_label
 from app.text import md_escape, md_lines
 from core.approvals import ApprovalError
 from core.config import ROOT_DIR, AppConfig, Settings, load_models_config
+from core.conversations import ConversationSummary, new_summary
 from core.factories import model_router
+from core.graph import Origin, initial_state
+from core.graph.nodes import ReviewRejectedError
+from core.guided_start import GuidedStart, SourcePreview, StartOption, StartProposal
 from core.permissions import Permission
+from core.projects import normalize_issue_key
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.user_story import UserStory
 from tests.fakes import dataset
+from tests.fakes.container import fake_container
+from tests.fakes.issue_tracker import FakeIssueTracker
 from tests.fakes.llm import FakeLLMProvider
 
 AF_USER = dataset.DEMO_USERS["af-demo"][1]
@@ -172,23 +199,6 @@ def test_default_flow_by_role(user: Any, expected: str | None) -> None:
 # --- 2 · Origen (UI.md §4.1–4.3, T-50, T-51, T-53 parcial) -------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("quiero evolucionar demo-3 cuanto antes", "DEMO-3"),
-        ("Revisar DEMO-12 y luego DEMO-4", "DEMO-12"),
-        ("Partir de Otro_2-7 (ficticio)", "OTRO_2-7"),
-        ("Necesito avisos por correo antes del vencimiento", None),
-        ("", None),
-        ("versión 2-3 del documento", None),
-        ("clave corta A-1 no válida", None),
-    ],
-)
-def test_find_issue_key_in_free_text(text: str, expected: str | None) -> None:
-    """T-53 parcial · UI.md §4.1: reconoce la primera clave del texto y la normaliza."""
-    assert find_issue_key(text) == expected
-
-
 def test_fix_origin_need_with_text() -> None:
     """UI.md §4.1: una necesidad nueva con texto; el proyecto se normaliza."""
     request = fix_origin("need", " demo ", text=f"  {NEED_TEXT}  ")
@@ -212,14 +222,22 @@ def test_fix_origin_need_with_key_in_text_stays_need() -> None:
     assert request.flow == "need"
 
 
-def test_fix_origin_evolve_with_key_in_text() -> None:
-    """UI.md §4.1: «Evolucionar una HU» reconoce la clave escrita (minúsculas → normalizada)."""
-    request = fix_origin("evolve", "DEMO", text="Cambiar demo-3: renovar desde la app")
+def test_fix_origin_evolve_with_explicit_key_normalizes_it() -> None:
+    """UI.md §4.1 · T-53: la clave llega en `key=` (la reconoce `GuidedStart`) y se normaliza."""
+    request = fix_origin("evolve", "DEMO", key="demo-3", text="Cambiar demo-3: renovar")
     assert request.flow == "evolve"
     assert request.kind == "story"
     assert request.key == "DEMO-3"
     assert request.project == "DEMO"
+    assert request.text == "Cambiar demo-3: renovar"
     assert request.describe() == "Evolucionar DEMO-3"
+
+
+@pytest.mark.parametrize("flow", ["evolve", "review", "tests"])
+def test_fix_origin_does_not_extract_key_from_text(flow: Any) -> None:
+    """T-53 (error): `fix_origin` ya no extrae la clave del texto; sin `key=` la exige."""
+    with pytest.raises(ValueError, match="Escribe la clave de la HU de Jira"):
+        fix_origin(flow, "DEMO", text="Cambiar DEMO-3: renovar desde la app")
 
 
 @pytest.mark.parametrize("flow", ["evolve", "review", "tests"])
@@ -253,7 +271,7 @@ def test_fix_origin_epic_outside_need_raises(flow: Any) -> None:
 
 def test_fix_origin_key_of_other_project_changes_project() -> None:
     """UI.md §4.1 · T-50: una clave de otro proyecto cambia el proyecto de la conversación."""
-    in_text = fix_origin("evolve", "DEMO", text="Evolucionar otro-7 (ficticio)")
+    in_text = fix_origin("evolve", "DEMO", key="otro-7", text="Evolucionar otro-7 (ficticio)")
     assert (in_text.project, in_text.key) == ("OTRO", "OTRO-7")
     explicit = fix_origin("need", "DEMO", key="OTRO-5", kind="epic")
     assert (explicit.project, explicit.key) == ("OTRO", "OTRO-5")
@@ -261,7 +279,7 @@ def test_fix_origin_key_of_other_project_changes_project() -> None:
 
 def test_fix_origin_tests_flow_is_qa_mode() -> None:
     """UI.md §6.1: Preparar pruebas parte de una HU y trabaja en modo QA."""
-    request = fix_origin("tests", "DEMO", text="Casos de prueba para DEMO-3")
+    request = fix_origin("tests", "DEMO", key="DEMO-3", text="Casos de prueba para DEMO-3")
     assert (request.flow, request.kind, request.key) == ("tests", "story", "DEMO-3")
     assert request.mode == "qa"
     assert request.describe() == "Suite de pruebas de DEMO-3"
@@ -386,7 +404,9 @@ def test_build_initial_state_rejects_excluding_the_origin() -> None:
 
 def test_build_initial_state_keeps_change_request_written_with_the_key() -> None:
     """UI.md §4.1: «Escribe la clave de la HU, por ejemplo DEMO-3, y qué quieres cambiar.»."""
-    request = fix_origin("evolve", "DEMO", text="DEMO-3 permitir renovar desde la app ficticia")
+    request = fix_origin(
+        "evolve", "DEMO", key="DEMO-3", text="DEMO-3 permitir renovar desde la app ficticia"
+    )
     state = build_initial_state(AF_USER.username, request)
     assert state["feedback"] == ["permitir renovar desde la app ficticia"]
     assert all("DEMO-3" not in item for item in state["feedback"])
@@ -408,7 +428,7 @@ def test_build_initial_state_keeps_change_request_written_with_the_key() -> None
 )
 def test_change_request_is_text_without_the_key(text: str, expected: str) -> None:
     """UI.md §4.1: lo pedido junto a la clave, sin ella ni espacios o puntuación sobrantes."""
-    assert change_request(fix_origin("evolve", "DEMO", text=text)) == expected
+    assert change_request(fix_origin("evolve", "DEMO", key="DEMO-3", text=text)) == expected
 
 
 def test_change_request_of_need_is_normalized_text() -> None:
@@ -420,7 +440,8 @@ def test_change_request_of_need_is_normalized_text() -> None:
 def test_build_feedback_with_change_request_and_restrictions() -> None:
     """T-51 · RF-20: con clave de origen, lo pedido y las restricciones van como feedback."""
     request = with_restrictions(
-        fix_origin("evolve", "DEMO", text="DEMO-3: añadir la renovación por app."), RESTRICTIONS
+        fix_origin("evolve", "DEMO", key="DEMO-3", text="DEMO-3: añadir la renovación por app."),
+        RESTRICTIONS,
     )
     assert build_feedback(request) == ["añadir la renovación por app", RESTRICTIONS]
 
@@ -435,29 +456,13 @@ def test_build_feedback_epic_with_text_and_restrictions() -> None:
 
 def test_build_feedback_only_key_and_no_restrictions_is_empty() -> None:
     """T-51 (límite): si solo se escribió la clave, no hay feedback vacío."""
-    assert build_feedback(fix_origin("evolve", "DEMO", text="DEMO-3")) == []
+    assert build_feedback(fix_origin("evolve", "DEMO", key="DEMO-3", text="DEMO-3")) == []
 
 
 def test_build_feedback_need_never_has_feedback() -> None:
     """UI.md §4.3: en una necesidad todo va a `origin.text`; el feedback queda vacío."""
     request = with_restrictions(fix_origin("need", "DEMO", text=NEED_TEXT), RESTRICTIONS)
     assert build_feedback(request) == []
-
-
-@pytest.mark.parametrize(
-    ("prefer", "expected"),
-    [("DEMO", "DEMO-3"), (" demo ", "DEMO-3"), (None, "UTF-8"), ("OTRO", "UTF-8"), ("", "UTF-8")],
-    ids=["proyecto", "minusculas", "sin-preferencia", "proyecto-ausente", "vacio"],
-)
-def test_find_issue_key_prefers_project_of_conversation(prefer: str | None, expected: str) -> None:
-    """T-53 parcial: «UTF-8» no gana a la clave real del proyecto; si no hay, la primera."""
-    assert find_issue_key("Exportar en UTF-8 la HU DEMO-3", prefer_project=prefer) == expected
-
-
-def test_fix_origin_prefers_key_of_selected_project() -> None:
-    """T-50 · T-53 parcial: con el proyecto DEMO elegido, «UTF-8» no cambia el proyecto."""
-    request = fix_origin("evolve", "DEMO", text="UTF-8 en DEMO-3")
-    assert (request.key, request.project) == ("DEMO-3", "DEMO")
 
 
 def test_fix_origin_epic_keeps_composer_text_as_feedback() -> None:
@@ -1143,10 +1148,10 @@ def test_app_imports_only_protocols_errors_and_router_from_adapters() -> None:
         ExternalServiceError("Jira no responde (ficticio).", service="jira"),
         NotFoundError("La incidencia DEMO-99 no existe.", service="jira"),
         RateLimitError("Límite de uso ficticio alcanzado.", service="fake"),
-        ValueError("Escribe la clave de la HU de Jira, por ejemplo DEMO-3."),
         ApprovalError("La aprobación ficticia no corresponde."),
+        ReviewRejectedError("Respuesta de revisión rechazada (ficticia)."),
     ],
-    ids=["agent", "external", "notfound", "ratelimit", "value", "approval"],
+    ids=["agent", "external", "notfound", "ratelimit", "approval", "review"],
 )
 def test_message_for_domain_errors_returns_their_message(exc: Exception) -> None:
     """SPEC-00 §8 · UI.md §7: las excepciones del dominio muestran su mensaje en español."""
@@ -1155,11 +1160,16 @@ def test_message_for_domain_errors_returns_their_message(exc: Exception) -> None
 
 @pytest.mark.parametrize(
     "exc",
-    [RuntimeError("detalle interno ficticio"), KeyError("clave"), TypeError("tipo")],
-    ids=["runtime", "key", "type"],
+    [
+        RuntimeError("detalle interno ficticio"),
+        KeyError("clave"),
+        TypeError("tipo"),
+        ValueError("Escribe la clave de la HU de Jira, por ejemplo DEMO-3."),
+    ],
+    ids=["runtime", "key", "type", "value-sin-traceback"],
 )
 def test_message_for_other_errors_returns_generic(exc: Exception) -> None:
-    """UI.md §7 (seguridad): otros errores no exponen detalles internos."""
+    """UI.md §7 (seguridad): otros errores (y un ValueError sin traceback) dan el genérico."""
     assert message_for(exc) == UNEXPECTED
     assert str(exc) not in message_for(exc)
 
@@ -1234,3 +1244,587 @@ def test_authorize_other_person_raises() -> None:
 def test_conversation_is_not_started_by_default() -> None:
     """Mixta 2b: `started` es False hasta llamar a `start`."""
     assert _need_conversation().started is False
+
+
+# --- 12 · Lista blanca de `message_for` con errores reales (UI.md §7, T-24) ---------------------
+
+
+def _raised(fn: Any, *args: Any, **kwargs: Any) -> Exception:
+    """La excepción que lanza `fn` de verdad, con su traceback."""
+    try:
+        fn(*args, **kwargs)
+    except Exception as exc:  # se devuelve para inspeccionarla
+        return exc
+    raise AssertionError("se esperaba una excepción")
+
+
+def _raise_internal_value_error() -> None:
+    raise ValueError("secreto interno ficticio")
+
+
+class _OwnValueError(ValueError):
+    """Subclase propia de ValueError para simular pydantic/json lanzados en `core.projects`."""
+
+
+def test_message_for_value_error_from_core_projects_shows_its_message() -> None:
+    """UI.md §7 · T-50: un ValueError exacto de `core.projects` muestra su mensaje."""
+    exc = _raised(normalize_issue_key, "x")
+    assert type(exc) is ValueError
+    assert message_for(exc) == str(exc)
+    assert "no es una clave de Jira válida" in message_for(exc)
+
+
+def test_message_for_value_error_from_initial_state_shows_its_message() -> None:
+    """UI.md §7 · T-51: el ValueError de `core.graph.state.initial_state` muestra su mensaje."""
+    origin: Origin = {"kind": "story", "key": "DEMO-3", "project": "DEMO"}
+    exc = _raised(initial_state, AF_USER.username, "functional", origin, ["DEMO-3"])
+    assert message_for(exc) == str(exc)
+    assert "no se puede excluir" in message_for(exc)
+
+
+def test_message_for_value_error_from_app_origin_shows_its_message() -> None:
+    """UI.md §7 · §4.1: el ValueError de `app.origin.fix_origin` muestra su mensaje."""
+    exc = _raised(fix_origin, "evolve", "DEMO")
+    assert message_for(exc) == KEY_REQUIRED
+
+
+def test_message_for_value_error_raised_in_other_module_is_generic() -> None:
+    """UI.md §7 (seguridad): un ValueError lanzado fuera de la lista blanca → UNEXPECTED."""
+    exc = _raised(_raise_internal_value_error)
+    assert type(exc) is ValueError
+    assert message_for(exc) == UNEXPECTED
+    assert "secreto" not in message_for(exc)
+
+
+def test_message_for_value_error_from_builtin_is_generic() -> None:
+    """UI.md §7 (seguridad): `int("x")` (sin frame de la lista blanca) → UNEXPECTED."""
+    exc = _raised(int, "no-es-un-numero")
+    assert message_for(exc) == UNEXPECTED
+
+
+def test_message_for_value_error_subclass_in_core_projects_is_generic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """UI.md §7 (seguridad): subclase de ValueError lanzada en core.projects → genérico."""
+    monkeypatch.setattr(core_projects, "ValueError", _OwnValueError, raising=False)
+    exc = _raised(normalize_issue_key, "x")
+    assert type(exc) is _OwnValueError
+    assert message_for(exc) == UNEXPECTED
+
+
+def test_message_for_review_rejected_and_approval_errors_show_message() -> None:
+    """UI.md §5.3 · §7: `ReviewRejectedError` y `ApprovalError` (subclases) sí muestran texto."""
+    assert message_for(ReviewRejectedError("Huella ficticia no válida.")) == (
+        "Huella ficticia no válida."
+    )
+    assert message_for(ApprovalError("Aprobación ficticia caducada.")) == (
+        "Aprobación ficticia caducada."
+    )
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [KeyError("clave-ficticia"), RuntimeError("detalle interno ficticio")],
+    ids=["key", "runtime"],
+)
+def test_message_for_raised_non_value_errors_are_generic(exc: Exception) -> None:
+    """UI.md §7 (seguridad): KeyError/RuntimeError lanzados de verdad → UNEXPECTED."""
+
+    def boom() -> None:
+        raise exc
+
+    assert message_for(_raised(boom)) == UNEXPECTED
+
+
+# --- 13 · Lista de conversaciones (app/listing.py, UI.md §2, T-52) -----------------------------
+
+
+def _summary(**update: Any) -> ConversationSummary:
+    row = new_summary(
+        thread_id="hilo-ficticio-1",
+        username=AF_USER.username,
+        project="DEMO",
+        mode="functional",
+        origin_kind="story",
+        origin_key="DEMO-3",
+    )
+    return row.model_copy(update=update)
+
+
+@pytest.mark.parametrize(
+    ("update", "label"),
+    [
+        ({"status": "in_review", "version": 2}, "Versión 2"),
+        ({"status": "in_review", "version": None}, "En revisión"),
+        ({"status": "simulated"}, "Simulado"),
+        ({"status": "published"}, "Publicado"),
+        ({"status": "started"}, "Empezada"),
+        ({"status": "approved"}, "Aprobada"),
+        ({"status": "discarded"}, "Descartada"),
+    ],
+    ids=["v2", "sin-version", "simulated", "published", "started", "approved", "discarded"],
+)
+def test_status_label_by_status(update: dict[str, Any], label: str) -> None:
+    """UI.md §2 y §9 · T-52: etiqueta del estado de cada conversación en la barra lateral."""
+    assert status_label(_summary(**update)) == label
+
+
+@pytest.mark.parametrize(
+    ("mode", "kind", "label"),
+    [
+        ("functional", "need", "Nueva necesidad"),
+        ("functional", "epic", "Nueva necesidad"),
+        ("functional", "story", "Evolucionar una HU"),
+        ("qa", "story", "Preparar pruebas"),
+        ("qa", "need", "Conversación"),
+    ],
+)
+def test_flow_label_by_mode_and_origin(mode: str, kind: str, label: str) -> None:
+    """UI.md §2 · T-52: el flujo de la conversación; combinación desconocida → «Conversación»."""
+    assert flow_label(_summary(mode=mode, origin_kind=kind)) == label
+
+
+def test_day_label_today_yesterday_and_date() -> None:
+    """UI.md §2: grupos «Hoy», «Ayer» y fecha dd/mm/aaaa."""
+    today = date(2026, 3, 10)
+    assert day_label(today, today) == "Hoy"
+    assert day_label(date(2026, 3, 9), today) == "Ayer"
+    assert day_label(date(2026, 3, 1), today) == "01/03/2026"
+    assert day_label(date(2025, 12, 31), date(2026, 1, 1)) == "Ayer"
+
+
+def test_new_summary_title_has_no_free_text() -> None:
+    """T-52: el título se compone con flujo y clave, sin texto libre."""
+    assert _summary().title == "Evolucionar DEMO-3"
+
+
+def test_group_by_day_keeps_order_and_groups_consecutive() -> None:
+    """UI.md §2 · T-52: agrupa por día en el orden recibido; días no consecutivos no se unen."""
+    tz = datetime.now().astimezone().tzinfo
+    today = date(2026, 3, 10)
+
+    def at(day: int, hour: int, tid: str) -> ConversationSummary:
+        return _summary(thread_id=tid, updated_at=datetime(2026, 3, day, hour, tzinfo=tz))
+
+    rows = [at(10, 12, "a"), at(10, 9, "b"), at(9, 20, "c"), at(5, 8, "d"), at(10, 1, "e")]
+    groups = group_by_day(rows, today=today)
+    assert [(label, [r.thread_id for r in g]) for label, g in groups] == [
+        ("Hoy", ["a", "b"]),
+        ("Ayer", ["c"]),
+        ("05/03/2026", ["d"]),
+        ("Hoy", ["e"]),
+    ]
+    assert group_by_day([], today=today) == []
+
+
+# --- 14 · Fuentes y tarjeta de HU (app/sources.py, UI.md §4.3, T-53) ---------------------------
+
+
+def _issue(description: str, parent: str | None = "DEMO-1") -> IssueDetail:
+    return IssueDetail(
+        key="DEMO-9",
+        summary="HU ficticia",
+        issue_type="Story",
+        status="Por hacer",
+        parent_key=parent,
+        description_text=description,
+    )
+
+
+def test_issue_card_counts_distinct_criteria_and_rules() -> None:
+    """UI.md §4.3 · PA-56: CA y RN distintos de la descripción; los repetidos cuentan una vez."""
+    text = "CA-01 y CA-02; otra vez CA-01. RN-01 aplica. CA-1x no cuenta. XCA-03 tampoco."
+    card = issue_card(_issue(text))
+    assert card == IssueCard(
+        key="DEMO-9", summary="HU ficticia", epic="DEMO-1", criteria=2, rules=1
+    )
+
+
+def test_issue_card_without_description_or_epic() -> None:
+    """UI.md §4.3 (límite): sin descripción (vacía o None) → 0 CA y 0 RN; sin padre → sin épica."""
+    card = issue_card(_issue("", parent=None))
+    assert (card.criteria, card.rules, card.epic) == (0, 0, None)
+    # `description_text` es str en el modelo; `model_construct` simula un None de un adaptador.
+    raw = IssueDetail.model_construct(**{**_issue("").model_dump(), "description_text": None})
+    assert (issue_card(raw).criteria, issue_card(raw).rules) == (0, 0)
+
+
+def test_describe_card_with_and_without_epic() -> None:
+    """UI.md §4.3: «épica DEMO-1 · 2 CA · 1 RN» o «sin épica · …»."""
+    card = IssueCard(key="DEMO-9", summary="HU ficticia", epic="DEMO-1", criteria=2, rules=1)
+    assert describe_card(card) == "épica DEMO-1 · 2 CA · 1 RN"
+    assert describe_card(IssueCard("DEMO-9", "HU", None, 0, 0)) == "sin épica · 0 CA · 0 RN"
+
+
+@pytest.mark.parametrize(
+    ("source", "label"),
+    [
+        (
+            SourcePreview(
+                ref="doc-reglamento", kind="rag", title="Reglamento", category="politicas"
+            ),
+            "doc-reglamento · Reglamento · politicas · Documento",
+        ),
+        (
+            SourcePreview(ref="doc-glosario", kind="rag", title="Glosario"),
+            "doc-glosario · Glosario · Documento",
+        ),
+        (
+            SourcePreview(ref="mem-ficticia", kind="memory", title="Memoria de DEMO-2"),
+            "mem-ficticia · Memoria de DEMO-2 · Memoria · prioritaria",
+        ),
+        (
+            SourcePreview(
+                ref="DEMO-3", kind="jira", title="Renovar", category="Story", required=True
+            ),
+            "DEMO-3 · Renovar · Story · Jira · origen, obligatoria",
+        ),
+    ],
+    ids=["categoria", "sin-categoria", "memoria", "obligatoria"],
+)
+def test_source_label(source: SourcePreview, label: str) -> None:
+    """UI.md §4.3 · T-53: etiqueta de cada fuente del panel «Antes de generar»."""
+    assert source_label(source) == label
+
+
+def test_excluded_refs_never_excludes_required_and_is_sorted() -> None:
+    """T-51 · UI.md §4.3: solo las desmarcadas, ordenadas; la obligatoria nunca se excluye."""
+    sources = [
+        SourcePreview(ref="DEMO-3", kind="jira", title="Origen", required=True),
+        SourcePreview(ref="doc-reglamento", kind="rag", title="Reglamento"),
+        SourcePreview(ref="DEMO-2", kind="jira", title="Reservar"),
+        SourcePreview(ref="doc-glosario", kind="rag", title="Glosario"),
+    ]
+    checked = {"DEMO-3": False, "doc-reglamento": False, "DEMO-2": False}  # glosario: por defecto
+    assert excluded_refs(sources, checked) == ["DEMO-2", "doc-reglamento"]
+    assert excluded_refs(sources, {}) == []
+
+
+# --- 15 · Arranque guiado en la UI (app/origin.py, UI.md §4.1–4.3, T-53) -----------------------
+
+
+def _issue_summary(key: str, kind: str = "Story") -> IssueSummary:
+    return IssueSummary(key=key, summary=f"HU ficticia {key}", issue_type=kind, status="Por hacer")
+
+
+def _option(
+    kind: str, key: str | None = None, project: str = "DEMO", text: str = ""
+) -> StartOption:
+    if kind == "new_need":
+        return StartOption(
+            kind="new_need",
+            label="Crear HU nueva",
+            origin={"kind": "need", "text": text, "project": project},
+        )
+    origin_kind = "epic" if kind == "new_story_in_epic" else "story"
+    return StartOption(
+        kind=kind,  # type: ignore[arg-type]
+        label=f"Opción ficticia {key}",
+        origin={"kind": origin_kind, "key": key, "project": project},  # type: ignore[typeddict-item]
+        issue=_issue_summary(key or "", "Epic" if origin_kind == "epic" else "Story"),
+    )
+
+
+def _proposal(
+    options: list[StartOption],
+    recognized: list[str] | None = None,
+    project: str = "DEMO",
+    changed: bool = False,
+    ignored: list[str] | None = None,
+) -> StartProposal:
+    return StartProposal(
+        project=project,
+        project_changed=changed,
+        ignored_projects=ignored or [],
+        recognized=[_issue_summary(k) for k in recognized or []],
+        similar=[],
+        options=options,
+    )
+
+
+def _guided(tmp_path: Path, tracker: FakeIssueTracker | None = None) -> GuidedStart:
+    return GuidedStart(fake_container(tmp_path, issue_tracker=tracker or FakeIssueTracker()))
+
+
+def _tracker_with_other_project() -> FakeIssueTracker:
+    tracker = FakeIssueTracker()
+    tracker.issues["OTRO-7"] = IssueDetail(
+        key="OTRO-7", summary="HU ficticia de otro proyecto", issue_type="Story", status="Por hacer"
+    )
+    return tracker
+
+
+def test_plan_start_recognized_key_chooses_first_option() -> None:
+    """UI.md §4.1 · T-53: con claves reconocidas, la primera opción y las demás alternativas."""
+    first, second = _option("evolve", "DEMO-3"), _option("evolve", "DEMO-4")
+    plan = plan_start("evolve", _proposal([first, second], ["DEMO-3", "DEMO-4"]), "DEMO")
+    assert plan == StartPlan(chosen=first, alternatives=[second], notices=[], error=None)
+
+
+def test_plan_start_recognized_key_with_real_guided_start(tmp_path: Path) -> None:
+    """T-53: con `GuidedStart.propose` real, «demo-3 y DEMO-4» → DEMO-3 y alternativa DEMO-4."""
+    proposal = _guided(tmp_path).propose("Quiero evolucionar demo-3 y DEMO-4", "DEMO")
+    plan = plan_start("evolve", proposal, "DEMO")
+    assert plan.error is None
+    assert plan.chosen is not None and plan.chosen.origin.get("key") == "DEMO-3"
+    assert [o.origin.get("key") for o in plan.alternatives] == ["DEMO-4"]
+    assert plan.notices == []
+
+
+def test_plan_start_project_changed_notice_mentions_both_projects(tmp_path: Path) -> None:
+    """UI.md §4.1 · T-50: una clave de otro proyecto avisa del cambio de proyecto."""
+    guided = _guided(tmp_path, _tracker_with_other_project())
+    proposal = guided.propose("Evolucionar otro-7", "DEMO")
+    assert proposal.project_changed and proposal.project == "OTRO"
+    plan = plan_start("evolve", proposal, "DEMO")
+    assert plan.chosen is not None and plan.chosen.origin.get("key") == "OTRO-7"
+    assert len(plan.notices) == 1
+    assert "DEMO" in plan.notices[0] and "OTRO" in plan.notices[0]
+
+
+def test_plan_start_ignored_projects_notice_lists_them(tmp_path: Path) -> None:
+    """UI.md §4.1 · T-53: claves de otros proyectos sin opción se avisan por su proyecto."""
+    guided = _guided(tmp_path, _tracker_with_other_project())
+    proposal = guided.propose("DEMO-3 y OTRO-7", "DEMO")
+    assert proposal.ignored_projects == ["OTRO"]
+    plan = plan_start("evolve", proposal, "DEMO")
+    assert plan.chosen is not None and plan.chosen.origin.get("key") == "DEMO-3"
+    assert plan.alternatives == []
+    assert len(plan.notices) == 1 and "OTRO" in plan.notices[0]
+    assert "un solo proyecto" in plan.notices[0]
+
+
+def test_plan_start_notices_from_hand_built_proposal() -> None:
+    """UI.md §4.1: los dos avisos a la vez, en orden (cambio de proyecto, claves ignoradas)."""
+    option = _option("evolve", "OTRO-7", project="OTRO")
+    proposal = _proposal([option], ["OTRO-7"], project="OTRO", changed=True, ignored=["ZETA"])
+    plan = plan_start("evolve", proposal, "DEMO")
+    assert len(plan.notices) == 2
+    assert "pasa de DEMO a OTRO" in plan.notices[0]
+    assert "ZETA" in plan.notices[1]
+
+
+def test_plan_start_need_without_key_chooses_new_need_and_offers_similar(tmp_path: Path) -> None:
+    """UI.md §4.3 · T-53: necesidad sin clave → «Crear HU nueva» y las HU parecidas."""
+    proposal = _guided(tmp_path).propose("renovar", "DEMO")
+    plan = plan_start("need", proposal, "DEMO")
+    assert plan.error is None
+    assert plan.chosen is not None and plan.chosen.kind == "new_need"
+    assert [o.origin.get("key") for o in plan.alternatives] == ["DEMO-3"]
+    assert all(o.kind == "evolve" for o in plan.alternatives)
+
+
+@pytest.mark.parametrize(("flow", "mode"), [("evolve", "functional"), ("tests", "qa")])
+def test_plan_start_key_flow_without_key_offers_similar_to_choose(
+    tmp_path: Path, flow: Any, mode: Any
+) -> None:
+    """UI.md §4.1 · T-53: Evolucionar/Preparar pruebas sin clave → elegir entre las parecidas."""
+    proposal = _guided(tmp_path).propose("renovar", "DEMO", mode)
+    plan = plan_start(flow, proposal, "DEMO")
+    assert plan.chosen is None and plan.error is None
+    assert [o.origin.get("key") for o in plan.alternatives] == ["DEMO-3"]
+    assert all(o.kind != "new_need" for o in plan.alternatives)
+
+
+@pytest.mark.parametrize("flow", ["evolve", "tests"])
+def test_plan_start_without_anything_requires_key(flow: Any) -> None:
+    """UI.md §4.1 (error): sin clave ni parecidas → «Escribe la clave de la HU…»."""
+    plan = plan_start(flow, _proposal([]), "DEMO")
+    assert (plan.chosen, plan.alternatives, plan.error) == (None, [], KEY_REQUIRED)
+
+
+def test_plan_start_need_without_text_requires_text(tmp_path: Path) -> None:
+    """UI.md §4.1 (error): una necesidad sin texto → «Describe la necesidad…»."""
+    plan = plan_start("need", _guided(tmp_path).propose("   ", "DEMO"), "DEMO")
+    assert (plan.chosen, plan.error) == (None, NEED_TEXT_REQUIRED)
+
+
+def test_plan_start_tests_with_epic_needs_story(tmp_path: Path) -> None:
+    """UI.md §6.1 (error): en QA una épica reconocida → «El modo QA parte siempre de una HU…»."""
+    proposal = _guided(tmp_path).propose("Pruebas de demo-1", "DEMO", "qa")
+    assert [i.key for i in proposal.recognized] == ["DEMO-1"]
+    plan = plan_start("tests", proposal, "DEMO")
+    assert (plan.chosen, plan.error) == (None, QA_NEEDS_STORY)
+
+
+def test_plan_start_evolve_with_epic_is_not_allowed(tmp_path: Path) -> None:
+    """UI.md §4.2 (error): Evolucionar con una épica → «Para este flujo elige una HU…»."""
+    plan = plan_start("evolve", _guided(tmp_path).propose("Evolucionar DEMO-1", "DEMO"), "DEMO")
+    assert (plan.chosen, plan.error) == (None, EPIC_NOT_ALLOWED)
+
+
+def test_plan_start_need_with_epic_chooses_new_story_in_epic(tmp_path: Path) -> None:
+    """UI.md §4.2 · T-53: en una necesidad, una épica reconocida → «Nueva HU en DEMO-1»."""
+    plan = plan_start("need", _guided(tmp_path).propose("Nueva HU en demo-1", "DEMO"), "DEMO")
+    assert plan.chosen is not None and plan.chosen.kind == "new_story_in_epic"
+
+
+def test_request_from_option_evolve() -> None:
+    """T-53: opción «Evolucionar DEMO-3» → evolución de la HU con el texto escrito."""
+    request = request_from_option("evolve", _option("evolve", "DEMO-3"), "DEMO-3 renovar")
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "evolve",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert request.text == "DEMO-3 renovar"
+
+
+def test_request_from_option_new_story_in_epic() -> None:
+    """T-53 · UI.md §4.2: «Nueva HU en DEMO-1» → necesidad con la épica de origen."""
+    request = request_from_option("need", _option("new_story_in_epic", "DEMO-1"), "con avisos")
+    assert (request.flow, request.kind, request.key) == ("need", "epic", "DEMO-1")
+    assert request.describe() == "Crear una HU nueva en la épica DEMO-1"
+
+
+def test_request_from_option_tests_is_qa() -> None:
+    """T-53 · UI.md §6.1: «Preparar pruebas de DEMO-3» → flujo de pruebas en modo QA."""
+    request = request_from_option("tests", _option("tests", "DEMO-3"))
+    assert (request.flow, request.kind, request.key, request.mode) == (
+        "tests",
+        "story",
+        "DEMO-3",
+        "qa",
+    )
+
+
+def test_request_from_option_new_need_uses_origin_text() -> None:
+    """T-53: «Crear HU nueva» → necesidad con el texto del `origin` (manda sobre el escrito)."""
+    request = request_from_option("need", _option("new_need", text=NEED_TEXT), "otro texto")
+    assert (request.flow, request.kind, request.key, request.text) == (
+        "need",
+        "need",
+        None,
+        NEED_TEXT,
+    )
+
+
+def test_request_from_option_need_flow_with_story_becomes_evolution() -> None:
+    """UI.md §4.3: en una necesidad, elegir una HU parecida es evolucionarla."""
+    request = request_from_option("need", _option("evolve", "DEMO-3"), NEED_TEXT)
+    assert (request.flow, request.kind, request.key) == ("evolve", "story", "DEMO-3")
+
+
+@pytest.mark.parametrize(
+    ("origin", "mode", "expected"),
+    [
+        (
+            {"kind": "story", "key": "DEMO-3", "project": "DEMO"},
+            "functional",
+            ("evolve", "story", "DEMO-3", ""),
+        ),
+        (
+            {"kind": "story", "key": "DEMO-3", "project": "DEMO"},
+            "qa",
+            ("tests", "story", "DEMO-3", ""),
+        ),
+        (
+            {"kind": "need", "project": "DEMO", "text": NEED_TEXT},
+            "functional",
+            ("need", "need", None, NEED_TEXT),
+        ),
+        (
+            {"kind": "epic", "key": "DEMO-1", "project": "DEMO", "text": "ignorado"},
+            "functional",
+            ("need", "epic", "DEMO-1", ""),
+        ),
+    ],
+    ids=["story", "qa", "need", "epic"],
+)
+def test_request_from_state(origin: Any, mode: Any, expected: tuple[Any, ...]) -> None:
+    """T-52: el `StartRequest` de una conversación retomada sale del estado del grafo."""
+    request = request_from_state(origin, mode, ["doc-glosario"])
+    assert (request.flow, request.kind, request.key, request.text) == expected
+    assert request.project == "DEMO"
+    assert request.excluded_sources == ("doc-glosario",)
+
+
+def test_preview_origin_ignores_restrictions() -> None:
+    """UI.md §4.3: la vista previa de fuentes no lleva las restricciones (no cambian el RAG)."""
+    request = with_restrictions(fix_origin("need", "DEMO", text=NEED_TEXT), RESTRICTIONS)
+    assert preview_origin(request) == {"kind": "need", "project": "DEMO", "text": NEED_TEXT}
+    assert "Restricciones" in build_origin(request)["text"]
+    evolve = with_restrictions(fix_origin("evolve", "DEMO", key="DEMO-3"), RESTRICTIONS)
+    assert preview_origin(evolve) == {"kind": "story", "key": "DEMO-3", "project": "DEMO"}
+
+
+def test_with_excluded_and_restrictions_keep_other_fields() -> None:
+    """T-51: `with_excluded` y `with_restrictions` no tocan flujo, clave, proyecto ni texto."""
+    base = fix_origin("evolve", "DEMO", key="DEMO-3", text="DEMO-3 renovar")
+    excluded = with_excluded(with_restrictions(base, RESTRICTIONS), ["doc-glosario"])
+    restricted = with_restrictions(with_excluded(base, ["doc-glosario"]), RESTRICTIONS)
+    for request in (excluded, restricted):
+        assert (request.flow, request.kind, request.project, request.key, request.text) == (
+            base.flow,
+            base.kind,
+            base.project,
+            base.key,
+            base.text,
+        )
+        assert request.restrictions == RESTRICTIONS
+        assert request.excluded_sources == ("doc-glosario",)
+
+
+# --- 16 · Límite de intentos de inicio de sesión (app/session.py, RF-45) -----------------------
+
+
+def test_login_four_failures_do_not_lock() -> None:
+    """RF-45 · UI.md §7: 4 fallos seguidos no bloquean el formulario."""
+    session = SessionState()
+    for _ in range(MAX_LOGIN_ATTEMPTS - 1):
+        record_login_failure(session, now=1000.0)
+    assert session.failed_logins == 4
+    assert login_locked(session, now=1000.0) is False
+
+
+def test_login_fifth_failure_locks_for_lock_seconds() -> None:
+    """RF-45 (límite): el 5.º fallo bloquea `LOGIN_LOCK_SECONDS`; pasado ese tiempo, se libera."""
+    session = SessionState()
+    for _ in range(MAX_LOGIN_ATTEMPTS):
+        record_login_failure(session, now=1000.0)
+    assert login_locked(session, now=1000.0) is True
+    assert login_locked(session, now=1000.0 + LOGIN_LOCK_SECONDS - 0.001) is True
+    assert login_locked(session, now=1000.0 + LOGIN_LOCK_SECONDS) is False
+    assert session.failed_logins == 0  # el contador vuelve a empezar tras el bloqueo
+
+
+def test_login_success_resets_failures_and_lock() -> None:
+    """RF-45: un inicio de sesión correcto pone a cero los fallos y quita el bloqueo."""
+    session = SessionState()
+    for _ in range(MAX_LOGIN_ATTEMPTS - 1):
+        record_login_failure(session, now=1000.0)
+    record_login_success(session, AF_USER)
+    assert (session.failed_logins, session.user) == (0, AF_USER)
+    record_login_failure(session, now=1000.0)
+    assert login_locked(session, now=1000.0) is False  # vuelve a necesitar 5 fallos
+
+    locked = SessionState()
+    for _ in range(MAX_LOGIN_ATTEMPTS):
+        record_login_failure(locked, now=1000.0)
+    record_login_success(locked, AF_USER)
+    assert login_locked(locked, now=1000.0) is False
+
+
+def test_message_for_value_error_from_app_review_shows_its_message() -> None:
+    """UI.md §4.5 (error): la petición de cambio vacía se explica a la persona (lista blanca)."""
+    with pytest.raises(ValueError) as raised:
+        iterate_answer("   ")
+    assert message_for(raised.value) == "Escribe qué quieres cambiar de la propuesta."
+
+
+@pytest.mark.usefixtures("clean_env")
+def test_message_for_value_error_from_model_router_shows_its_message() -> None:
+    """RF-42 · UI.md §7: el rechazo del selector de modelo se explica (lista blanca)."""
+    router = _router(_config(groq_api_key=FAKE_GROQ_KEY))
+    exc = _raised(apply_model, router, OPENROUTER_FREE)
+    assert type(exc) is ValueError
+    assert message_for(exc) == str(exc)
+    assert "no está disponible" in message_for(exc)
+
+
+def test_message_for_value_error_from_manual_edit_shows_its_message() -> None:
+    """RF-32 · UI.md §4.5: «Editar a mano» sin cambios se explica a la persona (lista blanca)."""
+    story = _story()
+    exc = _raised(form_to_content, story, story_to_form(story))
+    assert message_for(exc) == "No has cambiado nada de la propuesta."

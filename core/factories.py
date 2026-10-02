@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from langgraph.checkpoint.postgres import PostgresSaver
+from pydantic import SecretStr
 
 from adapters.auth.local import LocalAuthProvider
 from adapters.base import IssueSummary, LLMProvider, PublishResult, TaskType
@@ -23,6 +24,7 @@ from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
 from adapters.llm.router import ModelChoice, ModelRouter
 from adapters.llm.usage import UsageRecorder
+from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import SqlAuditTrail
@@ -75,8 +77,8 @@ def build_llm_provider(
     )
 
 
-def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
-    """`JiraCloudTracker` desde `.env`; `AuthenticationError` si falta alguna variable."""
+def _jira_credentials(settings: Settings) -> tuple[str, SecretStr, SecretStr]:
+    """URL, email y token de Jira desde `.env`; `AuthenticationError` si falta alguno."""
     base_url, email, token = settings.jira_base_url, settings.jira_email, settings.jira_api_token
     if not (base_url and email and token):
         required = {"JIRA_BASE_URL": base_url, "JIRA_EMAIL": email, "JIRA_API_TOKEN": token}
@@ -85,7 +87,26 @@ def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
             f"Falta configurar Jira: {', '.join(missing)}. Revisa el archivo .env.",
             service="jira",
         )
+    return base_url, email, token
+
+
+def build_issue_tracker(settings: Settings, **kwargs: Any) -> JiraCloudTracker:
+    """`JiraCloudTracker` desde `.env`; `AuthenticationError` si falta alguna variable."""
+    base_url, email, token = _jira_credentials(settings)
     return JiraCloudTracker(base_url, email, token, cloud_id=settings.jira_cloud_id, **kwargs)
+
+
+def build_test_management(settings: Settings, **kwargs: Any) -> JiraNativeTests:
+    """Casos de prueba como subtareas, etiquetas y adjuntos de Jira (T-30, D-09)."""
+    base_url, email, token = _jira_credentials(settings)
+    return JiraNativeTests(
+        base_url,
+        email,
+        token,
+        cloud_id=settings.jira_cloud_id,
+        subtask_type=settings.jira_test_subtask_type,
+        **kwargs,
+    )
 
 
 def build_auth(config: AppConfig) -> LocalAuthProvider:
@@ -193,20 +214,20 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
 
     Auditoría, versiones y estado de los artefactos van siempre juntos (`audit_log` tiene FK a
     `artifacts`). Para el selector de modelo (RF-42), crea el router con `model_router(config)`,
-    consérvalo y pásalo aquí. La memoria usa `LLMMemoryGenerator` (T-33) con el mismo LLM;
-    publicar casos de prueba (T-30) queda pendiente: con `JIRA_PUBLISH_MODE=simulation` no se
-    llega a usarlo, y en `live` no se compone (falta además la escritura en Jira, T-27).
+    consérvalo y pásalo aquí. Escritura en Jira (T-27), casos de prueba (T-30) y memoria (T-33)
+    son los reales. `live` sigue bloqueado hasta que el usuario autorice y pase las pruebas reales
+    de escritura contra el sandbox (`JIRA_WRITE_TESTS=1`).
     """
     if config.settings.jira_publish_mode == "live":
         raise ConfigError(
-            "JIRA_PUBLISH_MODE=live requiere la escritura en Jira (T-27) y publicar casos (T-30); "
-            "usa simulation hasta entonces."
+            "JIRA_PUBLISH_MODE=live está bloqueado hasta validar la escritura real en el "
+            "sandbox de Jira; usa simulation."
         )
     llm = build_llm_provider(config, router=router)
     return build_container(
         config,
         issue_tracker=build_issue_tracker(config.settings),
-        test_management=PendingTestManagement(),
+        test_management=build_test_management(config.settings),  # T-30
         llm=llm,
         embeddings=build_embeddings(config),
         vector_store=build_vector_store(config),

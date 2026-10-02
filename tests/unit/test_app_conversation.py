@@ -14,8 +14,20 @@ from typing import Any
 import pytest
 from langgraph.types import Command
 
-from adapters.errors import RateLimitError
-from app.conversation import RESTART, UNEXPECTED, Conversation, Workspace, resume, run_start, start
+from adapters.base import User
+from adapters.errors import NotFoundError, RateLimitError
+from app.conversation import (
+    _ENDED,
+    RESTART,
+    UNEXPECTED,
+    Conversation,
+    Workspace,
+    _refresh,
+    reopen,
+    resume,
+    run_start,
+    start,
+)
 from app.editing import form_to_content, story_to_form
 from app.origin import (
     StartRequest,
@@ -35,6 +47,7 @@ from app.review import (
     summarize,
 )
 from core.container import Container
+from core.conversations import NOT_YOURS, THREAD_ID
 from core.graph import build_graph, memory_checkpointer
 from schemas.common import ArtifactStatus
 from schemas.user_story import UserStory
@@ -67,7 +80,7 @@ def _workspace(tmp_path: Path, **overrides: object) -> Workspace:
 
 
 def _evolve() -> StartRequest:
-    return fix_origin("evolve", "DEMO", text=EVOLVE_TEXT)
+    return fix_origin("evolve", "DEMO", key="DEMO-3", text=EVOLVE_TEXT)
 
 
 def _started(ws: Workspace, request: StartRequest, user: str = AF_USER) -> Conversation:
@@ -241,7 +254,7 @@ def test_start_with_excluded_origin_shows_error_without_exception(tmp_path: Path
 def test_start_with_unknown_issue_of_other_project_shows_jira_error(tmp_path: Path) -> None:
     """T-50 (error): una clave de otro proyecto que no existe → mensaje de Jira en la UI."""
     ws = _workspace(tmp_path)
-    request = fix_origin("evolve", "DEMO", text="Evolucionar OTRO-7 (ficticio)")
+    request = fix_origin("evolve", "DEMO", key="OTRO-7", text="Evolucionar OTRO-7 (ficticio)")
     assert request.project == "OTRO"
     conv = Conversation(request=request, user=AF_USER)
     assert run_start(ws, conv) == []
@@ -503,7 +516,9 @@ def test_plan_of_need_creates_story_in_project(tmp_path: Path) -> None:
 def test_plan_of_tests_flow_publishes_suite(tmp_path: Path) -> None:
     """RF-31 · UI.md §6: el modo QA muestra `publish_suite` con el número de casos."""
     ws = _workspace(tmp_path)
-    conv = _started(ws, fix_origin("tests", "DEMO", text="Casos de DEMO-3"), user=QA_USER)
+    conv = _started(
+        ws, fix_origin("tests", "DEMO", key="DEMO-3", text="Casos de DEMO-3"), user=QA_USER
+    )
     assert conv.view is not None
     assert conv.view.plan == [
         {"op": "publish_suite", "project": "DEMO", "story": "DEMO-3", "cases": "2"}
@@ -612,3 +627,248 @@ def test_resume_with_owner_actor_continues(tmp_path: Path) -> None:
     resume(ws, conv, iterate_answer("Cambio ficticio autorizado"), actor=AF_ACTOR)
     assert conv.error is None
     assert conv.view is not None and conv.view.version == 2
+
+
+# --- Config de la conversación (T-52) ----------------------------------------------------------
+
+
+def test_conversation_config_thread_id_is_server_generated_and_safe() -> None:
+    """T-52 · UI.md §2: `thread_id` generado por el servidor con formato seguro y su dueña."""
+    first = Conversation(request=_evolve(), user=AF_USER)
+    second = Conversation(request=_evolve(), user=AF_USER)
+    for conv in (first, second):
+        assert THREAD_ID.fullmatch(conv.thread_id)
+        assert conv.config["configurable"]["user"] == AF_USER
+        assert conv.thread_id == conv.config["configurable"]["thread_id"]
+    assert first.thread_id != second.thread_id
+
+
+def test_conversation_keeps_explicit_config() -> None:
+    """T-52: con `config=` explícito (p. ej. `resume_config`) se respeta tal cual."""
+    config = {"configurable": {"thread_id": "hilo-ficticio-7", "user": AF_USER}}
+    conv = Conversation(request=_evolve(), user=AF_USER, config=config)
+    assert conv.config is config
+    assert conv.thread_id == "hilo-ficticio-7"
+
+
+# --- Retomar una conversación (reopen, T-52 · UI.md §2) ----------------------------------------
+
+
+def _shared(tmp_path: Path, **overrides: object) -> tuple[Workspace, Any]:
+    """Workspace de la app (`require_actor`) y su checkpointer, para abrir otro «proceso»."""
+    container = fake_container(tmp_path, require_actor=True, **overrides)
+    checkpointer = memory_checkpointer()
+    return Workspace(container, build_graph(container, checkpointer)), checkpointer
+
+
+def _fresh(ws: Workspace, checkpointer: Any) -> Workspace:
+    """Otra sesión: mismo contenedor y checkpointer, grafo nuevo y sin conversaciones abiertas."""
+    return Workspace(ws.container, build_graph(ws.container, checkpointer), conversations=[])
+
+
+def _started_by(ws: Workspace, request: StartRequest, actor: Any) -> Conversation:
+    conv = Conversation(request=request, user=actor.username)
+    assert run_start(ws, conv, actor) == STREAMED_NODES
+    assert conv.error is None, conv.error
+    assert conv.view is not None
+    return conv
+
+
+def test_reopen_own_conversation_from_new_workspace(tmp_path: Path) -> None:
+    """T-52 · UI.md §2: retomar en otra sesión → misma pausa, v1 y v2, request y chat rehechos."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Añade un CA de error ficticio"), AF_ACTOR)
+    assert conv.view is not None and conv.view.version == 2
+
+    other = _fresh(ws, checkpointer)
+    reopened = reopen(other, AF_ACTOR, conv.thread_id)
+
+    assert reopened is not conv
+    assert reopened.view is not None
+    assert reopened.view.version == conv.view.version
+    assert reopened.view.fingerprint == conv.view.fingerprint
+    assert [v.version for v in reopened.versions] == [1, 2]
+    assert [v.fingerprint for v in reopened.versions] == [v.fingerprint for v in conv.versions]
+    request = reopened.request
+    assert (request.flow, request.kind, request.key, request.project) == (
+        "evolve",
+        "story",
+        "DEMO-3",
+        "DEMO",
+    )
+    assert reopened.messages[:-1] == [
+        ("user", EVOLVE_CHANGE),
+        ("user", "Añade un CA de error ficticio"),
+    ]
+    role, text = reopened.messages[-1]
+    assert role == "assistant" and text.startswith("Conversación retomada.")
+    assert reopened.started is True and reopened.finished is None
+    assert reopened.thread_id == conv.thread_id
+    assert other.conversations == [reopened]
+    _assert_nothing_written(ws.container)
+
+
+def test_reopen_then_iterate_with_resume(tmp_path: Path) -> None:
+    """T-52: una conversación retomada sigue iterando con `resume` (v3)."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    other = _fresh(ws, checkpointer)
+    reopened = reopen(other, AF_ACTOR, conv.thread_id)
+
+    resume(other, reopened, iterate_answer("Cambio ficticio tras retomar"), AF_ACTOR)
+
+    assert reopened.error is None
+    assert reopened.view is not None and reopened.view.version == 2
+    assert [v.version for v in reopened.versions] == [1, 2]
+
+
+def test_reopen_then_approve_in_simulation_uses_last_fingerprint(tmp_path: Path) -> None:
+    """T-52 · UI.md §5.4: aprobar tras retomar con la huella del último payload (simulación)."""
+    ws, checkpointer = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Cambio ficticio"), AF_ACTOR)
+    other = _fresh(ws, checkpointer)
+    reopened = reopen(other, AF_ACTOR, conv.thread_id)
+    assert reopened.view is not None
+
+    resume(
+        other,
+        reopened,
+        {"decision": "approve", "fingerprint": reopened.view.fingerprint},
+        AF_ACTOR,
+    )
+
+    assert reopened.error is None
+    assert reopened.view is None
+    assert reopened.status == "simulated"
+    assert reopened.finished == _ENDED["simulated"]
+    assert reopened.finished.startswith("Publicación simulada")
+    _assert_nothing_written(ws.container)
+
+
+def test_reopen_qa_conversation_is_tests_flow(tmp_path: Path) -> None:
+    """T-52 · UI.md §6.1: una conversación de QA se retoma como «Preparar pruebas»."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, fix_origin("tests", "DEMO", key="DEMO-3"), QA_ACTOR)
+    reopened = reopen(_fresh(ws, checkpointer), QA_ACTOR, conv.thread_id)
+    assert (reopened.request.flow, reopened.request.kind, reopened.request.key) == (
+        "tests",
+        "story",
+        "DEMO-3",
+    )
+    assert reopened.request.mode == "qa"
+    assert reopened.view is not None
+
+
+def test_reopen_need_conversation_keeps_its_text(tmp_path: Path) -> None:
+    """T-52: una necesidad nueva se retoma con su texto (`origin.text`)."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, fix_origin("need", "DEMO", text=NEED_TEXT), AF_ACTOR)
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+    assert (reopened.request.flow, reopened.request.kind) == ("need", "need")
+    assert reopened.request.text == NEED_TEXT
+    assert reopened.title == conv.title
+
+
+def test_reopen_after_rejected_answer_shows_error_and_keeps_pause(tmp_path: Path) -> None:
+    """T-52 · UI.md §5.3: tras una respuesta rechazada, al retomar se ve el error y la pausa."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, {"decision": "approve", "fingerprint": "0" * 64}, AF_ACTOR)
+    assert conv.view is not None and conv.view.error
+
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+
+    assert reopened.view is not None
+    assert reopened.view.error == conv.view.error
+    assert reopened.view.version == 1
+    assert reopened.finished is None
+    assert [v.version for v in reopened.versions] == [1]
+    _assert_nothing_written(ws.container)
+
+
+@pytest.mark.parametrize(
+    "thread_id",
+    ["hilo-inexistente-ficticio", "../x", "", "a" * 65],
+    ids=["inexistente", "ruta", "vacio", "largo"],
+)
+def test_reopen_unknown_or_invalid_thread_raises_not_found(tmp_path: Path, thread_id: str) -> None:
+    """T-52 (seguridad): hilo inexistente o con formato no válido → «No existe esa…»."""
+    ws, _ = _shared(tmp_path)
+    with pytest.raises(NotFoundError, match=NOT_YOURS):
+        reopen(ws, AF_ACTOR, thread_id)
+    assert ws.conversations == []
+
+
+def test_reopen_conversation_of_other_person_raises_not_found(tmp_path: Path) -> None:
+    """T-52 (seguridad): nadie retoma la conversación de otra persona (mismo mensaje)."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    other = User(username="af-otra-demo", role="functional")
+    fresh = _fresh(ws, checkpointer)
+    with pytest.raises(NotFoundError, match=NOT_YOURS):
+        reopen(fresh, other, conv.thread_id)
+    assert fresh.conversations == []
+    # Tampoco si la conversación ya está abierta en esa sesión.
+    with pytest.raises(NotFoundError, match=NOT_YOURS):
+        reopen(ws, other, conv.thread_id)
+
+
+def test_reopen_already_open_returns_same_object(tmp_path: Path) -> None:
+    """T-52: si ya está abierta en la sesión, se devuelve la misma (con su chat)."""
+    ws, _ = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    conv.messages.append(("assistant", "Mensaje ficticio que solo vive en la sesión"))
+    assert reopen(ws, AF_ACTOR, conv.thread_id) is conv
+    assert ws.conversations == [conv]
+
+
+def test_reopen_discarded_conversation_is_finished(tmp_path: Path) -> None:
+    """T-52 · UI.md §5.3: una conversación descartada se retoma terminada, con sus versiones."""
+    ws, checkpointer = _shared(tmp_path)
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, discard_answer(), AF_ACTOR)
+
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+
+    assert reopened.view is None
+    assert reopened.status == "discarded"
+    assert reopened.finished == _ENDED["discarded"]
+    assert [v.version for v in reopened.versions] == [1]
+    assert not any(role == "assistant" for role, _ in reopened.messages)
+
+
+def test_reopen_simulated_conversation_is_finished(tmp_path: Path) -> None:
+    """T-52 · T-25: tras aprobar en simulación, retomar → terminada con «Publicación simulada…»."""
+    ws, checkpointer = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    resume(ws, conv, iterate_answer("Cambio ficticio"), AF_ACTOR)
+    assert conv.view is not None
+    resume(ws, conv, {"decision": "approve", "fingerprint": conv.view.fingerprint}, AF_ACTOR)
+
+    reopened = reopen(_fresh(ws, checkpointer), AF_ACTOR, conv.thread_id)
+
+    assert reopened.view is None
+    assert reopened.status == ws.container.conversations.get(conv.thread_id).status
+    assert reopened.status == "simulated"
+    assert reopened.finished == _ENDED["simulated"]
+    assert [v.version for v in reopened.versions] == [1, 2]
+    _assert_nothing_written(ws.container)
+
+
+def test_refresh_after_simulated_approval_sets_status_and_finished(tmp_path: Path) -> None:
+    """T-52 · T-25: `_refresh` tras aprobar en simulación deja `status` y el texto de fin."""
+    ws, _ = _shared(tmp_path, publish_mode="simulation")
+    conv = _started_by(ws, _evolve(), AF_ACTOR)
+    assert conv.view is not None
+    ws.graph.invoke(
+        Command(resume={"decision": "approve", "fingerprint": conv.view.fingerprint}), conv.config
+    )
+
+    _refresh(ws, conv)
+
+    assert conv.view is None
+    assert conv.status == "simulated"
+    assert conv.finished == "Publicación simulada: no se ha escrito nada en Jira."
+    _assert_nothing_written(ws.container)

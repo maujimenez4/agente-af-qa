@@ -2,6 +2,10 @@
 
 import streamlit as st
 
+from adapters.base import User
+from adapters.errors import AgentError
+from app.conversation import message_for
+from app.listing import flow_label, group_by_day, status_label
 from app.models import AUTOMATIC, apply_model, model_options
 from app.session import SessionState, clear_composer, go
 from app.text import md_escape
@@ -27,21 +31,47 @@ def sidebar(session: SessionState) -> None:
         st.divider()
         if st.button("Nueva conversación", key="new_conv", width="stretch"):
             clear_composer()
-            go(session, "inicio", current=None, request=None, pending=None)
-        conversations = session.workspace.conversations
-        if conversations:
-            st.caption("Conversaciones")
-        for conv in conversations:
-            status = conv.finished or (f"Versión {conv.view.version}" if conv.view else "")
-            label = md_escape(f"{conv.request.project} · {conv.title}")
-            if st.button(label, key=f"conv-{conv.thread_id}", help=status or None):
-                go(session, "iterar", current=conv.thread_id)
-        st.caption(
-            "Las conversaciones se guardan solo mientras la app está abierta; "
-            "retomarlas después llegará con T-52."
-        )
+            go(
+                session,
+                "inicio",
+                current=None,
+                request=None,
+                pending=None,
+                alternatives=[],
+                choices=[],
+            )
+        _conversations(session, user)
         st.divider()
         _model_selector(session)
+
+
+def _conversations(session: SessionState, user: User) -> None:
+    """Conversaciones de la persona (T-52), agrupadas por día, para retomarlas."""
+    ws = session.workspace
+    if ws is None:
+        return
+    try:
+        rows = ws.container.conversations.list_for(user.username)
+    except AgentError as exc:
+        st.error(md_escape(str(exc)))
+        if st.button("Reintentar", key="retry_list"):
+            st.rerun()
+        return
+    if not rows:
+        st.caption("Aún no tienes conversaciones.")
+        return
+    for day, group in group_by_day(rows):
+        st.caption(md_escape(day))
+        for row in group:
+            label = md_escape(f"{row.project_key} · {row.title}")
+            details = md_escape(f"{flow_label(row)} · {status_label(row)}")
+            if st.button(
+                f"{label}  \n{details}",
+                key=f"conv-{row.thread_id}",
+                width="stretch",
+                type="primary" if row.thread_id == session.current else "secondary",
+            ):
+                go(session, "iterar", current=row.thread_id, pending=None)
 
 
 def _model_selector(session: SessionState) -> None:
@@ -57,7 +87,7 @@ def _model_selector(session: SessionState) -> None:
     try:
         apply_model(session.router, choice)
     except ValueError as exc:
-        st.error(md_escape(str(exc)))
+        st.error(md_escape(message_for(exc)))
         return
     session.model_label = label
 

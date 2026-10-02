@@ -3,12 +3,14 @@
 import streamlit as st
 
 from adapters.errors import AgentError
+from app.conversation import message_for
 from app.flows import FlowId, default_flow, flow_by_id, flow_cards, shows_flows
-from app.origin import fix_origin
-from app.session import SessionState, composer_text, open_origin
+from app.origin import fix_origin, mode_of, plan_start, request_from_option
+from app.session import SessionState, composer_text, open_origin, show_notices
 from app.text import md_escape
 from app.views import elegir_jira
 from app.views.frame import simulation_notice
+from core.guided_start import GuidedStart, StartOption
 from core.permissions import can
 from core.projects import normalize_project_key
 
@@ -44,15 +46,69 @@ def render(session: SessionState) -> None:
     if cols[0].button("Elegir en Jira", key="pick_jira"):
         elegir_jira.open_dialog(session, flow)
     if cols[1].button("Continuar", type="primary", key="continue"):
-        try:
-            request = fix_origin(flow, project, text=text)
-        except ValueError as exc:
-            st.error(md_escape(str(exc)))
-        else:
-            open_origin(session, request)
+        _guided_start(session, flow, project, text)
+    show_notices(session)
+    _choices(session, flow)
 
     _recent(session, project, flow)
     simulation_notice(session)
+
+
+def _guided_start(session: SessionState, flow: FlowId, project: str, text: str) -> None:
+    """Arranque guiado sin IA (T-53): claves que existen en Jira o HU parecidas por texto."""
+    ws, user = session.workspace, session.user
+    if ws is None or user is None:
+        return
+    try:
+        proposal = GuidedStart(ws.container).propose(text, project, mode_of(flow))
+    except (AgentError, ValueError) as exc:
+        st.error(md_escape(message_for(exc)))
+        return
+    plan = plan_start(flow, proposal, project)
+    session.notices = list(plan.notices)
+    if proposal.project_changed:  # PA-47: se recuerda como último proyecto usado
+        try:
+            session.project = ws.container.projects.choose(user.username, proposal.project)
+        except (AgentError, ValueError) as exc:
+            st.error(md_escape(message_for(exc)))
+            return
+    if plan.error:
+        show_notices(session)
+        st.error(md_escape(plan.error))
+        session.choices = []
+        return
+    if plan.chosen is None:  # sin clave: la persona elige entre las HU parecidas
+        session.choices = plan.alternatives
+        st.rerun()
+    try:
+        request = request_from_option(flow, plan.chosen, text)
+    except ValueError as exc:
+        st.error(md_escape(message_for(exc)))
+        return
+    open_origin(session, request, plan.alternatives)
+
+
+def _choices(session: SessionState, flow: FlowId) -> None:
+    """HU parecidas cuando el flujo necesita una clave y no se ha escrito (sin IA)."""
+    if not session.choices:
+        return
+    st.caption(
+        "Búsqueda en Jira por texto · sin IA. No he encontrado una clave; ¿es alguna de estas?"
+    )
+    for option in session.choices:
+        _choice_button(session, flow, option)
+
+
+def _choice_button(session: SessionState, flow: FlowId, option: StartOption) -> None:
+    issue = option.issue
+    label = f"{option.label} · {issue.summary[:60]}" if issue else option.label
+    if st.button(md_escape(label), key=f"choice-{option.kind}-{option.origin.get('key', '')}"):
+        try:
+            request = request_from_option(flow, option, composer_text())
+        except ValueError as exc:
+            st.error(md_escape(message_for(exc)))
+            return
+        open_origin(session, request)
 
 
 def _flow_cards(session: SessionState) -> FlowId | None:
@@ -99,14 +155,14 @@ def _project_selector(session: SessionState) -> str | None:
         "Proyecto de Jira",
         keys,
         index=index,
-        format_func=lambda key: f"{key} · {names[key]}",
+        format_func=lambda key: md_escape(f"{key} · {names[key]}"),
         key="project_select",
     )
     if selected != session.project:
         try:
             session.project = ws.container.projects.choose(user.username, selected)
         except (AgentError, ValueError) as exc:
-            st.error(md_escape(str(exc)))
+            st.error(md_escape(message_for(exc)))
             return None
     return session.project
 
@@ -145,7 +201,7 @@ def _recent(session: SessionState, project: str, flow: FlowId) -> None:
                     text=composer_text(),  # la necesidad escrita no se pierde (B3)
                 )
             except ValueError as exc:
-                st.error(md_escape(str(exc)))
+                st.error(md_escape(message_for(exc)))
             else:
                 open_origin(session, request)
 

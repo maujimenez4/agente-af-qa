@@ -6,6 +6,7 @@ Solo lectura: `list_projects`, `list_epics`, `list_children` y `get_issue` para 
 import streamlit as st
 
 from adapters.errors import AgentError
+from app.conversation import message_for
 from app.flows import FlowId
 from app.origin import fix_origin
 from app.session import SessionState, composer_text, open_origin
@@ -91,7 +92,7 @@ def _by_key(session: SessionState, flow: FlowId, typed: str) -> None:
         key = normalize_issue_key(typed)
         issue = ws.container.issue_tracker.get_issue(key)
     except (AgentError, ValueError) as exc:
-        st.error(md_escape(str(exc)))
+        st.error(md_escape(message_for(exc)))
         return
     st.markdown(f"**{md_escape(issue.key)}** · {md_escape(issue.summary)}")
     st.caption(md_escape(f"{issue.issue_type} · {issue.status}"))
@@ -110,8 +111,13 @@ def _use(session: SessionState, flow: FlowId, key: str, kind: str) -> None:
             text=composer_text(),  # la necesidad escrita no se pierde (B3)
         )
     except ValueError as exc:
-        st.error(md_escape(str(exc)))
+        st.error(md_escape(message_for(exc)))
         return
+    if session.project and request.project != session.project:  # T-50: una clave de otro proyecto
+        session.notices.append(
+            f"{key} es del proyecto {request.project}: la conversación pasa de "
+            f"{session.project} a {request.project}."
+        )
     open_origin(session, request)
 
 

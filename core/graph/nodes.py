@@ -773,5 +773,11 @@ def _diff_comment_md(impact: ImpactAnalysis | None) -> str:
         "|---|---|---|",
     ]
     for diff in impact.diffs if impact else []:
-        lines.append(f"| {diff.field} | {diff.before or '—'} | {diff.after or '—'} |")
+        cells = (diff.field, diff.before or "—", diff.after or "—")
+        lines.append("| " + " | ".join(_table_cell(c) for c in cells) + " |")
     return "\n".join(lines)
+
+
+def _table_cell(value: str) -> str:
+    """PA-201: un valor de la tabla del diff no añade columnas ni parte la fila."""
+    return " ".join(value.split()).replace("|", "\\|")

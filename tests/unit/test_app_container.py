@@ -24,11 +24,11 @@ def test_pending_test_management_does_not_pretend_there_are_no_cases() -> None:
         factories.PendingTestManagement().list_cases("DEMO-3")
 
 
-def test_build_app_container_refuses_live_mode_until_t30_and_t33() -> None:
-    """En `live`, una HU se publicaría sin memoria: se falla al componer."""
+def test_build_app_container_refuses_live_mode_until_writes_are_validated() -> None:
+    """`live` queda bloqueado hasta validar la escritura real en el sandbox de Jira."""
     settings = Settings(_env_file=None, jira_publish_mode="live")  # type: ignore[call-arg]
     config = AppConfig(settings, load_models_config(MODELS_FIXTURE))
-    with pytest.raises(ConfigError, match="T-30"):
+    with pytest.raises(ConfigError, match="sandbox"):
         factories.build_app_container(config)
 
 
@@ -62,6 +62,7 @@ def test_build_app_container_composes_real_adapters_and_persistence(
         "build_state_store",
         "build_last_projects",
         "build_conversations",
+        "build_test_management",
     ):
         monkeypatch.setattr(factories, name, fake(name))
     monkeypatch.setattr("core.container.bootstrap_logging", lambda _config: None)
@@ -73,7 +74,7 @@ def test_build_app_container_composes_real_adapters_and_persistence(
     assert isinstance(container, Container)
     assert set(built) >= {"build_audit", "build_versions", "build_state_store"}
     assert built["build_llm_provider"] == {"router": router}
-    assert isinstance(container.test_management, factories.PendingTestManagement)
+    assert "build_test_management" in built  # T-30: casos de prueba reales
     # T-33: la memoria real, con el mismo LLM (y router) que el resto del contenedor.
     assert isinstance(container.memory_generator, LLMMemoryGenerator)
     assert container.memory_generator._llm is container.llm
@@ -86,3 +87,25 @@ def test_build_app_container_composes_real_adapters_and_persistence(
 def _config() -> Any:
     settings = Settings(_env_file=None, jira_publish_mode="simulation")  # type: ignore[call-arg]
     return AppConfig(settings, load_models_config(MODELS_FIXTURE))
+
+
+def test_build_test_management_requires_jira_variables() -> None:
+    from adapters.errors import AuthenticationError
+
+    with pytest.raises(AuthenticationError, match="JIRA_BASE_URL"):
+        factories.build_test_management(Settings(_env_file=None))  # type: ignore[call-arg]
+
+
+def test_build_test_management_uses_configured_subtask_type() -> None:
+    """T-30: `JiraNativeTests` con las credenciales y el tipo de subtarea del `.env`."""
+    from adapters.testmgmt.jira_native import JiraNativeTests
+
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        jira_base_url="https://sitio-ficticio.atlassian.net",
+        jira_email="persona@ejemplo.invalid",
+        jira_api_token="token-ficticio-1234",
+        jira_test_subtask_type="Subtarea de prueba",
+    )
+    management = factories.build_test_management(settings)
+    assert isinstance(management, JiraNativeTests)

@@ -108,14 +108,6 @@ def _finding(**update: Any) -> QualityFinding:
 # --- QUALITY-1 · Tipo de la incidencia revisada ---------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-222): "
-        "review() no comprueba issue_type; revisa épicas, subtareas y tareas como "
-        "si fueran HU, mientras T-53 las excluye con NOT_STORIES (core/quality.py:82)"
-    ),
-)
 @pytest.mark.parametrize(
     ("key", "issue_type"),
     [("DEMO-1", "Epic"), ("DEMO-40", "Subtarea"), ("DEMO-41", "Sub-task"), ("DEMO-42", "Task")],
@@ -159,13 +151,6 @@ def _report_mentioning_invented_id(field_name: str) -> QualityReport:
     return _origin_cited(findings=[_finding(**{field_name: text})])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-222): report_errors solo valida target_id; un ID inventado (CA-99) en "
-        "explanation, proposal, summary u open_questions no se detecta (core/quality.py:171-173)"
-    ),
-)
 @pytest.mark.parametrize("field_name", ["explanation", "proposal", "summary", "open_questions"])
 def test_report_errors_flags_invented_id_in_free_text(field_name: str) -> None:
     """RF-18 (negativa): «hallazgos solo sobre IDs de la HU»; un CA/RN inexistente citado en
@@ -182,14 +167,6 @@ def test_report_errors_accepts_existing_id_in_free_text() -> None:
     assert report_errors(report, dataset.renewal_story(), _sources()) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-222): "
-        "un ID inventado en proposal llega a evolve_feedback() y de ahí al grafo "
-        "como feedback de la evolución (core/quality.py:58-64, 171-173)"
-    ),
-)
 def test_evolve_feedback_never_carries_invented_id(tmp_path: Path) -> None:
     """RF-18 · RF-20 (negativa): el feedback de «Evolucionar con esto» no lleva IDs que no
     existen en la HU; o se corrige con el reintento o el flujo falla con QualityReviewError."""

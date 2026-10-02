@@ -163,14 +163,6 @@ POLICY_TEXTS = [
 ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-218): "
-        "_SECRET toma por secreto texto de negocio «contraseña:/clave:/password =» "
-        "seguido de una palabra de 6+ letras (core/memory/generator.py:46)"
-    ),
-)
 @pytest.mark.parametrize("rule", POLICY_TEXTS)
 def test_policy_text_is_not_a_secret_when_value_is_prose(rule: str) -> None:
     """RF-36 · Principio 2: una regla de política de contraseñas no es un secreto."""
@@ -179,13 +171,6 @@ def test_policy_text_is_not_a_secret_when_value_is_prose(rule: str) -> None:
     assert _errors(_password_memory(rule), artifact) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-218): una HU legítima de política de contraseñas acaba en "
-        "MemorySynthesisError por el falso positivo de _SECRET (core/memory/generator.py:46)"
-    ),
-)
 def test_generate_succeeds_when_story_is_about_password_policy() -> None:
     """RF-36: la memoria de una HU de contraseñas se genera a la primera, sin reintento."""
     llm = _llm(_password_memory("RN-01: La contraseña: mínimo ocho caracteres."))
@@ -276,14 +261,6 @@ def _suite_memory(**update: Any) -> Memory:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-219): "
-        "TRACE_ID solo reconoce CA y RN; un CP inventado (CP-99) en la memoria de "
-        "una TestSuite no se detecta (core/memory/generator.py:36)"
-    ),
-)
 def test_invented_case_id_triggers_retry_when_suite_memory() -> None:
     """Principio 4 · RNF-25 (negativo): un CP que no está en la suite provoca reintento."""
     bad = _suite_memory(decisions=["CP-99 cubre la renovación por correo (inventado)."])
@@ -305,12 +282,13 @@ def test_existing_case_id_is_accepted_when_suite_memory() -> None:
     assert len(llm.calls) == 1
 
 
-def test_suite_facts_do_not_include_case_ids() -> None:
-    """RNF-25 (comportamiento fijado): los hechos de una suite solo traen CA y RN."""
-    facts = artifact_facts(_artifact(renewal_test_suite()))
+def test_suite_facts_include_case_ids() -> None:
+    """RNF-25 · PA-219: los hechos de una suite traen sus CA, sus RN y también sus CP."""
+    suite = renewal_test_suite()
+    facts = artifact_facts(_artifact(suite))
 
-    assert facts.ids == ("CA-01", "CA-02", "RN-01", "RN-02")
-    assert not any(i.startswith("CP-") for i in facts.ids)
+    assert facts.cases == tuple(c.internal_id for c in suite.cases)
+    assert facts.ids == ("CA-01", "CA-02", "RN-01", "RN-02", *facts.cases)
 
 
 # --- 4 · formato de los IDs -----------------------------------------------------------------
@@ -512,3 +490,29 @@ def test_generator_does_not_check_status(status: ArtifactStatus) -> None:
 
     assert memory.jira_key == "DEMO-3"
     assert len(llm.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "RN-01: contraseña: Sup3rClaveFicticia",
+        "RN-01: clave=valor_ficticio",
+        "RN-01: secret: a1b2c3d4",
+        "RN-01: contraseña: CorrectoCaballoBateria",  # frase de paso solo de letras
+        "RN-01: password: Ficticiopassword",  # 16 letras
+        "RN-01: api_key: abcdefghijklmnopqrstuvwxyzABCDEF",
+    ],
+)
+def test_value_with_digits_or_symbols_is_still_a_secret(rule: str) -> None:
+    """PA-218 (negativo): un valor que parece un secreto (dígitos, símbolos, mayúscula en medio
+    o 16 letras o más) tras «contraseña:» sigue rechazándose."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(rule), artifact) == [
+        "«business_rules» parece contener un secreto"
+    ]
+
+
+def test_policy_word_followed_by_period_is_not_a_secret() -> None:
+    """PA-218 (límite): una palabra con punto final («obligatoria.») no es un secreto."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory("RN-01: La contraseña: obligatoria."), artifact) == []

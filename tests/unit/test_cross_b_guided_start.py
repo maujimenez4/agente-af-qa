@@ -107,14 +107,6 @@ def test_four_nonexistent_candidates_keep_real_key(container: Container) -> None
 # --- GUIDED-2 · `excluded` de la vista previa frente al grafo ------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-223): preview_sources pasa `excluded` sin normalize_excluded_sources; "
-        "« DEMO-4» con espacios no excluye DEMO-4 y la vista previa diverge del grafo "
-        "(core/guided_start.py:131-133 frente a core/graph/state.py:37-50)"
-    ),
-)
 def test_preview_excluded_with_spaces_matches_graph(container: Container) -> None:
     """RF-21 (T-51, T-53): la vista previa da las mismas fuentes que `retrieve_context` con la
     misma exclusión, también si la referencia llega con espacios."""
@@ -125,15 +117,11 @@ def test_preview_excluded_with_spaces_matches_graph(container: Container) -> Non
     assert "DEMO-4" not in _refs(container, STORY, [" DEMO-4 "])
 
 
-def test_preview_excluding_origin_is_silently_ignored_while_graph_rejects(
-    container: Container,
-) -> None:
-    """RF-21 (T-51) · comportamiento fijado: excluir el origen en la vista previa se ignora en
-    silencio (el origen sigue como `required`), mientras `initial_state` lanza ValueError. La
-    API valida antes con `excluded_for`; la vista de Streamlit no."""
-    rows = GuidedStart(container).preview_sources(STORY, ["DEMO-3"])
-
-    assert next(r for r in rows if r.ref == "DEMO-3").required is True
+def test_preview_rejects_excluding_origin_like_graph(container: Container) -> None:
+    """RF-21 (T-51) · PA-223: excluir el origen da ValueError en la vista previa, igual que en
+    `initial_state` (antes se ignoraba en silencio)."""
+    with pytest.raises(ValueError, match="no se puede excluir"):
+        GuidedStart(container).preview_sources(STORY, ["DEMO-3"])
     with pytest.raises(ValueError, match="no se puede excluir"):
         initial_state(AF_USER, "functional", STORY, excluded_sources=["DEMO-3"])
 
@@ -143,14 +131,13 @@ def test_preview_excluding_origin_is_silently_ignored_while_graph_rejects(
     [[f"DOC-FICT-{n:03d}" for n in range(51)], ["texto libre con espacios"], ["x" * 101]],
     ids=["51", "texto_libre", "demasiado_larga"],
 )
-def test_preview_accepts_excluded_that_graph_rejects(
+def test_preview_rejects_excluded_that_graph_rejects(
     container: Container, excluded: list[str]
 ) -> None:
-    """RF-21 (T-51) · comportamiento fijado: la vista previa no valida `excluded` (límite de
-    50, texto libre, longitud) y devuelve filas; el grafo rechaza lo mismo con ValueError."""
-    rows = GuidedStart(container).preview_sources(STORY, excluded)
-
-    assert rows and rows[0].ref == "DEMO-3"
+    """RF-21 (T-51) · PA-223: la vista previa valida `excluded` como el grafo (límite de 50,
+    texto libre, longitud), antes de leer Jira."""
+    with pytest.raises(ValueError):
+        GuidedStart(container).preview_sources(STORY, excluded)
     with pytest.raises(ValueError):
         initial_state(AF_USER, "functional", STORY, excluded_sources=excluded)
 
@@ -234,14 +221,6 @@ def test_similar_stories_keep_bug_type(tmp_path: Path) -> None:
 # --- GUIDED-5 · «Épica» en Unicode NFD -----------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-223): "
-        "el tipo se compara sin normalizar Unicode; «Épica» en NFD no se reconoce "
-        "como épica y ofrece «Evolucionar» (core/guided_start.py:185-187)"
-    ),
-)
 def test_nfd_epic_type_offers_new_story_in_epic(container: Container) -> None:
     """RF-19 (T-53): «Épica» en forma NFD (E + acento combinante) se trata como épica."""
     assert NFD_EPIC != "Épica" and unicodedata.normalize("NFC", NFD_EPIC) == "Épica"
@@ -252,14 +231,6 @@ def test_nfd_epic_type_offers_new_story_in_epic(container: Container) -> None:
     assert [o.kind for o in proposal.options] == ["new_story_in_epic"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-223): "
-        "NOT_STORIES se compara sin normalizar Unicode; una «Épica» en NFD sale "
-        "como HU parecida (core/context/service.py:142)"
-    ),
-)
 def test_nfd_epic_type_not_in_similar_stories(tmp_path: Path) -> None:
     """RF-14 (T-53): una épica con el tipo en NFD no se propone como «HU parecida»."""
     epic = _summary(_issue("DEMO-33", NFD_EPIC, "Épica ficticia de renovar un préstamo"))

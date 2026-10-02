@@ -394,14 +394,6 @@ def test_non_database_error_is_not_wrapped() -> None:
 # --- 5 · vector de consulta no finito -------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-221): "
-        "search no valida NaN/inf en el vector de consulta (upsert sí) y lo envía "
-        "a la BD como literal (adapters/vectorstore/pgvector.py:219-225)"
-    ),
-)
 @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
 def test_search_rejects_non_finite_query_vector(bad: float) -> None:
     """RF-11 (negativo): un vector de consulta con NaN o inf → ValueError sin consultar."""
@@ -411,15 +403,6 @@ def test_search_rejects_non_finite_query_vector(bad: float) -> None:
         _store(engine).search([0.1, bad, 0.3], "x", 2)
 
     assert engine.begins == 0
-
-
-def test_search_sends_nan_literal_currently() -> None:
-    """RF-11 (comportamiento observado que motiva el defecto): «nan» llega al SQL."""
-    engine = FakeEngine()
-
-    _store(engine).search([0.1, math.nan, 0.3], "x", 2)
-
-    assert engine.statements("websearch_to_tsquery")[0]["query_vector"] == "[0.1,nan,0.3]"
 
 
 # --- 6 · memory_boost y rrf_k no positivos --------------------------------------------------
@@ -453,15 +436,6 @@ def test_constructor_accepts_invalid_rrf_k_and_factor(rrf_k: int, factor: int) -
 # --- 7 · categorías distintas en un mismo documento ----------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-221): "
-        "con categorías distintas en un documento gana la del primer fragmento en "
-        "documents.category y cada fragmento guarda la suya; filtros y boost discrepan "
-        "(adapters/vectorstore/pgvector.py:178-185)"
-    ),
-)
 def test_upsert_rejects_mixed_categories_in_one_document() -> None:
     """RF-10 · RF-51 (negativo): un documento con dos categorías → ValueError sin escribir."""
     engine = FakeEngine()
@@ -474,24 +448,6 @@ def test_upsert_rejects_mixed_categories_in_one_document() -> None:
         _store(engine).upsert(chunks)
 
     assert engine.executed == []
-
-
-def test_mixed_categories_currently_first_wins_silently() -> None:
-    """RF-10 (comportamiento observado que motiva el defecto)."""
-    engine = FakeEngine()
-    chunks = [
-        _chunk("doc-a#0", ordinal=0, metadata={"category": "normativa"}),
-        _chunk("doc-a#1", ordinal=1, metadata={"category": "memoria"}),
-    ]
-
-    _store(engine).upsert(chunks)
-
-    (doc,) = engine.statements("INSERT INTO documents")
-    stored = [
-        json.loads(p["metadata"])["category"] for p in engine.statements("INSERT INTO chunks")
-    ]
-    assert doc["category"] == "normativa"
-    assert stored == ["normativa", "memoria"]
 
 
 def test_document_fields_come_from_first_chunk_only() -> None:
@@ -666,26 +622,74 @@ def test_negative_rrf_k_fails_as_rejected_operation(real_store: PgVectorStore) -
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-34 (PA-221): un fragmento con metadata category=memoria dentro de un documento "
-        "«normativa» no recibe el boost ni kind=memory (adapters/vectorstore/pgvector.py:178-185)"
-    ),
-)
-def test_mixed_category_chunk_filtered_as_memory_is_reported_as_memory(
+def test_mixed_category_document_is_rejected_without_writing(
     real_store: PgVectorStore,
 ) -> None:
-    """RF-51: lo que el filtro trata como memoria debe devolverse como fuente `memory`."""
-    real_store.upsert(
-        [
-            _real_chunk(real_store, "doc-mixto#0", 0, "normativa"),
-            _real_chunk(real_store, "doc-mixto#1", 1, "memoria"),
-        ]
+    """RF-51 · PA-221: un documento con fragmentos de categorías distintas se rechaza antes de
+    escribir, así que el filtro y la prioridad de la memoria no pueden discrepar."""
+    with pytest.raises(ValueError, match="mezcla categorías"):
+        real_store.upsert(
+            [
+                _real_chunk(real_store, "doc-mixto#0", 0, "normativa"),
+                _real_chunk(real_store, "doc-mixto#1", 1, "memoria"),
+            ]
+        )
+
+    assert (
+        real_store.search(
+            [0.1] * real_store.dimensions, "renovación", 5, filters={"category": "memoria"}
+        )
+        == []
     )
 
-    (result,) = real_store.search(
-        [0.1] * real_store.dimensions, "renovación", 1, filters={"category": "memoria"}
-    )
 
-    assert result.source.kind == "memory"
+# --- PA-216 · replace_document: borrar e insertar en una sola transacción -------------------
+
+
+def test_replace_document_deletes_and_upserts_in_one_transaction() -> None:
+    """PA-216: un solo `begin()`: primero el borrado del documento y después sus fragmentos."""
+    engine = FakeEngine()
+    _store(engine).replace_document("doc-a", [_chunk(), _chunk("doc-a#1", ordinal=1)])
+    assert engine.begins == 1
+    kinds = [sql.split()[0].upper() for sql, _ in engine.executed]
+    assert kinds[0] == "DELETE" and len(kinds) == 4  # borrado, documento y 2 fragmentos
+    assert engine.executed[0][1] == {"id": to_uuid("doc-a")}
+
+
+def test_replace_document_with_no_chunks_only_deletes() -> None:
+    """PA-216: un documento que se queda sin fragmentos se borra, sin insertar nada."""
+    engine = FakeEngine()
+    _store(engine).replace_document("doc-a", [])
+    assert engine.begins == 1 and len(engine.executed) == 1
+
+
+def test_replace_document_validates_before_opening_a_transaction() -> None:
+    """PA-216: un fragmento inválido o de otro documento no abre conexión ni borra nada."""
+    engine = FakeEngine()
+    with pytest.raises(ValueError):
+        _store(engine).replace_document("doc-a", [_chunk("doc-b#0", "doc-b")])
+    bad = _chunk().model_copy(update={"embedding": [float("nan"), 0.5, 1.0]})
+    with pytest.raises(ValueError):
+        _store(engine).replace_document("doc-a", [bad])
+    assert engine.begins == 0 and engine.executed == []
+
+
+def test_replace_document_maps_db_errors_without_url() -> None:
+    """PA-216: un fallo dentro de la transacción sale como ExternalServiceError sin la URL."""
+    engine = FakeEngine(error=sa.exc.DBAPIError("INSERT", {}, Exception(SECRET_URL)))
+    with pytest.raises(ExternalServiceError) as info:
+        _store(engine).replace_document("doc-a", [_chunk()])
+    assert SECRET_URL not in str(info.value)
+
+
+def test_replace_document_rejects_mixed_categories_without_opening_a_transaction() -> None:
+    """PA-221 · PA-216: el camino del indexador también rechaza categorías mezcladas, sin borrar
+    los fragmentos que ya había."""
+    engine = FakeEngine()
+    chunks = [
+        _chunk("doc-a#0", metadata={"category": "normativa"}),
+        _chunk("doc-a#1", ordinal=1, metadata={"category": "memoria"}),
+    ]
+    with pytest.raises(ValueError, match="mezcla categorías"):
+        _store(engine).replace_document("doc-a", chunks)
+    assert engine.begins == 0 and engine.executed == []

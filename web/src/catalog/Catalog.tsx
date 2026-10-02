@@ -1,3 +1,4 @@
+import { Icon, ICON_NAMES } from '../components/Icon/index.ts'
 import styles from './Catalog.module.css'
 import { COLOR_GROUPS, TYPE_SCALE } from './catalogTokens.ts'
 
@@ -46,6 +47,26 @@ export function Catalog() {
               <span style={{ fontSize: `var(${step.token})`, fontWeight: `var(${step.weight})` }}>{step.sample}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className={styles.section} aria-labelledby="iconos">
+        <h2 id="iconos" className={styles.sectionTitle}>
+          Iconos
+        </h2>
+        <ul className={styles.icons}>
+          {ICON_NAMES.map((name) => (
+            <li key={name} className={styles.iconCard}>
+              <Icon name={name} size={32} />
+              <span className={styles.muted}>{name}</span>
+            </li>
+          ))}
+        </ul>
+        <h3 className={styles.groupTitle}>Sobre navy: reposo, hover y zona activa</h3>
+        <div className={styles.navySample}>
+          <Icon name="work" size={24} className={styles.onNavy} />
+          <Icon name="history" size={24} className={styles.onNavyHover} />
+          <Icon name="settings" size={24} className={styles.onNavyActive} />
         </div>
       </section>
     </main>

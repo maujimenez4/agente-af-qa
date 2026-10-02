@@ -81,6 +81,46 @@
   border-bottom: var(--border-width) solid var(--color-border-soft);
 }
 
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.iconCard {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q);
+  font-size: var(--text-2xs);
+}
+
+.navySample {
+  display: flex;
+  gap: var(--space-6);
+  width: fit-content;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--color-navy);
+}
+
+.onNavy {
+  color: var(--color-on-navy);
+}
+
+.onNavyHover {
+  color: var(--color-surface);
+}
+
+.onNavyActive {
+  color: var(--color-primary);
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

@@ -10,6 +10,7 @@ import {
   type Phase,
   type StepEvent,
 } from '../components/QMark/index.ts'
+import { DemoButton } from './DemoButton.tsx'
 import styles from './Catalog.module.css'
 
 const PHASES: Phase[] = [1, 2, 3, 4]
@@ -58,9 +59,7 @@ function LoadingDemo() {
         <span className={styles.muted}>
           {reviewReady ? 'review_ready' : last ? `progress: ${last.node} → ${last.state}` : 'Sin eventos'}
         </span>
-        <button
-          type="button"
-          className={styles.demoButton}
+        <DemoButton
           onClick={() => {
             setEvents([])
             setReviewReady(false)
@@ -68,7 +67,7 @@ function LoadingDemo() {
           }}
         >
           Simular generación
-        </button>
+        </DemoButton>
       </div>
     </div>
   )
@@ -85,16 +84,14 @@ function TypingDemo() {
         <TypewriterText key={round} text={REPLY} onDone={() => setTyping(false)} />
       </p>
       <div>
-        <button
-          type="button"
-          className={styles.demoButton}
+        <DemoButton
           onClick={() => {
             setTyping(true)
             setRound((current) => current + 1)
           }}
         >
           Volver a escribir
-        </button>
+        </DemoButton>
       </div>
     </div>
   )
@@ -124,15 +121,13 @@ export function QDemo() {
         <PhaseQ phase={phase} />
         <div className={styles.row} role="group" aria-label="Elegir fase">
           {PHASES.map((value) => (
-            <button
+            <DemoButton
               key={value}
-              type="button"
-              className={styles.demoButton}
-              aria-pressed={phase === value}
+              pressed={phase === value}
               onClick={() => setPhase(value)}
             >
               Fase {value}
-            </button>
+            </DemoButton>
           ))}
         </div>
       </div>

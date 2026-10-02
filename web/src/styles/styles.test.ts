@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COLOR_GROUPS } from '../catalog/catalogTokens.ts'
+import { COLOR_GROUPS, LAYOUT, RADII, SPACES } from '../catalog/catalogTokens.ts'
 import baseCss from './base.css?raw'
 import tokensCss from './tokens.css?raw'
 
@@ -76,6 +76,26 @@ describe('catálogo de colores', () => {
     const shown = new Set(catalogColors.map((color) => color.token))
     const defined = [...tokens.keys()].filter((name) => name.startsWith('--color-'))
     expect(defined.filter((name) => !shown.has(name))).toEqual([])
+  })
+})
+
+describe('catálogo de forma y medidas', () => {
+  it('muestra cada radio con su valor de tokens.css', () => {
+    for (const radius of RADII) expect(tokens.get(radius.token), radius.token).toBe(radius.value)
+  })
+
+  it('incluye todos los radios definidos', () => {
+    const shown = new Set(RADII.map((radius) => radius.token))
+    const defined = [...tokens.keys()].filter((name) => name.startsWith('--radius-'))
+    expect(defined.filter((name) => !shown.has(name))).toEqual([])
+  })
+
+  it('muestra cada medida de layout con su valor', () => {
+    for (const item of LAYOUT) expect(tokens.get(item.token), item.token).toBe(item.value)
+  })
+
+  it('muestra toda la escala de espaciado', () => {
+    expect(SPACES).toEqual([...tokens.keys()].filter((name) => name.startsWith('--space-')))
   })
 })
 

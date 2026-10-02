@@ -66,6 +66,37 @@ export const COLOR_GROUPS: ReadonlyArray<{ title: string; colors: readonly Color
   },
 ]
 
+export const RADII: ReadonlyArray<{ token: string; value: string; use: string }> = [
+  { token: '--radius-xs', value: '4px', use: 'Barras de progreso y diff' },
+  { token: '--radius-sm', value: '6px', use: 'Badges, citas y botón de 28 px' },
+  { token: '--radius-md', value: '8px', use: 'Inputs y botón solo icono' },
+  { token: '--radius-btn', value: '10px', use: 'Botones (decisión 4)' },
+  { token: '--radius-lg', value: '12px', use: 'Carril y avisos' },
+  { token: '--radius-xl', value: '16px', use: 'Tarjetas, compositor y modal' },
+  { token: '--radius-pill', value: '999px', use: 'Chips' },
+  { token: '--radius-q', value: '16px 16px 4px 16px', use: 'Geometría Q: burbujas e iconos' },
+  { token: '--radius-q-card', value: '14px 14px 4px 14px', use: 'Tarjeta de flujo' },
+  { token: '--radius-q-md', value: '12px 12px 4px 12px', use: 'Avatar y tarjetas del chat' },
+  { token: '--radius-q-sm', value: '9px 9px 3px 9px', use: 'Avatar pequeño del asistente' },
+]
+
+export const SPACES: readonly string[] = ['--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-7']
+
+export const LAYOUT: ReadonlyArray<{ token: string; value: string; use: string }> = [
+  { token: '--rail-width', value: '88px', use: 'Carril' },
+  { token: '--conversations-width', value: '248px', use: 'Lista de conversaciones' },
+  { token: '--header-height', value: '64px', use: 'Cabecera' },
+  { token: '--panel-sm', value: '420px', use: 'Panel «Antes de generar»' },
+  { token: '--panel-md', value: '480px', use: 'Panel de propuesta e informe' },
+  { token: '--panel-lg', value: '540px', use: 'Panel de la suite de QA' },
+  { token: '--chat-max', value: '640px', use: 'Columna del chat' },
+  { token: '--hero-max', value: '760px', use: 'Inicio' },
+  { token: '--control-lg', value: '44px', use: 'Botón y control grandes' },
+  { token: '--control-md', value: '36px', use: 'Botón y buscador medianos' },
+  { token: '--control-sm', value: '28px', use: 'Botón pequeño' },
+  { token: '--step-mark', value: '22px', use: 'Marca de paso (decisión 5)' },
+]
+
 export const TYPE_SCALE: ReadonlyArray<{ token: string; weight: string; sample: string }> = [
   { token: '--text-hero', weight: '--weight-bold', sample: '¿En qué trabajamos hoy?' },
   { token: '--text-xl', weight: '--weight-bold', sample: 'Versión 2 lista para revisar' },
@@ -76,4 +107,16 @@ export const TYPE_SCALE: ReadonlyArray<{ token: string; weight: string; sample: 
   { token: '--text-xs', weight: '--weight-regular', sample: 'Fase 2 de 4 · Generar' },
   { token: '--text-2xs', weight: '--weight-bold', sample: 'Cambiado en v2' },
   { token: '--text-3xs', weight: '--weight-bold', sample: 'DEMO' },
+]
+
+// Índice: el id es el del h2 de cada sección.
+export const CATALOG_SECTIONS: ReadonlyArray<{ id: string; title: string }> = [
+  { id: 'colores', title: 'Colores' },
+  { id: 'tipografia', title: 'Tipografía · DM Sans' },
+  { id: 'medidas', title: 'Forma y medidas' },
+  { id: 'iconos', title: 'Iconos' },
+  { id: 'q', title: 'La Q animada' },
+  { id: 'marco', title: 'Carril y lista de conversaciones' },
+  { id: 'componentes', title: 'Botones, chips, badges y tarjetas' },
+  { id: 'estados', title: 'Estados vacío, cargando y error' },
 ]

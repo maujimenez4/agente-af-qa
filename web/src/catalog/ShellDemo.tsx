@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { ConversationList, ConversationsToggle } from '../components/ConversationList/index.ts'
 import { Rail, type Role, type Zone } from '../components/Rail/index.ts'
 import { DEMO_CONVERSATIONS, DEMO_NOW } from '../fixtures/conversations.ts'
+import { DemoButton } from './DemoButton.tsx'
 import styles from './Catalog.module.css'
 
 const USERS: Record<Role, { username: string; usage: number; zone: Zone }> = {
@@ -27,30 +28,26 @@ export function ShellDemo() {
       </h2>
       <div className={styles.row} role="group" aria-label="Opciones de la demo">
         {(Object.keys(USERS) as Role[]).map((value) => (
-          <button
+          <DemoButton
             key={value}
-            type="button"
-            className={styles.demoButton}
-            aria-pressed={role === value}
+            pressed={role === value}
             onClick={() => {
               setRole(value)
               setZone(USERS[value].zone)
             }}
           >
             {USERS[value].username}
-          </button>
+          </DemoButton>
         ))}
-        <button
-          type="button"
-          className={styles.demoButton}
-          aria-pressed={withUsage}
+        <DemoButton
+          pressed={withUsage}
           onClick={() => setWithUsage(!withUsage)}
         >
           Con consumo de tokens
-        </button>
-        <button type="button" className={styles.demoButton} aria-pressed={empty} onClick={() => setEmpty(!empty)}>
+        </DemoButton>
+        <DemoButton pressed={empty} onClick={() => setEmpty(!empty)}>
           Sin conversaciones
-        </button>
+        </DemoButton>
       </div>
       <div className={styles.frame}>
         <Rail

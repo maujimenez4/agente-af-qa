@@ -6,6 +6,7 @@ import { Chip } from '../components/Chip/index.ts'
 import type { IconName } from '../components/Icon/index.ts'
 import type { Role } from '../components/Rail/index.ts'
 import styles from './Catalog.module.css'
+import { DemoButton } from './DemoButton.tsx'
 
 type FlowId = 'need' | 'evolve' | 'review' | 'tests'
 
@@ -48,18 +49,16 @@ function FlowCardsDemo() {
     <>
       <div className={styles.row} role="group" aria-label="Rol de la demo">
         {(['functional', 'qa'] as const).map((value) => (
-          <Button
+          <DemoButton
             key={value}
-            size="md"
-            variant={role === value ? 'primary' : 'secondary'}
-            aria-pressed={role === value}
+            pressed={role === value}
             onClick={() => {
               setRole(value)
               setPicked(value === 'qa' ? 'tests' : 'need')
             }}
           >
             {value === 'qa' ? 'qa-demo' : 'af-demo'}
-          </Button>
+          </DemoButton>
         ))}
       </div>
       <div className={styles.flows}>

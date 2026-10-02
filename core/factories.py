@@ -23,7 +23,7 @@ from adapters.jira.tracker import JiraCloudTracker
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
 from adapters.llm.router import ModelChoice, ModelRouter
-from adapters.llm.usage import UsageRecorder
+from adapters.llm.usage import SqlUsageRecorder, UsageRecorder
 from adapters.testmgmt.jira_native import JiraNativeTests
 from adapters.vectorstore.pgvector import PgVectorStore
 from core.artifact_state import SqlArtifactStateStore
@@ -75,6 +75,11 @@ def build_llm_provider(
         recorder,
         daily_token_warning=config.models.limits.daily_token_warning,
     )
+
+
+def build_usage_recorder(config: AppConfig) -> SqlUsageRecorder:
+    """Consumo de cada llamada al LLM en `llm_usage`, sobre la base de datos de `.env` (RF-43)."""
+    return SqlUsageRecorder.from_url(config.settings.sqlalchemy_url())
 
 
 def _jira_credentials(settings: Settings) -> tuple[str, SecretStr, SecretStr]:
@@ -224,7 +229,7 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
             "JIRA_PUBLISH_MODE=live está bloqueado hasta validar la escritura real en el "
             "sandbox de Jira; usa simulation."
         )
-    llm = build_llm_provider(config, router=router)
+    llm = build_llm_provider(config, build_usage_recorder(config), router=router)
     return build_container(
         config,
         issue_tracker=build_issue_tracker(config.settings),

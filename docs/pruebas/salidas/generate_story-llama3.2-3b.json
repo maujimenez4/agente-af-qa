@@ -1,0 +1,37 @@
+{
+  "modelo": "llama3.2:3b",
+  "carga_s": 79.8,
+  "resultado": "FALLO",
+  "error": "StructuredOutputError: El modelo llama3.2:3b de local no devolvió una respuesta válida para «UserStory» tras reintentarlo. Prueba de nuevo o elige otro modelo.",
+  "total_s": 334.2,
+  "llamadas": [
+    {
+      "tipo": "principal",
+      "status": 200,
+      "segundos": 177.8,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "tokens_entrada": 2242,
+      "tokens_salida": 692,
+      "tokens_por_segundo": 3.89,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{ \"title\": \"Como quiero reservar un ejemplar desde la web para recogerlo en el mostrador\", \"role\": \"Persona socia\", \"action\": \"Reservar un ejemplar\", \"benefit\": \"Recoger un ejemplar en el mostrador después de 48 horas sin recogida\", \"description\": \"Quiero poder reservar un ejemplar en la biblioteca municipal con facilidad desde mi computadora. Necesito saber cómo actúa el sistema de reservas, cómo se asignan los ejemplares y cómo se manifiesta la reserva cuando yo recojo la obra\", \"business_goal\": \"Recoger un ejemplar en el mostrador después de 48 horas sin recogida\",\"scope_includes\": [\"la persona que solicita la reserva\", \"el sistema de reservas\", \"el mostrador\", \"el almacén\",\"la biblioteca\"], \"scope_excludes\": [\"la persona que no tiene carné vigente\", \"las personas con sanción activa que impide reservar\"], \"acceptance_criteria\": [\n  {\n    \"id\": \"CA-01\",\n    \"title\": \"Persona socia debe tener carné vigente\",\n    \"given\": [\n      \"solicita una reserva\",\n    \"Es una persona socia\",\n    \"Tiene un carné vigente\",\n    \"No tiene sanción activa que impida reservar\"\n    ],\n    \"when\": [\n      \"En la fecha de la solicitud\"\n    ],\n    \"then\": [\n      \"La solicitud está admisible\"\n    ]\n  },\n  {\n    \"id\": \"CA-02\",\n    \"title\": \"Se asignan los ejemplares correctamente\",\n    \"given\": [\n      \"La reserva se asigna a la persona socia\",\n      \"El sistema se actualiza con el cambio de disponibilidad de los ejemplares\"\n    ],\n    \"when\": [\n      \"La reserva se finaliza\"\n    ],\n    \"then\": [\n      \"El ejemplar asignado a la persona socia es el adecuado\"\n    ]\n  },\n  {\n    \"id\": \"CA-03\",\n    \"title\": \"Se manifiesta la reserva cuando se recoge el libro\",\n    \"given\": [\n      \"La persona social recoge el libro en el mostrador\",\n      \"La reserva se ha convertido en préstamo\"\n    ],\n    \"when\": [\n      \"La persona social recoge el libro en el mostrador\"\n    ],\n    \"then\": [\n      \"La reserva se manifiesta en el sistema\"\n    ]\n  }\n], \"business_rules\": [\n  {\n    \"id\": \"RN-RES-01\",\n    \"description\": \"Está disponible un máximo de 3 reservas para cada persona\"\n  },\n  {\n    \"id\": \"RN-RES-02\",\n    \"description\": \"Hay espacio en el almacén para alojar las tres mejores obras en reserva\"\n  }\n], \"assumptions\": [], \"constraints\": [], \"dependencies\": [], \"alternate_flows\": [], \"exceptions\": [], \"related_features\": [], \"priority\": \"Must\", \"open_questions\": [\n  \"¿Cuál es el plazo exacto entre almacén y mostrador en días?\"\n  ]\n}"
+    },
+    {
+      "tipo": "reintento_esquema",
+      "status": 200,
+      "segundos": 156.4,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "tokens_entrada": 3005,
+      "tokens_salida": 704,
+      "tokens_por_segundo": 4.5,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\n  \"title\": \"Como quiero reservar un ejemplar desde la web para recogerlo en el mostrador\", \"role\": \"Persona socia\", \"action\": \"Reservar un ejemplar\", \"benefit\": \"Recoger un ejemplar en el mostrador después de 48 horas sin recogida\", \"description\": \"Quiero poder reservar un ejemplar en la biblioteca municipal con facilidad desde mi computadora. Necesito saber cómo actúa el sistema de reservas, cómo se asignan los ejemplares y cómo se manifiesta la reserva cuando yo recojo la obra\", \"business_goal\": \"Recoger un ejemplar en el mostrador después de 48 horas sin recogida\",\"scope_includes\": [\"la persona que solicita la reserva\", \"el sistema de reservas\", \"el mostrador\", \"el almacén\",\"la biblioteca\"], \"scope_excludes\": [\"la persona que no tiene carné vigente\", \"las personas con sanción activa que impida reservar\"], \"acceptance_criteria\": [\n  {\n    \"id\": \"CA-01\",\n    \"title\": \"Persona socia debe tener carné vigente\",\n    \"given\": [\n      \"solicita una reserva\",\n    \"Es una persona socia\",\n    \"Tiene un carné vigente\",\n    \"No tiene sanción activa que impida reservar\"\n    ],\n    \"when\": [\n      \"En la fecha de la solicitud\"\n    ],\n    \"then\": [\n      \"La solicitud está admisible\"\n    ]\n  },\n  {\n    \"id\": \"CA-02\",\n    \"title\": \"Se asignan los ejemplares correctamente\",\n    \"given\": [\n      \"La reserva se asigna a la persona socia\",\n      \"El sistema se actualiza con el cambio de disponibilidad de los ejemplares\"\n    ],\n    \"when\": [\n      \"La reserva se finaliza\"\n    ],\n    \"then\": [\n      \"El ejemplar asignado a la persona socia es el adecuado\"\n    ]\n  },\n  {\n    \"id\": \"CA-03\",\n    \"title\": \"Se manifiesta la reserva cuando se recoge el libro\",\n    \"given\": [\n      \"La persona social recoge el libro en el mostrador\",\n      \"La reserva se ha convertido en préstamo\"\n    ],\n    \"when\": [\n      \"La persona social recoge el libro en el mostrador\"\n    ],\n    \"then\": [\n      \"La reserva se manifiesta en el sistema\"\n    ]\n  }\n], \"business_rules\": [\n  {\n    \"id\": \"RN-RES-01\",\n    \"description\": \"Está disponible un máximo de 3 reservas para cada persona\"\n  },\n  {\n    \"id\": \"RN-RES-02\",\n    \"description\": \"Hay espacio en el almacén para alojar las tres mejores obras en reserva. Maximo 8 ejemplares para cada persona socias \"\n  }\n], \"assumptions\": [], \"constraints\": [], \"dependencies\": [], \"alternate_flows\": [], \"exceptions\": [], \"related_features\": [], \"priority\": \"Must\", \"open_questions\": [\n  \"¿Cuál es el tiempo máximo que debe permanecer el libro en el mostrador \"\n  ]\n}"
+    }
+  ],
+  "tokens_salida_total": 1396,
+  "tokens_por_segundo": 4.18
+}

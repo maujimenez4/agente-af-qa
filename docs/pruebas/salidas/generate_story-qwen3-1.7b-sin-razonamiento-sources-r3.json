@@ -1,0 +1,218 @@
+{
+  "modelo": "qwen3:1.7b",
+  "ronda": 3,
+  "sin_razonamiento": true,
+  "sources_obligatorio": true,
+  "carga_s": 16.5,
+  "resultado": "OK",
+  "titulo": "Historia de Usuario (HU) - Reservar un ejemplar desde la web para recogerlo en el mostrador",
+  "num_ca": 4,
+  "num_rn": 10,
+  "fuentes": [
+    "DOC-02",
+    "DOC-06",
+    "DOC-01",
+    "DOC-20"
+  ],
+  "historia": {
+    "internal_id": null,
+    "jira_key": null,
+    "title": "Historia de Usuario (HU) - Reservar un ejemplar desde la web para recogerlo en el mostrador",
+    "role": "Persona socia de la Biblioteca Municipal de Villaficticia",
+    "action": "Reservar un ejemplar desde la web para recogerlo en el mostrador",
+    "benefit": "Acceder a la reserva de un ejemplar de título y sede de recogida, con la garantía de que se recoge dentro de los 48 horas, y evitar sanciones por no recoger el ejemplar dentro del plazo establecido.",
+    "description": "Un socio de la biblioteca quiere reservar un ejemplar desde la web para recogerlo en el mostrador. El proceso debe incluir la solicitud, validación de la reserva, gestión del estado de la reserva y notificación cuando se recoge o caduca.",
+    "business_goal": "Facilitar el acceso a la reserva de ejemplares para personas socias, garantizando que se recoge dentro del plazo establecido y evitando sanciones por no recoger el ejemplar dentro de los 48 horas.",
+    "scope_includes": [
+      "Solicitud de reserva desde la web",
+      "Validación de la reserva en base a reglas de negocio y políticas",
+      "Cálculo del estado de la reserva (pendiente, disponible, recogida, caducada, cancelada)",
+      "Notificación de recogida o caducación"
+    ],
+    "scope_excludes": [
+      "Renovaciones de préstamos que no estén relacionadas con reservas",
+      "Reservas en otros títulos o categorías no contempladas",
+      "Servicios externos o pagos de acceso"
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "CA-01",
+        "title": "Solicitud de reserva",
+        "given": [
+          "La persona socia accede a la web y selecciona el título y sede de recogida.",
+          "La reserva se solicita con el nombre completo y el código de carné vigente."
+        ],
+        "when": [
+          "La persona socia accede a la web y selecciona el título y sede de recogida.",
+          "La reserva se solicita con el nombre completo y el código de carné vigente."
+        ],
+        "then": [
+          "La reserva se registrará en el sistema y se mostrará en la cola de reservas."
+        ]
+      },
+      {
+        "id": "CA-02",
+        "title": "Validación de la reserva",
+        "given": [
+          "La reserva tiene estado 'pendiente' y el título y sede de recogida están disponibles.",
+          "La persona socia ya tiene 3 reservas activas."
+        ],
+        "when": [
+          "La reserva es registrada y se muestra en la cola de reservas.",
+          "La persona socia tiene 3 reservas activas."
+        ],
+        "then": [
+          "La reserva se procesa y se bloquea durante 48 horas para la persona socia."
+        ]
+      },
+      {
+        "id": "CA-03",
+        "title": "Notificación de recogida",
+        "given": [
+          "El ejemplar se recoge en el mostrador dentro de los 48 horas.",
+          "La persona socia se encabeza de la cola de reservas."
+        ],
+        "when": [
+          "El ejemplar se recoge en el mostrador dentro de los 48 horas.",
+          "La persona socia se encabeza de la cola de reservas."
+        ],
+        "then": [
+          "La reserva se convierte en préstamo y se notifica a la persona socia."
+        ]
+      },
+      {
+        "id": "CA-04",
+        "title": "Sanción por no recoger",
+        "given": [
+          "El ejemplar no se recoge dentro de los 48 horas.",
+          "La persona socia no se encabeza de la cola de reservas."
+        ],
+        "when": [
+          "El ejemplar no se recoge dentro de los 48 horas.",
+          "La persona socia no se encabeza de la cola de reservas."
+        ],
+        "then": [
+          "La reserva caduca y se pasa a la siguiente persona de la cola. La persona socia recibe una notificación de sanción."
+        ]
+      }
+    ],
+    "business_rules": [
+      {
+        "id": "RN-01",
+        "description": "Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar. (ref. original: RN-RES-01)"
+      },
+      {
+        "id": "RN-02",
+        "description": "Cada persona socia puede tener un máximo de 3 reservas activas. Se considera activa la reserva en estado «pendiente» o «disponible para recoger». (ref. original: RN-RES-02)"
+      },
+      {
+        "id": "RN-03",
+        "description": "La reserva se hace sobre un título y una sede de recogida. El sistema asigna el primer ejemplar de ese título que quede libre y lo traslada a la sede de recogida si es necesario. (ref. original: RN-RES-03)"
+      },
+      {
+        "id": "RN-04",
+        "description": "Las reservas de un mismo título se atienden por estricto orden de llegada (cola de reservas). (ref. original: RN-RES-04)"
+      },
+      {
+        "id": "RN-05",
+        "description": "Cuando el ejemplar queda disponible en la sede de recogida, se bloquea durante 48 horas para la persona socia que encabeza la cola, y se le notifica (ver DOC-10). (ref. original: RN-RES-05)"
+      },
+      {
+        "id": "RN-06",
+        "description": "Si el ejemplar no se recoge en esas 48 horas, la reserva caduca, el ejemplar pasa a la siguiente persona de la cola y la reserva cuenta como «no recogida» a efectos de RN-SAN-04. (ref. original: RN-RES-06)"
+      },
+      {
+        "id": "RN-07",
+        "description": "La persona socia puede cancelar una reserva en cualquier momento antes de recogerla, sin penalización. (ref. original: RN-RES-07)"
+      },
+      {
+        "id": "RN-08",
+        "description": "Mientras exista una reserva pendiente sobre un título, ningún préstamo de ese título puede renovarse (artículo 5 de DOC-01). (ref. original: RN-RES-08)"
+      },
+      {
+        "id": "RN-09",
+        "description": "No se pueden reservar obras de referencia ni títulos de los que la persona socia ya tenga un ejemplar en préstamo. (ref. original: RN-RES-09)"
+      },
+      {
+        "id": "RN-10",
+        "description": "Las personas con carné infantil pueden reservar solo títulos de la colección infantil y juvenil, con el mismo máximo de 3 reservas activas. (ref. original: RN-RES-10)"
+      }
+    ],
+    "assumptions": [
+      "La persona socia tiene un carné vigente y no está sancionada.",
+      "El sistema garantiza la disponibilidad de ejemplares en la sede de recogida.",
+      "La persona socia tiene conocimiento de los límites de reservas y de las reglas aplicables."
+    ],
+    "constraints": [
+      "No se puede reservar un título que esté prohibido por la persona socia.",
+      "No se pueden renovar préstamos que estén asociados a reservas pendientes."
+    ],
+    "dependencies": [
+      "La validación de la reserva depende del estado de la cola de reservas.",
+      "La notificación de recogida depende del estado de la reserva y de la disponibilidad del ejemplar."
+    ],
+    "alternate_flows": [
+      "Si el ejemplar no se recoge dentro de los 48 horas, la reserva caduca y se pasa a la siguiente persona de la cola.",
+      "Si la persona socia no se encabeza de la cola, la reserva se vuelve a la cola y se regresa a la sección de reservas."
+    ],
+    "exceptions": [
+      "Las reservas no recogidas reiteradas no se consideran en el proceso de reserva normal.",
+      "Las personas con carné infantil tienen límites de reserva específicos."
+    ],
+    "related_features": [
+      "Prestamos de ejemplares",
+      "Sanciones por no recoger ejemplares",
+      "Renovaciones de préstamos"
+    ],
+    "changes_from_previous": [],
+    "related_requirements": [],
+    "priority": "Should",
+    "sources": [
+      {
+        "kind": "rag",
+        "ref": "DOC-02",
+        "excerpt": "## Reglas de negocio\n\n1. **RN-RES-01.** Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar (ver RN-SAN-03 y RN-SAN-04 en DOC-03).\n2. **RN-RES-02.** Cad"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-06",
+        "excerpt": "# Circuito de reserva y recogida\n\nDescribe de principio a fin cómo se tramita una reserva, desde que la persona socia la solicita hasta que recoge el ejemplar o la reserva caduca. Las reglas aplicable"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-01",
+        "excerpt": "### Artículo 9. Reservas\n\nLas reservas de ejemplares se rigen por el Reglamento de reservas (DOC-02)."
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-20",
+        "excerpt": "### 2. Reservas no recogidas reiteradas\n\nLos responsables de sala presentan la propuesta. Un pequeño grupo de personas socias concentra buena parte de las reservas no recogidas. Se proponen dos altern"
+      }
+    ],
+    "open_questions": [
+      "¿Qué ocurre si la persona socia no tiene un carné vigente o tiene sanción activa?",
+      "¿Cómo se maneja la cota de reservas activas si la persona socia supera el límite de 3 reservas?",
+      "¿Cómo se notifica la persona socia cuando la reserva caduca y se le informa de la sanción?"
+    ]
+  },
+  "total_s": 307.4,
+  "llamadas": [
+    {
+      "tipo": "principal",
+      "status": 200,
+      "segundos": 307.3,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "reasoning_effort": "none",
+      "mensaje_reintento": null,
+      "tokens_entrada": 2461,
+      "tokens_salida": 2215,
+      "tokens_por_segundo": 7.21,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\n  \"title\": \"Historia de Usuario (HU) - Reservar un ejemplar desde la web para recogerlo en el mostrador\",\n  \"role\": \"Persona socia de la Biblioteca Municipal de Villaficticia\",\n  \"action\": \"Reservar un ejemplar desde la web para recogerlo en el mostrador\",\n  \"benefit\": \"Acceder a la reserva de un ejemplar de título y sede de recogida, con la garantía de que se recoge dentro de los 48 horas, y evitar sanciones por no recoger el ejemplar dentro del plazo establecido.\",\n  \"description\": \"Un socio de la biblioteca quiere reservar un ejemplar desde la web para recogerlo en el mostrador. El proceso debe incluir la solicitud, validación de la reserva, gestión del estado de la reserva y notificación cuando se recoge o caduca.\",\n  \"business_goal\": \"Facilitar el acceso a la reserva de ejemplares para personas socias, garantizando que se recoge dentro del plazo establecido y evitando sanciones por no recoger el ejemplar dentro de los 48 horas.\",\n  \"scope_includes\": [\n    \"Solicitud de reserva desde la web\",\n    \"Validación de la reserva en base a reglas de negocio y políticas\",\n    \"Cálculo del estado de la reserva (pendiente, disponible, recogida, caducada, cancelada)\",\n    \"Notificación de recogida o caducación\"\n  ],\n  \"scope_excludes\": [\n    \"Renovaciones de préstamos que no estén relacionadas con reservas\",\n    \"Reservas en otros títulos o categorías no contempladas\",\n    \"Servicios externos o pagos de acceso\"\n  ],\n  \"acceptance_criteria\": [\n    {\n      \"id\": \"CA-01\",\n      \"title\": \"Solicitud de reserva\",\n      \"given\": [\"La persona socia accede a la web y selecciona el título y sede de recogida.\", \"La reserva se solicita con el nombre completo y el código de carné vigente.\"],\n      \"when\": [\"La persona socia accede a la web y selecciona el título y sede de recogida.\", \"La reserva se solicita con el nombre completo y el código de carné vigente.\"],\n      \"then\": [\"La reserva se registrará en el sistema y se mostrará en la cola de reservas.\"]\n    },\n    {\n      \"id\": \"CA-02\",\n      \"title\": \"Validación de la reserva\",\n      \"given\": [\"La reserva tiene estado 'pendiente' y el título y sede de recogida están disponibles.\", \"La persona socia ya tiene 3 reservas activas.\"],\n      \"when\": [\"La reserva es registrada y se muestra en la cola de reservas.\", \"La persona socia tiene 3 reservas activas.\"],\n      \"then\": [\"La reserva se procesa y se bloquea durante 48 horas para la persona socia.\"]\n    },\n    {\n      \"id\": \"CA-03\",\n      \"title\": \"Notificación de recogida\",\n      \"given\": [\"El ejemplar se recoge en el mostrador dentro de los 48 horas.\", \"La persona socia se encabeza de la cola de reservas.\"],\n      \"when\": [\"El ejemplar se recoge en el mostrador dentro de los 48 horas.\", \"La persona socia se encabeza de la cola de reservas.\"],\n      \"then\": [\"La reserva se convierte en préstamo y se notifica a la persona socia.\"]\n    },\n    {\n      \"id\": \"CA-04\",\n      \"title\": \"Sanción por no recoger\",\n      \"given\": [\"El ejemplar no se recoge dentro de los 48 horas.\", \"La persona socia no se encabeza de la cola de reservas.\"],\n      \"when\": [\"El ejemplar no se recoge dentro de los 48 horas.\", \"La persona socia no se encabeza de la cola de reservas.\"],\n      \"then\": [\"La reserva caduca y se pasa a la siguiente persona de la cola. La persona socia recibe una notificación de sanción.\"]\n    }\n  ],\n  \"business_rules\": [\n    {\n      \"id\": \"RN-RES-01\",\n      \"description\": \"Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar.\"\n    },\n    {\n      \"id\": \"RN-RES-02\",\n      \"description\": \"Cada persona socia puede tener un máximo de 3 reservas activas. Se considera activa la reserva en estado «pendiente» o «disponible para recoger».\"\n    },\n    {\n      \"id\": \"RN-RES-03\",\n      \"description\": \"La reserva se hace sobre un título y una sede de recogida. El sistema asigna el primer ejemplar de ese título que quede libre y lo traslada a la sede de recogida si es necesario.\"\n    },\n    {\n      \"id\": \"RN-RES-04\",\n      \"description\": \"Las reservas de un mismo título se atienden por estricto orden de llegada (cola de reservas).\"\n    },\n    {\n      \"id\": \"RN-RES-05\",\n      \"description\": \"Cuando el ejemplar queda disponible en la sede de recogida, se bloquea durante 48 horas para la persona socia que encabeza la cola, y se le notifica (ver DOC-10).\"\n    },\n    {\n      \"id\": \"RN-RES-06\",\n      \"description\": \"Si el ejemplar no se recoge en esas 48 horas, la reserva caduca, el ejemplar pasa a la siguiente persona de la cola y la reserva cuenta como «no recogida» a efectos de RN-SAN-04.\"\n    },\n    {\n      \"id\": \"RN-RES-07\",\n      \"description\": \"La persona socia puede cancelar una reserva en cualquier momento antes de recogerla, sin penalización.\"\n    },\n    {\n      \"id\": \"RN-RES-08\",\n      \"description\": \"Mientras exista una reserva pendiente sobre un título, ningún préstamo de ese título puede renovarse (artículo 5 de DOC-01).\"\n    },\n    {\n      \"id\": \"RN-RES-09\",\n      \"description\": \"No se pueden reservar obras de referencia ni títulos de los que la persona socia ya tenga un ejemplar en préstamo.\"\n    },\n    {\n      \"id\": \"RN-RES-10\",\n      \"description\": \"Las personas con carné infantil pueden reservar solo títulos de la colección infantil y juvenil, con el mismo máximo de 3 reservas activas.\"\n    }\n  ],\n  \"assumptions\": [\n    \"La persona socia tiene un carné vigente y no está sancionada.\",\n    \"El sistema garantiza la disponibilidad de ejemplares en la sede de recogida.\",\n    \"La persona socia tiene conocimiento de los límites de reservas y de las reglas aplicables.\"\n  ],\n  \"constraints\": [\n    \"No se puede reservar un título que esté prohibido por la persona socia.\",\n    \"No se pueden renovar préstamos que estén asociados a reservas pendientes.\"\n  ],\n  \"dependencies\": [\n    \"La validación de la reserva depende del estado de la cola de reservas.\",\n    \"La notificación de recogida depende del estado de la reserva y de la disponibilidad del ejemplar.\"\n  ],\n  \"alternate_flows\": [\n    \"Si el ejemplar no se recoge dentro de los 48 horas, la reserva caduca y se pasa a la siguiente persona de la cola.\",\n    \"Si la persona socia no se encabeza de la cola, la reserva se vuelve a la cola y se regresa a la sección de reservas.\"\n  ],\n  \"exceptions\": [\n    \"Las reservas no recogidas reiteradas no se consideran en el proceso de reserva normal.\",\n    \"Las personas con carné infantil tienen límites de reserva específicos.\"\n  ],\n  \"related_features\": [\n    \"Prestamos de ejemplares\",\n    \"Sanciones por no recoger ejemplares\",\n    \"Renovaciones de préstamos\"\n  ],\n  \"priority\": \"Should\",\n  \"sources\": [\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-02\",\n      \"excerpt\": \"RN-RES-01. Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar (ver RN-SAN-03 y RN-SAN-04 en DOC-03).\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-06\",\n      \"excerpt\": \"El sistema asigna el primer ejemplar de ese título que quede libre y lo traslada a la sede de recogida si es necesario.\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-01\",\n      \"excerpt\": \"Cada persona socia puede tener en préstamo simultáneo un máximo de 8 ejemplares.\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-20\",\n      \"excerpt\": \"Se acuerda también que el aviso de reserva caducada informe del número de reservas no recogidas acumuladas, para que la persona socia pueda evitar la sanción.\"\n    }\n  ],\n  \"open_questions\": [\n    \"¿Qué ocurre si la persona socia no tiene un carné vigente o tiene sanción activa?\",\n    \"¿Cómo se maneja la cota de reservas activas si la persona socia supera el límite de 3 reservas?\",\n    \"¿Cómo se notifica la persona socia cuando la reserva caduca y se le informa de la sanción?\"\n  ]\n}"
+    }
+  ],
+  "tokens_salida_total": 2215,
+  "tokens_por_segundo": 7.21
+}

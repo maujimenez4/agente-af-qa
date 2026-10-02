@@ -1,0 +1,259 @@
+{
+  "modelo": "phi4-mini",
+  "ronda": 3,
+  "sin_razonamiento": false,
+  "carga_s": 39.8,
+  "resultado": "OK",
+  "titulo": "Sistema de Reservas de la Biblioteca de Villaficticia",
+  "num_ca": 7,
+  "num_rn": 8,
+  "fuentes": [
+    "DOC-02",
+    "DOC-06",
+    "DOC-01",
+    "DOC-20"
+  ],
+  "historia": {
+    "internal_id": null,
+    "jira_key": null,
+    "title": "Sistema de Reservas de la Biblioteca de Villaficticia",
+    "role": "Persona socia",
+    "action": "Registrar un ejemplar en línea",
+    "benefit": "Puede recoger ejemplares reservados desde el sitio web",
+    "description": "Interfaz para la reserva de ejemplares de una colección particular en la Biblioteca Municipal de Villaficticia. La reserva de los ejemplares se realiza sobre el título y la sede de recogida, asignando el primer ejemplar libre disponible para el socio.",
+    "business_goal": "Mejora la experiencia digital para los usuarios de la biblioteca",
+    "scope_includes": [
+      "Reserva en línea de ejemplares",
+      "Almacén de colecciones"
+    ],
+    "scope_excludes": [
+      "Prestamos en persona",
+      "Prestamos en línea",
+      "Biblioteca móvil"
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "CA-01",
+        "title": "Reserva exitosa",
+        "given": [
+          "Persona socia con carné válido"
+        ],
+        "when": [
+          "realiza una reserva en línea"
+        ],
+        "then": [
+          "el ejemplar está reservado en el portal web y se asigna a la sede de recogida asignada"
+        ]
+      },
+      {
+        "id": "CA-02",
+        "title": "Máximo de 3 reservas",
+        "given": [
+          "Persona socio"
+        ],
+        "when": [
+          "recoje o registre ejemplares"
+        ],
+        "then": [
+          "solo se pueden tener activas 3 reservas para el usuario"
+        ]
+      },
+      {
+        "id": "CA-03",
+        "title": "Orden de reservas",
+        "given": [
+          "Exemplares con el mismo título reservados por varios usuarios"
+        ],
+        "when": [
+          "exemplares reservados con el mismo título se realizan"
+        ],
+        "then": [
+          "se atienden por estricto orden de llegada"
+        ]
+      },
+      {
+        "id": "CA-04",
+        "title": "Bloqueo del ejemplar para recogida",
+        "given": [
+          "Exemplar reservado en la sede de recogida"
+        ],
+        "when": [
+          "exemplar no se recoge dentro del plazo de 48 horas"
+        ],
+        "then": [
+          "el ejemplar queda bloqueado y no se puede utilizar por otros"
+        ]
+      },
+      {
+        "id": "CA-05",
+        "title": "Cancelación de la reserva",
+        "given": [
+          "Persona socio de un ejemplar en reserva"
+        ],
+        "when": [
+          "decide no recoger el ejemplar"
+        ],
+        "then": [
+          "la reserva se cancela y se permite registrar otro ejemplar"
+        ]
+      },
+      {
+        "id": "CA-06",
+        "title": "Exclusión de obras de referencia y ejemplares prestados",
+        "given": [
+          "persona socio intenta registrar una obra de referencia o ejemplares prestados"
+        ],
+        "when": [
+          "realiza el registro"
+        ],
+        "then": [
+          "el registro es rechazado"
+        ]
+      },
+      {
+        "id": "CA-07",
+        "title": "Limitaciones de carné infantil",
+        "given": [
+          "persona socio con carné infantil"
+        ],
+        "when": [
+          "intenta registrar ejemplares"
+        ],
+        "then": [
+          "solo puede registrarse en la colección infantil y juvenil"
+        ]
+      }
+    ],
+    "business_rules": [
+      {
+        "id": "RN-001",
+        "description": "Solo personas socias con carné válido pueden registrarse."
+      },
+      {
+        "id": "RN-002",
+        "description": "Una persona socio puede tener un máximo de 3 reservas activas."
+      },
+      {
+        "id": "RN-003",
+        "description": "Ni libros no disponibles, ni obras de referencia pueden registrarse."
+      },
+      {
+        "id": "RN-004",
+        "description": "Las reservas se atienden por estricto orden de llegada."
+      },
+      {
+        "id": "RN-005",
+        "description": "Los ejemplares reservados se bloquean en 48 horas para evitar su uso indebido en el momento de la reserva."
+      },
+      {
+        "id": "RN-006",
+        "description": "La persona socio puede anular una reserva en cualquier momento antes de recogerla."
+      },
+      {
+        "id": "RN-007",
+        "description": "No se pueden reservar obras de referencia ni títulos ya prestados."
+      },
+      {
+        "id": "RN-008",
+        "description": "Las personas de carné infantil solo pueden reservar títulos de la colección infantil y juvenil con el máximo de 3 reservas activas."
+      }
+    ],
+    "assumptions": [
+      "La carné de la persona es válido y corresponde al usuario.",
+      "El título del libro en el que se quiere registrar está disponible en el archivo."
+    ],
+    "constraints": [
+      "La colección no tiene ejemplares fuera de stock."
+    ],
+    "dependencies": [
+      "El sistema de reservas depende de la funcionalidad del sistema web de la biblioteca."
+    ],
+    "alternate_flows": [
+      "Si el título tiene ejemplares reservados, solo se permite registrar uno."
+    ],
+    "exceptions": [
+      "Si el título es un libro de referencia, se rechaza el registro."
+    ],
+    "related_features": [
+      "Registro en línea",
+      "Portal web de la biblioteca",
+      "Sedes de recogida"
+    ],
+    "changes_from_previous": [],
+    "related_requirements": [],
+    "priority": "Must",
+    "sources": [
+      {
+        "kind": "rag",
+        "ref": "DOC-02",
+        "excerpt": "## Reglas de negocio\n\n1. **RN-RES-01.** Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar (ver RN-SAN-03 y RN-SAN-04 en DOC-03).\n2. **RN-RES-02.** Cad"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-06",
+        "excerpt": "# Circuito de reserva y recogida\n\nDescribe de principio a fin cómo se tramita una reserva, desde que la persona socia la solicita hasta que recoge el ejemplar o la reserva caduca. Las reglas aplicable"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-01",
+        "excerpt": "### Artículo 9. Reservas\n\nLas reservas de ejemplares se rigen por el Reglamento de reservas (DOC-02)."
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-20",
+        "excerpt": "### 2. Reservas no recogidas reiteradas\n\nLos responsables de sala presentan la propuesta. Un pequeño grupo de personas socias concentra buena parte de las reservas no recogidas. Se proponen dos altern"
+      }
+    ],
+    "open_questions": []
+  },
+  "total_s": 988.8,
+  "llamadas": [
+    {
+      "tipo": "principal",
+      "status": 200,
+      "segundos": 481.5,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "reasoning_effort": null,
+      "mensaje_reintento": null,
+      "tokens_entrada": 2089,
+      "tokens_salida": 2012,
+      "tokens_por_segundo": 4.18,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\n    \"title\": \"Reserva y recogida de ejemplares en la Biblioteca Municipal de Villaficticia\",\n    \"role\": \"Bibliotecaria o colaborador de la biblioteca\",\n    \"action\": \"reservar, recoger y gestionar ejemplares\",\n    \"benefit\": \"fomentar el uso y disfrute de la biblioteca por parte de las personas socias\",\n    \"description\": \"El sistema permite que las personas socias resigan ejemplares de la biblioteca con un máximo de 3 reservas activas. Las reservas se gestionan según la prioridad de llegada y se asignan ejemplares disponibles según sea necesario. La persona socia recibe notificación cuando su ejemplar está bloqueado y listo para recogida, pudiendo cancelar o recolección de acuerdo con sus necesidades. A las reservas no recogidas en 48 horas se aplicarán penalizaciones.\",\n    \"business_goal\": \"Mantener una alta utilización y satisfacción del servicio entre las personas socias de la biblioteca, garantizando el acceso a recursos educativos y culturales.\",\n    \"scope_includes\": [\n        \"Reservas de ejemplares\",\n        \"Reserveyes para personas socias con carné vigente\",\n        \"Gestión del orden de llegada de las reservas\",\n        \"Bloqueo del ejemplar para recogida\",\n        \"Notificación a la persona socia al ejemplar estar disponible\",\n        \"Cancelación de reservas\"\n    ],\n    \"scope_excludes\": [\n        \"Reservas de obras de referencia\",\n        \"Prestamos de ejemplares\",\n        \"Reservas de títulos que la persona ya ha prestado\",\n        \"Reservas de títulos no disponibles\",\n        \"Reservas de títulos de la colección infantil/junívera para personas sin carné infantil\"\n    ],\n    \"acceptance_criteria\": [\n        {\n            \"id\": \"CA-01\",\n            \"title\": \"Reserva pendiente\",\n            \"given\": [\"La persona socia está solicitando una reserva\"], \"when\": [\"su título está disponible\"], \"then\": [\"la reserva se inserta en la cola de reservas en estado pendiente\"]\n        },\n        {\n            \"id\": \"CA-02\",\n            \"title\": \"Reserva activa\",\n            \"given\": [\"una persona socia tiene hasta 3 reservas activas\"], \"when\": [\"se realiza una nueva reserva\"], \"then\": [\"la reserva se añade al máximo permitido de 3\"]\n        },\n        {\n            \"id\": \"CA-03\",\n            \"title\": \"Exemplar bloqueado\", \"given\": [\"un ejemplar está reservado por una persona socia\"], \"when\": [\"la persona lleva 48 horas sin recoger el ejemplar\"], \"then\": [\"el ejemplar se bloquea para la persona socia\"]\n        },\n        {\n            \"id\": \"CA-04\",\n            \"title\": \"Exemplar recogido\",\n            \"given\": [\"la persona socia recoge el ejemplar\"], \"when\": [\"el ejemplar está bloqueado\"], \"then\": [\"la reserva se convierte en préstamo\"]\n        },\n        {\n            \"id\": \"CA-05\",\n            \"title\": \"Reserva caducada\",\n            \"given\": [\"pasa 48 horas sin que la persona socia reciba su ejemplar\"], \"when\": [\"ya no hay 48 horas activas restantes\"], \"then\": [\"la reserva se marca como caducada\"]\n        },\n        {\n            \"id\": \"CA-06\",\n            \"title\": \"Reserva cancelada\",\n            \"given\": [\"la persona socia decide cancelar su reserva\"], \"when\": [\"antes de recoger el ejemplar\"], \"then\": [\"la reserva se elimina del sistema\"]\n        }\n    ],\n    \"business_rules\": [\n        {\n            \"id\": \"RN-RES-01\",\n            \"description\": \"Solo las personas socias con carné vigente y sin sanción activa pueden reservar ejemplares.\"\n        },\n        {\n            \"id\": \"RN-RES-02\",\n            \"description\": \"Cada persona socia puede tener un máximo de 3 reservas activas.\"\n        },\n        {\n            \"id\": \"RN-RES-03\",\n            \"description\": \"La reserva se hace sobre un título y una sede de recogida.\"\n        },\n        {\n            \"id\": \"RN-RES-04\",\n            \"description\": \"Las reservas se atienden por orden de llegada.\"\n        },\n        {\n            \"id\": \"RN-RES-05\",\n            \"description\": \"Al ejemplar estar disponible, se le notifica a la persona socia en cabeza de la cola.\"\n        },\n        {\n            \"id\": \"RN-RES-06\",\n            \"description\": \"Si no se recoge el ejemplar en 48 horas, pasa a la persona siguiente de la cola.\"\n        },\n        {\n            \"id\": \"RN-RES-07\",\n            \"description\": \"La persona socia puede cancelar la reserva antes de la recogida, sin penalizaciones.\"\n        },\n        {\n            \"id\": \"RN-RES-08\",\n            \"description\": \"No se pueden volver a prestar ejemplares sujetos a reserva.\"\n        },\n        {\n            \"id\": \"RN-RES-09\",\n            \"description\": \"No se pueden reservar obras de referencia ni títulos ya prestados por la persona socia.\"\n        },\n        {\n            \"id\": \"RN-RES-10\",\n            \"description\": \"Personas con carné infantil pueden reservar únicamente de la colección infantil/junívera.\"\n        },\n        {\n            \"id\": \"RN-RES-11\",\n            \"description\": \"La persona con carné infantil puede tener un máximo de 3 reservas activas de la colección infantil/junívera.\"\n        },\n        {\n            \"id\": \"RN-RES-12\",\n            \"description\": \"Las personas con carné infantil pueden reservar títulos de la colección infantil/junívera, con el mismo límite de reservas de 3.\"\n        },\n        {\n            \"id\": \"RN-RES-13\",\n            \"description\": \"Personas con carné infantil no pueden reservar títulos de ninguna otra colección.\"\n        },\n        {\n            \"id\": \"RN-RES-14\",\n            \"description\": \"Las reservas de personas con carné infantil se aplican solo a la colección infantil/junívera.\"\n        },\n        {\n            \"id\": \"RN-RES-15\",\n            \"description\": \"El máximo de ejemplares a préstamo simultáneo se establece en 8 por persona socia.\"\n        },\n        {\n            \"id\": \"RN-RES-16\",\n            \"description\": \"El límite de ejemplares de cada tipo de material se establece en 8 para todos los socias, con excepciones para las personas con carné infantil.\"\n        },\n        {\n            \"id\": \"RN-RES-17\",\n            \"description\": \"Las personas con carné infantil tienen 4 ejemplares máximos de su colección respectiva, no 8.\"\n        },\n        {\n            \"id\": \"RN-RES-18\",\n            \"description\": \"El plazo de recogida para las reservas es de 48 horas después de que el ejemplar esté bloqueado.\"\n        },\n        {\n            \"id\": \"RN-RES-19\",\n            \"description\": \"Las reservas no recogidas reiteradas llevarán al aplicar una sanción: se reducirá el máximo de reservas permitidas durante 30 días, o se impedirá nuevas reservas durante 15 días.\"\n        }\n    ],\n    \"assumptions\": [\n        \"La persona socia tiene acceso al sistema de reservas de la biblioteca.\",\n        \"La persona socia posee un carné válido de la Biblioteca Municipal de Villaficticia.\",\n        \"La persona socia no está sujeta a alguna sanción activa que impida reservar.\",\n        \"La reserva se realizará sobre un título que esté disponible en la biblioteca.\"\n    ],\n    \"constraints\": [\n        \"La persona socia no puede reservar títulos de obras de referencia o títulos ya prestados.\"\n    ],\n    \"dependencies\": [\n        \"El sistema de reservas depende del cumplimiento de las políticas de préstamo de la Biblioteca Municipal de Villaficticia.\"\n    ],\n    \"alternate_flows\": [\n        \"Una persona socia que no cumpla con las condiciones de préstamo (como no tener un carné válido o estar sujeta a sanción) no puede realizar una reserva.\",\n        \"Si se cumplen las 3 reservas no recogidas reiteradas (para un socio con carné regular), se aplicará una sanción: se reducirá el máximo de reservas o se impedirán nuevas reservas durante 15 días.\"\n    ],\n    \"exceptions\": [\n        \"Si una persona con carné infantil intenta reservar un título de colección no infantil/junívera, será descalificada.\",\n        \"Si una persona con carné infantil llega a sus límites de ejemplares máximos, solo podrán reservar títulos de la colección infantil/junívera.\"\n    ],\n    \"related_features\": [\n        \"El aviso sobre la reserva caducada incluirá el número de reservas no recogidas reiteradas para que la persona socia entienda la posible sanción.\",\n        \"El límite de 8 ejemplares máximo no se aplica a las personas con carné infantil, que pueden tener 4 ejemplares de sus colecciones específicas.\"\n    ],\n    \"priority\": \"Must\",\n    \"open_questions\": [\n        \"¿Cuál es el procedimiento para implementar la sanción debido a reservas no recogidas reiteradas (aplicar reducciones del número máximo de reservas o impedir nuevas reservas) según se decidió en el acta de la Comisión de Servicios Bibliotecarios de abril de 2026?\",\n        \"¿Cómo se notifica a las personas socias que sus ejemplares han caducado de 48 horas?\"\n    ]\n}"
+    },
+    {
+      "tipo": "reintento_esquema",
+      "status": 200,
+      "segundos": 238.3,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "reasoning_effort": null,
+      "mensaje_reintento": "La respuesta anterior no es válida para el esquema pedido:\n- business_rules.0.id: String should match pattern '^RN-\\d+$'\n- business_rules.1.id: String should match pattern '^RN-\\d+$'\n- business_rules.2.id: String should match pattern '^RN-\\d+$'\n- business_rules.3.id: String should match pattern '^RN-\\d+$'\n- business_rules.4.id: String should match pattern '^RN-\\d+$'\nDevuelve solo el objeto JSON corregido, sin texto adicional.",
+      "tokens_entrada": 4208,
+      "tokens_salida": 532,
+      "tokens_por_segundo": 2.23,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\n    \"title\": \"Biblioteca de Villaficticia\",\n    \"role\": \"Persona socia\",\n    \"action\": \"Registrar\",\n    \"benefit\": \"Registre un libro en la web para recogerlo.\",\n    \"description\": \"Una interfaz para guardar ejemplares del archivo de libro de la Biblioteca Municipal de Villaficticia.\",\n    \"business_goal\": \"Mejora en las herramientas digitales para usuarios.\",\n    \"scope_includes\": [\n        \"Registro en la web,\"\n        ],\n    \"scope_excludes\": [\n        \"Prestamos en persona\",\n        \"Prestamos en línea\"\n    ],\n    \"acceptance_criteria\": [\n        {\n            \"id\": \"CA-01\",\n            \"title\": \"Registro exitoso\",\n            \"given\": [\"Persona con carné válido\"], \"when\": [\"realizar el registro\"], \"then\": [\"el ejemplar es reservado en el sistema Web\"]\n        },\n        {\n            \"id\": \"CA-02\",\n            \"title\": \"Máximo de 3 reservas\",\n            \"given\": [\"Persona socio\"], \"when\": [\"realiza un nuevo registro\"], \"then\": [\"solo se permite un máximo de 3 reservas activas para la persona\"]\n        }\n    ],\n    \"business_rules\": [\n        {\n            \"id\": \"RN-001\",\n            \"description\": \"Solo personas socias con carné válido pueden registrarse.\"\n        },\n        {\n            \"id\": \"RN-002\",\n            \"description\": \"Una persona socio puede tener un máximo de 3 reservas activas.\"\n        },\n        {\n            \"id\": \"RN-003\",\n            \"description\": \"Ni libros no disponibles, ni obras de referencia pueden registrarse.\"\n        }\n    ],\n    \"assumptions\": [\n        \"La carné de la persona es válido y corresponde al usuario.\",\n        \"El libro en el que se quiere registrarse está disponible.\"\n    ],\n    \"constraints\": [\n        \"Los libros no pueden solicitarse si ya existen otros en la cuenta.\"\n    ],\n    \"dependencies\": [\n        \"La funcionalidad del registro depende del sistema web de la biblioteca.\"\n    ],\n    \"alternate_flows\": [\n        \"Si el libro no está disponible, el registro se cancela.\"\n    ],\n    \"exceptions\": [\n        \"Ni libros de referencia ni los ya prestados pueden ser registrados.\"\n    ],\n    \"related_features\": [\n        \"Registro en línea.\"\n    ],\n    \"priority\": \"Must\",\n    \"open_questions\": [\n        \"¿Cómo se gestionan los libros fuera de stock?\"\n    ]\n}"
+    },
+    {
+      "tipo": "reintento_citas",
+      "status": 200,
+      "segundos": 268.7,
+      "max_tokens": 2500,
+      "response_format": "json_schema",
+      "reasoning_effort": null,
+      "mensaje_reintento": "Tu respuesta anterior tiene citas no válidas:\n- la propuesta no cita ninguna fuente y el contexto sí traía fuentes\n\nLas únicas referencias que puedes citar son estas (tipo y ref):\n- rag: DOC-02\n- rag: DOC-06\n- rag: DOC-01\n- rag: DOC-20\n\nDevuelve de nuevo la HU completa, idéntica salvo en `sources`: cita solo referencias de la lista anterior, copiadas literalmente, y al menos una si la lista no está vacía.",
+      "tokens_entrada": 2672,
+      "tokens_salida": 1059,
+      "tokens_por_segundo": 3.94,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\"title\": \"Sistema de Reservas de la Biblioteca de Villaficticia\", \"role\": \"Persona socia\", \"action\": \"Registrar un ejemplar en línea\", \"benefit\": \"Puede recoger ejemplares reservados desde el sitio web\", \"description\": \"Interfaz para la reserva de ejemplares de una colección particular en la Biblioteca Municipal de Villaficticia. La reserva de los ejemplares se realiza sobre el título y la sede de recogida, asignando el primer ejemplar libre disponible para el socio.\", \"business_goal\": \"Mejora la experiencia digital para los usuarios de la biblioteca\", \"scope_includes\": [\"Reserva en línea de ejemplares\", \"Almacén de colecciones\"], \"scope_excludes\": [\"Prestamos en persona\", \"Prestamos en línea\", \"Biblioteca móvil\"], \"acceptance_criteria\": [{\"id\": \"CA-01\", \"title\": \"Reserva exitosa\", \"given\": [\"Persona socia con carné válido\"], \"when\": [\"realiza una reserva en línea\"], \"then\": [\"el ejemplar está reservado en el portal web y se asigna a la sede de recogida asignada\"]}, {\"id\": \"CA-02\", \"title\": \"Máximo de 3 reservas\", \"given\": [\"Persona socio\"], \"when\": [\"recoje o registre ejemplares\"], \"then\": [\"solo se pueden tener activas 3 reservas para el usuario\"]}, {\"id\": \"CA-03\", \"title\": \"Orden de reservas\", \"given\": [\"Exemplares con el mismo título reservados por varios usuarios\"], \"when\": [\"exemplares reservados con el mismo título se realizan\"], \"then\": [\"se atienden por estricto orden de llegada\"]}, {\"id\": \"CA-04\", \"title\": \"Bloqueo del ejemplar para recogida\", \"given\": [\"Exemplar reservado en la sede de recogida\"], \"when\": [\"exemplar no se recoge dentro del plazo de 48 horas\"], \"then\": [\"el ejemplar queda bloqueado y no se puede utilizar por otros\"]}, {\"id\": \"CA-05\", \"title\": \"Cancelación de la reserva\", \"given\": [\"Persona socio de un ejemplar en reserva\"], \"when\": [\"decide no recoger el ejemplar\"], \"then\": [\"la reserva se cancela y se permite registrar otro ejemplar\"]}, {\"id\": \"CA-06\", \"title\": \"Exclusión de obras de referencia y ejemplares prestados\", \"given\": [\"persona socio intenta registrar una obra de referencia o ejemplares prestados\"], \"when\": [\"realiza el registro\"], \"then\": [\"el registro es rechazado\"]}, {\"id\": \"CA-07\", \"title\": \"Limitaciones de carné infantil\", \"given\": [\"persona socio con carné infantil\"], \"when\": [\"intenta registrar ejemplares\"], \"then\": [\"solo puede registrarse en la colección infantil y juvenil\"]}], \"business_rules\": [{\"id\": \"RN-001\", \"description\": \"Solo personas socias con carné válido pueden registrarse.\"}, {\"id\": \"RN-002\", \"description\": \"Una persona socio puede tener un máximo de 3 reservas activas.\"}, {\"id\": \"RN-003\", \"description\": \"Ni libros no disponibles, ni obras de referencia pueden registrarse.\"}, {\"id\": \"RN-004\", \"description\": \"Las reservas se atienden por estricto orden de llegada.\"}, {\"id\": \"RN-005\", \"description\": \"Los ejemplares reservados se bloquean en 48 horas para evitar su uso indebido en el momento de la reserva.\"}, {\"id\": \"RN-006\", \"description\": \"La persona socio puede anular una reserva en cualquier momento antes de recogerla.\"}, {\"id\": \"RN-007\", \"description\": \"No se pueden reservar obras de referencia ni títulos ya prestados.\"}, {\"id\": \"RN-008\", \"description\": \"Las personas de carné infantil solo pueden reservar títulos de la colección infantil y juvenil con el máximo de 3 reservas activas.\"}], \"assumptions\": [\"La carné de la persona es válido y corresponde al usuario.\", \"El título del libro en el que se quiere registrar está disponible en el archivo.\"], \"constraints\": [\"La colección no tiene ejemplares fuera de stock.\"], \"dependencies\": [\"El sistema de reservas depende de la funcionalidad del sistema web de la biblioteca.\"], \"alternate_flows\": [\"Si el título tiene ejemplares reservados, solo se permite registrar uno.\"], \"exceptions\": [\"Si el título es un libro de referencia, se rechaza el registro.\"], \"related_features\": [\"Registro en línea\", \"Portal web de la biblioteca\", \"Sedes de recogida\"],\"priority\": \"Must\", \"sources\": [{\"kind\": \"rag\", \"ref\": \"DOC-02\"}, {\"kind\": \"rag\", \"ref\": \"DOC-06\"}, {\"kind\": \"rag\", \"ref\": \"DOC-01\"}, {\"kind\": \"rag\", \"ref\": \"DOC-20\"}]}"
+    }
+  ],
+  "tokens_salida_total": 3603,
+  "tokens_por_segundo": 3.64
+}

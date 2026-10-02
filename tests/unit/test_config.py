@@ -252,7 +252,7 @@ def test_groq_variant_has_a_keyed_provider_in_every_chain() -> None:
 def test_request_timeout_defaults_to_60_and_local_config_raises_it() -> None:
     """El modelo local en CPU necesita más tiempo por llamada que uno en la nube."""
     assert load_models_config(GROQ_MODELS).limits.request_timeout_s == 60.0
-    assert load_models_config().limits.request_timeout_s == 600
+    assert load_models_config().limits.request_timeout_s == 900
 
 
 def test_request_timeout_reaches_the_sdk_client() -> None:
@@ -261,7 +261,7 @@ def test_request_timeout_reaches_the_sdk_client() -> None:
 
     config = AppConfig(Settings(_env_file=None), load_models_config())  # type: ignore[call-arg]
     provider = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
-    assert provider._client.timeout == 600
+    assert provider._client.timeout == 900
 
 
 def test_max_output_tokens_per_task_reach_the_provider() -> None:

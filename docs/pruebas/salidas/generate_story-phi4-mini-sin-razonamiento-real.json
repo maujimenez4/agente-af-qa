@@ -1,0 +1,176 @@
+{
+  "modelo": "phi4-mini",
+  "ronda": "real-T58",
+  "sin_razonamiento": true,
+  "request_timeout_s": 600.0,
+  "carga_s": 41.8,
+  "resultado": "OK",
+  "prompt_version": "2",
+  "num_ca": 3,
+  "num_rn": 5,
+  "fuentes": [
+    "DOC-02",
+    "DOC-06",
+    "DOC-01",
+    "DOC-20"
+  ],
+  "historia": {
+    "internal_id": null,
+    "jira_key": null,
+    "title": "Reserva e ingreso de ejemplares en la Biblioteca Municipal de Villaficticia",
+    "role": "Persona socia de la biblioteca",
+    "action": "quiero reservar un ejemplar y recogerlo en el mostrador",
+    "benefit": "Tengo el acceso a materiales de lectura y el deseo de disfrutarlo en mi propio tiempo",
+    "description": "Como persona socia, quisiera poder reservar los ejemplares que me interesan a través del sitio web de la biblioteca, recogerlos en el mostrador de mi elección, y asegurarme de cumplir con los protocolos de la biblioteca mientras aprovecho de forma responsable la oferta de préstamo proporcionada.",
+    "business_goal": "Maximizar el uso eficiente de los recursos de la biblioteca mientras cumplimos con las políticas de la entidad",
+    "scope_includes": [
+      "Reserva de ejemplares a través del sitio web de la biblioteca",
+      "Recogida de ejemplares en el mostrador preferido",
+      "Cumplimiento de los protocolos de la biblioteca",
+      "Uso responsable de los recursos de la biblioteca"
+    ],
+    "scope_excludes": [
+      "Prestamos en línea",
+      "Reservas fuera del número máximo permitido",
+      "Colegio para menores"
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "CA-01",
+        "title": "Reserva es posible siguiendo las reglas de negocio establecidas",
+        "given": [
+          "Soy una persona socia de la biblioteca con carné válido",
+          "No tengo sanciones activas que impidan reservar"
+        ],
+        "when": [
+          "Realizo una reserva según las reglas del proceso de reserva"
+        ],
+        "then": [
+          "La reserva se efectúa correctamente y queda reflejada en el sistema"
+        ]
+      },
+      {
+        "id": "CA-02",
+        "title": "Número máximo de reservas se mantiene",
+        "given": [
+          "Actualmente tengo reservados ejemplares",
+          "Tengo más de 3 reservas activas"
+        ],
+        "when": [
+          "Intento reservar un nuevo ejemplar"
+        ],
+        "then": [
+          "El sistema rechaza la reserva, informándome del límite de 3 reservas"
+        ]
+      },
+      {
+        "id": "CA-03",
+        "title": "Reseña de las políticas de las obras de referencia",
+        "given": [
+          "Yo soy una persona socia de la biblioteca"
+        ],
+        "when": [
+          "Intento reservar una obra de referencia"
+        ],
+        "then": [
+          "La reserva es rechazada debido al artículo 9 del Reglamento de préstamo"
+        ]
+      }
+    ],
+    "business_rules": [
+      {
+        "id": "RN-01",
+        "description": "Reserva solo posible para personas socias con carné válido y sin sanción activa impidiéndola (resolución RN-SAN-03 y RN-SAN-04 en DOC-03) (ref. original: RN-RES-01)"
+      },
+      {
+        "id": "RN-02",
+        "description": "Cada persona socia puede hacer un máximo de 3 reservas activas (reservas en estado \"pendiente\" o \"disponible para recoger\") (ref. original: RN-RES-02)"
+      },
+      {
+        "id": "RN-03",
+        "description": "Si el ejemplar no se recoge en 48 horas, la reserva caduca y el ejemplar pasa a la siguiente persona (política de RN-SAN-04 revisada CONVención DOC-20) (ref. original: RN-RES-06)"
+      },
+      {
+        "id": "RN-04",
+        "description": "Personas con carné infantil solo pueden reservar obras de la colección infantil y juvenil (con el límite de 3 reservas activas) (ref. original: RN-RES-09)"
+      },
+      {
+        "id": "RN-05",
+        "description": "Número máximo de ejemplares simultáneamente varía según la categoría del material (8 ejemplares por persona socia general y 4 para menores de la colección infantil y juvenil, por ejemplo, como se indica en el DOC-01) (ref. original: RN-RES-01)"
+      }
+    ],
+    "assumptions": [
+      "Tengo acceso al sitio web oficial de la biblioteca para realizar reservas.",
+      "Soy una persona legalmente reconocida como socia de la biblioteca Municipal de Villaficticia."
+    ],
+    "constraints": [
+      "Necesito cumplir con las políticas de préstamo impuestas, incluyendo la numeración máxima de ejemplares.",
+      "Debo adherirme a los límites de préstamo, especialmente si soy una persona con carné infantil."
+    ],
+    "dependencies": [
+      "El proceso de reserva depende de la versión actualizada del Circuito de reserva y recogida (DOC-06, versión 3, 2026-05-05).",
+      "El número de reservas no recogidas es una consideración adicional influenciando los protocolos de reserva (DOC-20)."
+    ],
+    "alternate_flows": [
+      "Si mi reserva no se recoge en 48 horas, busco otra obra que cumpla con mis necesidades."
+    ],
+    "exceptions": [
+      "Las reservas de obras de referencia y títulos ya con ejemplar en préstamo son inacepables."
+    ],
+    "related_features": [
+      "Acceso a múltiples colecciones (libros, audiovisuales, revistas, libros electrónicos y obras de referencia)"
+    ],
+    "changes_from_previous": [],
+    "related_requirements": [],
+    "priority": "Must",
+    "sources": [
+      {
+        "kind": "rag",
+        "ref": "DOC-02",
+        "excerpt": "## Reglas de negocio\n\n1. **RN-RES-01.** Solo pueden reservar las personas socias con carné vigente y sin sanción activa que impida reservar (ver RN-SAN-03 y RN-SAN-04 en DOC-03).\n2. **RN-RES-02.** Cad"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-06",
+        "excerpt": "# Circuito de reserva y recogida\n\nDescribe de principio a fin cómo se tramita una reserva, desde que la persona socia la solicita hasta que recoge el ejemplar o la reserva caduca. Las reglas aplicable"
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-01",
+        "excerpt": "### Artículo 9. Reservas\n\nLas reservas de ejemplares se rigen por el Reglamento de reservas (DOC-02)."
+      },
+      {
+        "kind": "rag",
+        "ref": "DOC-20",
+        "excerpt": "### 2. Reservas no recogidas reiteradas\n\nLos responsables de sala presentan la propuesta. Un pequeño grupo de personas socias concentra buena parte de las reservas no recogidas. Se proponen dos altern"
+      }
+    ],
+    "open_questions": [
+      "¿Cómo se manejará una reserva no recogida reiterada para que no perjudique el uso del ejemplar para otras personas socias?",
+      "¿Existen políticas de préstamo especiales para las categorías no relacionadas con obras de referencia, tales como audiovisuales o libros electrónicos?"
+    ]
+  },
+  "total_s": 385.2,
+  "reparaciones_ids": [
+    5
+  ],
+  "llamadas": [
+    {
+      "tipo": "principal",
+      "status": 200,
+      "segundos": 385.0,
+      "max_tokens": 2500,
+      "reasoning_effort": "none",
+      "think": null,
+      "mensaje_reintento": null,
+      "tokens_entrada": 2043,
+      "tokens_salida": 1290,
+      "tokens_por_segundo": 3.35,
+      "finish_reason": "stop",
+      "razonamiento_chars": 0,
+      "contenido": "{\n  \"title\": \"Reserva e ingreso de ejemplares en la Biblioteca Municipal de Villaficticia\",\n  \"role\": \"Persona socia de la biblioteca\",\n  \"action\": \"quiero reservar un ejemplar y recogerlo en el mostrador\",\n  \"benefit\": \"Tengo el acceso a materiales de lectura y el deseo de disfrutarlo en mi propio tiempo\",\n  \"description\": \"Como persona socia, quisiera poder reservar los ejemplares que me interesan a través del sitio web de la biblioteca, recogerlos en el mostrador de mi elección, y asegurarme de cumplir con los protocolos de la biblioteca mientras aprovecho de forma responsable la oferta de préstamo proporcionada.\",\n  \"business_goal\": \"Maximizar el uso eficiente de los recursos de la biblioteca mientras cumplimos con las políticas de la entidad\",\n  \"scope_includes\": [\n    \"Reserva de ejemplares a través del sitio web de la biblioteca\",\n    \"Recogida de ejemplares en el mostrador preferido\",\n    \"Cumplimiento de los protocolos de la biblioteca\",\n    \"Uso responsable de los recursos de la biblioteca\"\n  ],\n  \"scope_excludes\": [\n    \"Prestamos en línea\",\n    \"Reservas fuera del número máximo permitido\",\n    \"Colegio para menores\"\n  ],\n  \"acceptance_criteria\": [\n    {\n      \"id\": \"CA-01\",\n      \"title\": \"Reserva es posible siguiendo las reglas de negocio establecidas\",\n      \"given\": [\n        \"Soy una persona socia de la biblioteca con carné válido\",\n        \"No tengo sanciones activas que impidan reservar\"\n      ],\n      \"when\": [\n        \"Realizo una reserva según las reglas del proceso de reserva\"\n      ],\n      \"then\": [\n        \"La reserva se efectúa correctamente y queda reflejada en el sistema\"\n      ]\n    },\n    {\n      \"id\": \"CA-02\",\n      \"title\": \"Número máximo de reservas se mantiene\",\n      \"given\": [\n        \"Actualmente tengo reservados ejemplares\",\n        \"Tengo más de 3 reservas activas\"\n      ],\n      \"when\": [\n        \"Intento reservar un nuevo ejemplar\"\n      ],\n      \"then\": [\n        \"El sistema rechaza la reserva, informándome del límite de 3 reservas\"\n      ]\n    },\n    {\n      \"id\": \"CA-03\",\n      \"title\": \"Reseña de las políticas de las obras de referencia\",\n      \"given\": [\n        \"Yo soy una persona socia de la biblioteca\"\n      ],\n      \"when\": [\n        \"Intento reservar una obra de referencia\"\n      ],\n      \"then\": [\n        \"La reserva es rechazada debido al artículo 9 del Reglamento de préstamo\"\n      ]\n    }\n  ],\n  \"business_rules\": [\n    {\n      \"id\": \"RN-RES-01\",\n      \"description\": \"Reserva solo posible para personas socias con carné válido y sin sanción activa impidiéndola (resolución RN-SAN-03 y RN-SAN-04 en DOC-03)\"\n    },\n    {\n      \"id\": \"RN-RES-02\",\n      \"description\": \"Cada persona socia puede hacer un máximo de 3 reservas activas (reservas en estado \\\"pendiente\\\" o \\\"disponible para recoger\\\")\"\n    },\n    {\n      \"id\": \"RN-RES-06\",\n      \"description\": \"Si el ejemplar no se recoge en 48 horas, la reserva caduca y el ejemplar pasa a la siguiente persona (política de RN-SAN-04 revisada CONVención DOC-20)\"\n    },\n    {\n      \"id\": \"RN-RES-09\",\n      \"description\": \"Personas con carné infantil solo pueden reservar obras de la colección infantil y juvenil (con el límite de 3 reservas activas)\"\n    },\n    {\n      \"id\": \"RN-RES-01\",\n      \"description\": \"Número máximo de ejemplares simultáneamente varía según la categoría del material (8 ejemplares por persona socia general y 4 para menores de la colección infantil y juvenil, por ejemplo, como se indica en el DOC-01)\"\n    }\n  ],\n  \"assumptions\": [\n    \"Tengo acceso al sitio web oficial de la biblioteca para realizar reservas.\",\n    \"Soy una persona legalmente reconocida como socia de la biblioteca Municipal de Villaficticia.\"\n  ],\n  \"constraints\": [\n    \"Necesito cumplir con las políticas de préstamo impuestas, incluyendo la numeración máxima de ejemplares.\",\n    \"Debo adherirme a los límites de préstamo, especialmente si soy una persona con carné infantil.\"\n  ],\n  \"dependencies\": [\n    \"El proceso de reserva depende de la versión actualizada del Circuito de reserva y recogida (DOC-06, versión 3, 2026-05-05).\",\n    \"El número de reservas no recogidas es una consideración adicional influenciando los protocolos de reserva (DOC-20).\"\n  ],\n  \"alternate_flows\": [\n    \"Si mi reserva no se recoge en 48 horas, busco otra obra que cumpla con mis necesidades.\"\n  ],\n  \"exceptions\": [\n    \"Las reservas de obras de referencia y títulos ya con ejemplar en préstamo son inacepables.\"\n  ],\n  \"related_features\": [\n    \"Acceso a múltiples colecciones (libros, audiovisuales, revistas, libros electrónicos y obras de referencia)\"\n  ],\n  \"priority\": \"Must\",\n  \"sources\": [\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-02\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-06\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-01\"\n    },\n    {\n      \"kind\": \"rag\",\n      \"ref\": \"DOC-20\"\n    }\n  ],\n  \"open_questions\": [\n    \"¿Cómo se manejará una reserva no recogida reiterada para que no perjudique el uso del ejemplar para otras personas socias?\",\n    \"¿Existen políticas de préstamo especiales para las categorías no relacionadas con obras de referencia, tales como audiovisuales o libros electrónicos?\"\n  ]\n}"
+    }
+  ],
+  "tokens_salida_total": 1290,
+  "tokens_por_segundo": 3.35
+}

@@ -1,0 +1,14 @@
+{
+  "modelo": "qwen3:4b-instruct",
+  "ronda": "real-T58",
+  "sin_razonamiento": true,
+  "request_timeout_s": 600.0,
+  "carga_s": 44.8,
+  "resultado": "FALLO",
+  "error": "ExternalServiceError: Todos los proveedores de la tarea «generate_story» han fallado. Revisa las conexiones en Administración o elige otro modelo.",
+  "total_s": 600.1,
+  "reparaciones_ids": [],
+  "llamadas": [],
+  "tokens_salida_total": 0,
+  "tokens_por_segundo": null
+}

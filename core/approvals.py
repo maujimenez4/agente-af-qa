@@ -19,7 +19,8 @@ import functools
 import hashlib
 import json
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
@@ -118,6 +119,11 @@ class ApprovalLedger:
     _offers: dict[str, str] = field(default_factory=dict)
     _approvals: dict[tuple[str, int], Approval] = field(default_factory=dict)
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
+    # PA-141: artefactos con una publicación en curso en este proceso.
+    _publishing: set[str] = field(default_factory=set, repr=False, compare=False)
+    # PA-141: aprobaciones con escrituras en Jira ya empezadas (artefacto, versión). `find`
+    # no las devuelve aunque el consumo o su guardado fallen: nada se escribe dos veces.
+    _spent: set[tuple[str, int]] = field(default_factory=set, repr=False, compare=False)
 
     @_locked
     def offer(self, artifact: Artifact, target: PublishTarget) -> str:
@@ -174,6 +180,7 @@ class ApprovalLedger:
         if (
             approval is None
             or approval.consumed
+            or (approval.artifact_id, approval.version) in self._spent
             or approval.fingerprint != content_fingerprint(artifact)
             or approval.target != target
         ):
@@ -196,6 +203,37 @@ class ApprovalLedger:
             approval, consumed=True, published_fingerprint=content_fingerprint(published)
         )
         self._persist(approval.artifact_id)
+
+    @_locked
+    def spend(self, approval: Approval) -> None:
+        """Marca la aprobación como usada en este proceso antes de escribir en Jira (PA-141)."""
+        self._spent.add((approval.artifact_id, approval.version))
+
+    @_locked
+    def unspend(self, approval: Approval) -> None:
+        """Publicación parcial sin consumo: la aprobación vuelve a servir para reintentar los
+        fallidos (la publicación de la suite es idempotente, PA-05)."""
+        self._spent.discard((approval.artifact_id, approval.version))
+
+    @contextmanager
+    def publishing(self, artifact: Artifact, target: PublishTarget) -> Iterator[Approval | None]:
+        """Una sola publicación a la vez por artefacto (PA-141).
+
+        Dentro, la aprobación vigente se relee (`find`); si ya hay otra publicación en curso del
+        mismo artefacto, `ApprovalError` antes de escribir nada. Entre procesos: PA-140.
+        """
+        artifact_id = str(artifact.id)
+        with self._lock:
+            if artifact_id in self._publishing:
+                raise ApprovalError(
+                    "Ya hay una publicación en curso de este artefacto; espera a que termine."
+                )
+            self._publishing.add(artifact_id)
+        try:
+            yield self.find(artifact, target)
+        finally:
+            with self._lock:
+                self._publishing.discard(artifact_id)
 
     @_locked
     def was_published(self, artifact: Artifact) -> bool:

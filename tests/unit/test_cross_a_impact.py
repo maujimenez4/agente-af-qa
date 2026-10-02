@@ -580,14 +580,6 @@ def test_analyze_drops_or_cleans_blank_reason() -> None:
     assert all(i.reason.strip() for i in result.affected)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-39, ya anotada): `ImpactItem.reason` no tiene límite y el analizador lo "
-        "pasa entero; un motivo de 50 000 caracteres llegaría al comentario del vínculo en Jira "
-        "(core/impact/analysis.py:214-220, schemas/impact.py:14-17)"
-    ),
-)
 def test_analyze_limits_huge_reason() -> None:
     """RF-27 / PA-39: un motivo desmesurado se recorta o se rechaza."""
     llm = _llm(_analysis([_item("DEMO-2", "rule", "motivo ficticio " * 3125)]))
@@ -850,14 +842,6 @@ def test_store_lower_new_version_keeps_latest_and_row(
     assert sqlite_store.latest(artifact_id) == dataset.renewal_story()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-34, ya anotada): `save` deja que un id existente cambie de `type`; la "
-        "fila pasa a `test_suite` y las versiones de HU se leen con `TestSuite` "
-        "(core/impact/versions.py:332-339, 393)"
-    ),
-)
 def test_store_rejects_type_change_for_existing_id(sqlite_store: StoryVersionStore) -> None:
     """RF-05: un artefacto no cambia de tipo entre versiones."""
     artifact_id = uuid4()

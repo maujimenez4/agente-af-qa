@@ -98,6 +98,16 @@ class StoryVersionStore:
             where=ARTIFACTS.c.version <= upsert.excluded.version,
         )
         with self._transaction() as conn:
+            stored_type = conn.execute(
+                sa.select(ARTIFACTS.c.type).where(ARTIFACTS.c.id == artifact.id)
+            ).scalar_one_or_none()
+            if stored_type is not None and stored_type != artifact.type.value:
+                # PA-34: las versiones anteriores se leerían con otro modelo.
+                raise VersionConflictError(
+                    "Este artefacto ya existe con otro tipo; un artefacto no cambia de "
+                    "tipo entre versiones.",
+                    service=SERVICE,
+                )
             existing = conn.execute(
                 sa.select(ARTIFACT_VERSIONS.c.content).where(
                     ARTIFACT_VERSIONS.c.artifact_id == artifact.id,

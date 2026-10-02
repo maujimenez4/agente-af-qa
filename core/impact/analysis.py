@@ -22,6 +22,8 @@ from schemas.user_story import UserStory
 PromptLoader = Callable[[str], Prompt]
 MAX_CANDIDATES = 12
 SUMMARY_CHARS = 300
+# PA-39: el motivo se publica como comentario del vínculo; se acota.
+MAX_REASON_CHARS = 1000
 
 
 def _relation(issue: IssueDetail, parent_key: str | None) -> str:
@@ -164,5 +166,7 @@ def _keep_valid(items: list[ImpactItem], allowed: set[str]) -> tuple[list[Impact
         key = (item.jira_key, item.kind)
         if key not in seen:
             seen.add(key)
+            if len(reason) > MAX_REASON_CHARS:
+                reason = reason[: MAX_REASON_CHARS - 1].rstrip() + "…"
             valid.append(item.model_copy(update={"reason": reason}))
     return valid, dropped, blank

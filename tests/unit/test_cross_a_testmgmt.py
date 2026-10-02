@@ -26,7 +26,7 @@ from typing import Any
 
 import httpx
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from structlog.testing import capture_logs
 
 from adapters import base
@@ -344,19 +344,11 @@ def test_publish_suite_sends_labels_as_list_of_strings_without_duplicates() -> N
     assert labels == [CASE_LABEL, "CA-02", "tipo-positivo"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-205, ya anotada): `schemas/test_case.py` valida CA/RN con `re.match` "
-        "y `$`, "
-        "que acepta un salto de línea final; la etiqueta `CA-01\\n` no es válida para Jira "
-        "(schemas/test_case.py:60-61)"
-    ),
-)
-def test_case_labels_are_valid_jira_labels_even_with_trailing_newline_in_criterion() -> None:
-    """D-09: ninguna etiqueta enviada puede tener espacios ni saltos de línea."""
-    labels = case_labels(make_case(criteria=["CA-01\n"]))
-    assert all(JIRA_LABEL.fullmatch(label) for label in labels)
+def test_criterion_with_trailing_newline_is_rejected_before_reaching_jira() -> None:
+    """D-09 · PA-205 (corregido): un CA con salto de línea final no es válido, así que nunca
+    llega a una etiqueta de Jira."""
+    with pytest.raises(ValidationError, match="referencias no válidas"):
+        make_case(criteria=["CA-01\n"])
 
 
 def test_publish_suite_description_is_literal_adf_without_markdown_html_or_controls() -> None:

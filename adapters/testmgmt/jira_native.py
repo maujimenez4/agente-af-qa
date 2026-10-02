@@ -147,6 +147,7 @@ class JiraNativeTests:
         jql = cases_jql(story_key)
         cases: list[IssueSummary] = []
         token: str | None = None
+        seen_tokens: set[str] = set()  # como en el tracker (PA-184): un token repetido para
         while len(cases) < MAX_CASES:
             params = {
                 "jql": jql,
@@ -164,7 +165,13 @@ class JiraNativeTests:
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
                 break
-        return cases[:MAX_CASES]
+            if not isinstance(token, str) or token in seen_tokens:
+                break
+            seen_tokens.add(token)
+        unique: dict[str, IssueSummary] = {}  # sin repetidas; la primera gana
+        for case in cases:
+            unique.setdefault(case.key, case)
+        return list(unique.values())[:MAX_CASES]
 
     # --- ESCRITURA: solo desde el nodo publish -----------------------------------------------
 

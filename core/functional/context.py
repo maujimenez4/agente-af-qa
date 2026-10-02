@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from adapters.base import IssueDetail, RetrievedChunk
-from core.text import escape_data  # PA-227: se reexporta para `core/impact/` y `core/qa/`
+from core.text import escape_data as escape_data  # PA-227: reexportada (core/impact, core/qa)
 from schemas.user_story import UserStory
 
 SourceKind = Literal["jira", "rag", "memory"]

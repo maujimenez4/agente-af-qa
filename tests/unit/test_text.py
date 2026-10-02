@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from core import text
+from core.config import ROOT_DIR
 from core.functional import context
 from core.text import escape_data
 
@@ -50,6 +51,6 @@ def test_text_module_imports_nothing_from_core() -> None:
 def test_rag_memory_and_quality_import_escape_data_from_core_text(module: str) -> None:
     """PA-227: `core/rag` (y la memoria y la calidad) ya no dependen de `core/functional` para
     escapar datos."""
-    source = Path(module).read_text(encoding="utf-8")
+    source = (ROOT_DIR / module).read_text(encoding="utf-8")
     assert "from core.text import escape_data" in source
     assert "from core.functional.context import escape_data" not in source

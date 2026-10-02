@@ -1,6 +1,6 @@
 export { EmptyState, type EmptyStateProps } from './EmptyState.tsx'
 export { ErrorCard, type ErrorCardProps } from './ErrorCard.tsx'
-export { ACTION_LABELS, presentError, retryDelay, type ApiError, type ErrorPresentation } from './errorPresentation.ts'
+export { ACTION_LABELS, KNOWN_ERROR_CODES, presentError, retryDelay, type ApiError, type ErrorPresentation } from './errorPresentation.ts'
 export { LoadingState, type LoadingStateProps } from './LoadingState.tsx'
 export { Notice } from './Notice.tsx'
 export { SIMULATION_NOTICE } from './texts.ts'

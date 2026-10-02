@@ -86,6 +86,8 @@ describe('presentError: tabla completa de DESIGN-DECISIONS.md §6', () => {
       login: 'Iniciar sesión',
       restart: 'Empezar de nuevo',
       refresh: 'Actualizar',
+      regenerate: 'Volver a generar',
+      backToReceipt: 'Volver al recibo',
     })
   })
 })

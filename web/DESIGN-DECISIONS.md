@@ -93,6 +93,18 @@ Acordado con la sesión principal en la PR #2 (PA-303).
   - Los tipos se generan desde el contrato con **openapi-typescript**.
   - Se instalan en los días 2 a 4.
 
+## 4 bis. Navegación y pantallas (días 2 a 4)
+
+Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, Origen, Generando e Iterar navegables contra MSW).
+
+- **Navegación por estado**, sin router: los `thread_id` nunca salen de la URL (T-52). El catálogo del sistema de diseño solo existe en desarrollo (`?catalogo`, PA-309).
+- **Login mínimo** con las piezas del sistema (PA-311, pendiente de validar por la principal).
+- **Admin:** una pantalla simple «Disponible pronto». Ajustes queda para después de T-57.
+- **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
+- **Anillo de consumo:**
+  - en el carril, «24 %» y debajo «instalación». El porcentaje es `tokens_today / warning_threshold`, acotado a 100;
+  - nombre accesible: «Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 24 % del umbral de aviso».
+
 ## 5. Textos de la lista de conversaciones
 
 Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `version`) con el formato «flujo · estado» del lienzo.

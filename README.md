@@ -102,8 +102,11 @@ El agente se puede usar como **servidor MCP** (*Model Context Protocol*) desde u
 | `buscar_historias(proyecto, texto?, limite?)` | HU y épicas de un proyecto de Jira por texto o por clave; sin texto, las recientes | `functional` o `qa` |
 | `ver_incidencia(clave)` | Resumen, tipo, estado, épica, descripción y número de CA y RN (sin IA) | `functional` o `qa` |
 | `revisar_calidad(clave)` | Informe INVEST, hallazgos y preguntas abiertas, con fuentes. **Usa el modelo local: tarda varios minutos** | `functional` |
+| `fuentes_de_contexto(clave)` | Fuentes de Jira, del RAG y de la memoria que usaría el agente para esa HU, con el presupuesto de tokens (cuántas entran). Sin IA | `functional` o `qa` |
+| `proponer_inicio(texto, proyecto)` | Con qué empezar a partir de un texto: claves reconocidas (también en minúsculas) o HU parecidas, con sus opciones según el rol. Sin IA; no crea nada | `functional` (HU) o `qa` (pruebas) |
+| `mis_conversaciones(limite?)` | Conversaciones del usuario configurado: título, proyecto, modo, origen, estado y versión. Para continuarlas o aprobar, la aplicación | `functional` o `qa` |
 
-- **Nada escribe en Jira.** Aprobar y publicar solo se hace en la aplicación, con la huella. Además, el servidor bloquea los métodos de escritura de Jira (proxy de solo lectura).
+- **Nada escribe en Jira.** Aprobar y publicar solo se hace en la aplicación, con la huella. Además, un proxy de solo lectura (lista blanca) solo deja pasar las lecturas de Jira, del RAG, de las conversaciones y del último proyecto usado.
 - Usa transporte **stdio** local: no abre puertos. stdout es el canal del protocolo y los logs van a stderr, sin contenido.
 - **Actúa como un usuario del agente** fijado en el `.env`: `MCP_USER` (sin él no arranca) y `MCP_ROLE` (`functional` o `qa`). Las credenciales de Jira y de la BD se quedan en ese `.env`: el asistente no las ve.
 - El texto de Jira y del modelo se devuelve como datos, no como instrucciones. Los errores salen en español y sin trazas.

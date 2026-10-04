@@ -12,8 +12,10 @@ from pydantic import BaseModel, Field, model_validator
 from adapters.base import IssueSummary, ProjectSummary
 from core.conversations import ConversationSummary
 from core.guided_start import SourcePreview, StartProposal
+from core.memory.reader import MemorySummary
 from schemas.artifact import Artifact
 from schemas.impact import ImpactAnalysis
+from schemas.memory import Memory
 from schemas.quality import QualityReport
 from schemas.test_case import MAX_EVIDENCE_CHARS, TestSuite
 from schemas.user_story import UserStory
@@ -470,9 +472,20 @@ class ModelOverrideIn(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+# --- Memoria (T-33) ------------------------------------------------------------------------------
+
+
+class MemoryOut(MemorySummary):
+    """Una memoria completa: el resumen de la lista, su contenido estructurado y su `.md`."""
+
+    memory: Memory = Field(description="Se pinta campo a campo como texto (lo escribió el LLM).")
+    markdown: str = Field(description="El `.md` de la memoria, solo para descargarlo.")
+
+
 __all__ = [
     "ConversationSummary",
     "IssueSummary",
+    "MemorySummary",
     "SourcePreview",
     "StartProposal",
 ]

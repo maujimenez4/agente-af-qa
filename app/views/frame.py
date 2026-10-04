@@ -12,6 +12,7 @@ from app.origin import fix_origin
 from app.quality import review_item
 from app.session import SessionState, clear_composer, go
 from app.text import md_escape
+from core.permissions import Permission, can
 
 
 def simulation_notice(session: SessionState) -> None:
@@ -43,6 +44,10 @@ def sidebar(session: SessionState) -> None:
                 alternatives=[],
                 choices=[],
             )
+        if can(user, Permission.VIEW_MEMORY) and st.button(
+            "Memoria", key="memory_tab", width="stretch", icon=":material/menu_book:"
+        ):
+            go(session, "memoria", memory=None, current=None, pending=None)
         _conversations(session, user)
         _quality_reviews(session, user)
         st.divider()

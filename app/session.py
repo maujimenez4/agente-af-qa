@@ -64,6 +64,7 @@ class SessionState:
     pending: Conversation | None = None  # conversación por arrancar (Mixta 2b)
     quality_store: QualityReviewStore | None = None  # revisiones guardadas (PA-277)
     quality: str | None = None  # id de la revisión de calidad abierta (Mixta 5)
+    memory: str | None = None  # clave de la memoria abierta en la pestaña Memoria (T-33)
     model_label: str | None = None
     previous_phase: int | None = None
     failed_logins: int = 0

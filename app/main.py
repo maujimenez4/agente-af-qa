@@ -24,6 +24,7 @@ from app.views import (  # noqa: E402
     inicio,
     iterar,
     login,
+    memoria,
     origen,
     recibo,
 )
@@ -35,6 +36,7 @@ SCREENS = {
     "iterar": iterar.render,
     "recibo": recibo.render,
     "calidad": calidad.render,
+    "memoria": memoria.render,
 }
 
 

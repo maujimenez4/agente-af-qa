@@ -165,3 +165,16 @@ def test_dockerfile_pins_base_images_by_digest() -> None:
     assert len(lines) == 2
     for line in lines:
         assert re.search(r"@sha256:[0-9a-f]{64}(?![0-9a-f])", line), line
+
+
+def test_compose_images_are_pinned_by_digest(compose: dict[str, Any]) -> None:
+    """PA-231: las imágenes de Compose (Postgres y Ollama) se fijan por digest, como el
+    `Dockerfile` (PA-280); `app` se construye con `build`."""
+    images = {
+        name: service["image"]
+        for name, service in compose["services"].items()
+        if "image" in service
+    }
+    assert set(images) == {"db", "ollama"}
+    for name, image in images.items():
+        assert re.search(r"@sha256:[0-9a-f]{64}$", image), name

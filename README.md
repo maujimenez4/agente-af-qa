@@ -80,6 +80,55 @@ docker compose --profile full up -d app                       # http://127.0.0.1
 - Dentro de Compose, la API usa `db` y `ollama` en lugar de `localhost`: `docker-compose.yml` fija `DATABASE_URL` (con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de tu `.env`) y `OLLAMA_BASE_URL`. Si tu contraseña tiene caracteres especiales de URL (`@`, `/`, `:`), escápalos o usa otra.
 - El puerto solo se publica en `127.0.0.1`: la API no queda expuesta a la red.
 
+### Servidor MCP de solo lectura (T-59, opcional)
+El agente se puede usar como **servidor MCP** (*Model Context Protocol*) desde un asistente compatible, como Claude Desktop, Claude Code o VS Code. Es una capa fina sobre los servicios del agente, igual que la API:
+
+| Herramienta | Qué hace | Rol necesario |
+|---|---|---|
+| `buscar_historias(proyecto, texto?, limite?)` | HU y épicas de un proyecto de Jira por texto o por clave; sin texto, las recientes | `functional` o `qa` |
+| `ver_incidencia(clave)` | Resumen, tipo, estado, épica, descripción y número de CA y RN (sin IA) | `functional` o `qa` |
+| `revisar_calidad(clave)` | Informe INVEST, hallazgos y preguntas abiertas, con fuentes. **Usa el modelo local: tarda varios minutos** | `functional` |
+
+- **Nada escribe en Jira.** Aprobar y publicar solo se hace en la aplicación, con la huella. Además, el servidor bloquea los métodos de escritura de Jira (proxy de solo lectura).
+- Usa transporte **stdio** local: no abre puertos. stdout es el canal del protocolo y los logs van a stderr, sin contenido.
+- **Actúa como un usuario del agente** fijado en el `.env`: `MCP_USER` (sin él no arranca) y `MCP_ROLE` (`functional` o `qa`). Las credenciales de Jira y de la BD se quedan en ese `.env`: el asistente no las ve.
+- El texto de Jira y del modelo se devuelve como datos, no como instrucciones. Los errores salen en español y sin trazas.
+- Requisitos: los mismos que la API (pasos 1–4 de arriba: `.env`, `db`, `ollama` y migraciones).
+
+**Arrancarlo a mano** (se queda esperando mensajes por stdin; `Ctrl+C` para salir):
+```bash
+uv run python -m mcp_server
+```
+
+**Claude Desktop** (`claude_desktop_config.json`; en Windows, `%APPDATA%\Claude\claude_desktop_config.json`). Pon la ruta absoluta de tu copia del repositorio:
+```json
+{
+  "mcpServers": {
+    "agente-af-qa": {
+      "command": "uv",
+      "args": ["run", "--directory", "C:/ruta/a/agente-af-qa", "python", "-m", "mcp_server"]
+    }
+  }
+}
+```
+Reinicia Claude Desktop después de guardar. No hace falta poner variables en `env`: el servidor lee el `.env` de esa carpeta.
+
+**Claude Code**, desde la carpeta del repositorio. Con `--scope project` se guarda en `.mcp.json`, sin rutas ni secretos, y sirve a todo el equipo, porque Claude Code arranca el servidor en la carpeta del proyecto:
+```bash
+claude mcp add --scope project agente-af-qa -- uv run python -m mcp_server
+claude mcp list                                      # comprueba que conecta
+```
+Solo para ti y desde cualquier carpeta (ámbito personal, con la ruta absoluta de tu copia):
+```bash
+claude mcp add agente-af-qa -- uv run --directory "C:/ruta/a/agente-af-qa" python -m mcp_server
+```
+Dentro de Claude Code, `/mcp` muestra el estado y las herramientas.
+
+**Probarlo con el inspector de MCP** (necesita Node.js; abre una página local para llamar a cada herramienta):
+```bash
+npx @modelcontextprotocol/inspector uv run python -m mcp_server
+```
+
 ## Contenido
 | Archivo | Para qué sirve |
 |---|---|

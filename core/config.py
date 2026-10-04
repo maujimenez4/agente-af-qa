@@ -230,6 +230,11 @@ class Settings(BaseSettings):
     # Hilos de las operaciones largas (no son workers de uvicorn: la API va en un solo proceso).
     api_workers: PositiveInt = 4
 
+    # Servidor MCP de solo lectura (T-59): actúa como este usuario y con los permisos de su rol.
+    # Sin usuario, `python -m mcp_server` no arranca. Solo roles que trabajan con HU (no admin).
+    mcp_user: str | None = None
+    mcp_role: Literal["functional", "qa"] = "functional"
+
     @field_validator("api_allowed_origins")
     @classmethod
     def _explicit_origins(cls, value: str) -> str:

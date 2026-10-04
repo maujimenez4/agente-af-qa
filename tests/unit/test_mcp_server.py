@@ -955,12 +955,12 @@ def test_propose_lowercase_key_offers_tests_for_qa(container: Container) -> None
 
 
 def test_propose_epic_key_offers_new_story_for_functional(container: Container) -> None:
-    """T-59 fase 2: functional, clave de la épica → opción «Nueva HU en DEMO-1»."""
+    """T-59 fase 2 · PA-285: functional, clave de la épica → «HU nueva en la épica DEMO-1»."""
     result = _call(
         container, FUNCTIONAL, "proponer_inicio", {"texto": "demo-1", "proyecto": "DEMO"}
     )
 
-    assert _options(result) == [("new_story_in_epic", "Nueva HU en DEMO-1")]
+    assert _options(result) == [("new_story_in_epic", "HU nueva en la épica DEMO-1")]
 
 
 def test_propose_epic_key_gives_no_option_for_qa(container: Container) -> None:

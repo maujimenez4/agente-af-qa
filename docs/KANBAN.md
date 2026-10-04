@@ -142,7 +142,7 @@
 | T-56 | **Frontend propio en React** a partir del lienzo «Propuesta mixta», contra el contrato de T-55 (API simulada primero) | B (responsable del área B) | T-55 (contrato) | RNF-15, D-04 (revisada) | ⬜ |
 | T-57 | **Punto de control (día 5 de la ronda)**: la demo se hace con React o con Streamlit (plan B) | Tú | T-56 | — | ⬜ |
 | T-58 | **Ajustes para modelos locales pequeños** (medición de la sesión Ollama, 2026-10-02): prompts que fuerzan IDs `CA-NN`/`RN-NN` y citas no vacías; reparación determinista de IDs antes del reintento; opción por modelo para desactivar el razonamiento (`think`/`reasoning_effort`) | Modelos (sesión) | — | RNF-09, RNF-10, RNF-12 | ✅ |
-| T-59 | **(Opcional) El agente como servidor MCP de solo lectura**: herramientas para asistentes compatibles (Claude Desktop, Claude Code, VS Code) sobre los servicios existentes: buscar HU, ver incidencia y revisar la calidad (fase 1); fuentes, arranque guiado y conversaciones (fase 2). Nada escribe en Jira (principio 1); transporte stdio local; actúa como un usuario configurado. Se valora día a día; si a 3 días de la presentación no está, queda fuera | Ollama → MCP (sesión) | T-48, T-53, T-55 | D-14, principio 1 | ⬜ |
+| T-59 | **(Opcional) El agente como servidor MCP de solo lectura**: herramientas para asistentes compatibles (Claude Desktop, Claude Code, VS Code) sobre los servicios existentes: buscar HU, ver incidencia y revisar la calidad (fase 1); fuentes, arranque guiado y conversaciones (fase 2). Nada escribe en Jira (principio 1); transporte stdio local; actúa como un usuario configurado. Se valora día a día; si a 3 días de la presentación no está, queda fuera | MCP (sesión) | T-48, T-53, T-55 | D-14, principio 1 | ⬜ |
 
 ## Días 11–15 · v1.1 y demo final
 

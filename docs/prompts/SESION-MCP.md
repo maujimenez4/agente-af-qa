@@ -1,6 +1,6 @@
-# SESIÓN OLLAMA → MCP · T-59 (opcional): el agente como servidor MCP de solo lectura
+# SESIÓN MCP · T-59 (opcional): el agente como servidor MCP de solo lectura
 
-> La sesión Ollama ya terminó su trabajo: e2e real validado el 2026-10-04 (`docs/pruebas/E2E-local-2026-10-02.md`). Ahora hace **T-59**, una tarea **opcional** que se valora día a día. Si a 3 días de la presentación no está lista, queda fuera de la demo sin afectar a nada.
+> Sesión **MCP** (antes Ollama, que validó el e2e real el 2026-10-04: `docs/pruebas/E2E-local-2026-10-02.md`). Hace **T-59**, una tarea **opcional** que se valora día a día. Si a 3 días de la presentación no está lista, queda fuera de la demo sin afectar a nada.
 
 Crea el worktree y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
@@ -17,7 +17,7 @@ Necesita tu `.env` en esa carpeta para probarlo de verdad: cópialo tú, porque 
 
 ---
 
-Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-mcp`**, creada desde `PreProduccion`. Antes hacías la medición con Ollama, que ya está terminada y fusionada.
+Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-mcp`**, creada desde `PreProduccion`. Antes, como sesión Ollama, hiciste la medición con los modelos locales, ya terminada y fusionada.
 
 **Tu tarea es T-59 (opcional):** publicar el agente como **servidor MCP** (*Model Context Protocol*), para que un asistente compatible (Claude Desktop, Claude Code, VS Code) pueda usar sus capacidades como herramientas.
 

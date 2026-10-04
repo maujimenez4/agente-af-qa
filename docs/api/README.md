@@ -110,7 +110,6 @@ Todo lo nuevo **solo añade** rutas, campos opcionales o valores de `ErrorCode`:
 | QA encadenada | `/conversations/{id}/handoff`, `/qa/handoffs` y `/qa/handoffs/{id}/take` | Hecha (T-54 y PA-105) |
 
 **Aún no están en el contrato.** Se añadirán con su tarea; mientras, la pantalla queda «disponible pronto»:
-- registro de la ejecución (QA 6, T-47);
 - reintentar solo los fallidos (PA-05);
 - auditoría e historial;
 - pestaña Memoria (T-33);

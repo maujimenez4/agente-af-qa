@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-08, T-29, T-36, T-39 … T-46, T-57 | T-56 | T-33 | T-01 … T-28, T-30 … T-32, T-34, T-35, T-47 … T-55, T-58, T-59 | T-37, T-38 (R-01) |
+| T-36, T-39 … T-46, T-57 | T-29, T-33, T-56 | — | T-01 … T-28, T-30 … T-32, T-34, T-35, T-37, T-47 … T-55, T-58, T-59 | T-38 (R-01) |
 
 ---
 
@@ -24,7 +24,7 @@
 | T-05 | `schemas/` y `core/state_machine.py` con pruebas | P | T-01 | SPEC-00 §3, RF-34, CA-00-07 | ✅ |
 | T-06 | `adapters/base.py`, `adapters/errors.py` y `tests/fakes/` para todos los protocolos | P | T-05 | SPEC-00 §4, CA-00-03 | ✅ |
 | T-07 | Esqueleto del grafo LangGraph con fakes, `interrupt()` y reanudación | P | T-06 | CA-00-04 | ✅ |
-| T-08 | Crear sitio Jira Cloud y proyecto de pruebas, verificar el tipo subtarea, token con scopes; crear cuentas gratuitas en Groq y OpenRouter; instalar Ollama y descargar bge-m3 y un modelo pequeño; fijar `config/models.yaml` | Tú | — | D-03, D-14, RNF-04 | ⬜ |
+| T-08 | Crear sitio Jira Cloud y proyecto de pruebas, verificar el tipo subtarea, token con scopes; crear cuentas gratuitas en Groq y OpenRouter; instalar Ollama y descargar bge-m3 y un modelo pequeño; fijar `config/models.yaml` | Tú | — | D-03, D-14, RNF-04 | ✅ (hecho por el usuario: Jira Cloud, Ollama y modelos en uso desde el e2e real) |
 | T-09 | Corpus piloto sintético: dominio ficticio, 15–25 documentos Markdown en las 7 categorías | B | T-01 | D-06 | ✅ |
 
 **🔗 Sincronización:** `CLAUDE.md`, contratos y fakes aprobados → **congelar la SPEC-00** → crear los worktrees `area-a` y `area-b`.
@@ -87,7 +87,7 @@
 |---|---|---|---|---|---|
 | T-27 | `markdown_to_adf`, `create_story`, `update_story` con comentario del diff y `link` | A | T-11, T-19 | RF-04, RF-05, RF-06 | ✅ |
 | T-28 | Estrategia de pruebas y pantallas **QA 1 … QA 3** (origen, generando, iterar la suite con Casos, Cobertura, Datos y riesgos, y Estrategia) | B | T-26, T-24 | RF-26 | ✅ |
-| T-29 | Página **Administración** mínima: probar conexiones, modelos por tarea y carga de documentos | B | T-24, T-12 | RF-01, RF-07, RF-40, RF-41 | ⬜ |
+| T-29 | Página **Administración** mínima: probar conexiones, modelos por tarea y carga de documentos | B | T-24, T-12 | RF-01, RF-07, RF-40, RF-41 | 🔄 (versión mínima en `ses-admin`: probar conexiones y modelos por tarea) |
 
 **🔗 Sincronización:** **aprobar un artefacto desde la UI** y publicar una HU real en el sandbox.
 
@@ -105,7 +105,7 @@
 | ID | Tarea | Sesión | Depende | Trazabilidad | Estado |
 |---|---|---|---|---|---|
 | T-32 | Contador de tokens y coste por llamada visible en la UI; endurecimiento: reintentos, mensajes de error y revisión de logs | A | T-10 | RF-43, RNF-12, RNF-02 | ✅ |
-| T-33 | `MemoryGenerator`, nodo `memorize`, reindexado sin duplicados, prioridad de la memoria en la búsqueda y pestaña **Memoria** | B | T-16, T-27 | RF-36, RF-37, RF-38, RF-51, RNF-25 | 👀 (backend hecho en `ses-memoria`; falta la pestaña **Memoria**, sesión UI) |
+| T-33 | `MemoryGenerator`, nodo `memorize`, reindexado sin duplicados, prioridad de la memoria en la búsqueda y pestaña **Memoria** | B | T-16, T-27 | RF-36, RF-37, RF-38, RF-51, RNF-25 | 🔄 (backend hecho en `ses-memoria`; pestaña **Memoria** y rutas `/memories` en `ses-memoria-ui`) |
 
 **🔗 Sincronización:** **medir tokens** (RNF-11: memoria frente a HU completa) y los tiempos (RNF-09, RNF-10) → **congelar funcionalidades**.
 
@@ -148,8 +148,8 @@
 
 | ID | Tarea | Sesión | Trazabilidad | Estado |
 |---|---|---|---|---|
-| T-37 | Registro de ejecución por CP (transiciones de estado y comentario de evidencia) | A | RF-28 | ⛔ R-01 |
-| T-38 | Propuesta de defecto vinculado ante un fallo | A | RF-29 | ⛔ R-01 |
+| T-37 | Registro de ejecución por CP (transiciones de estado y comentario de evidencia) | A | RF-28 | ✅ (cubierta por T-47; R-01 cerrada con la opción A) |
+| T-38 | Propuesta de defecto vinculado ante un fallo | A | RF-29 | ⛔ (fuera del MVP: R-01 cerrada con la opción A) |
 | T-39 | Probar la aceleración iGPU con Vulkan y comparar calidad local frente a nube por tarea (Could) | A | RNF-07 | ⬜ |
 | T-40 | Langfuse y panel de métricas por modelo y tarea | A/B | RNF-24 | ⬜ |
 | T-41 | Lenguaje natural a JQL (solo lectura, validada) | A | RF-50 | ⬜ |
@@ -537,3 +537,4 @@
 | 8 | 2026-10-04 | **Ronda 7 · robustez del núcleo** (sesión UI, rama `ses-ui`): PA-140 (registro de aprobaciones con escritura condicional por `revision` y `save` que no lo retrocede; pruebas con hilos y, marcadas `integration`, con procesos reales sobre una base temporal), PA-146 (`FOR UPDATE` en `StoryVersionStore.save`), PA-145 (aviso de presupuesto diario también tras un fallo), PA-142 (detector lineal común `core/personal_data.py`) y PA-277 (revisiones de calidad guardadas y lista en la barra lateral de Streamlit) ✅. Propuestas PA-147 y PA-148 | Sin fusionar: `ses-ui` subida | Las pruebas de integración se saltan en el worktree sin `.env` | Fusionar `ses-ui` tras revisión |
 | 8 | 2026-10-04 | **Ronda 9** (sesión Jira, rama `ses-jira`): **PA-233** (listas anidadas del ADF acotadas a 20 niveles; lo más profundo se aplana, sin perder elementos ni lanzar `RecursionError`, ni siquiera en el `json.dumps` del ADF). **PA-232 y PA-321** (prueba intermitente de la lista de revisiones de calidad): causa medida, el reloj de Windows que usa Python 3.12 tiene 15,6 ms de resolución y dos revisiones quedaban con la misma fecha; con `sorted` estable salía primero la más antigua. Solo se corrige el desempate en `core/quality.py` (en memoria y en SQL), **sin tocar `api/`** ni el comportamiento visible: la lista sigue siendo «más recientes primero», ahora también con fechas iguales | — | — | Fusión de `ses-jira` |
 | 8 | 2026-10-04 | **Ronda 9 · contrato para el frontend** (sesión Modelos, rama `ses-contrato`): PA-314, PA-316 y PA-285 ✅. **Contrato (solo añade; avisar al frontend en React):** `POST /conversations/{id}/cancel` (202), `ConversationOut.cancel_requested` y `ConversationOut.jira_baseline` (opcionales), y los códigos `cancelled` y `not_cancellable` en `ErrorCode`; `docs/api/README.md` estrena «Novedades para el frontend» (rondas 6, 8 y 9). **Cancelar** (decisiones del usuario): señal por operación (`Run.cancel`, nueva en cada `begin`) fijada en un `ContextVar` en el hilo de cada run; `CancellableLLM` no empieza una llamada al LLM si se canceló (la llamada en curso no se corta) y `_run_graph` no empieza el siguiente paso salvo `human_review`, que solo pausa con la propuesta ya generada; estado final `error` + `cancelled`, reintentable con `/retry`; aprobar o publicar no se cancelan; en QA encadenada sin primera versión, la entrega vuelve a la lista (PA-113). **Versión Jira:** la de partida ya guardada, sin LLM, solo al evolucionar. `core/graph/` sin cambios. **Corregido tras las revisiones:** la parada se decide por el nodo que acaba de terminar (LangGraph emite la actualización antes de guardar el checkpoint: leerlo dejaba la conversación sin salida, test-writer); `request_cancel` comprueba y activa la señal bajo el candado del registro y `_run_graph` nunca la respeta al aprobar (carrera con una aprobación, security-reviewer); `jira_baseline` es `null` al terminar, también en simulación, y los ejemplos del contrato lo respetan (spec-checker). De paso, `docs/api/README.md` deja de decir que las revisiones de calidad viven en memoria (corregido en PA-272). spec-checker CONFORME, security-reviewer APTO. | — | — | Frontend: botón «Detener», «Deteniendo…» y la versión «Jira» del selector |
+| 8 | 2026-10-04 | **Fusión de `ses-ui` (ronda 7), `ses-jira` (ronda 9) y `ses-contrato` (ronda 9) en `PreProduccion`** (P): 6384 pruebas en verde, ruff y gitleaks limpios; las 24 pruebas `integration` de concurrencia de UI (PA-140, PA-146) en verde contra PostgreSQL. Choque semántico corregido: la prueba de `proponer_inicio` del MCP esperaba el texto anterior a PA-285. **Kanban al día:** T-08 ✅ (hecho por el usuario), T-37 ✅ (cubierta por T-47), T-38 fuera del MVP. **Encargos:** T-33 (pestaña Memoria, sesión Modelos, `ses-memoria-ui`, `SESION-UI.md`) y T-29 mínima (sesión Jira, `ses-admin`, `SESION-JIRA.md`). Frontend en React (`area-b`): último commit el 2026-10-02, 51 commits por fusionar y 66 de `PreProduccion` por traer | — | T-56 sin conectar a la API real; en simulación no se genera memoria | Fusionar T-29 y T-33; T-57 con el avance del frontend; T-36 |

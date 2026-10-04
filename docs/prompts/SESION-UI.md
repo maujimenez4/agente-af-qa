@@ -1,13 +1,13 @@
-# SESIÓN MODELOS · Ronda 8: citas en la calidad, reintentar y retoques (PA-282, PA-283, PA-276, PA-317 y PA-279)
+# SESIÓN MODELOS · Ronda 9: contrato para el frontend (PA-314, PA-316 y PA-285)
 
-> Encargo de la **sesión Modelos**. Tu PA-281 ya está fusionada y **verificada en el e2e real**: la HU nueva cita bien a la primera, sin reintento, en 5,3 min.
+> Encargo de la **sesión Modelos**. Tu ronda 8 (`ses-pendientes`) ya está fusionada.
 
 Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-pendientes origin/PreProduccion
+git -C .claude/worktrees/area-b switch -C ses-contrato origin/PreProduccion
 cd .claude/worktrees/area-b
 uv sync
 uv run python -m pytest -m "not integration"   # en verde, sin xfail
@@ -15,42 +15,46 @@ uv run python -m pytest -m "not integration"   # en verde, sin xfail
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-pendientes`**, creada desde `PreProduccion`.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-contrato`**, creada desde `PreProduccion`. Tu ronda 8 ya está fusionada.
 
-## Tareas (lee el texto completo de cada PA en `docs/KANBAN.md`)
-1. **PA-282:** `core/quality.py` aplica `repair_citations` como la HU y la suite.
-2. **PA-283:** una cita a la épica con el extracto de la HU es «válida» y no se corrige.
-   - Si el extracto de una cita de Jira está claramente en **otra** fuente de Jira y no en la citada, se corrige a esa fuente, con las mismas garantías de PA-281: coincidencia inequívoca y de longitud mínima; si no, no se toca.
-   - Nunca se inventa trazabilidad.
-3. **PA-276:** `POST /conversations/{id}/retry` para reintentar una conversación en `error` desde su último checkpoint (`graph.stream(None, config)`).
-   - Con propiedad (404 idéntico), permiso del flujo y 409 si no está en error.
-   - Si es de QA encadenada, la regla de PA-113 se mantiene.
-   - Contrato regenerado con `uv run python -m api.export_openapi`, sin argumentos.
-4. **PA-317:** `conversation_title()` da «HU nueva en la épica DEMO-1» en lugar de «Nueva HU en DEMO-1». Las filas ya guardadas no se migran.
-5. **PA-279:** conservación de las revisiones de calidad (RGPD).
-   - Un plazo configurable de días, con un valor por defecto prudente (p. ej. 90), y su purga. Propón dónde se ejecuta: al arrancar la API y con un comando.
-   - Borrado de las de una persona cuando se la da de baja (`active=False` en el seed de usuarios).
-   - Documéntalo.
+**En esta ronda atiendes tres peticiones del responsable del frontend en React (T-56).** Las pantallas ya existen en `web/` y esperan estas rutas. Lee el texto de cada PA en `docs/KANBAN.md` y, para ver cómo se usan, `docs/specs/UI.md` (Generando e Iterar) y `docs/api/README.md`.
+
+## Tareas
+1. **PA-314 · Detener una generación en curso:** `POST /conversations/{id}/cancel`.
+   - Solo si la conversación está generando (`generating`). Si no, 409 `not_in_review` o un código nuevo coherente; propónlo en el plan.
+   - Con propiedad (404 idéntico para lo ajeno y lo inexistente) y el permiso del flujo.
+   - **Cómo se detiene:** la operación corre en un hilo con `graph.stream`. Propón cómo cortarla de forma segura, por ejemplo una señal de cancelación que `_run_graph` comprueba entre nodos, sin matar hilos. No podrá interrumpir una llamada al LLM ya en curso: dilo en la descripción del contrato. Se para al terminar el paso actual, sin pasar al siguiente.
+   - **Estado final:** propón cuál, por ejemplo `error` con un `error.code` como `cancelled`, que se puede reintentar con `/retry`, o volver a la revisión anterior si la había (iterar).
+   - **Nunca escribe en Jira:** cancelar no aprueba ni publica nada. Si la operación en curso es aprobar o publicar, no se cancela (409): la publicación tiene sus propias garantías (PA-141).
+   - **QA encadenada:** si se cancela la generación de una conversación recogida sin primera versión, se aplica la regla de PA-113 (la entrega vuelve a la lista).
+2. **PA-316 · Versión «Jira» de la HU para comparar en Iterar.** El frontend necesita la HU tal como está en Jira, estructurada como `UserStory`, para el selector de versiones.
+   - Propón dónde se expone sin coste extra de LLM: la estructuración ya se hace una vez y queda como «versión de partida» en `artifact_state.state["baseline"]` (PA-30, PA-37).
+   - Por ejemplo, un campo `jira_baseline` en `ReviewPayload` o en `ConversationOut`, o `GET /conversations/{id}/baseline`. **Nunca** se llama al LLM solo para esto.
+   - Solo en las conversaciones que evolucionan una HU existente; en las de HU nueva, ausente o `null`.
+3. **PA-285 · Texto del arranque guiado:** `core/guided_start.py` debe decir «HU nueva en la épica DEMO-1», como el título de la conversación (PA-317).
 
 ## Reglas
+- **El frontend ya consume el contrato:** solo se añaden rutas o campos opcionales; no cambia ni se quita nada de lo existente. Regenera el contrato con `uv run python -m api.export_openapi` (sin argumentos), con ejemplos en las respuestas nuevas, y actualiza `docs/api/README.md` con un apartado «Novedades para el frontend».
 - **Puedes tocar:**
-  - `core/quality.py`, `core/functional/citations.py`, `core/qa/` (solo el camino de citas) y `core/conversations.py` (solo el título);
-  - `api/` (PA-276 y, si hace falta, la purga de PA-279);
-  - `core/seed_users.py` (baja, PA-279);
+  - `api/`;
+  - `core/guided_start.py` (solo el texto);
+  - `core/graph/` (solo si la cancelación lo necesita y sin tocar `publish` ni `_publish_approved`);
   - y sus pruebas.
 
-  En `core/config.py` solo el campo del plazo de PA-279 (autorizado). No toques `core/approvals.py`, `core/artifact_state.py`, `core/impact/`, `adapters/`, `app/`, `core/graph/nodes.py` ni `config/`.
-- **El frontend en React consume el contrato:** PA-276 solo añade una ruta; no cambies las existentes.
+  No toques `core/approvals.py`, `core/artifact_state.py` ni `core/impact/versions.py` (la sesión UI está ahí con PA-140 y PA-146), ni `adapters/`, `schemas/`, `config/`, `app/` ni `web/`.
+- **Pruebas:**
+  - con `fake_runtime` y fakes;
+  - incluye la cancelación entre nodos (con `run_inline=False` y un fake que bloquea un nodo hasta que se cancela), que cancelar no escribe en Jira, y la versión «Jira» en una evolución y su ausencia en una HU nueva.
 - **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
 - **Nombres en las pruebas:** sin `secret`, `password` ni `token` como nombre de variables con literales, ni textos que imiten una clave privada (gitleaks).
 - **Kanban:**
   - cierra las PA con la fecha;
   - añade tu fila al registro;
-  - **propuestas en PA-284…PA-299**.
+  - **propuestas en PA-288…PA-299**.
 - **Antes del commit:**
   - `uv run python -m pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push -u origin ses-pendientes` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-contrato` y avísame.
 
-Empieza presentándome el plan (sobre todo PA-283 y PA-276) antes de escribir código.
+Empieza presentándome el plan (sobre todo cómo se detiene la generación y su estado final, y dónde va la versión «Jira») antes de escribir código.

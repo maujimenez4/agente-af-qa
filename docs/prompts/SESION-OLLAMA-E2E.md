@@ -1,54 +1,82 @@
-# SESIÓN OLLAMA · Ronda 3: validar los arreglos antes de elegir el modelo
+# SESIÓN OLLAMA → MCP · T-59 (opcional): el agente como servidor MCP de solo lectura
 
-Pega como mensaje en la sesión de Ollama (carpeta principal, rama `PreProduccion`) todo lo que hay debajo de la línea. Antes, trae lo último: `git pull origin PreProduccion`.
+> La sesión Ollama ya terminó su trabajo: e2e real validado el 2026-10-04 (`docs/pruebas/E2E-local-2026-10-02.md`). Ahora hace **T-59**, una tarea **opcional** que se valora día a día. Si a 3 días de la presentación no está lista, queda fuera de la demo sin afectar a nada.
+
+Crea el worktree y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+
+```bash
+# desde la carpeta del repositorio (agente-af-qa)
+git fetch origin
+git worktree add .claude/worktrees/ses-mcp -b ses-mcp origin/PreProduccion
+cd .claude/worktrees/ses-mcp
+uv sync
+uv run python -m pytest -m "not integration"   # en verde, sin xfail
+```
+
+Necesita tu `.env` en esa carpeta para probarlo de verdad: cópialo tú, porque está en `.gitignore`.
 
 ---
 
-Tu comparativa de los cinco modelos fue muy útil. La principal ha organizado así lo que sigue:
-- Tus dos causas comunes (IDs de RN copiados del corpus y `sources` vacío) y la opción de desactivar el razonamiento las implementa la **sesión Modelos (T-58)**, en paralelo contigo. No las hagas tú en el código.
-- **Antes de elegir el modelo**, comprobamos con tu script que esos arreglos funcionan de verdad. Así T-58 sabe qué priorizar y la fase 2 se decide con datos.
+Trabajas en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-mcp`**, creada desde `PreProduccion`. Antes hacías la medición con Ollama, que ya está terminada y fusionada.
 
-## Fase 1b · Medir con los arreglos aplicados solo en tu script (sin tocar el repositorio)
-Mismo caso que antes (necesidad de reservas, mismo RAG, tope de 2500). En el script, **no en `prompts/`**, añade al prompt de sistema de `generate_story` estas dos instrucciones:
-1. «Numera las reglas `RN-01`, `RN-02`… y los criterios `CA-01`, `CA-02`…, aunque las fuentes usen otros identificadores; el identificador del documento (p. ej. `RN-RES-01`) va dentro de la descripción.»
-2. «`sources` no puede ir vacío: cita al menos una fuente del contexto con su `ref` copiado literalmente.»
+**Tu tarea es T-59 (opcional):** publicar el agente como **servidor MCP** (*Model Context Protocol*), para que un asistente compatible (Claude Desktop, Claude Code, VS Code) pueda usar sus capacidades como herramientas.
 
-Mide:
-- **`qwen3:1.7b` sin razonamiento**: prueba `extra_body={"reasoning_effort": "none"}` y, si no surte efecto, `extra_body={"think": False}`. Apunta cuál funciona contra el endpoint OpenAI de Ollama: T-58 lo necesita.
-- **`phi4-mini`** con las dos instrucciones.
-- Si sobra tiempo, **`qwen3:4b-instruct` sin razonamiento** como referencia de calidad.
+## Qué es y qué no es
+- **Es** una capa fina, como `api/`, sobre lo que ya existe: la composición real (`core/factories.build_app_container` y los servicios del núcleo). El asistente externo pone la conversación; nuestro agente aporta Jira, el RAG, la memoria y las reglas de calidad.
+- **No** es darle herramientas al LLM interno del agente. El grafo y su LLM no cambian.
+- **Nada escribe en Jira desde el MCP (principio 1).** Aprobar y publicar siguen solo en la app, con la huella.
 
-Guarda las salidas en bruto en `docs/pruebas/salidas/` con el sufijo `-r3`. Después, dame la misma tabla que la vez anterior, con dos columnas más: «¿Pasa a la primera?» y «Reintentos evitados por los arreglos». Cierra con tu recomendación de modelo principal y de respaldo, y con los valores propuestos de `request_timeout_s` y `max_output_tokens`.
+## Alcance, por fases (presenta el plan antes de escribir código)
+**Fase 1 (mínimo):**
+- `buscar_historias(proyecto, texto?)`: con la JQL segura de `core/context/jql.py`, igual que `GET /projects/{p}/search`.
+- `ver_incidencia(clave)`: resumen, tipo, estado, épica, descripción y nº de CA y RN.
+- `revisar_calidad(clave)`: `core/quality.QualityReviewer`; devuelve el informe INVEST y los hallazgos. Usa el LLM local, así que tarda minutos: avísalo en la descripción de la herramienta.
 
-## Fase 2 · Aplicar el modelo (cuando yo lo confirme y T-58 esté fusionada)
-- `config/models.yaml`:
-  - las cadenas de cada tarea con el modelo elegido y su respaldo;
-  - la opción para desactivar el razonamiento, en el formato que defina T-58;
-  - `request_timeout_s` y `max_output_tokens` con los valores medidos.
-- `docker-compose.yml`: `OLLAMA_CONTEXT_LENGTH` solo si hace falta (8192 bastó).
-- `uv run pytest -m "not integration"` en verde: hay pruebas que leen `config/models.yaml`.
-- Commit solo de `config/models.yaml`, `docker-compose.yml` y `docs/pruebas/salidas/`: `Modelos: <modelo> en local con topes medidos [RNF-09, RNF-10]`.
+**Fase 2 (si da tiempo):**
+- `fuentes_de_contexto(clave)`: `GuidedStart.preview_sources_with_budget`;
+- `proponer_inicio(texto, proyecto)`: `GuidedStart.propose`;
+- `mis_conversaciones()`: la lista de conversaciones del usuario configurado.
 
-## Fase 3 · Prueba de punta a punta
-Con el modelo nuevo:
-1. lecturas reales;
-2. pruebas `integration` con LLM;
-3. `eval/e2e_local.py`, escenarios (a) a (f);
-4. la API real a mano: `uv run python -m api` y los pasos de `docs/api/README.md` con `curl` o el Swagger de `/api/docs`; ya no la UI de Streamlit;
-5. el informe `docs/pruebas/E2E-local-2026-10-02.md`.
-
-Commit: `E2E: prueba de punta a punta con modelos locales [RNF-09, RNF-10]`.
+## Requisitos
+- **SDK oficial de MCP para Python.** Comprueba en el plan el nombre del paquete, la versión y su API. Fíjalo con un límite superior y una versión publicada hace más de una semana (cuarentena, como `fastapi`), y deja el lockfile con hashes.
+- **Transporte stdio**, local, sin abrir puertos.
+- Un módulo nuevo, por ejemplo `mcp_server/` (o `api/mcp.py`), y un punto de entrada `uv run python -m mcp_server`.
+- **Usuario y permisos:** el servidor actúa como un usuario del agente fijado en la configuración (p. ej. `MCP_USER` en `core/config.py`, autorizado solo esto), con los permisos de su rol (`core/permissions.py`). Sin usuario configurado, no arranca.
+- **Seguridad:**
+  - las credenciales se quedan en el `.env` del servidor;
+  - las respuestas no llevan secretos ni cabeceras;
+  - los errores salen en español y sin trazas (reutiliza la lista blanca de `api/errors.py`);
+  - el texto de Jira y del LLM se devuelve como datos, sin interpretarlo;
+  - los logs sin contenido;
+  - **stdout es el canal del protocolo:** los logs deben ir a stderr, o romperían la comunicación.
+- **Documentación:** una sección en el README con la configuración para Claude Desktop y para Claude Code (el JSON del servidor y el comando), y cómo probarlo con el inspector de MCP.
 
 ## Reglas
-- **Solo creas o cambias:**
-  - el script de medición (fuera del repositorio o en `eval/`);
-  - `eval/e2e_local.py`;
-  - `docs/pruebas/`;
-  - y en la fase 2, `config/models.yaml` y `docker-compose.yml`.
+- **Puedes crear o tocar:**
+  - el módulo nuevo del servidor;
+  - `core/config.py` (solo `MCP_USER` y, si hace falta, el rol);
+  - `pyproject.toml` y `uv.lock` (la dependencia del SDK);
+  - `README.md`;
+  - sus pruebas (`tests/unit/test_mcp_*.py`).
 
-  No toques `core/`, `adapters/`, `api/`, `app/`, `web/`, `schemas/`, `prompts/` ni `docs/KANBAN.md`.
-- No leas ni muestres el `.env`. `JIRA_PUBLISH_MODE=simulation` siempre.
-- No mates procesos globales: si Ollama se cuelga, `docker compose restart ollama`.
-- Commits sin push. Avísame al terminar cada fase.
+  No toques `api/`, `core/graph/`, `core/functional/`, `core/qa/`, `core/quality.py`, `app/`, `web/`, `config/` ni los contratos: hay otras tres sesiones trabajando ahí.
+- **Pruebas:** las herramientas con los fakes (`tests/fakes/`), incluidos:
+  - permisos por rol;
+  - errores sin trazas;
+  - que ninguna herramienta llama a métodos de escritura (`create_story`, `update_story`, `link`, `publish_suite`, `record_execution`);
+  - que stdout solo lleva el protocolo.
 
-Empieza por la fase 1b y dame la tabla antes de cambiar nada.
+  Prueba real solo con la fase 1 contra Jira y el modelo local, **avisándome antes**, y nunca con escrituras.
+- **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
+- **Nombres en las pruebas:** sin `secret`, `password` ni `token` como nombre de variables con literales, ni textos que imiten una clave privada (gitleaks).
+- **Kanban:**
+  - T-59 a 🔄 y luego ✅;
+  - tu fila en el registro;
+  - **propuestas en PA-320…PA-339**.
+- **Antes del commit:**
+  - `uv run python -m pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
+  - `spec-checker` CONFORME y `security-reviewer` APTO.
+  - Pide a los subagentes que no maten procesos globales.
+- **Sin fusionar.** Haz `git push -u origin ses-mcp` al terminar la fase 1 y avísame; la fase 2, en otro push.
+
+Empieza con `/tarea T-59` y preséntame el plan (paquete y versión del SDK, estructura, herramientas de la fase 1 y cómo se configura en Claude Desktop) antes de escribir código.

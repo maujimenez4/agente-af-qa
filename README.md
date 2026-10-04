@@ -77,7 +77,8 @@ docker compose --profile full run --rm app python -m core.seed_users
 docker compose --profile full up -d app                       # http://127.0.0.1:8000/api/v1
 ```
 - La imagen se construye con el lockfile (`uv sync --frozen`), sin dependencias de desarrollo y con un usuario no root. El `.env` no se copia (`.dockerignore`): llega al arrancar con `env_file`.
-- Dentro de Compose, la API usa `db` y `ollama` en lugar de `localhost`: `docker-compose.yml` fija `DATABASE_URL` (con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de tu `.env`) y `OLLAMA_BASE_URL`. Si tu contraseña tiene caracteres especiales de URL (`@`, `/`, `:`), escápalos o usa otra.
+- Dentro de Compose, la API usa `db` y `ollama` en lugar de `localhost`: `docker-compose.yml` fija `POSTGRES_HOST=db` y `OLLAMA_BASE_URL`, y deja `DATABASE_URL` vacía para anular la del `.env`. La app compone la URL con `POSTGRES_HOST`, `POSTGRES_PORT` y `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de tu `.env`, y codifica la contraseña: los caracteres especiales (`@`, `/`, `:`, `#`, `?`) ya no rompen la conexión (PA-278).
+- Fuera de Compose, si no defines `DATABASE_URL`, la app usa `POSTGRES_HOST` (por defecto `127.0.0.1`) y `POSTGRES_PORT` (por defecto `5432`). Si defines `DATABASE_URL`, manda ella.
 - El puerto solo se publica en `127.0.0.1`: la API no queda expuesta a la red.
 
 ## Contenido

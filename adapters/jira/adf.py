@@ -226,7 +226,10 @@ def _append_text(nodes: list[Node], value: str, marks: tuple[str, ...]) -> None:
 
 # --- Escritura: Markdown → ADF (T-27, SPEC-00 §8, PA-49) -----------------------------------
 
-_FENCE = re.compile(r"^\s*```\s*([A-Za-z0-9_+-]{0,20})\s*$")
+# PA-230: sobre la línea ya recortada (`_fence`) y con un solo `\s*`: el patrón anterior,
+# con `\s*` a ambos lados de un grupo que puede ser vacío, era cuadrático (~54 s con 100 000
+# espacios).
+_FENCE = re.compile(r"^```\s*([A-Za-z0-9_+-]{0,20})$")
 # PA-143: sin `\s*$` tras un grupo perezoso (backtracking cuadrático con miles de espacios);
 # los espacios del título se quitan con `.strip()`.
 _HEADING = re.compile(r"^(#{1,6})\s(.*)$")
@@ -235,7 +238,9 @@ _RULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
 # Celda del separador de tabla (`---`, `:--`, `-:`); se valida celda a celda, sin `\s*`
 # contiguos que den backtracking cuadrático con texto no fiable (PA-187).
 _SEPARATOR_CELL = re.compile(r":?-+:?")
-_LINK = re.compile(rf"\[([^\]\n]{{1,500}})\]\(([^()\s]{{1,{MAX_URL_CHARS}}})\)")
+# PA-230: la etiqueta no admite `[`: así, con miles de `[`, cada intento falla al momento en vez
+# de recorrer hasta 500 caracteres.
+_LINK = re.compile(rf"\[([^\[\]\n]{{1,500}})\]\(([^()\s]{{1,{MAX_URL_CHARS}}})\)")
 _ESCAPABLE = frozenset("\\`*_[]()#+-.!|>")
 _TAB_WIDTH = 4
 
@@ -253,10 +258,10 @@ def _parse_blocks(lines: list[str]) -> list[Node]:
         line = lines[i]
         if not line.strip():
             i += 1
-        elif fence := _FENCE.match(line):
+        elif fence := _fence(line):
             body: list[str] = []
             i += 1
-            while i < len(lines) and not _FENCE.match(lines[i]):
+            while i < len(lines) and not _fence(lines[i]):
                 body.append(lines[i])
                 i += 1
             blocks.append(code_block("\n".join(body), fence.group(1)))
@@ -293,9 +298,14 @@ def _is_table_line(line: str) -> bool:
     return line.lstrip().startswith("|")
 
 
+def _fence(line: str) -> re.Match[str] | None:
+    """Valla de código (```lenguaje) en la línea, sin espacios en los extremos (PA-230)."""
+    return _FENCE.match(line.strip())
+
+
 def _starts_block(line: str) -> bool:
     return bool(
-        _FENCE.match(line)
+        _fence(line)
         or _HEADING.match(line)
         or _RULE.match(line)
         or _is_table_line(line)

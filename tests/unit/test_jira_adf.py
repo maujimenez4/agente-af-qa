@@ -1016,3 +1016,52 @@ def test_markdown_to_adf_heading_keeps_title_without_surrounding_spaces(
 def test_markdown_to_adf_hashes_without_space_are_not_a_heading() -> None:
     """PA-143 (límite): «##» sin espacio sigue sin ser un título."""
     assert markdown_to_adf("##titulo")["content"][0]["type"] == "paragraph"
+
+
+# --- PA-230: _FENCE y _LINK sin coste no lineal -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "```" + " " * 100_000 + "!",
+        "```" + "\t" * 20_000 + "!",  # los tabuladores se expanden a 4 espacios
+        "[" * 100_000,
+        "[a](" * 25_000,
+    ],
+    ids=["valla-espacios", "valla-tabs", "corchetes", "enlaces-abiertos"],
+)
+def test_markdown_to_adf_is_linear_on_adversarial_lines(md: str) -> None:
+    """PA-230 (ReDoS): «```» + 100 000 espacios + «!» tardaba ~54 s (y 20 000 tabuladores, ~60 s
+    en el conversor completo); ahora todo se convierte en tiempo lineal."""
+    import time
+
+    started = time.perf_counter()
+    markdown_to_adf(md)
+    assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    ("md", "language"),
+    [
+        ("```python\nprint(1)\n```", "python"),
+        ("   ```  sql  \nselect 1\n  ```  ", "sql"),
+        ("```\nx\n```", ""),
+    ],
+    ids=["normal", "espacios-alrededor", "sin-lenguaje"],
+)
+def test_markdown_to_adf_fence_still_recognized(md: str, language: str) -> None:
+    """PA-230: las vallas con espacios alrededor y con o sin lenguaje se siguen reconociendo."""
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node.get("attrs", {}).get("language", "") == language
+
+
+def test_markdown_to_adf_link_label_with_bracket_stays_literal() -> None:
+    """PA-230 (comportamiento fijado): una etiqueta con `[` dentro ya no forma enlace (así el
+    patrón es lineal); el texto se conserva tal cual, sin marca `link`."""
+    [paragraph] = markdown_to_adf("[uno [dos]](https://ejemplo.invalid)")["content"]
+    assert all(
+        "marks" not in n or n["marks"][0]["type"] != "link" for n in paragraph["content"][:1]
+    )
+    assert "".join(n.get("text", "") for n in paragraph["content"]).startswith("[uno ")

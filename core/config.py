@@ -208,6 +208,11 @@ class Settings(BaseSettings):
     postgres_user: str = "agente"
     postgres_password: SecretStr | None = None
     postgres_db: str = "agente"
+    # PA-278: host y puerto para componer la URL sin pasar la contraseña por una URL escrita a
+    # mano (en Compose, `POSTGRES_HOST=db`). 127.0.0.1 y no localhost: con el puerto publicado
+    # solo en IPv4, Windows prueba antes ::1 y tarda ~20 s en pasar a IPv4 (e2e del 2026-10-04).
+    postgres_host: str = "127.0.0.1"
+    postgres_port: PositiveInt = 5432
     database_url: SecretStr | None = None
 
     # Aplicación
@@ -270,7 +275,10 @@ class Settings(BaseSettings):
         return value
 
     def sqlalchemy_url(self) -> URL:
-        """URL de la base de datos: `DATABASE_URL` o, si falta, las variables `POSTGRES_*`."""
+        """URL de la base de datos: `DATABASE_URL` o, si falta (o está vacía), las `POSTGRES_*`.
+
+        `URL.create` codifica la contraseña: un `@`, `/`, `:`, `#` o `?` no rompe la URL (PA-278).
+        """
         if self.database_url and self.database_url.get_secret_value():
             return make_url(self.database_url.get_secret_value())
         password = self.postgres_password.get_secret_value() if self.postgres_password else None
@@ -278,10 +286,8 @@ class Settings(BaseSettings):
             "postgresql+psycopg",
             username=self.postgres_user,
             password=password,
-            # 127.0.0.1 y no localhost: con el puerto publicado solo en IPv4, Windows prueba
-            # antes ::1 y tarda ~20 s en pasar a IPv4 (e2e del 2026-10-04).
-            host="127.0.0.1",
-            port=5432,
+            host=self.postgres_host,
+            port=self.postgres_port,
             database=self.postgres_db,
         )
 

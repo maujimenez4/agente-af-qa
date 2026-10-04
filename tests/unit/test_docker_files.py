@@ -114,16 +114,16 @@ def test_compose_app_reads_env_file_at_runtime(compose: dict[str, Any]) -> None:
     assert env_file == ".env" or env_file == [".env"]
 
 
-def test_compose_app_database_url_uses_db_service_and_password_variable(
+def test_compose_app_uses_postgres_host_without_password_in_a_url(
     compose: dict[str, Any],
 ) -> None:
-    """Criterio 8: DATABASE_URL apunta a `@db:5432` y la contraseña es `${POSTGRES_PASSWORD}`."""
-    url = compose["services"]["app"]["environment"]["DATABASE_URL"]
-    assert "@db:5432/" in url
-    assert ":${POSTGRES_PASSWORD}@" in url
-    password = re.search(r"//[^:]+:([^@]+)@", url)
-    assert password is not None and password.group(1) == "${POSTGRES_PASSWORD}"
-    assert "localhost" not in url
+    """PA-278: el servicio `app` pasa `POSTGRES_HOST=db` y deja `DATABASE_URL` vacía (anula la
+    del `.env`); la contraseña ya no se escribe en ninguna URL del Compose."""
+    environment = compose["services"]["app"]["environment"]
+    assert environment["POSTGRES_HOST"] == "db"
+    assert str(environment["POSTGRES_PORT"]) == "5432"
+    assert environment["DATABASE_URL"] == ""
+    assert not any("POSTGRES_PASSWORD" in str(value) for value in environment.values())
 
 
 def test_compose_has_no_literal_passwords(compose: dict[str, Any]) -> None:
@@ -153,3 +153,15 @@ def test_compose_ollama_has_keep_alive(compose: dict[str, Any]) -> None:
     environment = compose["services"]["ollama"]["environment"]
     assert "OLLAMA_KEEP_ALIVE" in environment
     assert str(environment["OLLAMA_KEEP_ALIVE"]).strip()
+
+
+def test_dockerfile_pins_base_images_by_digest() -> None:
+    """PA-280: las imágenes base se fijan por digest (`@sha256:` de 64 hex) para reproducirla."""
+    lines = [
+        line
+        for line in DOCKERFILE.read_text(encoding="utf-8").splitlines()
+        if line.startswith("FROM ") or line.startswith("COPY --from=")
+    ]
+    assert len(lines) == 2
+    for line in lines:
+        assert re.search(r"@sha256:[0-9a-f]{64}(?![0-9a-f])", line), line

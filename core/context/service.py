@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from core.container import Container
 
 MEMORY_CATEGORY = "memoria"
-DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
+DEFAULT_TOKEN_BUDGET = 3300  # igual que `limits.context_token_budget` de models.yaml (PA-114)
 # Tipos de incidencia que no son HU: no se proponen como «HU parecida» (T-53).
 NOT_STORIES = frozenset({"epic", "épica", "subtarea", "sub-task", "subtask", "task", "tarea"})
 EPIC_TYPES = frozenset({"epic", "épica"})

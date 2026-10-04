@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from adapters.base import Chunk, IssueDetail, IssueLink, IssueSummary, RetrievedChunk
-from core.context.budget import TRUNCATION_MARK, issue_tokens
+from core.context.budget import TRUNCATION_MARK, estimate_tokens, issue_tokens
 from core.context.jql import (
     MAX_KEYWORD_CHARS,
     MAX_TEXT_CHARS,
@@ -429,7 +429,7 @@ def test_gather_reserves_need_text_tokens_from_budget() -> None:
     """PA-07: el presupuesto informado es 6000 menos los tokens del texto de la necesidad."""
     context = make_service().gather({"kind": "need", "text": "r" * 400}, None)
 
-    assert context.budget.budget == 6000 - 100
+    assert context.budget.budget == 6000 - estimate_tokens("r" * 400)  # /3 desde PA-114
 
 
 def test_gather_with_zero_sources_reports_empty_context() -> None:
@@ -445,7 +445,7 @@ def test_gather_need_text_larger_than_budget_leaves_no_rag() -> None:
     """PA-07 (límite): si la reserva supera el presupuesto, queda 0 y no entra ningún fragmento."""
     embeddings, store = FakeEmbeddingProvider(), SpyStore()
     add_chunk(store, embeddings, "GLO-1#0", "GLO-1", "glosarios", "reservas bloqueadas ficticio")
-    text = "reservas bloqueadas " * 1500  # ≈ 7500 tokens > 6000
+    text = "reservas bloqueadas " * 1500  # ≈ 10 000 tokens > 6000
 
     context = make_service(store=store, embeddings=embeddings).gather(
         {"kind": "need", "text": text}, None

@@ -29,6 +29,7 @@ from sqlalchemy.dialects import postgresql
 from adapters.base import Message, TaskType, User
 from adapters.errors import AgentError, ExternalServiceError
 from core.container import Container
+from core.context.budget import PromptLimits, default_prompt_limits
 from core.context.service import build_context_service, is_story
 from core.functional.citations import (
     CitationError,
@@ -37,7 +38,7 @@ from core.functional.citations import (
     with_real_excerpts,
 )
 from core.functional.context import StoryContext, render_context
-from core.functional.writer import PromptLoader, StoryWriter, fill_placeholders
+from core.functional.writer import PromptLoader, StoryWriter, fill_placeholders, fit_context
 from core.graph.state import normalize_excluded_sources
 from core.logging import get_logger
 from core.permissions import Permission, require
@@ -88,6 +89,13 @@ class QualityReviewer:
         self.c = container
         self._load = prompt_loader
 
+    @property
+    def limits(self) -> PromptLimits:
+        """Ventana y topes de salida de la configuración del contenedor (PA-114)."""
+        if self.c.config is not None:
+            return PromptLimits.from_config(self.c.config)
+        return default_prompt_limits()
+
     def review(
         self, user: User, issue_key: str, excluded_sources: list[str] | None = None
     ) -> QualityReview:
@@ -113,7 +121,8 @@ class QualityReviewer:
         )
 
         origin_only = StoryContext(origin_kind="story", origin_key=key, jira=[issue])
-        structured = StoryWriter(self.c.llm, prompt_loader=self._load).structure(origin_only)
+        writer = StoryWriter(self.c.llm, prompt_loader=self._load, limits=self.limits)
+        structured = writer.structure(origin_only)
         story = structured.story
         report, provider, model, version, tokens_in, tokens_out = self._report(ctx, story)
         log.info(
@@ -146,30 +155,53 @@ class QualityReviewer:
             rag=ctx.rag,
             previous=story,
         )
+        review_ctx, messages = fit_context(  # PA-114: nunca se desborda la ventana en silencio
+            review_ctx,
+            lambda c: [
+                Message(role="system", content=prompt.text),
+                Message(role="user", content=render_context(c)),
+            ],
+            self.limits,
+            TaskType.REVIEW_STORY,
+            action="review_quality",
+        )
         sources = review_ctx.sources()
-        messages = [
-            Message(role="system", content=prompt.text),
-            Message(role="user", content=render_context(review_ctx)),
-        ]
         result = self.c.llm.generate_structured(messages, QualityReport, TaskType.REVIEW_STORY)
         report, tokens_in, tokens_out = result.content, result.input_tokens, result.output_tokens
 
         errors = report_errors(report, story, sources)
         if errors:
-            feedback = fill_placeholders(
-                self._load("quality_retry").text,
-                {
-                    "errors": "\n".join(f"- {e}" for e in errors),
-                    "ids": _ids_text(story),
-                    "allowed": allowed_refs_text(sources),
-                },
-            )
+            retry_text = self._load("quality_retry").text
             previous = json.dumps(report.model_dump(mode="json"), ensure_ascii=False)
-            retry = [
-                *messages,
-                Message(role="assistant", content=previous),
-                Message(role="user", content=feedback),
-            ]
+            first = report
+
+            def retry_messages(c: StoryContext) -> list[Message]:
+                # Las fuentes permitidas y los errores, del contexto que de verdad se envía.
+                allowed = c.sources()
+                feedback = fill_placeholders(
+                    retry_text,
+                    {
+                        "errors": "\n".join(f"- {e}" for e in report_errors(first, story, allowed)),
+                        "ids": _ids_text(story),
+                        "allowed": allowed_refs_text(allowed),
+                    },
+                )
+                return [
+                    Message(role="system", content=prompt.text),
+                    Message(role="user", content=render_context(c)),
+                    Message(role="assistant", content=previous),
+                    Message(role="user", content=feedback),
+                ]
+
+            # PA-114: el reintento es el mensaje más largo; también pasa por la guarda.
+            review_ctx, retry = fit_context(
+                review_ctx,
+                retry_messages,
+                self.limits,
+                TaskType.REVIEW_STORY,
+                action="review_quality_retry",
+            )
+            sources = review_ctx.sources()
             result = self.c.llm.generate_structured(retry, QualityReport, TaskType.REVIEW_STORY)
             report = result.content
             tokens_in += result.input_tokens

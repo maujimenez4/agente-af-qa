@@ -38,7 +38,8 @@ embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 
 limits:
   max_retries_on_429: 2
-  context_token_budget: 6000
+  context_token_budget: 3300     # PA-114: equivale a los 2500 medidos con /4 (cabe con margen en 8192)
+  context_window: 8192           # PA-114: ventana del modelo; la guarda no la deja desbordar
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
   request_timeout_s: 900          # CPU: una HU tarda ~5-6,5 min; margen para evolución y suites
   max_output_tokens:              # tope de salida por tarea (deja sitio al reintento en 8192)

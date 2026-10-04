@@ -32,8 +32,8 @@ from starlette.types import Receive, Scope, Send
 from adapters.base import TaskType, User
 from adapters.errors import AgentError, NotFoundError
 from adapters.llm.router import ModelChoice
+from api import admin, executions, service
 from api import examples as ex
-from api import executions, service
 from api.errors import UNEXPECTED, ApiError, to_api_error
 from api.models import (
     HANDOFF_ID_PATTERN,
@@ -1237,6 +1237,7 @@ def create_app(
         executions_router,
         qa,
         settings_router,
+        admin.router,
     ):
         app.include_router(router, prefix=API_PREFIX)
 

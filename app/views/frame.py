@@ -12,6 +12,7 @@ from app.origin import fix_origin
 from app.quality import review_item
 from app.session import SessionState, clear_composer, go
 from app.text import md_escape
+from core.permissions import Permission, can
 
 
 def simulation_notice(session: SessionState) -> None:
@@ -47,6 +48,10 @@ def sidebar(session: SessionState) -> None:
         _quality_reviews(session, user)
         st.divider()
         _model_selector(session)
+        if can(user, Permission.MANAGE_CONNECTIONS):  # T-29: solo admin
+            st.divider()
+            if st.button("Administración", key="admin", width="stretch"):
+                go(session, "administracion")
 
 
 def _conversations(session: SessionState, user: User) -> None:

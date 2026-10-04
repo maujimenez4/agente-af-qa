@@ -470,6 +470,41 @@ class ModelOverrideIn(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+# --- Administración (T-29 mínima) ---------------------------------------------------------------
+
+
+class ConnectionCheckOut(BaseModel):
+    """Resultado de comprobar un servicio; `detail` en español y sin secretos."""
+
+    service: str = Field(description="«Jira», «PostgreSQL», «Modelos · <proveedor>», «Embeddings».")
+    ok: bool
+    detail: str
+    duration_ms: int = Field(ge=0)
+
+
+class ConnectionsTestOut(BaseModel):
+    checks: list[ConnectionCheckOut]
+
+
+class AdminModelOut(BaseModel):
+    provider: str
+    model: str
+    host: str = Field(description="Solo el host (y el puerto) del proveedor; nunca la URL entera.")
+
+
+class AdminTaskModelsOut(BaseModel):
+    task: str
+    chain: list[AdminModelOut]
+    override: ModelChoiceOut | None = Field(
+        default=None, description="Modelo elegido en la sesión de quien consulta, si lo hay."
+    )
+
+
+class AdminModelsOut(BaseModel):
+    tasks: list[AdminTaskModelsOut]
+    embeddings: AdminModelOut
+
+
 __all__ = [
     "ConversationSummary",
     "IssueSummary",

@@ -95,6 +95,7 @@ Todo lo nuevo **solo añade** rutas, campos opcionales o valores de `ErrorCode`:
 
 | Desde | Qué | Cómo se usa |
 |---|---|---|
+| Ronda 10 (T-29 mínima) | `POST /admin/connections/test` → `ConnectionsTestOut` y `GET /admin/models` → `AdminModelsOut` | Página **Administración**, solo para `admin` (los demás roles: 403 `forbidden`). «Probar conexiones» devuelve una fila por servicio (`service`, `ok`, `detail`, `duration_ms`): Jira, PostgreSQL (con la revisión de Alembic), `Modelos · <proveedor>` y Embeddings; pinta ✅/❌, el detalle y el tiempo. Tarda como mucho unos 5 s; lleva CSRF y admite **una prueba cada 10 s por persona** (429 `rate_limited` con `retry_after`). Un proveedor sin clave sale como «Sin configurar.». `GET /admin/models`: cadena de modelos por tarea y modelo de embeddings, de cada proveedor **solo el host**, y `override` si la sesión eligió otro modelo. No escribe en Jira ni genera texto |
 | Ronda 9 (PA-314) | `POST /conversations/{id}/cancel` → 202 `ConversationOut` | Botón «Detener» en Generando e Iterar. Mientras termina el paso en curso, `cancel_requested=true` («Deteniendo…»); **una llamada al LLM ya en curso no se corta**. Al acabar: `state=error` con `error.code=cancelled` (ofrece «Reintentar» con `/retry`) o, si el siguiente paso era la revisión, `state=in_review` con la propuesta ya generada y `cancel_requested=false`. Aprobar o publicar no se cancelan: 409 `not_cancellable` (también si no está generando). Nunca escribe en Jira |
 | Ronda 9 (PA-316) | `ConversationOut.jira_baseline` (`UserStory` o `null`) | Versión «Jira» del selector de versiones en Iterar: la HU tal como está en Jira, estructurada. Solo al evolucionar una HU existente; `null` en una HU nueva, en QA, antes de la primera versión y tras publicar o descartar. No cuesta ninguna llamada al LLM |
 | Ronda 9 (PA-285) | Texto del arranque guiado | La opción de una épica dice «HU nueva en la épica DEMO-1», como el título de la conversación |
@@ -112,7 +113,6 @@ Todo lo nuevo **solo añade** rutas, campos opcionales o valores de `ErrorCode`:
 **Aún no están en el contrato.** Se añadirán con su tarea; mientras, la pantalla queda «disponible pronto»:
 - reintentar solo los fallidos (PA-05);
 - auditoría e historial;
-- pestaña Memoria (T-33);
-- administración (T-29).
+- pestaña Memoria (T-33).
 
 Requisitos de seguridad de la parte 2: `docs/api/requisitos-parte-2.md`.

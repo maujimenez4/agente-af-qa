@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import AgentError
+from core.context.budget import PromptLimits, check_messages, default_prompt_limits
 from core.functional.writer import fill_placeholders
 from core.logging import get_logger
 from core.projects import ISSUE_KEY
@@ -183,9 +184,22 @@ def _has_sensitive_data(memory: Memory) -> bool:
 class LLMMemoryGenerator:
     """`MemoryGenerator` con el LLM de la tarea `synthesize_memory` (SPEC-00 §4)."""
 
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def generate(self, artifact: Artifact) -> Memory:
         started = time.perf_counter()
@@ -195,6 +209,10 @@ class LLMMemoryGenerator:
             Message(role="system", content=prompt.text),
             Message(role="user", content=render_artifact(artifact)),
         ]
+        # PA-114: la memoria no tiene fuentes que recortar; si no cabe, error claro.
+        check_messages(
+            messages, self.limits, TaskType.SYNTHESIZE_MEMORY, action="synthesize_memory"
+        )
         result = self._llm.generate_structured(messages, Memory, TaskType.SYNTHESIZE_MEMORY)
         memory = sanitize(result.content, artifact, facts)
         errors = memory_errors(memory, facts)
@@ -210,6 +228,9 @@ class LLMMemoryGenerator:
                 *previous,
                 Message(role="user", content=self._retry_text(errors, facts)),
             ]
+            check_messages(
+                retry_messages, self.limits, TaskType.SYNTHESIZE_MEMORY, action="memory_retry"
+            )
             result = self._llm.generate_structured(
                 retry_messages, Memory, TaskType.SYNTHESIZE_MEMORY
             )

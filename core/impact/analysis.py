@@ -13,9 +13,10 @@ import unicodedata
 from collections.abc import Callable
 
 from adapters.base import IssueDetail, LLMProvider, Message, TaskType
-from core.functional.context import escape_data
+from core.context.budget import PromptLimits, check_messages, default_prompt_limits
 from core.impact.diff import diff_stories
 from core.rag.prompts import Prompt, load_prompt
+from core.text import escape_data  # PA-227
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.user_story import UserStory
 
@@ -82,9 +83,22 @@ def render_request(
 
 
 class ImpactAnalyzer:
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def analyze(
         self,
@@ -110,6 +124,8 @@ class ImpactAnalyzer:
             Message(role="system", content=prompt.text),
             Message(role="user", content=render_request(story, diffs, pool, origin, parent_key)),
         ]
+        # PA-114: las candidatas ya están acotadas; si aun así no cabe, error claro.
+        check_messages(messages, self.limits, TaskType.ANALYZE_IMPACT, action="analyze_impact")
         proposal = self._llm.generate_structured(
             messages, ImpactAnalysis, TaskType.ANALYZE_IMPACT
         ).content
@@ -129,8 +145,14 @@ class ImpactAnalyzer:
                 update={"affected": [i for i in proposal.affected if i.jira_key in allowed]}
             )
             answer = Message(role="assistant", content=valid_only.model_dump_json())
+            retry_messages = check_messages(
+                [*messages, answer, retry],
+                self.limits,
+                TaskType.ANALYZE_IMPACT,
+                action="analyze_impact_retry",
+            )
             proposal = self._llm.generate_structured(
-                [*messages, answer, retry], ImpactAnalysis, TaskType.ANALYZE_IMPACT
+                retry_messages, ImpactAnalysis, TaskType.ANALYZE_IMPACT
             ).content
 
         valid, dropped, blank = _keep_valid(proposal.affected, allowed)

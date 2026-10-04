@@ -810,7 +810,7 @@ def test_build_context_service_matches_graph_context_service(container: Containe
 
     assert vars(from_graph) == vars(built)
     assert built._project_key == "DEMO"
-    assert built._token_budget == 6000  # sin AppConfig: DEFAULT_TOKEN_BUDGET
+    assert built._token_budget == 3300  # sin AppConfig: DEFAULT_TOKEN_BUDGET (PA-114)
     assert built._top_k == container.top_k
     assert built._memory_boost == container.memory_boost
 

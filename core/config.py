@@ -99,6 +99,9 @@ class EmbeddingsConfig(_StrictModel):
 class LimitsConfig(_StrictModel):
     max_retries_on_429: NonNegativeInt
     context_token_budget: PositiveInt
+    # PA-114: ventana de contexto del modelo, en tokens: prompt + contexto + tope de salida de la
+    # tarea no pueden superarla (Ollama trunca en silencio el principio si se desborda).
+    context_window: PositiveInt = 8192
     daily_token_warning: PositiveInt
     # Segundos por llamada al LLM: un modelo local en CPU tarda más que uno en la nube.
     request_timeout_s: PositiveFloat = 60.0

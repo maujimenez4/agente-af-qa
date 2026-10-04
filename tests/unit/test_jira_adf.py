@@ -1070,3 +1070,52 @@ def test_markdown_to_adf_link_label_stops_at_an_inner_bracket() -> None:
     assert all(
         m["attrs"]["href"] == url for n in nodes for m in n.get("marks", []) if m["type"] == "link"
     )
+
+
+# --- PA-230: tablas acotadas (ancho × filas) --------------------------------------------------
+
+
+def test_markdown_to_adf_wide_table_with_many_rows_is_linear() -> None:
+    """PA-230 (DoS, security-reviewer): una fila de 50 000 «|» y 25 000 filas creaba ancho × filas
+    celdas (290 s y 7 GB con 12 000 caracteres). Ahora se publica como texto literal, en tiempo
+    lineal y sin perder contenido."""
+    import time
+
+    md = "|" * 50_000 + "\n" + "|\n" * 25_000
+    started = time.perf_counter()
+    [node] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"].count("|") == md.count("|")
+
+
+def test_markdown_to_adf_caps_columns_and_keeps_extra_cells_in_the_last_one() -> None:
+    """PA-230: como mucho MAX_TABLE_COLUMNS columnas; las que sobran se unen a la última celda."""
+    from adapters.jira.adf import MAX_TABLE_COLUMNS
+
+    cells = [f"c{i}" for i in range(MAX_TABLE_COLUMNS + 5)]
+    [table] = markdown_to_adf("| " + " | ".join(cells) + " |")["content"]
+    [row] = table["content"]
+    assert len(row["content"]) == MAX_TABLE_COLUMNS
+    last = row["content"][-1]["content"][0]["content"][0]["text"]
+    assert last == " | ".join(cells[MAX_TABLE_COLUMNS - 1 :])
+
+
+def test_markdown_to_adf_table_over_the_cell_limit_becomes_literal_text() -> None:
+    """PA-230: una tabla con más de MAX_TABLE_CELLS celdas va como bloque de código literal."""
+    from adapters.jira.adf import MAX_TABLE_CELLS
+
+    rows = MAX_TABLE_CELLS // 2 + 1
+    md = "\n".join("| a | b |" for _ in range(rows))
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"] == md
+
+
+def test_markdown_to_adf_normal_table_is_still_a_table() -> None:
+    """PA-230 (no regresión): una tabla corriente, como la del diff, sigue siendo una tabla."""
+    [node] = markdown_to_adf("| Campo | Antes | Después |\n|---|---|---|\n| title | a | b |")[
+        "content"
+    ]
+    assert node["type"] == "table"
+    assert [c["type"] for c in node["content"][0]["content"]] == ["tableHeader"] * 3

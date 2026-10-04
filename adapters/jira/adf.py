@@ -147,6 +147,8 @@ def _date(timestamp: Any) -> str:
 
 MAX_MARKDOWN_CHARS = 100_000  # por encima se trunca: Jira rechaza documentos enormes
 MAX_URL_CHARS = 2_000
+MAX_TABLE_COLUMNS = 50  # PA-230: Jira tampoco admite tablas más anchas de forma útil
+MAX_TABLE_CELLS = 5_000  # PA-230: por encima, la tabla se publica como texto literal
 # C0 (salvo `\t` y `\n`), C1, control bidireccional y espacios de anchura cero (orden visual
 # engañoso); se conservan U+200C/U+200D, que usan los emojis y algunas escrituras.
 _CONTROL = re.compile(
@@ -370,8 +372,17 @@ def _list_level(items: list[_Item], pos: int) -> tuple[list[Node], int]:
 def _table(lines: list[str]) -> Node:
     has_header = len(lines) > 1 and _is_table_separator(lines[1])
     # Solo la segunda línea puede ser el separador; `| - | - |` más abajo es una fila de datos.
-    rows = [_split_cells(line) for n, line in enumerate(lines) if not (has_header and n == 1)]
+    rows = [
+        _cap_columns(_split_cells(line))
+        for n, line in enumerate(lines)
+        if not (has_header and n == 1)
+    ]
     width = max(len(row) for row in rows)
+    # PA-230: cada fila se rellena hasta el ancho máximo; sin topes, una fila de 50 000 «|»
+    # seguida de miles de filas creaba ancho × filas celdas (cuadrático en tiempo y memoria).
+    # Una tabla demasiado grande se publica como texto literal, sin perder contenido.
+    if width * len(rows) > MAX_TABLE_CELLS:
+        return code_block("\n".join(lines))
     content: list[Node] = []
     for r, row in enumerate(rows):
         cell_type = "tableHeader" if has_header and r == 0 else "tableCell"
@@ -385,6 +396,14 @@ def _table(lines: list[str]) -> Node:
             }
         )
     return {"type": "table", "content": content}
+
+
+def _cap_columns(cells: list[str]) -> list[str]:
+    """Como mucho `MAX_TABLE_COLUMNS` celdas: las que sobran se unen a la última (PA-230)."""
+    if len(cells) <= MAX_TABLE_COLUMNS:
+        return cells
+    keep = MAX_TABLE_COLUMNS - 1
+    return [*cells[:keep], " | ".join(cells[keep:])]
 
 
 def _is_table_separator(line: str) -> bool:

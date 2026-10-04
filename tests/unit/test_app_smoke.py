@@ -17,7 +17,7 @@ from streamlit.testing.v1.errors import AppTestError
 import app.session as app_session
 import core.quality as core_quality
 from adapters.base import ProjectSummary
-from adapters.errors import ExternalServiceError
+from adapters.errors import ExternalServiceError, RateLimitError
 from app.conversation import UNEXPECTED
 from app.session import LOGIN_LOCKED, MAX_LOGIN_ATTEMPTS, SessionState, login_locked
 from app.text import md_escape
@@ -26,6 +26,7 @@ from core.config import ROOT_DIR
 from core.container import Container
 from core.graph import memory_checkpointer
 from core.handoff import InMemoryHandoffStore
+from core.quality import InMemoryQualityReviewStore, StoredQualityReview, new_review
 from schemas.quality import INVEST_NAMES
 from schemas.test_case import TestSuite
 from tests.fakes import dataset
@@ -47,7 +48,17 @@ def container(tmp_path: Path) -> Container:
 
 
 @pytest.fixture
-def composed(monkeypatch: pytest.MonkeyPatch, container: Container) -> Container:
+def quality_store() -> InMemoryQualityReviewStore:
+    """Revisiones de calidad guardadas (PA-277), compartidas por las sesiones de la prueba."""
+    return InMemoryQualityReviewStore()
+
+
+@pytest.fixture
+def composed(
+    monkeypatch: pytest.MonkeyPatch,
+    container: Container,
+    quality_store: InMemoryQualityReviewStore,
+) -> Container:
     """Sustituye la composición de `app/session.py` por los fakes (sin `.env` ni PostgreSQL)."""
     checkpointer = memory_checkpointer()
     monkeypatch.setattr(app_session, "build_config", lambda: None)
@@ -55,6 +66,7 @@ def composed(monkeypatch: pytest.MonkeyPatch, container: Container) -> Container
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
     monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
+    monkeypatch.setattr(app_session, "shared_quality_reviews", lambda _c: quality_store)
     return container
 
 
@@ -175,6 +187,9 @@ def test_smoke_compose_failure_shows_message_and_retry(monkeypatch: pytest.Monke
     monkeypatch.setattr(app_session, "build_app_container", failing)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: memory_checkpointer())
     monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
+    monkeypatch.setattr(
+        app_session, "shared_quality_reviews", lambda _c: InMemoryQualityReviewStore()
+    )
 
     at = _app()
 
@@ -230,6 +245,9 @@ def qa_composed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Container:
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _config: checkpointer)
     monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
+    monkeypatch.setattr(
+        app_session, "shared_quality_reviews", lambda _c: InMemoryQualityReviewStore()
+    )
     return container
 
 
@@ -362,6 +380,9 @@ def test_smoke_key_of_other_project_changes_and_remembers_project(
     monkeypatch.setattr(app_session, "build_app_container", lambda *_a, **_k: container)
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _c: memory_checkpointer())
     monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: InMemoryHandoffStore())
+    monkeypatch.setattr(
+        app_session, "shared_quality_reviews", lambda _c: InMemoryQualityReviewStore()
+    )
 
     at = _app()
     _login(at, "af-demo", _password("af-demo"))
@@ -581,6 +602,14 @@ def _download_buttons(at: AppTest) -> list[Any]:
     return list(at.get("download_button"))
 
 
+def _stored(session: SessionState) -> StoredQualityReview:
+    """La revisión abierta, tal como quedó guardada (PA-277)."""
+    assert session.quality is not None and session.quality_store is not None
+    review = session.quality_store.get(session.quality)
+    assert review is not None
+    return review
+
+
 def test_smoke_review_quality_shows_report_without_writing_jira(composed: Container) -> None:
     """UI.md §4.8 · T-48 (RF-18): origen sin restricciones → informe INVEST, hallazgos y .md."""
     at = _app()
@@ -597,7 +626,9 @@ def test_smoke_review_quality_shows_report_without_writing_jira(composed: Contai
     assert not at.exception, at.exception
     session = _session(at)
     assert session.screen == "calidad", _texts(at)
-    assert session.quality is not None and session.quality.jira_key == "DEMO-3"
+    stored = _stored(session)  # PA-277: guardada en el almacén, con el informe
+    assert (stored.issue_key, stored.username, stored.state) == ("DEMO-3", "af-demo", "done")
+    assert stored.report is not None and stored.model is not None
     texts = _texts(at)
     assert md_escape("He revisado DEMO-3 con INVEST") in texts
     for letter, name in INVEST_NAMES.items():
@@ -629,8 +660,8 @@ def test_smoke_review_quality_evolve_opens_new_conversation_with_proposals(
     at = _app()
     _to_quality(at)
     session = _session(at)
-    review = session.quality
-    assert review is not None and session.workspace is not None
+    review = _stored(session)
+    assert session.workspace is not None
     before = {conv.thread_id for conv in session.workspace.conversations}
 
     at.button(key="quality-evolve").click().run()
@@ -671,7 +702,9 @@ def test_smoke_review_quality_external_error_shows_message_and_actions(
     _to_quality(at)
     session = _session(at)
     assert session.screen == "calidad"
-    assert session.quality is None
+    stored = _stored(session)  # PA-277: el error queda guardado con su mensaje
+    assert (stored.state, stored.error_code) == ("error", "quality_failed")
+    assert stored.error_message == "Proveedores ficticios caídos."
     errors = [str(error.value) for error in at.error]
     assert any(md_escape("Proveedores ficticios caídos.") in error for error in errors), errors
     assert at.button(key="quality-retry").label == "Reintentar"
@@ -700,6 +733,7 @@ def test_smoke_review_quality_unexpected_error_hides_internal_message(
     assert any(md_escape(UNEXPECTED) in error for error in errors), errors
     assert "secreto interno" not in _texts(at)
     assert at.button(key="quality-retry") is not None
+    assert _stored(_session(at)).error_message == UNEXPECTED  # tampoco se guarda el interno
     _assert_nothing_written(composed)
 
 
@@ -719,13 +753,15 @@ def test_smoke_review_quality_retry_after_failure_shows_report(
     monkeypatch.setattr(core_quality.QualityReviewer, "review", flaky)
     at = _app()
     _to_quality(at)
-    assert len(calls) == 1 and _session(at).quality is None
+    failed = _stored(_session(at))
+    assert len(calls) == 1 and failed.state == "error"
 
     at.button(key="quality-retry").click().run()
     assert not at.exception, at.exception
     session = _session(at)
     assert session.screen == "calidad"
-    assert session.quality is not None and len(calls) == 2
+    assert len(calls) == 2
+    assert _stored(session).state == "done" and _stored(session).id != failed.id
     assert len(_download_buttons(at)) == 1
     _assert_nothing_written(composed)
 
@@ -759,3 +795,156 @@ def test_smoke_review_quality_receives_unchecked_sources(
     assert not at.exception, at.exception
     assert received == [["doc-glosario"]]
     _assert_nothing_written(composed)
+
+
+# --- PA-277 · Revisiones de calidad guardadas en Streamlit (QualityReviewStore) ----------------
+
+
+def test_smoke_review_quality_rerun_reads_stored_review_without_calling_llm_again(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PA-277: volver a pintar la pantalla lee el informe guardado; no repite la revisión."""
+    original = core_quality.QualityReviewer.review
+    calls: list[int] = []
+
+    def counted(self: Any, *args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", counted)
+    at = _app()
+    _to_quality(at)
+    at.run()
+    assert not at.exception, at.exception
+    assert len(calls) == 1
+    assert md_escape("He revisado DEMO-3 con INVEST") in _texts(at)
+    _assert_nothing_written(composed)
+
+
+def test_smoke_sidebar_lists_stored_review_and_reopens_it_in_a_new_session(
+    composed: Container,
+    quality_store: InMemoryQualityReviewStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-277: «Revisiones de calidad» lista «Informe listo» y lo abre tras recargar la app."""
+    at = _app()
+    _to_quality(at)
+    review_id = _stored(_session(at)).id
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("no debe volver a revisar")
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", unexpected)
+    again = _app()  # sesión nueva (recarga o reinicio): el almacén conserva la revisión
+    _login(again, "af-demo", _password("af-demo"))
+    button = again.button(key=f"quality-{review_id}")
+    assert md_escape("Revisar la calidad de DEMO-3") in button.label
+    assert "Informe listo" in button.label
+    assert "Avisar" not in button.label  # nunca texto del informe en la lista
+
+    button.click().run()
+    assert not again.exception, again.exception
+    session = _session(again)
+    assert session.screen == "calidad" and session.quality == review_id
+    assert session.request is not None and session.request.key == "DEMO-3"
+    assert md_escape("He revisado DEMO-3 con INVEST") in _texts(again)
+    assert len(_download_buttons(again)) == 1
+    assert [r.id for r in quality_store.list_for("af-demo")] == [review_id]
+    _assert_nothing_written(composed)
+
+
+def test_smoke_sidebar_shows_failed_review_as_error_and_opens_its_message(
+    composed: Container, quality_store: InMemoryQualityReviewStore
+) -> None:
+    """PA-277: una revisión con error sale como «Error» y al abrirla muestra su mensaje."""
+    failed = new_review("00000000-0000-4000-8000-000000000001", "af-demo", "DEMO-3")
+    quality_store.create(failed)
+    quality_store.fail(failed.id, "quality_failed", "Proveedores ficticios caídos.")
+    at = _app()
+    _login(at, "af-demo", _password("af-demo"))
+    button = at.button(key=f"quality-{failed.id}")
+    assert "Error" in button.label
+
+    button.click().run()
+    assert not at.exception, at.exception
+    errors = [str(error.value) for error in at.error]
+    assert any(md_escape("Proveedores ficticios caídos.") in error for error in errors), errors
+    assert at.button(key="quality-retry").label == "Reintentar"
+    assert _download_buttons(at) == []
+    _assert_nothing_written(composed)
+
+
+def test_smoke_running_review_is_shown_as_in_progress_without_relaunching(
+    composed: Container,
+    quality_store: InMemoryQualityReviewStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-277: una revisión «En marcha» (p. ej. de otra pestaña) no se relanza sola."""
+    running = new_review("00000000-0000-4000-8000-000000000002", "af-demo", "DEMO-3")
+    quality_store.create(running)
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("no debe revisar de nuevo sin que la persona lo pida")
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", unexpected)
+    at = _app()
+    _login(at, "af-demo", _password("af-demo"))
+    button = at.button(key=f"quality-{running.id}")
+    assert "En marcha" in button.label
+
+    button.click().run()
+    assert not at.exception, at.exception
+    assert "sigue en marcha" in _texts(at)
+    assert at.button(key="quality-retry") is not None
+    assert quality_store.get(running.id) == running  # no se marca como interrumpida (PA-147)
+
+
+def test_smoke_reviews_of_another_person_are_not_listed(
+    composed: Container, quality_store: InMemoryQualityReviewStore
+) -> None:
+    """PA-277 (negativa): la lista solo muestra las revisiones de quien ha iniciado sesión."""
+    other = new_review("00000000-0000-4000-8000-000000000003", "otra-persona", "DEMO-3")
+    quality_store.create(other)
+    at = _app()
+    _login(at, "af-demo", _password("af-demo"))
+    assert f"quality-{other.id}" not in [button.key for button in at.button]
+    assert "Revisiones de calidad" not in _texts(at)
+
+
+def test_smoke_review_quality_rate_limit_is_stored_with_retry_after(
+    composed: Container, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PA-277: un 429 se guarda como `rate_limited` con su `retry_after`, como en la API."""
+
+    def limited(*_args: object, **_kwargs: object) -> None:
+        raise RateLimitError("Límite de uso ficticio alcanzado.", service="llm", retry_after=30)
+
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", limited)
+    at = _app()
+    _to_quality(at)
+    stored = _stored(_session(at))
+    assert (stored.state, stored.error_code, stored.retry_after) == ("error", "rate_limited", 30)
+    _assert_nothing_written(composed)
+
+
+def test_smoke_quality_store_failure_shows_message_without_calling_llm(
+    composed: Container,
+    quality_store: InMemoryQualityReviewStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-277 · UI.md §7: si no se puede guardar la revisión, mensaje y no se llama al modelo."""
+
+    def broken(*_args: object, **_kwargs: object) -> None:
+        raise ExternalServiceError("No se pudo guardar la revisión ficticia.", service="postgres")
+
+    def unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("no debe llamar al modelo sin poder guardar")
+
+    monkeypatch.setattr(quality_store, "create", broken)
+    monkeypatch.setattr(core_quality.QualityReviewer, "review", unexpected)
+    at = _app()
+    _to_quality(at)
+    assert not at.exception, at.exception
+    errors = [str(error.value) for error in at.error]
+    assert any(md_escape("No se pudo guardar la revisión ficticia.") in e for e in errors), errors
+    assert at.button(key="quality-retry") is not None

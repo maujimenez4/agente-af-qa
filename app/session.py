@@ -3,7 +3,8 @@
 La UI compone **solo** con `build_app_container`, `build_checkpointer` y `build_graph` (nunca
 instancia adaptadores). Un router de modelos por sesión para el selector (RF-42). El
 checkpointer de PostgreSQL (T-52) se crea una sola vez por proceso, porque abre un pool, y lo
-comparten todas las sesiones: las conversaciones sobreviven a un reinicio de la app.
+comparten todas las sesiones: las conversaciones sobreviven a un reinicio de la app. Las
+revisiones de calidad (PA-277) se guardan igual, en `quality_reviews`, como en la API.
 """
 
 import time
@@ -32,7 +33,7 @@ from core.graph import build_graph
 from core.guided_start import StartOption
 from core.handoff import HandoffStore
 from core.logging import get_logger
-from core.quality import QualityReview
+from core.quality import QualityReviewStore, SqlQualityReviewStore, StoredQualityReview
 
 log = get_logger(__name__)
 
@@ -61,7 +62,8 @@ class SessionState:
     notices: list[str] = field(default_factory=list)  # avisos para la pantalla siguiente
     current: str | None = None  # thread_id de la conversación abierta
     pending: Conversation | None = None  # conversación por arrancar (Mixta 2b)
-    quality: QualityReview | None = None  # informe de «Revisar la calidad» (Mixta 5)
+    quality_store: QualityReviewStore | None = None  # revisiones guardadas (PA-277)
+    quality: str | None = None  # id de la revisión de calidad abierta (Mixta 5)
     model_label: str | None = None
     previous_phase: int | None = None
     failed_logins: int = 0
@@ -86,6 +88,13 @@ def shared_handoffs(_config: AppConfig) -> HandoffStore:
     return build_handoffs(_config)
 
 
+@st.cache_resource(show_spinner=False)
+def shared_quality_reviews(_config: AppConfig) -> QualityReviewStore:
+    """Revisiones de calidad (PA-277), un almacén por proceso. No marca como interrumpidas las
+    que están en marcha: la base puede ser la misma que la de la API (PA-147)."""
+    return SqlQualityReviewStore.from_url(_config.settings.sqlalchemy_url())
+
+
 def compose(session: SessionState) -> None:
     """Compone contenedor y grafo una vez por sesión; deja el error en español si falla."""
     if session.workspace is not None or session.compose_error is not None:
@@ -99,12 +108,14 @@ def compose(session: SessionState) -> None:
             checkpointer=shared_checkpointer(config),
             handoffs=shared_handoffs(config),  # T-54 (PA-268): QA encadenada
         )
+        quality_store = shared_quality_reviews(config)
     except (ConfigError, AgentError, ValidationError) as exc:
         # Un ValidationError (p. ej. un valor no válido en `.env`) incluiría el valor recibido.
         session.compose_error = INVALID_CONFIG if isinstance(exc, ValidationError) else str(exc)
         log.warning("no se pudo componer la app", action="compose", error_type=type(exc).__name__)
         return
     session.config, session.router = config, router
+    session.quality_store = quality_store
     session.workspace = Workspace(container=container, graph=graph)
 
 
@@ -205,6 +216,18 @@ def open_origin(
         alternatives=list(alternatives or []),
         choices=[],
     )
+
+
+def open_quality(session: SessionState) -> StoredQualityReview | None:
+    """La revisión de calidad abierta, leída del almacén; None si no hay o es de otra persona.
+
+    Un fallo del almacén llega como `AgentError` (mensaje en español para la UI).
+    """
+    store, user = session.quality_store, session.user
+    if store is None or user is None or session.quality is None:
+        return None
+    review = store.get(session.quality)
+    return review if review is not None and review.username == user.username else None
 
 
 def go(session: SessionState, screen: str, **changes: Any) -> None:

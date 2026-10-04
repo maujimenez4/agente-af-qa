@@ -12,23 +12,12 @@ import re
 from adapters.errors import AgentError
 from core.functional.citations import citation_errors
 from core.functional.context import CitableSource
+from core.personal_data import personal_data_kind
 from schemas.test_case import TestCaseType, TestSuite
 from schemas.user_story import UserStory
 
 REQUIRED_TYPES = (TestCaseType.POSITIVE, TestCaseType.NEGATIVE)
 
-_EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)+)")
-_FICTITIOUS_DOMAIN = re.compile(r"(^|\.)(example\.(com|org|net)|example|invalid)$", re.IGNORECASE)
-# Teléfonos españoles de 9 cifras (3-3-3 o 3-2-2-2). Los grupos 3-3-3 con punto se dejan fuera
-# porque es el formato de los importes («700.000.000 €»).
-_PHONE = re.compile(
-    r"(?<![\w.,])(?:\+34[ .-]?)?[6-9]\d{2}"
-    r"(?:[ -]?\d{3}[ -]?\d{3}|[ .-]?\d{2}[ .-]?\d{2}[ .-]?\d{2})"
-    r"(?![\w.,]*\d)"
-)
-_DNI = re.compile(r"\b\d{8}[ -]?[A-Za-z]\b")
-_NIE = re.compile(r"\b[XYZxyz][ -]?\d{7}[ -]?[A-Za-z]\b")
-_IBAN = re.compile(r"\bES\d{2}(?:[\s-]?\d{4}){5}\b", re.IGNORECASE)
 _SAFE_KEY = re.compile(r"[A-Za-z_][\w]{0,40}")
 
 
@@ -107,14 +96,6 @@ def suite_errors(suite: TestSuite, story: UserStory, sources: list[CitableSource
     ]
 
 
-def _personal_data_kind(value: str) -> str | None:
-    for match in _EMAIL.finditer(value):
-        if not _FICTITIOUS_DOMAIN.search(match.group(1)):
-            return "email"
-    if _DNI.search(value) or _NIE.search(value):
-        return "documento de identidad"
-    if _IBAN.search(value):
-        return "IBAN"
-    if _PHONE.search(value):
-        return "teléfono"
-    return None
+# PA-142: un único detector, lineal, en `core/personal_data.py`. Se conserva el nombre
+# privado porque `core/memory/generator.py` lo importa así (PA-250).
+_personal_data_kind = personal_data_kind

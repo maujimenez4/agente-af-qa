@@ -189,6 +189,8 @@ class FallbackLLMProvider:
                 artifact_id=current_artifact_id(),
                 error=type(error).__name__,
             )
+            return
+        self._check_daily_budget(task, model)  # PA-145: también tras registrar un fallo
 
     def _record(self, task: TaskType, result: LLMResult | StructuredResult) -> None:
         log.info(
@@ -217,14 +219,19 @@ class FallbackLLMProvider:
                 )
             )
         except Exception as exc:  # el registro no puede tumbar la respuesta (RNF-12)
-            self._warn_usage("llm_usage_not_recorded", task, result, exc)
+            self._warn_usage("llm_usage_not_recorded", task, result.model, exc)
             return
+        self._check_daily_budget(task, result.model)
+
+    def _check_daily_budget(self, task: TaskType, model: str | None) -> None:
+        """Aviso de consumo diario (RNF-27) tras registrar tokens, sean de una llamada correcta
+        o de una que falló (PA-145). Nunca tumba la llamada (RNF-12)."""
         if self._daily_token_warning is None:
             return
         try:
             used = self.tokens_today()
         except Exception as exc:  # el aviso diario tampoco (RNF-12)
-            self._warn_usage("llm_usage_not_read", task, result, exc)
+            self._warn_usage("llm_usage_not_read", task, model, exc)
             return
         if used >= self._daily_token_warning:
             log.warning(
@@ -235,11 +242,9 @@ class FallbackLLMProvider:
             )
 
     @staticmethod
-    def _warn_usage(
-        event: str, task: TaskType, result: LLMResult | StructuredResult, exc: Exception
-    ) -> None:
+    def _warn_usage(event: str, task: TaskType, model: str | None, exc: Exception) -> None:
         log.warning(
-            event, action="llm_call", task=task.value, model=result.model, error=type(exc).__name__
+            event, action="llm_call", task=task.value, model=model, error=type(exc).__name__
         )
 
 

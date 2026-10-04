@@ -1,4 +1,5 @@
-"""Marco común (`docs/specs/UI.md` §2): conversaciones, selector de modelo y aviso de prueba."""
+"""Marco común (`docs/specs/UI.md` §2): conversaciones, revisiones de calidad (PA-277),
+selector de modelo y aviso de prueba."""
 
 import streamlit as st
 
@@ -7,6 +8,8 @@ from adapters.errors import AgentError
 from app.conversation import message_for
 from app.listing import flow_label, group_by_day, status_label
 from app.models import AUTOMATIC, apply_model, model_options
+from app.origin import fix_origin
+from app.quality import review_item
 from app.session import SessionState, clear_composer, go
 from app.text import md_escape
 
@@ -41,6 +44,7 @@ def sidebar(session: SessionState) -> None:
                 choices=[],
             )
         _conversations(session, user)
+        _quality_reviews(session, user)
         st.divider()
         _model_selector(session)
 
@@ -72,6 +76,36 @@ def _conversations(session: SessionState, user: User) -> None:
                 type="primary" if row.thread_id == session.current else "secondary",
             ):
                 go(session, "iterar", current=row.thread_id, pending=None)
+
+
+def _quality_reviews(session: SessionState, user: User) -> None:
+    """Revisiones de calidad de la persona (PA-277): «Informe listo», «En marcha» o «Error».
+
+    Solo el título (flujo y clave) y el estado: nunca texto del informe.
+    """
+    store = session.quality_store
+    if store is None:
+        return
+    try:
+        rows = store.list_for(user.username)
+    except AgentError as exc:
+        st.error(md_escape(message_for(exc)))
+        if st.button("Reintentar", key="retry_quality_list"):
+            st.rerun()
+        return
+    if not rows:
+        return
+    st.caption("Revisiones de calidad")
+    for row in rows:
+        title, state = review_item(row)
+        if st.button(
+            f"{md_escape(title)}  \n{md_escape(state)}",
+            key=f"quality-{row.id}",
+            width="stretch",
+            type="primary" if row.id == session.quality else "secondary",
+        ):
+            request = fix_origin("review", row.project_key, key=row.issue_key)
+            go(session, "calidad", request=request, quality=row.id, current=None, pending=None)
 
 
 def _model_selector(session: SessionState) -> None:

@@ -2381,7 +2381,7 @@ def test_finding_rows_empty_without_findings() -> None:
 def test_review_message_counts_findings_and_says_nothing_changed(count: int, points: str) -> None:
     """UI.md §4.8: el mensaje cuenta los hallazgos y siempre dice que no ha cambiado Jira."""
     findings = [_finding(f"CA-0{i + 1}") for i in range(count)]
-    message = review_message(_review(_quality(findings), key="DEMO-4"))
+    message = review_message("DEMO-4", _quality(findings))
     assert message.startswith("He revisado DEMO-4 con INVEST")
     assert f"Hay {points}." in message
     assert message.endswith("No he cambiado nada en Jira.")
@@ -2394,10 +2394,10 @@ def test_report_filename_uses_the_key() -> None:
 
 def test_report_download_is_escaped_markdown_in_utf8() -> None:
     """PA-64: *Descargar informe* = `to_markdown(clave)` en UTF-8 (con tildes ficticias)."""
-    review = _review(renewal_quality_report())
-    data = report_download(review)
+    report = renewal_quality_report()
+    data = report_download("DEMO-3", report)
     assert isinstance(data, bytes)
-    assert data == review.report.to_markdown("DEMO-3").encode("utf-8")
+    assert data == report.to_markdown("DEMO-3").encode("utf-8")
     text = data.decode("utf-8")
     assert text.startswith("# Calidad de DEMO-3")
     assert "Ambigüedad" in text
@@ -2410,7 +2410,7 @@ def test_report_download_escapes_markdown_from_the_llm() -> None:
         explanation="Ver ![img](https://ejemplo.invalid/x.png)",
         proposal="[pulsa](https://ejemplo.invalid)",
     )
-    text = report_download(_review(_quality([finding]))).decode("utf-8")
+    text = report_download("DEMO-3", _quality([finding])).decode("utf-8")
     assert "![img](" not in text and "[pulsa](" not in text
     assert "\\!\\[img\\]" in text
 
@@ -2418,7 +2418,7 @@ def test_report_download_escapes_markdown_from_the_llm() -> None:
 def test_evolve_request_opens_evolution_with_report_proposals() -> None:
     """UI.md §4.8 · T-48: «Evolucionar con esto» → evolución de la clave con las propuestas."""
     review = _review(_quality([_finding("CA-02"), _finding(None, kind="gap")]))
-    request = evolve_request(review, "DEMO")
+    request = evolve_request(review.jira_key, review.report, "DEMO")
     assert (request.flow, request.kind, request.key, request.project) == (
         "evolve",
         "story",
@@ -2436,13 +2436,13 @@ def test_evolve_request_opens_evolution_with_report_proposals() -> None:
 
 def test_evolve_request_key_of_other_project_changes_project() -> None:
     """UI.md §4.8 · decisión del día 6: el proyecto sale de la clave, no del que se pasa."""
-    request = evolve_request(_review(_quality([_finding()]), key="OTRO-7"), "DEMO")
+    request = evolve_request("OTRO-7", _quality([_finding()]), "DEMO")
     assert (request.key, request.project) == ("OTRO-7", "OTRO")
 
 
 def test_evolve_request_without_findings_has_no_extra_feedback() -> None:
     """UI.md §4.8 (límite): sin hallazgos, la evolución empieza sin feedback previo."""
-    request = evolve_request(_review(_quality([])), "DEMO")
+    request = evolve_request("DEMO-3", _quality([]), "DEMO")
     assert request.extra_feedback == ()
     assert build_initial_state("af-demo", request)["feedback"] == []
 
@@ -2455,8 +2455,8 @@ def test_evolve_request_with_real_reviewer_and_fake_llm(tmp_path: Path) -> None:
     assert [row.letter for row in invest_rows(review.report)] == list("INVEST")
     rows = finding_rows(review.report)
     assert [(row.kind, row.target) for row in rows] == [("Ambigüedad", "CA-02"), ("Hueco", "HU")]
-    assert "Hay 2 puntos a mejorar." in review_message(review)
-    request = evolve_request(review, "DEMO")
+    assert "Hay 2 puntos a mejorar." in review_message(review.jira_key, review.report)
+    request = evolve_request(review.jira_key, review.report, "DEMO")
     state = build_initial_state("af-demo", request)
     assert state["feedback"] == list(review.evolve_feedback())
     assert "CA-02: Avisar en menos de 15 minutos." in state["feedback"]
@@ -2549,7 +2549,7 @@ def test_plan_start_review_without_anything_requires_key() -> None:
 def test_evolve_request_keeps_sources_excluded_while_reviewing(tmp_path: Path) -> None:
     """UI.md §4.8: las fuentes desmarcadas al revisar siguen fuera al evolucionar con el informe."""
     review = QualityReviewer(fake_container(tmp_path)).review(AF_USER, "DEMO-3")
-    request = evolve_request(review, "DEMO", ("doc-glosario",))
+    request = evolve_request(review.jira_key, review.report, "DEMO", ("doc-glosario",))
     assert request.excluded_sources == ("doc-glosario",)
     assert build_initial_state(AF_USER.username, request)["excluded_sources"] == ["doc-glosario"]
 

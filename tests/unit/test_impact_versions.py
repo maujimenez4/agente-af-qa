@@ -7,13 +7,17 @@ Datos 100 % sintéticos (Villaficticia, DEMO-N).
 """
 
 import io
+import multiprocessing
 from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL, Engine
 
 from adapters.errors import ExternalServiceError, NotFoundError
@@ -415,3 +419,122 @@ def test_published_by_agent_only_for_published_user_stories(store: StoryVersionS
     assert store.published_by_agent(key) is False
     store.update_status(artifact_id, "published", key)
     assert store.published_by_agent(key) is True
+
+
+# --- PA-146 · Bloqueo de la fila del artefacto al guardar -----------------------------------
+
+
+class _SpyResult:
+    def scalar_one_or_none(self) -> None:
+        return None
+
+
+class _SpyEngine:
+    """Engine espía (sin red): cuenta transacciones y guarda las sentencias en orden."""
+
+    def __init__(self) -> None:
+        self.transactions = 0
+        self.statements: list[Any] = []
+
+    @contextmanager
+    def begin(self) -> Iterator["_SpyEngine"]:
+        self.transactions += 1
+        yield self
+
+    def execute(self, statement: Any, parameters: Any = None) -> _SpyResult:
+        self.statements.append(statement)
+        return _SpyResult()
+
+
+def test_save_locks_artifact_row_for_update_before_checks() -> None:
+    """PA-146: `save` lee la fila de `artifacts` con `SELECT … FOR UPDATE` como primera
+    sentencia de la misma transacción en la que comprueba y escribe."""
+    engine = _SpyEngine()
+    StoryVersionStore(engine).save(  # type: ignore[arg-type]
+        _story_artifact(uuid4(), 1, renewal_story())
+    )
+
+    assert engine.transactions == 1
+    sql = [str(s.compile(dialect=postgresql.dialect())) for s in engine.statements]
+    assert sql[0].startswith("SELECT artifacts.type")
+    assert "WHERE artifacts.id =" in sql[0]
+    assert sql[0].rstrip().endswith("FOR UPDATE")
+    assert any(s.startswith("INSERT INTO artifacts") for s in sql[1:])
+    assert any(s.startswith("INSERT INTO artifact_versions") for s in sql[1:])
+    assert sum("FOR UPDATE" in s for s in sql) == 1  # solo la fila del artefacto
+
+
+def _save_in_process(url: URL, artifact_json: str, barrier: Any, results: Any) -> None:
+    """Proceso hijo (nivel de módulo, para "spawn"): guarda una versión a la vez que otros."""
+    engine = sa.create_engine(url, poolclass=sa.pool.NullPool, connect_args={"connect_timeout": 5})
+    try:
+        artifact = Artifact.model_validate_json(artifact_json)
+        barrier.wait(timeout=60)
+        try:
+            StoryVersionStore(engine).save(artifact)
+            results.put("ok")
+        except ExternalServiceError as exc:
+            results.put(type(exc).__name__)
+    except Exception as exc:  # cualquier otro fallo se informa al padre
+        results.put(f"error:{type(exc).__name__}")
+    finally:
+        engine.dispose()
+
+
+def _run_concurrently(url: URL, artifacts: list[Artifact]) -> list[str]:
+    ctx = multiprocessing.get_context("spawn")
+    barrier = ctx.Barrier(len(artifacts))
+    results = ctx.Queue()
+    processes = [
+        ctx.Process(
+            target=_save_in_process,
+            args=(url, artifact.model_dump_json(), barrier, results),
+        )
+        for artifact in artifacts
+    ]
+    for process in processes:
+        process.start()
+    outcomes = [results.get(timeout=120) for _ in artifacts]
+    for process in processes:
+        process.join(timeout=60)
+    assert all(process.exitcode == 0 for process in processes)
+    return sorted(outcomes)
+
+
+@pytest.mark.integration
+def test_concurrent_processes_save_same_version_once_when_content_is_equal(
+    engine: Engine, store: StoryVersionStore
+) -> None:
+    """PA-146 (BD real, procesos "spawn"): varios procesos guardan a la vez la misma versión
+    con el mismo contenido: ninguno falla y el número de versión no se duplica."""
+    artifact_id = uuid4()
+    store.save(_story_artifact(artifact_id, 1, renewal_story()))
+    same_v2 = _story_artifact(artifact_id, 2, _evolved_story())
+
+    outcomes = _run_concurrently(engine.url, [same_v2] * 4)
+
+    assert outcomes == ["ok"] * 4
+    assert store.versions(artifact_id) == [1, 2]
+    assert _count_versions(engine, artifact_id) == 2
+    assert _artifact_row(engine, artifact_id).version == 2
+
+
+@pytest.mark.integration
+def test_concurrent_processes_get_version_conflict_when_same_version_differs(
+    engine: Engine, store: StoryVersionStore
+) -> None:
+    """PA-146 (BD real): dos procesos guardan a la vez la versión 2 con contenidos distintos:
+    uno gana y el otro recibe `VersionConflictError` (no un error genérico de la BD)."""
+    artifact_id = uuid4()
+    store.save(_story_artifact(artifact_id, 1, renewal_story()))
+    evolved = _evolved_story()
+    other = evolved.model_copy(update={"title": "Otra versión 2 ficticia"})
+
+    outcomes = _run_concurrently(
+        engine.url,
+        [_story_artifact(artifact_id, 2, evolved), _story_artifact(artifact_id, 2, other)],
+    )
+
+    assert outcomes == ["VersionConflictError", "ok"]
+    assert store.versions(artifact_id) == [1, 2]
+    assert _count_versions(engine, artifact_id) == 2

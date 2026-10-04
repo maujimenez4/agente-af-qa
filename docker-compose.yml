@@ -1,6 +1,9 @@
 services:
   db:
-    image: pgvector/pgvector:pg16
+    # PA-231: fijada por digest a la imagen en uso (PostgreSQL 16.15 con pgvector), consultada el
+    # 2026-10-04 con `docker image inspect`; la última publicada de pg16 ya es otra. Para
+    # actualizar: `docker buildx imagetools inspect pgvector/pgvector:pg16`.
+    image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -16,7 +19,9 @@ services:
       retries: 10
 
   ollama:
-    image: ollama/ollama
+    # PA-231: fijada por digest a la imagen en uso (Ollama 0.35.0, con la que pasó el e2e),
+    # consultada el 2026-10-04 con `docker image inspect`; la última publicada ya es otra.
+    image: ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01
     profiles: ["local-llm"]      # docker compose --profile local-llm up -d
     environment:
       OLLAMA_CONTEXT_LENGTH: "8192"   # instrucciones + contexto + salida (ver limits en models.yaml)

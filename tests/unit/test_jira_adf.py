@@ -1016,3 +1016,120 @@ def test_markdown_to_adf_heading_keeps_title_without_surrounding_spaces(
 def test_markdown_to_adf_hashes_without_space_are_not_a_heading() -> None:
     """PA-143 (límite): «##» sin espacio sigue sin ser un título."""
     assert markdown_to_adf("##titulo")["content"][0]["type"] == "paragraph"
+
+
+# --- PA-230: _FENCE y _LINK sin coste no lineal -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "```" + " " * 100_000 + "!",
+        "```" + "\t" * 20_000 + "!",  # los tabuladores se expanden a 4 espacios
+        "[" * 100_000,
+        "[a](" * 25_000,
+    ],
+    ids=["valla-espacios", "valla-tabs", "corchetes", "enlaces-abiertos"],
+)
+def test_markdown_to_adf_is_linear_on_adversarial_lines(md: str) -> None:
+    """PA-230 (ReDoS): «```» + 100 000 espacios + «!» tardaba ~54 s (y 20 000 tabuladores, ~60 s
+    en el conversor completo); ahora todo se convierte en tiempo lineal."""
+    import time
+
+    started = time.perf_counter()
+    markdown_to_adf(md)
+    assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    ("md", "language"),
+    [
+        ("```python\nprint(1)\n```", "python"),
+        ("   ```  sql  \nselect 1\n  ```  ", "sql"),
+        ("```\nx\n```", ""),
+    ],
+    ids=["normal", "espacios-alrededor", "sin-lenguaje"],
+)
+def test_markdown_to_adf_fence_still_recognized(md: str, language: str) -> None:
+    """PA-230: las vallas con espacios alrededor y con o sin lenguaje se siguen reconociendo."""
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node.get("attrs", {}).get("language", "") == language
+
+
+def test_markdown_to_adf_link_label_stops_at_an_inner_bracket() -> None:
+    """PA-230 (comportamiento fijado): la etiqueta no admite «[» (así el patrón es lineal). En
+    «[uno [dos](url)» antes se enlazaba «uno [dos»; ahora «[uno » queda como texto literal y el
+    enlace es solo «dos». El texto completo se conserva."""
+    url = "https://ejemplo.invalid"
+    [paragraph] = markdown_to_adf(f"[uno [dos]({url})")["content"]
+    nodes = paragraph["content"]
+    linked = [n["text"] for n in nodes if any(m["type"] == "link" for m in n.get("marks", []))]
+    assert linked == ["dos"]
+    assert "".join(n.get("text", "") for n in nodes) == "[uno dos"
+    assert all(
+        m["attrs"]["href"] == url for n in nodes for m in n.get("marks", []) if m["type"] == "link"
+    )
+
+
+# --- PA-230: tablas acotadas (ancho × filas) --------------------------------------------------
+
+
+def test_markdown_to_adf_wide_table_with_many_rows_is_linear() -> None:
+    """PA-230 (DoS, security-reviewer): una fila de 50 000 «|» y 25 000 filas creaba ancho × filas
+    celdas (290 s y 7 GB con 12 000 caracteres). Ahora se publica como texto literal, en tiempo
+    lineal y sin perder contenido."""
+    import time
+
+    md = "|" * 50_000 + "\n" + "|\n" * 25_000
+    started = time.perf_counter()
+    [node] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"].count("|") == md.count("|")
+
+
+def test_markdown_to_adf_caps_columns_and_keeps_extra_cells_in_the_last_one() -> None:
+    """PA-230: como mucho MAX_TABLE_COLUMNS columnas; las que sobran se unen a la última celda."""
+    from adapters.jira.adf import MAX_TABLE_COLUMNS
+
+    cells = [f"c{i}" for i in range(MAX_TABLE_COLUMNS + 5)]
+    [table] = markdown_to_adf("| " + " | ".join(cells) + " |")["content"]
+    [row] = table["content"]
+    assert len(row["content"]) == MAX_TABLE_COLUMNS
+    last = row["content"][-1]["content"][0]["content"][0]["text"]
+    assert last == " | ".join(cells[MAX_TABLE_COLUMNS - 1 :])
+
+
+def test_markdown_to_adf_table_over_the_cell_limit_becomes_literal_text() -> None:
+    """PA-230: una tabla con más de MAX_TABLE_CELLS celdas va como bloque de código literal."""
+    from adapters.jira.adf import MAX_TABLE_CELLS
+
+    rows = MAX_TABLE_CELLS // 2 + 1
+    md = "\n".join("| a | b |" for _ in range(rows))
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"] == md
+
+
+def test_markdown_to_adf_normal_table_is_still_a_table() -> None:
+    """PA-230 (no regresión): una tabla corriente, como la del diff, sigue siendo una tabla."""
+    [node] = markdown_to_adf("| Campo | Antes | Después |\n|---|---|---|\n| title | a | b |")[
+        "content"
+    ]
+    assert node["type"] == "table"
+    assert [c["type"] for c in node["content"][0]["content"]] == ["tableHeader"] * 3
+
+
+def test_markdown_to_adf_list_continuation_lines_are_linear() -> None:
+    """PA-230: miles de líneas de continuación de un elemento de lista se unen en tiempo lineal
+    y conservan su contenido."""
+    import time
+
+    md = "- a\n" + "  b\n" * 24_000  # por debajo del tope de 100 000 caracteres
+    started = time.perf_counter()
+    [lst] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    [item] = lst["content"]
+    texts = [n.get("text") for n in item["content"][0]["content"] if n["type"] == "text"]
+    assert texts.count("b") == 24_000

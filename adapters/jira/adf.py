@@ -147,6 +147,8 @@ def _date(timestamp: Any) -> str:
 
 MAX_MARKDOWN_CHARS = 100_000  # por encima se trunca: Jira rechaza documentos enormes
 MAX_URL_CHARS = 2_000
+MAX_TABLE_COLUMNS = 50  # PA-230: Jira tampoco admite tablas más anchas de forma útil
+MAX_TABLE_CELLS = 5_000  # PA-230: por encima, la tabla se publica como texto literal
 # C0 (salvo `\t` y `\n`), C1, control bidireccional y espacios de anchura cero (orden visual
 # engañoso); se conservan U+200C/U+200D, que usan los emojis y algunas escrituras.
 _CONTROL = re.compile(
@@ -226,7 +228,10 @@ def _append_text(nodes: list[Node], value: str, marks: tuple[str, ...]) -> None:
 
 # --- Escritura: Markdown → ADF (T-27, SPEC-00 §8, PA-49) -----------------------------------
 
-_FENCE = re.compile(r"^\s*```\s*([A-Za-z0-9_+-]{0,20})\s*$")
+# PA-230: sobre la línea ya recortada (`_fence`) y con un solo `\s*`: el patrón anterior,
+# con `\s*` a ambos lados de un grupo que puede ser vacío, era cuadrático (~54 s con 100 000
+# espacios).
+_FENCE = re.compile(r"^```\s*([A-Za-z0-9_+-]{0,20})$")
 # PA-143: sin `\s*$` tras un grupo perezoso (backtracking cuadrático con miles de espacios);
 # los espacios del título se quitan con `.strip()`.
 _HEADING = re.compile(r"^(#{1,6})\s(.*)$")
@@ -235,7 +240,9 @@ _RULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
 # Celda del separador de tabla (`---`, `:--`, `-:`); se valida celda a celda, sin `\s*`
 # contiguos que den backtracking cuadrático con texto no fiable (PA-187).
 _SEPARATOR_CELL = re.compile(r":?-+:?")
-_LINK = re.compile(rf"\[([^\]\n]{{1,500}})\]\(([^()\s]{{1,{MAX_URL_CHARS}}})\)")
+# PA-230: la etiqueta no admite `[`: así, con miles de `[`, cada intento falla al momento en vez
+# de recorrer hasta 500 caracteres.
+_LINK = re.compile(rf"\[([^\[\]\n]{{1,500}})\]\(([^()\s]{{1,{MAX_URL_CHARS}}})\)")
 _ESCAPABLE = frozenset("\\`*_[]()#+-.!|>")
 _TAB_WIDTH = 4
 
@@ -253,10 +260,10 @@ def _parse_blocks(lines: list[str]) -> list[Node]:
         line = lines[i]
         if not line.strip():
             i += 1
-        elif fence := _FENCE.match(line):
+        elif fence := _fence(line):
             body: list[str] = []
             i += 1
-            while i < len(lines) and not _FENCE.match(lines[i]):
+            while i < len(lines) and not _fence(lines[i]):
                 body.append(lines[i])
                 i += 1
             blocks.append(code_block("\n".join(body), fence.group(1)))
@@ -293,9 +300,14 @@ def _is_table_line(line: str) -> bool:
     return line.lstrip().startswith("|")
 
 
+def _fence(line: str) -> re.Match[str] | None:
+    """Valla de código (```lenguaje) en la línea, sin espacios en los extremos (PA-230)."""
+    return _FENCE.match(line.strip())
+
+
 def _starts_block(line: str) -> bool:
     return bool(
-        _FENCE.match(line)
+        _fence(line)
         or _HEADING.match(line)
         or _RULE.match(line)
         or _is_table_line(line)
@@ -316,14 +328,16 @@ _Item = tuple[int, bool, str]  # (sangría, ordenada, texto)
 
 
 def _lists(lines: list[str]) -> list[Node]:
-    items: list[_Item] = []
+    # PA-230: las líneas de continuación se acumulan y se unen al final; rehacer la cadena del
+    # elemento en cada línea era superlineal.
+    parts: list[tuple[int, bool, list[str]]] = []
     for line in lines:
         if match := _LIST_ITEM.match(line):
             indent, marker, content = match.groups()
-            items.append((len(indent), marker[0].isdigit(), content))
-        elif items:
-            indent, ordered, content = items[-1]
-            items[-1] = (indent, ordered, f"{content}\n{line.strip()}")
+            parts.append((len(indent), marker[0].isdigit(), [content]))
+        elif parts:
+            parts[-1][2].append(line.strip())
+    items: list[_Item] = [(indent, ordered, "\n".join(text)) for indent, ordered, text in parts]
     nodes: list[Node] = []
     pos = 0
     while pos < len(items):  # un elemento menos sangrado que el primero abre otra lista
@@ -360,8 +374,17 @@ def _list_level(items: list[_Item], pos: int) -> tuple[list[Node], int]:
 def _table(lines: list[str]) -> Node:
     has_header = len(lines) > 1 and _is_table_separator(lines[1])
     # Solo la segunda línea puede ser el separador; `| - | - |` más abajo es una fila de datos.
-    rows = [_split_cells(line) for n, line in enumerate(lines) if not (has_header and n == 1)]
+    rows = [
+        _cap_columns(_split_cells(line))
+        for n, line in enumerate(lines)
+        if not (has_header and n == 1)
+    ]
     width = max(len(row) for row in rows)
+    # PA-230: cada fila se rellena hasta el ancho máximo; sin topes, una fila de 50 000 «|»
+    # seguida de miles de filas creaba ancho × filas celdas (cuadrático en tiempo y memoria).
+    # Una tabla demasiado grande se publica como texto literal, sin perder contenido.
+    if width * len(rows) > MAX_TABLE_CELLS:
+        return code_block("\n".join(lines))
     content: list[Node] = []
     for r, row in enumerate(rows):
         cell_type = "tableHeader" if has_header and r == 0 else "tableCell"
@@ -375,6 +398,14 @@ def _table(lines: list[str]) -> Node:
             }
         )
     return {"type": "table", "content": content}
+
+
+def _cap_columns(cells: list[str]) -> list[str]:
+    """Como mucho `MAX_TABLE_COLUMNS` celdas: las que sobran se unen a la última (PA-230)."""
+    if len(cells) <= MAX_TABLE_COLUMNS:
+        return cells
+    keep = MAX_TABLE_COLUMNS - 1
+    return [*cells[:keep], " | ".join(cells[keep:])]
 
 
 def _is_table_separator(line: str) -> bool:

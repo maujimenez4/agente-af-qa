@@ -19,10 +19,13 @@ services:
     image: ollama/ollama
     profiles: ["local-llm"]      # docker compose --profile local-llm up -d
     environment:
-      OLLAMA_CONTEXT_LENGTH: "8192"   # 6000 de contexto RAG + instrucciones + salida
+      OLLAMA_CONTEXT_LENGTH: "8192"   # instrucciones + contexto + salida (ver limits en models.yaml)
       # PA-275: el modelo sigue cargado tras la última llamada (la app no envía keep_alive).
-      # Se aplica al recrear el contenedor: docker compose --profile local-llm up -d ollama
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-2h}
+      # 30 min y no 2 h: con 2 h la memoria no se libera y hubo OOM en el e2e (2026-10-02).
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      # Como mucho dos modelos a la vez (principal + embeddings): si entra el respaldo,
+      # Ollama descarga uno en vez de quedarse sin memoria. Se aplica al recrear el contenedor.
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
     ports:
       - "127.0.0.1:11434:11434"      # solo en esta máquina (se aplica al recrear)
     volumes:

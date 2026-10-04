@@ -1,71 +1,58 @@
-# SESIÓN MODELOS · Ronda 6: cerrar huecos funcionales (PA-272, PA-103, PA-113, PA-275 y PA-273)
+# SESIÓN MODELOS · Ronda 7: citas de Jira sin reintento (PA-281)
 
-> Este archivo era el encargo de T-54 y después el de la demo (T-36, parte 1). La demo queda aparcada hasta que el sistema esté terminado (decisión del usuario). Ahora es el encargo de la **sesión Modelos**.
+> Este archivo es el encargo de la **sesión Modelos**. Tu ronda 6 (`ses-huecos`) ya está fusionada.
 
-Tu T-36 (parte 1) se queda en la rama `ses-demo`. De ella se ha fusionado solo el README de instalación y las PA-270…PA-275. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-huecos origin/PreProduccion
+git -C .claude/worktrees/area-b switch -C ses-citas origin/PreProduccion
 cd .claude/worktrees/area-b
 uv sync
-uv run pytest -m "not integration"          # en verde, con 84 xfailed (defectos de T-35 en curso)
+uv run pytest -m "not integration"          # en verde, sin xfail
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-huecos`**, creada desde `PreProduccion`.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-citas`**, creada desde `PreProduccion`. Tu ronda 6 ya está fusionada.
 
-La demo queda aparcada (`ses-demo` se conserva tal cual): los documentos de la demo se harán cuando el sistema esté terminado. **En esta ronda cierras huecos funcionales del sistema.** Ninguno necesita el LLM real.
+**En esta ronda haces PA-281: quitar el reintento de citas de la HU nueva.** Ahora mismo cuesta ~5–6 minutos por HU en CPU.
 
-Hay **otras sesiones trabajando a la vez**:
-- **Principal:** integra y revisa. **En esta ronda no toca `api/`**: la API es tuya para estas PA.
-- **UI:** `ses-ui`, corrigiendo los defectos de T-35 en `core/approvals.py`, `core/state_machine.py`, `core/graph/execution.py`, `core/context/`, `core/impact/`, `adapters/llm/` y `adapters/auth/`.
-- **Jira:** `ses-jira`, corrigiendo defectos en `adapters/jira/`, `adapters/testmgmt/` y `core/memory/`, y moviendo `escape_data` (PA-227).
-- **Ollama:** la prueba real de punta a punta. **Usa el LLM y el contenedor de Ollama en esta máquina: no lo reinicies ni cambies su configuración en caliente.**
-- **Responsable del área B:** frontend en React contra `docs/api/openapi.yaml`.
+## El problema (medido en la prueba real)
+Lee antes `docs/pruebas/E2E-local-2026-10-02.md`, §5.3, y la captura `docs/pruebas/salidas/e2e-a-citas.json`.
 
-## Tareas (en este orden)
-1. **PA-272 y PA-103 · Revisar la calidad persistente y en la lista.** Hoy `QualityJob` vive en memoria (`api/runtime.py`, `rt.quality`) y se pierde al reiniciar.
-   - Guárdala en PostgreSQL. Propón el diseño en el plan, por ejemplo una tabla `quality_reviews` con la migración `0006`: persona, clave, estado, informe JSON, fechas y errores en la forma común.
-   - Al terminar, debe aparecer en la lista de conversaciones de la persona como «Informe listo» (UI.md §2). Decide en el plan si se une a `GET /conversations` (con un campo de tipo) o va en una lista aparte, y **cómo cambia el contrato**. Avisa: el frontend en React lo consume.
-   - La propiedad (404 idéntico) y la regla de no escribir en Jira se mantienen.
-2. **PA-113 · Recoger una HU que falla.** Si la generación de la conversación de QA falla después de `take`, que no quede bloqueada. Propón en el plan una opción y justifícala:
-   - devolver la entrega a pendiente;
-   - o reintentar desde la conversación de QA.
-3. **PA-275 · `keep_alive` de Ollama.** Que el modelo no se descargue a los 5 minutos sin uso.
-   - Opción simple: `OLLAMA_KEEP_ALIVE` en el servicio `ollama` de `docker-compose.yml`. Si lo haces así, **no reinicies el contenedor**: el cambio se aplicará en el próximo arranque.
-   - Documenta en el README cómo se aplica.
-4. **PA-273 · `docker compose --profile full`.** El servicio `app` usa `build: .`, pero no hay `Dockerfile`.
-   - Añade uno mínimo y reproducible (uv con el lockfile, usuario no root y sin copiar el `.env`) que arranque la API (`python -m api`), o quita el servicio si no tiene sentido.
-   - Justifícalo en el plan.
+- En 3 de 3 ejecuciones, la primera llamada de la HU nueva falla por citas y el reintento las corrige: **5,5 min perdidos por HU**.
+- **Causa:** cada fuente de Jira llega como `<fuente ref="AFQP-12" tipo="jira" …>`, pero su texto empieza por «Historia · Tareas por hacer / **Épica/padre: AFQP-10**» (`core/functional/context.py`, `_jira_source`). `qwen3:1.7b` cita la clave que lee en el texto (la épica), no la del atributo `ref`.
+- Los tres errores son exactamente los padres de las tres HU del contexto: AFQP-12 → AFQP-10, AFQP-2 → AFQP-1, AFQP-25 → AFQP-17. Los extractos sí son los de la HU correcta.
+- El RAG no falla porque sus fragmentos no mencionan otros `DOC-NN`.
+
+## Decisión del usuario: las dos medidas
+1. **Presentación:** que el texto de cada fuente de Jira empiece por su **propia clave** (p. ej. «Clave: AFQP-12 · Historia · Tareas por hacer») y que la épica o el padre vaya al final, marcada como relación («Pertenece a la épica AFQP-10»). Así la primera clave que lee el modelo es la que debe citar.
+   - Revisa que no rompe el troceado del contexto, el presupuesto ni las pruebas de `render_context`.
+2. **Reparación determinista, sin LLM**, en `core/functional/citations.py`. Si una cita de Jira no existe en el contexto pero su `excerpt` coincide con el de una fuente recibida (con normalización de espacios y mayúsculas, y coincidencia suficientemente exacta), se sustituye su `ref` por la de esa fuente **antes** de decidir el reintento, como hace `repair_ids` con los IDs.
+   - **Solo** sustituye si la coincidencia es inequívoca (una sola fuente). Si no, se mantiene el error y hay reintento: **nunca** se inventa trazabilidad.
+   - Que el log diga cuándo se reparó, sin contenido.
+   - Aplica también a las suites (`core/qa/writer.py`) si usan el mismo camino de citas.
 
 ## Reglas
-- **Puedes tocar:**
-  - `api/` (con regeneración del contrato: `uv run python -m api.export_openapi`, sin argumentos);
-  - `core/quality.py` y `core/handoff.py`;
-  - `migrations/versions/0006_*.py`;
-  - `docker-compose.yml`, `Dockerfile` (nuevo), `.dockerignore` (nuevo) y `README.md`;
-  - `app/` solo si la persistencia de la calidad lo necesita en Streamlit;
-  - y sus pruebas.
-
-  No toques `core/graph/`, `core/approvals.py`, `adapters/`, `schemas/` ni `config/`. Si necesitas un contrato congelado, **para y propónlo**.
+- **Puedes tocar:** `core/functional/context.py`, `core/functional/citations.py`, el camino de citas de `core/qa/` y sus pruebas.
+- **No toques:**
+  - `core/functional/writer.py` en lo que no sea llamar a la reparación: la sesión Jira está metiendo ahí la guarda de la ventana de contexto (PA-114). Si chocáis, avísame.
+  - `core/context/`, `api/`, `app/`, `web/`, `config/` ni los contratos.
+- **Kanban:** añade y cierra PA-281 con la fecha; tu fila en el registro; propuestas en PA-282…PA-299.
 - **Pruebas:**
-  - con `fake_runtime` y fakes;
-  - las de PostgreSQL de la migración llevan la marca `integration` y usan bases de datos temporales;
-  - no ejecutes la suite `integration` completa.
-- **Kanban:**
-  - cierra las PA que hagas con la fecha;
-  - añade tu fila al registro;
-  - no toques el tablero;
-  - **propuestas en PA-276…PA-299**.
-- **Seguridad:** no leas el `.env`; el `Dockerfile` no copia secretos; datos ficticios; los logs sin contenido.
-- **CPU:** Ollama está midiendo. Ejecuta solo las pruebas de lo que tocas y la suite completa una vez al final.
+  - el texto de la fuente empieza por su clave;
+  - una cita a la épica con el extracto de la HU se repara sin segunda llamada al LLM;
+  - una cita ambigua o sin extracto coincidente sigue provocando reintento;
+  - una cita inventada sin coincidencia sigue siendo error.
+
+  Solo fakes; nada contra el LLM real.
+- **Nombres en las pruebas:** no uses `secret`, `password` ni `token` como nombre de variables con valores literales, ni texto que imite una clave privada. Gitleaks los marca y el CI falla.
 - **Antes del commit:**
-  - `uv run pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
+  - pytest, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push -u origin ses-huecos` y avísame.
+- **Sin fusionar:** `git push -u origin ses-citas` y avísame.
 
-Empieza presentándome el plan (sobre todo el diseño de la persistencia de la calidad, cómo cambia el contrato y la opción para PA-113) antes de escribir código.
+Empieza presentándome el plan antes de escribir código.

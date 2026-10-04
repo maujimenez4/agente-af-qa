@@ -58,7 +58,7 @@ uv run ruff check . && uv run ruff format --check .
 **Comprobado en un clon limpio sin `.env`** (2026-10-02, Windows 11): `uv sync`, la migración en modo offline (`uv run alembic upgrade head --sql`, llega a `0005_qa_handoffs`) y `uv run pytest -m "not integration"` en verde. Los pasos 3–8 necesitan Docker, Jira y Ollama con un `.env` propio y no se probaron en ese clon.
 
 ### Ollama: modelos cargados (`keep_alive`)
-El servicio `ollama` de `docker-compose.yml` mantiene el modelo en memoria **2 horas** después de la última llamada (`OLLAMA_KEEP_ALIVE`, PA-275); sin eso se descarga a los 5 minutos y la siguiente llamada paga la carga. Para otro valor, añade `OLLAMA_KEEP_ALIVE=30m` (o `-1`, siempre cargado) a tu `.env`. **Se aplica al recrear el contenedor**, no en caliente:
+El servicio `ollama` de `docker-compose.yml` mantiene el modelo en memoria **30 minutos** después de la última llamada (`OLLAMA_KEEP_ALIVE`, PA-275); sin eso se descarga a los 5 minutos y la siguiente llamada paga la carga. Además limita a **dos modelos cargados** a la vez (`OLLAMA_MAX_LOADED_MODELS=2`): en el e2e del 2026-10-02 hubo OOM con 7,6 GiB para Docker. Se recomienda dar **10 GB a WSL2** (`%UserProfile%\.wslconfig` con `[wsl2]` y `memory=10GB`, y después `wsl --shutdown`). Para otros valores, añádelos a tu `.env`. **Se aplica al recrear el contenedor**, no en caliente:
 ```bash
 docker compose --profile local-llm up -d ollama     # lo recrea si cambió la configuración
 docker compose exec ollama ollama ps                 # modelos cargados y hasta cuándo (UNTIL)

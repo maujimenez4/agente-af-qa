@@ -54,6 +54,7 @@ _UPSERT_CHUNK = sa.text(
 )
 
 _DELETE_DOCUMENT = sa.text("DELETE FROM documents WHERE id = :id")
+_HAS_DOCUMENT = sa.text("SELECT 1 FROM documents WHERE id = :id")
 
 _SEARCH = sa.text(
     """
@@ -160,6 +161,10 @@ class PgVectorStore:
     def delete_by_document(self, document_id: str) -> None:
         with self._connection() as conn:
             conn.execute(_DELETE_DOCUMENT, {"id": to_uuid(document_id)})
+
+    def has_document(self, document_id: str) -> bool:
+        with self._connection() as conn:
+            return conn.execute(_HAS_DOCUMENT, {"id": to_uuid(document_id)}).first() is not None
 
     def replace_document(self, document_id: str, chunks: list[Chunk]) -> None:
         """Sustituye los fragmentos de un documento en **una sola transacción** (PA-216).

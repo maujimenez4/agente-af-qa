@@ -135,6 +135,7 @@ Reinicia Claude Desktop después de guardar. No hace falta poner variables en `e
 claude mcp add --scope project agente-af-qa -- uv run python -m mcp_server
 claude mcp list                                      # comprueba que conecta
 ```
+En **PowerShell** el `--` hay que ponerlo entre comillas (`'--'`); si no, PowerShell se lo come y `claude` responde `unknown option '-m'`. También vale crear a mano el `.mcp.json` de la raíz con `{"mcpServers": {"agente-af-qa": {"command": "uv", "args": ["run", "python", "-m", "mcp_server"]}}}`.
 Solo para ti y desde cualquier carpeta (ámbito personal, con la ruta absoluta de tu copia):
 ```bash
 claude mcp add agente-af-qa -- uv run --directory "C:/ruta/a/agente-af-qa" python -m mcp_server

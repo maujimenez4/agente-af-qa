@@ -62,7 +62,7 @@ READ_METHODS = frozenset(
 )
 # Lectura de los demás almacenes que alcanzan las herramientas (RAG, conversaciones y último
 # proyecto usado): todo lo demás (`upsert`, `delete_by_document`, `start`, `set`…) queda bloqueado.
-VECTOR_READ_METHODS = frozenset({"search"})
+VECTOR_READ_METHODS = frozenset({"search", "has_document"})
 CONVERSATION_READ_METHODS = frozenset({"get", "list_for"})
 LAST_PROJECT_READ_METHODS = frozenset({"get"})
 READ_ONLY_MESSAGE = "El servidor MCP es de solo lectura: no escribe en Jira ni en el agente."

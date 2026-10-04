@@ -891,3 +891,44 @@ def test_estimate_tokens_on_corpus_exceeds_measured_spanish_ratio(relative: str)
     assert len(text) > 1000
 
     assert estimate_tokens(text) > math.ceil(len(text) / MEASURED_CHARS_PER_TOKEN)
+
+
+# --- PA-228: el grafo pasa los límites del contenedor a los escritores ---------------------
+
+
+def test_graph_nodes_pass_container_limits_to_writers(tmp_path, monkeypatch) -> None:
+    """PA-228: con configuración, el grafo construye los límites desde el contenedor y no
+    recurre a `get_config()`."""
+    import core.graph.nodes as nodes_module
+    from core.graph.nodes import GraphNodes
+    from tests.fakes.container import fake_container
+
+    config = app_config(PromptLimits(12_345, {TaskType.EVOLVE_STORY: 111}))
+    nodes = GraphNodes(fake_container(tmp_path, config=config))
+
+    def unexpected() -> PromptLimits:
+        raise AssertionError("no debería usarse get_config() con un contenedor configurado")
+
+    monkeypatch.setattr(nodes_module, "default_prompt_limits", unexpected)
+    limits = nodes._limits()
+    assert limits.context_window == 12_345
+    assert limits.available(TaskType.EVOLVE_STORY) == 12_345 - 111 - SAFETY_TOKENS
+
+
+def test_graph_nodes_fall_back_to_default_limits_without_config(tmp_path) -> None:
+    """PA-228: sin configuración en el contenedor (pruebas), los límites por defecto."""
+    from core.graph.nodes import GraphNodes
+    from tests.fakes.container import fake_container
+
+    nodes = GraphNodes(fake_container(tmp_path))
+    assert nodes._limits().context_window > 0
+
+
+def test_graph_nodes_construct_every_writer_with_limits() -> None:
+    """PA-228: los cinco sitios del grafo que crean escritores les pasan `limits`."""
+    from core.config import ROOT_DIR
+
+    source = (ROOT_DIR / "core" / "graph" / "nodes.py").read_text(encoding="utf-8")
+    for writer in ("StoryWriter", "TestWriter", "ImpactAnalyzer"):
+        assert f"{writer}(self.c.llm)" not in source
+    assert source.count("limits=self._limits()") == 5

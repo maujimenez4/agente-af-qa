@@ -18,6 +18,7 @@ from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
+from core.context.budget import PromptLimits, default_prompt_limits
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.context import StoryContext
@@ -248,12 +249,19 @@ class GraphNodes:
                 artifact_id=str(artifact.id) if artifact else None,
             )
 
+    def _limits(self) -> PromptLimits:
+        """Ventana y topes de salida de la configuración del contenedor (PA-114, PA-228); sin
+        configuración (contenedores de prueba), los de la aplicación."""
+        if self.c.config is not None:
+            return PromptLimits.from_config(self.c.config)
+        return default_prompt_limits()
+
     def _write_story(
         self, state: AgentState, artifact_id: str
     ) -> tuple[StoryDraft, ImpactAnalysis | None]:
         """HU con los prompts de T-20; en una evolución, diff frente a la versión de Jira."""
         origin, previous = state["origin"], state["artifact"]
-        writer = StoryWriter(self.c.llm)
+        writer = StoryWriter(self.c.llm, limits=self._limits())
         ctx = StoryContext(
             origin_kind=origin["kind"],
             origin_key=origin.get("key"),
@@ -263,7 +271,7 @@ class GraphNodes:
             feedback=list(state["feedback"]),
         )
         current = previous.content if previous and isinstance(previous.content, UserStory) else None
-        analyzer = ImpactAnalyzer(self.c.llm)
+        analyzer = ImpactAnalyzer(self.c.llm, limits=self._limits())
         jira = list(state["jira_context"])
         if origin["kind"] != "story":
             # HU nueva; al iterar, se evoluciona el borrador anterior con el feedback (RF-20).
@@ -328,9 +336,10 @@ class GraphNodes:
             unpublished = not origin.get("key")
             if unpublished:
                 chained = chained.model_copy(update={"jira_key": None})
-            return TestWriter(self.c.llm).generate(chained, ctx, unpublished=unpublished)
-        story = self._baseline(StoryWriter(self.c.llm), ctx, artifact_id)
-        return TestWriter(self.c.llm).generate(story, ctx)
+            tests_writer = TestWriter(self.c.llm, limits=self._limits())
+            return tests_writer.generate(chained, ctx, unpublished=unpublished)
+        story = self._baseline(StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id)
+        return TestWriter(self.c.llm, limits=self._limits()).generate(story, ctx)
 
     def _handoff_trace(self, handoff_id: str) -> dict[str, Any]:
         """Referencias de la HU de origen para la auditoría (solo ids, nunca contenido)."""

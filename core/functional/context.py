@@ -106,13 +106,15 @@ def _render_source(source: CitableSource) -> str:
 
 
 def _jira_source(issue: IssueDetail) -> CitableSource:
-    lines = [f"{issue.issue_type} · {issue.status}"]
-    if issue.parent_key:
-        lines.append(f"Épica/padre: {issue.parent_key}")
+    # PA-281: la primera clave que lee el modelo es la que debe citar (la de la fuente); la épica
+    # o el padre va al final, como relación. Si iba al principio, citaba la del padre.
+    lines = [f"Clave: {issue.key} · {issue.issue_type} · {issue.status}"]
     if issue.description_text:
         lines.append(issue.description_text)
     lines += [f"Vínculo: {link.link_type} {link.key}" for link in issue.links]
     lines += [f"Comentario: {comment}" for comment in issue.comments]
+    if issue.parent_key:
+        lines.append(f"Pertenece a la épica o padre {issue.parent_key}")
     return CitableSource(
         kind="jira",
         ref=issue.key,

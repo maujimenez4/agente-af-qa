@@ -15,6 +15,7 @@ from core.functional.citations import (
     CitationError,
     allowed_refs_text,
     citation_errors,
+    repair_citations,
     with_real_excerpts,
     without_forced_citations,
 )
@@ -84,7 +85,7 @@ class StoryWriter:
         ]
         result = self._llm.generate_structured(messages, UserStory, task)
         story, input_tokens, output_tokens = (
-            without_forced_citations(result.content, sources),
+            repair_citations(without_forced_citations(result.content, sources), sources)[0],
             result.input_tokens,
             result.output_tokens,
         )
@@ -106,7 +107,7 @@ class StoryWriter:
                 Message(role="user", content=feedback),
             ]
             result = self._llm.generate_structured(retry_messages, UserStory, task)
-            story = without_forced_citations(result.content, sources)
+            story = repair_citations(without_forced_citations(result.content, sources), sources)[0]
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(story, sources):

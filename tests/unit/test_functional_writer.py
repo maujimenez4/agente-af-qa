@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 import pytest
 from pydantic import BaseModel
+from structlog.testing import capture_logs
 
 from adapters.base import Chunk, Message, RetrievedChunk, TaskType
 from adapters.errors import AgentError
@@ -19,6 +20,7 @@ from core.rag.prompts import Prompt, load_prompt
 from schemas.common import SourceRef
 from schemas.user_story import CRITERION_ID, RULE_ID, UserStory
 from tests.fakes import dataset
+from tests.fakes.citations import AFQP_ISSUES, CAPTURED_PAIRS, HU_TEXTS, old_format_excerpt
 from tests.fakes.llm import FakeLLMProvider
 
 STORY_PROMPTS = ("generate_story", "evolve_story", "review_story")
@@ -629,3 +631,154 @@ def test_invented_citation_with_sources_still_triggers_retry() -> None:
     with pytest.raises(CitationError):
         StoryWriter(llm).generate(need_ctx())
     assert len(llm.calls) == 2
+
+
+# --- PA-281: citas de Jira reparadas sin reintento ------------------------------------------
+
+
+def afqp_ctx(**kwargs: object) -> StoryContext:
+    """Contexto del e2e (§5.3): las tres HU de AFQP sin sus épicas, más un documento RAG."""
+    base: dict[str, object] = {
+        "origin_kind": "need",
+        "need": "Consultar y reservar ejemplares desde la web (necesidad ficticia).",
+        "jira": AFQP_ISSUES,
+        "rag": [rag_hit("DOC-02")],
+    }
+    return StoryContext(**{**base, **kwargs})  # type: ignore[arg-type]
+
+
+def afqp_citing(ref: str, excerpt: str | None) -> UserStory:
+    sources = [SourceRef(kind="jira", ref=ref, excerpt=excerpt)]
+    return dataset.renewal_story(jira_key=None).model_copy(update={"sources": sources})
+
+
+EPIC_WITH_HU_TEXT = afqp_citing("AFQP-10", HU_TEXTS["AFQP-12"])
+
+
+def test_generate_repairs_epic_citation_without_second_llm_call() -> None:
+    """PA-281 · criterio 2: cita a la épica con el texto de AFQP-12 → AFQP-12, una sola llamada
+    y el extracto real de la fuente."""
+    llm, _ = fake_llm(EPIC_WITH_HU_TEXT)
+    ctx = afqp_ctx()
+
+    draft = StoryWriter(llm).generate(ctx)
+
+    assert len(llm.calls) == 1
+    [real] = [s for s in ctx.sources() if s.ref == "AFQP-12"]
+    assert draft.story.sources == [SourceRef(kind="jira", ref="AFQP-12", excerpt=real.excerpt)]
+
+
+def test_generate_logs_repair_without_refs_or_excerpts() -> None:
+    """PA-281 · criterio 2: el log de la reparación no lleva el extracto ni las claves."""
+    llm, _ = fake_llm(EPIC_WITH_HU_TEXT)
+
+    with capture_logs() as logs:
+        StoryWriter(llm).generate(afqp_ctx())
+
+    [event] = [e for e in logs if e["event"] == "citas reparadas"]
+    assert event["repaired"] == 1
+    assert event["action"] == "repair_citations"
+    dump = repr(event)
+    assert "AFQP" not in dump
+    assert HU_TEXTS["AFQP-12"] not in dump
+
+
+def test_generate_repairs_all_captured_pairs_without_retry() -> None:
+    """PA-281 · criterio 3: los tres pares de la captura en formato antiguo, una sola llamada."""
+    cites = [
+        SourceRef(kind="jira", ref=cited, excerpt=old_format_excerpt(real, with_parent=parent))
+        for cited, real, parent in CAPTURED_PAIRS
+    ]
+    story = dataset.renewal_story(jira_key=None).model_copy(update={"sources": cites})
+    llm, _ = fake_llm(story)
+
+    draft = StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 1
+    assert [s.ref for s in draft.story.sources] == ["AFQP-12", "AFQP-2", "AFQP-25"]
+
+
+def test_generate_retries_when_excerpt_is_in_two_jira_sources() -> None:
+    """PA-281 · criterio 4 (ambigua): el extracto está en dos HU → no se repara y se reintenta."""
+    twin = AFQP_ISSUES[0].model_copy(update={"key": "AFQP-13"})
+    llm, _ = fake_llm(EPIC_WITH_HU_TEXT, afqp_citing("AFQP-13", "inventado"))
+
+    draft = StoryWriter(llm).generate(afqp_ctx(jira=[*AFQP_ISSUES, twin]))
+
+    assert len(llm.calls) == 2
+    assert "AFQP-10" in llm.calls[1]["messages"][-1].content
+    assert [s.ref for s in draft.story.sources] == ["AFQP-13"]
+
+
+@pytest.mark.parametrize(
+    "excerpt", [None, "", "Como persona socia, quiero ver"], ids=["sin", "vacio", "corto"]
+)
+def test_generate_retries_when_excerpt_cannot_identify_the_source(excerpt: str | None) -> None:
+    """PA-281 · criterio 4 (límite): sin extracto, vacío o de menos de 40 caracteres → reintento."""
+    llm, _ = fake_llm(afqp_citing("AFQP-10", excerpt), afqp_citing("AFQP-12", None))
+
+    draft = StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 2
+    assert [s.ref for s in draft.story.sources] == ["AFQP-12"]
+
+
+def test_generate_raises_citation_error_when_invented_citation_persists() -> None:
+    """PA-281 · criterio 4: una cita inventada sin coincidencia reintenta y, si sigue, falla."""
+    invented = afqp_citing("AFQP-99", "Texto inventado que no aparece en ninguna fuente ficticia.")
+    llm, _ = fake_llm(invented)
+
+    with pytest.raises(CitationError):
+        StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 2
+
+
+def test_generate_repairs_citation_returned_by_the_retry() -> None:
+    """PA-281: la respuesta del reintento también se repara antes de validarla."""
+    invented = afqp_citing("AFQP-99", "Texto inventado que no aparece en ninguna fuente ficticia.")
+    llm, _ = fake_llm(invented, EPIC_WITH_HU_TEXT)
+
+    draft = StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 2
+    assert [s.ref for s in draft.story.sources] == ["AFQP-12"]
+
+
+def test_generate_does_not_repair_rag_citation_and_retries() -> None:
+    """PA-281 · criterio 5: una cita `rag` inexistente con el texto del documento no se repara."""
+    rag_text = "Contenido ficticio de DOC-02."
+    wrong_rag = dataset.renewal_story(jira_key=None).model_copy(
+        update={"sources": [SourceRef(kind="rag", ref="DOC-99", excerpt=rag_text * 3)]}
+    )
+    llm, _ = fake_llm(wrong_rag, afqp_citing("AFQP-12", None))
+
+    StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 2
+
+
+def test_generate_keeps_single_citation_when_repair_duplicates_another() -> None:
+    """PA-281 · criterio 7: la cita reparada coincide con otra ya presente → queda una sola."""
+    cites = [
+        SourceRef(kind="jira", ref="AFQP-12", excerpt="inventado"),
+        SourceRef(kind="jira", ref="AFQP-10", excerpt=HU_TEXTS["AFQP-12"]),
+    ]
+    llm, _ = fake_llm(dataset.renewal_story(jira_key=None).model_copy(update={"sources": cites}))
+
+    draft = StoryWriter(llm).generate(afqp_ctx())
+
+    assert len(llm.calls) == 1
+    assert [s.ref for s in draft.story.sources] == ["AFQP-12"]
+
+
+@pytest.mark.parametrize("method", ["evolve", "review"])
+def test_evolve_and_review_repair_epic_citation_without_retry(method: str) -> None:
+    """PA-281: evolucionar y revisar comparten `_run`, así que también reparan sin reintento."""
+    llm, _ = fake_llm(EPIC_WITH_HU_TEXT)
+    ctx = afqp_ctx(origin_kind="story", origin_key="AFQP-12", previous=dataset.renewal_story())
+
+    draft = getattr(StoryWriter(llm), method)(ctx)
+
+    assert len(llm.calls) == 1
+    assert [s.ref for s in draft.story.sources] == ["AFQP-12"]

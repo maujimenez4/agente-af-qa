@@ -8,38 +8,38 @@
   "steps": [
     {
       "node": "load_origin",
-      "seconds": 0.8,
+      "seconds": 1.0,
       "llm": []
     },
     {
       "node": "retrieve_context",
-      "seconds": 6.4,
+      "seconds": 30.8,
       "llm": []
     },
     {
       "node": "generate",
-      "seconds": 386.9,
+      "seconds": 651.2,
       "llm": [
         {
           "task": "evolve_story",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 1082,
-          "output_tokens": 935,
-          "seconds": 83.6
+          "input_tokens": 1071,
+          "output_tokens": 867,
+          "seconds": 100.7
         },
         {
           "task": "evolve_story",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 5070,
-          "output_tokens": 1169,
-          "seconds": 271.4
+          "input_tokens": 7362,
+          "output_tokens": 869,
+          "seconds": 480.3
         },
         {
           "task": "analyze_impact",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 1054,
-          "output_tokens": 291,
-          "seconds": 31.7
+          "input_tokens": 1091,
+          "output_tokens": 535,
+          "seconds": 69.5
         }
       ]
     },
@@ -55,11 +55,11 @@
     },
     {
       "node": "memorize",
-      "seconds": 0.0,
+      "seconds": 0.3,
       "llm": []
     }
   ],
-  "thread_id": "f192e513-d632-4b6c-89ef-1a234d8d46f6",
+  "thread_id": "9c3a176f-1c9f-431d-8532-aa684b03cc7e",
   "review": [
     {
       "version": 1,
@@ -89,30 +89,49 @@
           "from": "AFQP-3",
           "to": "AFQP-15",
           "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "AFQP-3",
+          "to": "AFQP-16",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "AFQP-3",
+          "to": "AFQP-4",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "AFQP-3",
+          "to": "AFQP-5",
+          "type": "relates to"
         }
       ],
       "error": null,
-      "fingerprint": "9e5b3fca9a544979…",
-      "title": "HU-02 evolucionada",
+      "fingerprint": "c43b95e2796edde4…",
+      "title": "HU-02",
       "acceptance_criteria": 3,
       "business_rules": 3,
       "sources": [
-        "jira:AFQP-3",
-        "rag:DOC-01",
-        "rag:DOC-20"
+        "jira:AFQP-3"
       ],
       "open_questions": 2,
       "impact": {
-        "diffs": 3,
+        "diffs": 1,
         "affected": [
           "AFQP-2",
-          "AFQP-15"
+          "AFQP-15",
+          "AFQP-16",
+          "AFQP-4",
+          "AFQP-5"
         ],
-        "regression_notes": 2
+        "regression_notes": 5
       }
     }
   ],
-  "total_seconds": 394.2,
+  "total_seconds": 683.5,
   "after_approve": {
     "artifact_status": "approved",
     "audit_actions": [
@@ -132,17 +151,17 @@
   "memory": {
     "jira_key": "AFQP-3",
     "business_rules": 3,
-    "markdown_chars": 1108,
-    "seconds": 73.0,
+    "markdown_chars": 1206,
+    "seconds": 83.7,
     "llm": [
       {
         "task": "synthesize_memory",
         "model": "local/qwen3:1.7b",
-        "input_tokens": 2105,
-        "output_tokens": 447,
-        "seconds": 73.0
+        "input_tokens": 1805,
+        "output_tokens": 444,
+        "seconds": 83.7
       }
     ]
   },
-  "scenario_seconds": 467.2
+  "scenario_seconds": 767.3
 }

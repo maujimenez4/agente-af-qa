@@ -8,31 +8,38 @@
   "steps": [
     {
       "node": "load_origin",
-      "seconds": 0.8,
+      "seconds": 0.9,
       "llm": []
     },
     {
       "node": "retrieve_context",
-      "seconds": 5.6,
+      "seconds": 28.7,
       "llm": []
     },
     {
       "node": "generate",
-      "seconds": 323.0,
+      "seconds": 808.7,
       "llm": [
         {
           "task": "evolve_story",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 1082,
-          "output_tokens": 926,
-          "seconds": 65.6
+          "input_tokens": 1071,
+          "output_tokens": 897,
+          "seconds": 125.4
         },
         {
           "task": "generate_tests",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 4775,
-          "output_tokens": 1180,
-          "seconds": 257.2
+          "input_tokens": 9433,
+          "output_tokens": 1738,
+          "seconds": 593.1
+        },
+        {
+          "task": "generate_tests",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 2156,
+          "output_tokens": 653,
+          "seconds": 89.8
         }
       ]
     },
@@ -48,11 +55,11 @@
     },
     {
       "node": "memorize",
-      "seconds": 0.0,
+      "seconds": 0.3,
       "llm": []
     }
   ],
-  "thread_id": "17684baf-ef09-4ed6-a729-539e1bc67a3d",
+  "thread_id": "7469916a-38ac-46f3-a424-e74b0d4671e9",
   "review": [
     {
       "version": 1,
@@ -70,24 +77,25 @@
           "op": "publish_suite",
           "project": "AFQP",
           "story": "AFQP-3",
-          "cases": "5"
+          "cases": "3"
         }
       ],
       "error": null,
-      "fingerprint": "246b4ab21d7b4aac…",
+      "fingerprint": "247b3e98c1236a6f…",
       "story_jira_key": "AFQP-3",
-      "cases": 5,
+      "cases": 3,
       "coverage": [
         "CA-01",
         "CA-02",
         "CA-03"
       ],
       "sources": [
-        "jira:AFQP-3"
+        "rag:DOC-01",
+        "rag:DOC-08"
       ]
     }
   ],
-  "total_seconds": 329.5,
+  "total_seconds": 838.9,
   "after_approve": {
     "artifact_status": "approved",
     "audit_actions": [
@@ -104,5 +112,5 @@
     "conversation_status": "simulated",
     "errors": []
   },
-  "scenario_seconds": 329.5
+  "scenario_seconds": 839.0
 }

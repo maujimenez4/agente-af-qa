@@ -9,38 +9,31 @@
   "steps": [
     {
       "node": "load_origin",
-      "seconds": 0.2,
+      "seconds": 0.1,
       "llm": []
     },
     {
       "node": "retrieve_context",
-      "seconds": 32.3,
+      "seconds": 5.2,
       "llm": []
     },
     {
       "node": "generate",
-      "seconds": 715.5,
+      "seconds": 313.2,
       "llm": [
         {
           "task": "generate_story",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 3856,
-          "output_tokens": 1549,
-          "seconds": 303.2
-        },
-        {
-          "task": "generate_story",
-          "model": "local/qwen3:1.7b",
-          "input_tokens": 5474,
-          "output_tokens": 1549,
-          "seconds": 372.4
+          "input_tokens": 3675,
+          "output_tokens": 1480,
+          "seconds": 270.8
         },
         {
           "task": "analyze_impact",
           "model": "local/qwen3:1.7b",
-          "input_tokens": 1043,
-          "output_tokens": 346,
-          "seconds": 39.4
+          "input_tokens": 1000,
+          "output_tokens": 386,
+          "seconds": 42.0
         }
       ]
     },
@@ -56,11 +49,11 @@
     },
     {
       "node": "memorize",
-      "seconds": 0.3,
+      "seconds": 0.0,
       "llm": []
     }
   ],
-  "thread_id": "3e4dfea5-34e6-4d72-982c-a9e4a6af936c",
+  "thread_id": "95b38a3a-9eb4-454c-ac47-e70d91273881",
   "review": [
     {
       "version": 1,
@@ -94,42 +87,36 @@
         {
           "op": "link",
           "from": "(HU nueva)",
-          "to": "AFQP-23",
+          "to": "AFQP-25",
           "type": "relates to"
         }
       ],
       "error": null,
-      "fingerprint": "2128e9a62afbb000…",
-      "title": "Historia de Usuario (HU) para reservar un ejemplar desde la web",
+      "fingerprint": "bc47d843a2739951…",
+      "title": "Historia de Usuario (HU) para reservar ejemplares en la Biblioteca Municipal de Villaficticia",
       "acceptance_criteria": 3,
-      "business_rules": 5,
+      "business_rules": 3,
       "sources": [
         "jira:AFQP-12",
         "jira:AFQP-2",
-        "jira:AFQP-23",
         "rag:DOC-02",
         "rag:DOC-10",
         "rag:DOC-19",
-        "rag:DOC-20",
-        "rag:DOC-03",
-        "rag:DOC-11",
-        "rag:DOC-01",
-        "rag:DOC-04",
-        "rag:DOC-23"
+        "rag:DOC-20"
       ],
-      "open_questions": 2,
+      "open_questions": 3,
       "impact": {
         "diffs": 0,
         "affected": [
           "AFQP-12",
           "AFQP-2",
-          "AFQP-23"
+          "AFQP-25"
         ],
         "regression_notes": 2
       }
     }
   ],
-  "total_seconds": 748.6,
+  "total_seconds": 318.7,
   "after_approve": {
     "artifact_status": "approved",
     "audit_actions": [
@@ -146,5 +133,5 @@
     "conversation_status": "simulated",
     "errors": []
   },
-  "scenario_seconds": 748.6
+  "scenario_seconds": 318.7
 }

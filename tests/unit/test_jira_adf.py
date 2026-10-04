@@ -1119,3 +1119,17 @@ def test_markdown_to_adf_normal_table_is_still_a_table() -> None:
     ]
     assert node["type"] == "table"
     assert [c["type"] for c in node["content"][0]["content"]] == ["tableHeader"] * 3
+
+
+def test_markdown_to_adf_list_continuation_lines_are_linear() -> None:
+    """PA-230: miles de líneas de continuación de un elemento de lista se unen en tiempo lineal
+    y conservan su contenido."""
+    import time
+
+    md = "- a\n" + "  b\n" * 24_000  # por debajo del tope de 100 000 caracteres
+    started = time.perf_counter()
+    [lst] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    [item] = lst["content"]
+    texts = [n.get("text") for n in item["content"][0]["content"] if n["type"] == "text"]
+    assert texts.count("b") == 24_000

@@ -328,14 +328,16 @@ _Item = tuple[int, bool, str]  # (sangría, ordenada, texto)
 
 
 def _lists(lines: list[str]) -> list[Node]:
-    items: list[_Item] = []
+    # PA-230: las líneas de continuación se acumulan y se unen al final; rehacer la cadena del
+    # elemento en cada línea era superlineal.
+    parts: list[tuple[int, bool, list[str]]] = []
     for line in lines:
         if match := _LIST_ITEM.match(line):
             indent, marker, content = match.groups()
-            items.append((len(indent), marker[0].isdigit(), content))
-        elif items:
-            indent, ordered, content = items[-1]
-            items[-1] = (indent, ordered, f"{content}\n{line.strip()}")
+            parts.append((len(indent), marker[0].isdigit(), [content]))
+        elif parts:
+            parts[-1][2].append(line.strip())
+    items: list[_Item] = [(indent, ordered, "\n".join(text)) for indent, ordered, text in parts]
     nodes: list[Node] = []
     pos = 0
     while pos < len(items):  # un elemento menos sangrado que el primero abre otra lista

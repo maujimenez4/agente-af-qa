@@ -1133,3 +1133,51 @@ def test_markdown_to_adf_list_continuation_lines_are_linear() -> None:
     [item] = lst["content"]
     texts = [n.get("text") for n in item["content"][0]["content"] if n["type"] == "text"]
     assert texts.count("b") == 24_000
+
+
+# --- PA-233: profundidad de las listas anidadas acotada ---------------------------------------
+
+
+def _deep_list_markdown(levels: int) -> str:
+    """Lista con `levels` niveles: cada línea, un espacio más de sangría (tabuladores de 4)."""
+    return "".join("\t" * (k // 4) + " " * (k % 4) + f"- e{k}\n" for k in range(levels))
+
+
+def _list_depth(node: object) -> int:
+    if not isinstance(node, dict):
+        return 0
+    own = 1 if node.get("type") in ("bulletList", "orderedList") else 0
+    return own + max((_list_depth(child) for child in node.get("content", [])), default=0)
+
+
+def test_markdown_to_adf_caps_nested_list_depth_and_keeps_every_item() -> None:
+    """PA-233: ~850 niveles de sangría ya no dan `RecursionError`: como mucho MAX_LIST_DEPTH
+    niveles, lo más profundo se aplana en el último y no se pierde ningún elemento."""
+    import json
+
+    from adapters.jira.adf import MAX_LIST_DEPTH
+
+    levels = 850  # bajo el tope de 100 000 caracteres
+    doc = markdown_to_adf(_deep_list_markdown(levels))
+    assert _list_depth(doc) == MAX_LIST_DEPTH
+    assert json.dumps(doc).count('"text": "e') == levels
+
+
+def test_markdown_to_adf_deep_list_works_with_low_recursion_limit() -> None:
+    """PA-233: también con muchas llamadas previas en la pila (límite de recursión bajo), la
+    conversión y el `json.dumps` del ADF terminan sin `RecursionError`."""
+    import json
+    import sys
+
+    previous = sys.getrecursionlimit()
+    sys.setrecursionlimit(250)
+    try:
+        json.dumps(markdown_to_adf(_deep_list_markdown(850)))
+    finally:
+        sys.setrecursionlimit(previous)
+
+
+def test_markdown_to_adf_shallow_nesting_is_unchanged() -> None:
+    """PA-233 (no regresión): con pocos niveles, el anidamiento es el de siempre."""
+    doc = markdown_to_adf("- a\n  - b\n    - c\n- d")
+    assert _list_depth(doc) == 3

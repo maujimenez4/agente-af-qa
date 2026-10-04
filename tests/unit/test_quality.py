@@ -713,3 +713,35 @@ def test_report_limits_text_and_list_sizes() -> None:
         base.model_validate({**base.model_dump(), "summary": "x" * 501})
     with pytest.raises(pydantic.ValidationError):
         base.model_validate({**base.model_dump(), "open_questions": ["¿?"] * 31})
+
+
+# --- PA-232 / PA-321: desempate del orden de la lista de revisiones ---------------------------
+
+
+def test_in_memory_review_list_breaks_timestamp_ties_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-232 / PA-321: con el reloj de Windows (15,6 ms) dos revisiones pueden tener la misma
+    fecha; la lista sigue saliendo de la más reciente a la más antigua."""
+    from datetime import UTC, datetime
+
+    import core.quality as quality_module
+    from core.quality import InMemoryQualityReviewStore, new_review
+
+    frozen = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+
+    class FrozenClock(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[no-untyped-def,override]
+            return frozen
+
+    monkeypatch.setattr(quality_module, "datetime", FrozenClock)
+    store = InMemoryQualityReviewStore()
+    for review_id, key in (("r-1", "DEMO-3"), ("r-2", "DEMO-2"), ("r-3", "DEMO-4")):
+        store.create(new_review(review_id, "af-ficticia", key))
+
+    listed = store.list_for("af-ficticia")
+
+    assert {r.updated_at for r in listed} == {frozen}  # empate total
+    assert [r.id for r in listed] == ["r-3", "r-2", "r-1"]
+    assert [r.id for r in store.list_for("af-ficticia", limit=1)] == ["r-3"]

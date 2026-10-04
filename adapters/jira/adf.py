@@ -149,6 +149,7 @@ MAX_MARKDOWN_CHARS = 100_000  # por encima se trunca: Jira rechaza documentos en
 MAX_URL_CHARS = 2_000
 MAX_TABLE_COLUMNS = 50  # PA-230: Jira tampoco admite tablas más anchas de forma útil
 MAX_TABLE_CELLS = 5_000  # PA-230: por encima, la tabla se publica como texto literal
+MAX_LIST_DEPTH = 20  # PA-233: niveles de listas anidadas; lo más profundo se aplana
 # C0 (salvo `\t` y `\n`), C1, control bidireccional y espacios de anchura cero (orden visual
 # engañoso); se conservan U+200C/U+200D, que usan los emojis y algunas escrituras.
 _CONTROL = re.compile(
@@ -346,8 +347,12 @@ def _lists(lines: list[str]) -> list[Node]:
     return nodes
 
 
-def _list_level(items: list[_Item], pos: int) -> tuple[list[Node], int]:
-    """Agrupa los elementos de una sangría; los más sangrados se anidan en el anterior."""
+def _list_level(items: list[_Item], pos: int, depth: int = 1) -> tuple[list[Node], int]:
+    """Agrupa los elementos de una sangría; los más sangrados se anidan en el anterior.
+
+    PA-233: como mucho `MAX_LIST_DEPTH` niveles; lo más sangrado se aplana en el último, así la
+    recursión (y el `json.dumps` del ADF) nunca llega a un `RecursionError`.
+    """
     nodes: list[Node] = []
     base = items[pos][0]
     current: Node | None = None
@@ -355,8 +360,8 @@ def _list_level(items: list[_Item], pos: int) -> tuple[list[Node], int]:
         indent, ordered, content = items[pos]
         if indent < base:
             break
-        if indent > base and current is not None:
-            nested, pos = _list_level(items, pos)
+        if indent > base and current is not None and depth < MAX_LIST_DEPTH:
+            nested, pos = _list_level(items, pos, depth + 1)
             current["content"][-1]["content"].extend(nested)
             continue
         kind = "orderedList" if ordered else "bulletList"

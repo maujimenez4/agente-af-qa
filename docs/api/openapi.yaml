@@ -2556,6 +2556,147 @@ paths:
                   code: invalid_request
                   message: 'La petición no es válida: revisa password.'
                   retry_after: null
+  /api/v1/conversations/{conversation_id}/retry:
+    post:
+      tags:
+      - Conversaciones
+      summary: Reintentar una conversación que falló (PA-276)
+      description: 'Retoma la conversación en `state=error` desde su último punto guardado: repite el
+        paso que falló (por ejemplo, tras un 429 o un tiempo agotado). 409 `not_in_error` si no está en
+        error o si lo que falló es aprobar o publicar (eso no se reintenta: nunca se escribe en Jira dos
+        veces); en QA encadenada, 409 `handoff_unavailable` si la HU volvió a la lista.'
+      operationId: retry_api_v1_conversations__conversation_id__retry_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: generating
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: running
+                - node: generate
+                  label: Generar la propuesta
+                  state: pending
+                versions: []
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No está en error (generando, en revisión o terminada). En QA encadenada, `handoff_unavailable`
+            si la HU volvió a la lista de QA.
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_in_error
+                  message: 'La conversación no está en error: no hay nada que reintentar.'
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
   /api/v1/conversations/{conversation_id}/discard:
     post:
       tags:
@@ -5121,6 +5262,7 @@ components:
           - method_not_allowed
           - http_error
           - not_in_review
+          - not_in_error
           - approval_rejected
           - handoff_unavailable
           - operation_failed

@@ -49,6 +49,7 @@ ErrorCode = Literal[
     "http_error",
     # estado de la conversación
     "not_in_review",
+    "not_in_error",  # PA-276: reintentar una conversación que no está en error
     "approval_rejected",
     "handoff_unavailable",
     "operation_failed",

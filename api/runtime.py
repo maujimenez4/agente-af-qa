@@ -185,7 +185,7 @@ def build_runtime() -> Runtime:
     )
     from core.graph import build_graph
     from core.graph.execution import build_execution_graph
-    from core.quality import SqlQualityReviewStore
+    from core.quality import SqlQualityReviewStore, purge_expired
     from core.usage import SqlUsageQueries
 
     config = build_config()
@@ -215,6 +215,9 @@ def build_runtime() -> Runtime:
     rt.usage = SqlUsageQueries.from_url(config.settings.sqlalchemy_url())
     rt.handoffs = handoffs
     rt.quality = SqlQualityReviewStore.from_url(config.settings.sqlalchemy_url())
+    # PA-279 (RGPD): al arrancar se borran las revisiones de más de QUALITY_RETENTION_DAYS días.
+    # Antes de interrumpir las que estaban en marcha: eso renueva su fecha y se librarían.
+    purge_expired(rt.quality, config.settings.quality_retention_days)
     # Un solo proceso: lo que estaba en marcha al reiniciar ya no terminará (PA-272).
     if interrupted := rt.quality.interrupt_running():
         log.info("revisiones de calidad interrumpidas", action="review_quality", count=interrupted)

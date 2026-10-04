@@ -24,7 +24,7 @@ ConversationStatus = Literal[
 _FLOW_TITLES = {
     ("functional", "need"): "Nueva necesidad",
     ("functional", "story"): "Evolucionar",
-    ("functional", "epic"): "Nueva HU en",
+    ("functional", "epic"): "HU nueva en la épica",  # PA-317
     ("qa", "story"): "Preparar pruebas de",
 }
 

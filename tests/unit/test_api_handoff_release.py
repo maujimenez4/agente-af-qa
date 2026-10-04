@@ -189,6 +189,12 @@ def _ws(values: dict[str, Any] | Exception) -> Any:
     return SimpleNamespace(graph=SimpleNamespace(get_state=get_state))
 
 
+def _fake_run_graph(_rt: Any, _ws: Any, run: Any, _input: Any, _config: Any, **kwargs: Any) -> None:
+    """Como `_run_graph`: si el run falla, `on_error` se llama antes de terminar (PA-276)."""
+    if run.error is not None and kwargs.get("on_error") is not None:
+        kwargs["on_error"]()
+
+
 @pytest.mark.parametrize(
     ("error", "values", "released"),
     [
@@ -203,7 +209,7 @@ def test_run_taken_releases_only_when_failing_before_artifact(
 ) -> None:
     """Criterio 7: solo se libera si la operación falló y no hay artefacto."""
     run = _run(error)
-    monkeypatch.setattr(service, "_run_graph", lambda *_a, **_k: None)
+    monkeypatch.setattr(service, "_run_graph", _fake_run_graph)
     store = SpyStore()
 
     service._run_taken(None, _ws(values), run, _start(), store)  # type: ignore[arg-type]
@@ -214,7 +220,7 @@ def test_run_taken_releases_only_when_failing_before_artifact(
 
 def test_run_taken_keeps_handoff_if_state_cannot_be_read(monkeypatch: pytest.MonkeyPatch) -> None:
     """Criterio 7 (error): sin poder leer el estado no se libera; solo se registra el tipo."""
-    monkeypatch.setattr(service, "_run_graph", lambda *_a, **_k: None)
+    monkeypatch.setattr(service, "_run_graph", _fake_run_graph)
     store = SpyStore()
     internal_detail = "detalle-interno-ficticio-0000"
 

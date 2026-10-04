@@ -234,6 +234,8 @@ class Settings(BaseSettings):
     api_max_streams_per_user: PositiveInt = 3
     # Hilos de las operaciones largas (no son workers de uvicorn: la API va en un solo proceso).
     api_workers: PositiveInt = 4
+    # PA-279 (RGPD): días que se conservan las revisiones de calidad guardadas.
+    quality_retention_days: PositiveInt = 90
 
     @field_validator("api_allowed_origins")
     @classmethod

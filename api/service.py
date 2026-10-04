@@ -9,7 +9,7 @@ aprobaciones.
 
 import re
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -53,6 +53,7 @@ from core.handoff import (
     QaStart,
     hand_off,
     list_handoffs,
+    load_taken_handoff,
     release_failed_take,
     take_handoff,
 )
@@ -69,6 +70,26 @@ NOT_IN_REVIEW = ApiError(
     409,
     "not_in_review",
     "La conversación no tiene una propuesta en revisión (está generando o ya terminó).",
+)
+NOT_IN_ERROR = ApiError(
+    409,
+    "not_in_error",
+    "La conversación no está en error: no hay nada que reintentar.",
+)
+# PA-276: solo se reintentan pasos que no escriben en Jira. Repetir `publish` (o la respuesta de
+# `human_review` que lleva a él) podría crear la HU dos veces tras un reinicio: la aprobación
+# gastada solo vive en memoria y `create_story` no es idempotente (security-reviewer, PA-153).
+RETRYABLE_NODES = frozenset({"load_origin", "retrieve_context", "generate", "memorize"})
+NOT_RETRYABLE = ApiError(
+    409,
+    "not_in_error",
+    "El paso que falló es la aprobación o la publicación en Jira y no se reintenta: "
+    "empieza una conversación nueva o revisa en Jira lo que llegó a publicarse.",
+)
+HANDOFF_RELEASED = ApiError(
+    409,
+    "handoff_unavailable",
+    "La HU volvió a la lista de QA tras el fallo: recógela de nuevo para preparar sus pruebas.",
 )
 APPROVAL_REJECTED = "La aprobación no corresponde a la versión revisada; empieza de nuevo."
 RESTART = "Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira."
@@ -351,13 +372,26 @@ def take(rt: Runtime, ws: Workspace, user: User, handoff_id: str) -> Run:
 def _run_taken(rt: Runtime, ws: Workspace, run: Run, start: QaStart, store: HandoffStore) -> None:
     """Genera la suite de la HU recogida; si falla antes de la primera versión, la HU vuelve a
     la lista de QA (PA-113) en lugar de quedar bloqueada en una conversación con error."""
-    _run_graph(rt, ws, run, start.state, start.config)
-    if run.error is None:
-        return
+    _run_graph(
+        rt,
+        ws,
+        run,
+        start.state,
+        start.config,
+        on_error=lambda: _release_if_unstarted(ws, store, start.handoff.id, run, start.config),
+    )
+
+
+def _release_if_unstarted(
+    ws: Workspace, store: HandoffStore, handoff_id: str, run: Run, config: Any
+) -> None:
+    """PA-113: sin primera versión, la entrega vuelve a la lista de QA. Se llama **antes** de
+    dar el run por terminado (PA-276), así nadie puede reintentar el hilo con la entrega aún
+    recogida."""
     try:
-        artifact = (ws.graph.get_state(start.config).values or {}).get("artifact")
+        artifact = (ws.graph.get_state(config).values or {}).get("artifact")
         if artifact is None:
-            release_failed_take(store, start.handoff.id, run.owner, run.thread_id)
+            release_failed_take(store, handoff_id, run.owner, run.thread_id)
     except Exception as exc:  # la entrega queda recogida: solo se registra el tipo
         log.warning(
             "entrega sin devolver tras un fallo",
@@ -367,11 +401,56 @@ def _run_taken(rt: Runtime, ws: Workspace, run: Run, start: QaStart, store: Hand
         )
 
 
+def retry(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> Run:
+    """PA-276: retoma una conversación en error desde su último checkpoint (`stream(None)`).
+
+    El nodo que falló se repite; lo anterior (contexto, versiones aprobadas…) no. Propiedad y
+    permiso como el resto; 409 si no está en error o si lo que falló es aprobar o publicar
+    (`RETRYABLE_NODES`). En QA encadenada, si la entrega ya volvió a la lista (PA-113), no se
+    reintenta: hay que recogerla de nuevo.
+    """
+    config, run, row = open_conversation(rt, ws, user, thread_id)
+    run = _ensure_run(rt, row, run)
+    require(user, generate_permission(row.mode if row else run.mode))
+    if run.running:
+        raise NOT_IN_ERROR
+    snapshot = ws.graph.get_state(config)
+    in_review = pending_payload(snapshot) is not None
+    if _state(run, row, in_review) != "error" or not snapshot.next:
+        raise NOT_IN_ERROR
+    if not set(snapshot.next) <= RETRYABLE_NODES:
+        raise NOT_RETRYABLE
+    handoff_id = (snapshot.values or {}).get("handoff_id")
+    on_error = None
+    if handoff_id is not None:
+        store = _handoff_store(rt)
+        try:
+            load_taken_handoff(store, handoff_id, user.username, thread_id)
+        except HandoffError:
+            raise HANDOFF_RELEASED from None
+        on_error = lambda: _release_if_unstarted(ws, store, handoff_id, run, config)  # noqa: E731
+    if not rt.runs.begin(run, "retry"):
+        raise NOT_IN_ERROR
+    rt.submit(lambda: _run_graph(rt, ws, run, None, config, on_error=on_error))
+    return run
+
+
 # --- Reanudar -------------------------------------------------------------------------------
 
 
-def _run_graph(rt: Runtime, ws: Workspace, run: Run, graph_input: Any, config: Any) -> None:
-    """Ejecuta el grafo hasta la siguiente pausa o el final, anotando cada nodo terminado."""
+def _run_graph(
+    rt: Runtime,
+    ws: Workspace,
+    run: Run,
+    graph_input: Any,
+    config: Any,
+    *,
+    on_error: Callable[[], None] | None = None,
+) -> None:
+    """Ejecuta el grafo hasta la siguiente pausa o el final, anotando cada nodo terminado.
+
+    `on_error` se ejecuta si falla, **antes** de marcar el run como terminado (PA-276).
+    """
     started = time.perf_counter()
     try:
         for update in ws.graph.stream(graph_input, config, stream_mode="updates"):
@@ -380,6 +459,8 @@ def _run_graph(rt: Runtime, ws: Workspace, run: Run, graph_input: Any, config: A
                     rt.runs.node_done(run, node)
         rt.runs.finish(run)
     except Exception as exc:  # el mensaje pasa por la lista blanca; el tipo va al log
+        if on_error is not None:
+            on_error()
         rt.runs.finish(run, to_api_error(exc).body)
         log.warning(
             "error en la operación",

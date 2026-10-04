@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.28.1",
     "langgraph>=1.2.12",
     "langgraph-checkpoint-postgres>=3.1.2",
+    "mcp>=2.2,<2.3",
     "openai>=3.22.1",
     "pgvector>=0.5.0",
     "psycopg-pool>=3.3.3",
@@ -36,6 +37,11 @@ dev = [
 
 [tool.uv]
 package = false
+# PA-323 (T-59): cuarentena de una semana para las dependencias que trae `mcp`; sus últimas
+# versiones son de hace menos de 7 días. Se pueden quitar a partir del 2026-10-08.
+# Excepción: una versión en cuarentena se acepta si corrige vulnerabilidades (`cryptography`
+# 50.0.2 lleva OpenSSL 4.0.3, versión de seguridad; ver PA-323).
+constraint-dependencies = ["pyjwt<2.15.1", "sse-starlette<3.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

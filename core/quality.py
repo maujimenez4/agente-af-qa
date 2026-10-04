@@ -363,7 +363,13 @@ class InMemoryQualityReviewStore:
         self, username: str, limit: int = MAX_REVIEWS_PER_PERSON
     ) -> list[StoredQualityReview]:
         mine = [r for r in self.rows.values() if r.username == username]
-        return sorted(mine, key=lambda r: r.updated_at, reverse=True)[:limit]
+        # PA-232/PA-321: con la resolución del reloj de Windows (15,6 ms), dos revisiones pueden
+        # tener la misma fecha; el desempate (creación y orden de llegada) deja la más reciente
+        # primero, como promete la lista, en vez del orden de inserción.
+        ordered = sorted(
+            enumerate(mine), key=lambda p: (p[1].updated_at, p[1].created_at, p[0]), reverse=True
+        )
+        return [review for _, review in ordered][:limit]
 
     def purge_older_than(self, cutoff: datetime) -> int:
         return self._delete_where(lambda r: r.updated_at < cutoff)
@@ -483,7 +489,8 @@ class SqlQualityReviewStore:
         query = (
             sa.select(table)
             .where(table.c.username == username)
-            .order_by(table.c.updated_at.desc())
+            # PA-232/PA-321: desempate por creación si coincide la fecha de actualización.
+            .order_by(table.c.updated_at.desc(), table.c.created_at.desc())
             .limit(limit)
         )
         return self._fetch(query)

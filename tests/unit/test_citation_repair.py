@@ -263,18 +263,20 @@ def test_repair_citations_does_not_repair_memory_citations() -> None:
     assert repairs == []
 
 
-def test_repair_citations_leaves_valid_jira_citation_untouched() -> None:
-    """Criterio 5: una cita `jira` válida no se toca aunque su extracto sea de otra HU."""
+def test_repair_citations_corrects_valid_citation_whose_excerpt_is_another_hu() -> None:
+    """PA-283: una cita `jira` válida con el texto de OTRA HU (y no el suyo) se corrige a esa."""
     story = story_with(jira_cite("AFQP-2", HU_TEXTS["AFQP-12"]))
 
     repaired, repairs = repair_citations(story, afqp_sources())
 
-    assert repaired is story
-    assert repairs == []
+    assert [r.ref for r in repaired.sources] == ["AFQP-12"]
+    assert [(r.original, r.ref, r.reason) for r in repairs] == [
+        ("AFQP-2", "AFQP-12", "extracto_de_otra_fuente")
+    ]
 
 
-def test_repair_citations_leaves_epic_citation_when_epic_is_in_context() -> None:
-    """Criterio 5: si la épica sí está en el contexto, citarla es válido y no se reescribe."""
+def test_repair_citations_corrects_epic_citation_when_epic_is_in_context() -> None:
+    """PA-283: la épica está en el contexto, pero el extracto es el de la HU: se corrige."""
     epic = IssueDetail(
         key="AFQP-10", summary="Catálogo (épica ficticia)", issue_type="Epic", status="En curso"
     )
@@ -283,8 +285,8 @@ def test_repair_citations_leaves_epic_citation_when_epic_is_in_context() -> None
 
     repaired, repairs = repair_citations(story, sources)
 
-    assert repaired is story
-    assert repairs == []
+    assert [r.ref for r in repaired.sources] == ["AFQP-12"]
+    assert [r.reason for r in repairs] == ["extracto_de_otra_fuente"]
 
 
 def test_repair_citations_ignores_rag_sources_when_matching_jira_citation() -> None:

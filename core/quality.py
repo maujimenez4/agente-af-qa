@@ -17,8 +17,9 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from core.functional.citations import (
     CitationError,
     allowed_refs_text,
     citation_errors,
+    repair_citations,
     with_real_excerpts,
 )
 from core.functional.context import StoryContext, render_context
@@ -167,7 +169,9 @@ class QualityReviewer:
         )
         sources = review_ctx.sources()
         result = self.c.llm.generate_structured(messages, QualityReport, TaskType.REVIEW_STORY)
-        report, tokens_in, tokens_out = result.content, result.input_tokens, result.output_tokens
+        # PA-282: como en la HU y la suite, las citas se reparan sin LLM antes de validarlas.
+        report = repair_citations(result.content, sources)[0]
+        tokens_in, tokens_out = result.input_tokens, result.output_tokens
 
         errors = report_errors(report, story, sources)
         if errors:
@@ -203,7 +207,7 @@ class QualityReviewer:
             )
             sources = review_ctx.sources()
             result = self.c.llm.generate_structured(retry, QualityReport, TaskType.REVIEW_STORY)
-            report = result.content
+            report = repair_citations(result.content, sources)[0]
             tokens_in += result.input_tokens
             tokens_out += result.output_tokens
             if citation_errors(report, sources):
@@ -316,6 +320,14 @@ class QualityReviewStore(Protocol):
         """Al arrancar (un solo proceso): las que estaban en marcha pasan a error."""
         ...
 
+    def purge_older_than(self, cutoff: datetime) -> int:
+        """PA-279: borra las revisiones sin cambios desde antes de `cutoff`; devuelve cuántas."""
+        ...
+
+    def delete_for(self, username: str) -> int:
+        """PA-279: borra todas las revisiones de una persona (baja); devuelve cuántas."""
+        ...
+
 
 class InMemoryQualityReviewStore:
     def __init__(self) -> None:
@@ -352,6 +364,19 @@ class InMemoryQualityReviewStore:
     ) -> list[StoredQualityReview]:
         mine = [r for r in self.rows.values() if r.username == username]
         return sorted(mine, key=lambda r: r.updated_at, reverse=True)[:limit]
+
+    def purge_older_than(self, cutoff: datetime) -> int:
+        return self._delete_where(lambda r: r.updated_at < cutoff)
+
+    def delete_for(self, username: str) -> int:
+        return self._delete_where(lambda r: r.username == username)
+
+    def _delete_where(self, condition: Callable[[StoredQualityReview], bool]) -> int:
+        with self._lock:
+            doomed = [rid for rid, r in self.rows.items() if condition(r)]
+            for rid in doomed:
+                del self.rows[rid]
+            return len(doomed)
 
     def interrupt_running(self) -> int:
         running = [r.id for r in self.rows.values() if r.state == "running"]
@@ -463,6 +488,21 @@ class SqlQualityReviewStore:
         )
         return self._fetch(query)
 
+    def purge_older_than(self, cutoff: datetime) -> int:
+        statement = QUALITY_REVIEWS.delete().where(QUALITY_REVIEWS.c.updated_at < cutoff)
+        return self._count(statement, "purgar las revisiones de calidad antiguas")
+
+    def delete_for(self, username: str) -> int:
+        statement = QUALITY_REVIEWS.delete().where(QUALITY_REVIEWS.c.username == username)
+        return self._count(statement, "borrar las revisiones de calidad de la persona")
+
+    def _count(self, statement: sa.Executable, verb: str) -> int:
+        try:
+            with self._engine.begin() as conn:
+                return conn.execute(statement).rowcount
+        except sa.exc.SQLAlchemyError:
+            raise ExternalServiceError(f"No se pudo {verb}.", service=SERVICE) from None
+
     def interrupt_running(self) -> int:
         table = QUALITY_REVIEWS
         statement = (
@@ -548,3 +588,45 @@ def _from_row(row: object) -> StoredQualityReview:
     return StoredQualityReview(
         report=QualityReport.model_validate(report) if report is not None else None, **data
     )
+
+
+# --- Conservación (PA-279) -----------------------------------------------------------------------
+
+
+def retention_cutoff(days: int, now: datetime | None = None) -> datetime:
+    """Fecha antes de la cual una revisión ya no se conserva."""
+    return (now or datetime.now(UTC)) - timedelta(days=days)
+
+
+def purge_expired(store: QualityReviewStore, days: int, now: datetime | None = None) -> int:
+    """Borra las revisiones de calidad de más de `days` días (RGPD); solo registra cuántas."""
+    purged = store.purge_older_than(retention_cutoff(days, now))
+    if purged:
+        log.info("revisiones de calidad purgadas", action="purge_quality", count=purged, days=days)
+    return purged
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`uv run python -m core.quality --purgar`: aplica el plazo de `QUALITY_RETENTION_DAYS`."""
+    import argparse
+
+    from core.config import build_config
+
+    parser = argparse.ArgumentParser(prog="python -m core.quality", description=main.__doc__)
+    parser.add_argument("--purgar", action="store_true", help="borra las revisiones caducadas")
+    args = parser.parse_args(argv or [])
+    if not args.purgar:
+        parser.print_help()
+        return 2
+    settings = build_config().settings
+    store = SqlQualityReviewStore.from_url(settings.sqlalchemy_url())
+    days = settings.quality_retention_days
+    purged = purge_expired(store, days)
+    print(f"Revisiones de calidad borradas (más de {days} días): {purged}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(main(sys.argv[1:]))

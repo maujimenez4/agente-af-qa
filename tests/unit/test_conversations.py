@@ -184,7 +184,7 @@ def _all_fakes() -> dict[str, Any]:
     [
         ("functional", "story", "DEMO-3", "Evolucionar DEMO-3"),
         ("functional", "need", None, "Nueva necesidad · DEMO"),
-        ("functional", "epic", "DEMO-1", "Nueva HU en DEMO-1"),
+        ("functional", "epic", "DEMO-1", "HU nueva en la épica DEMO-1"),
         ("qa", "story", "DEMO-3", "Preparar pruebas de DEMO-3"),
     ],
     ids=["evolucionar", "necesidad", "epica", "qa"],
@@ -632,7 +632,7 @@ def test_load_origin_without_thread_id_does_not_create_row(
     ("mode", "origin", "user", "title", "project", "key"),
     [
         ("functional", STORY_ORIGIN, AF_USER, "Evolucionar DEMO-3", "DEMO", "DEMO-3"),
-        ("functional", EPIC_ORIGIN, AF_USER, "Nueva HU en DEMO-1", "DEMO", "DEMO-1"),
+        ("functional", EPIC_ORIGIN, AF_USER, "HU nueva en la épica DEMO-1", "DEMO", "DEMO-1"),
         ("functional", NEED_ORIGIN, AF_USER, "Nueva necesidad · DEMO", "DEMO", None),
         ("qa", STORY_ORIGIN, QA_USER, "Preparar pruebas de DEMO-3", "DEMO", "DEMO-3"),
     ],

@@ -740,6 +740,34 @@ def approve(
 
 
 @conversations.post(
+    "/{conversation_id}/retry",
+    response_model=ConversationOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reintentar una conversación que falló (PA-276)",
+    description="Retoma la conversación en `state=error` desde su último punto guardado: repite "
+    "el paso que falló (por ejemplo, tras un 429 o un tiempo agotado). 409 `not_in_error` si no "
+    "está en error o si lo que falló es aprobar o publicar (eso no se reintenta: nunca se escribe "
+    "en Jira dos veces); en QA encadenada, 409 `handoff_unavailable` si la HU volvió a la lista.",
+    responses={
+        202: _json(ex.dump(ex.CONVERSATION_GENERATING)),
+        **AUTH,
+        **NOT_FOUND,
+        409: _err(
+            "not_in_error",
+            "La conversación no está en error: no hay nada que reintentar.",
+            "No está en error (generando, en revisión o terminada). En QA encadenada, "
+            "`handoff_unavailable` si la HU volvió a la lista de QA.",
+        ),
+        **RATE_LIMITED,
+    },
+)
+def retry(request: Request, conversation_id: str = ConversationId) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    service.retry(rt, ws, user, conversation_id)
+    return service.conversation_out(rt, ws, user, conversation_id)
+
+
+@conversations.post(
     "/{conversation_id}/discard",
     response_model=ConversationOut,
     summary="Descartar la propuesta",

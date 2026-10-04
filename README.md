@@ -80,6 +80,19 @@ docker compose --profile full up -d app                       # http://127.0.0.1
 - Dentro de Compose, la API usa `db` y `ollama` en lugar de `localhost`: `docker-compose.yml` fija `DATABASE_URL` (con `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` de tu `.env`) y `OLLAMA_BASE_URL`. Si tu contraseña tiene caracteres especiales de URL (`@`, `/`, `:`), escápalos o usa otra.
 - El puerto solo se publica en `127.0.0.1`: la API no queda expuesta a la red.
 
+### Conservación de datos (RGPD)
+Las revisiones de calidad se guardan en `quality_reviews` con el informe que genera el LLM a partir de la HU de Jira (PA-279):
+- **Plazo:** se conservan `QUALITY_RETENTION_DAYS` días (90 por defecto, en tu `.env`) desde su último cambio. La API borra las caducadas **al arrancar**, y también a mano:
+  ```bash
+  uv run python -m core.quality --purgar
+  ```
+- **Baja de una persona:** deja la cuenta inactiva (con una contraseña aleatoria que no se muestra) y borra sus revisiones de calidad. Por ahora solo para los usuarios de demo del seed (`af-demo`, `qa-demo`, `admin-demo`):
+  ```bash
+  uv run python -m core.seed_users --baja af-demo
+  ```
+- Ninguno de los dos comandos muestra el contenido de las revisiones: solo cuántas se borraron.
+- **Tras una baja, reinicia la API:** las sesiones abiertas viven en su memoria y no vuelven a comprobar si la cuenta está activa, así que una sesión ya iniciada seguiría valiendo hasta caducar (30 min sin actividad o 12 h).
+
 ## Contenido
 | Archivo | Para qué sirve |
 |---|---|

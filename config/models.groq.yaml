@@ -14,7 +14,7 @@
 providers:
   groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
   openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
-  local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
+  local:      { type: openai_compatible, base_url: "http://127.0.0.1:11434/v1",      api_key_env: null }
 
 tasks:
   # Pesadas: máxima calidad.

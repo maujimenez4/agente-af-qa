@@ -17,7 +17,7 @@
 # Cada tarea es una CADENA ordenada (RF-44); cambiar de proveedor = añadirlo en `providers`.
 # Sin secretos: solo el nombre de la variable de entorno.
 providers:
-  local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
+  local:      { type: openai_compatible, base_url: "http://127.0.0.1:11434/v1",      api_key_env: null }
 
 tasks:
   # Principal qwen3:1.7b y respaldo phi4-mini en todas las tareas (las options deben coincidir).

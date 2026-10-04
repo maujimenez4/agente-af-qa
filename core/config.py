@@ -278,7 +278,9 @@ class Settings(BaseSettings):
             "postgresql+psycopg",
             username=self.postgres_user,
             password=password,
-            host="localhost",
+            # 127.0.0.1 y no localhost: con el puerto publicado solo en IPv4, Windows prueba
+            # antes ::1 y tarda ~20 s en pasar a IPv4 (e2e del 2026-10-04).
+            host="127.0.0.1",
             port=5432,
             database=self.postgres_db,
         )

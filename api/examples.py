@@ -216,12 +216,15 @@ CONVERSATION = ConversationOut(
     versions=[VersionOut(version=2, artifact=ARTIFACT, created_at=NOW)],
     feedback=["Mismas reglas que en la web."],
     updated_at=NOW,
+    # PA-316: la HU tal como está en Jira (versión de partida), para el selector de versiones.
+    jira_baseline=STORY.model_copy(update={"changes_from_previous": []}),
 )
 CONVERSATION_GENERATING = CONVERSATION.model_copy(
     update={
         "state": "generating",
         "review": None,
         "versions": [],
+        "jira_baseline": None,  # PA-316: antes de la primera versión aún no hay
         "progress": [
             ProgressStep(node="load_origin", label="Cargar el origen", state="done"),
             ProgressStep(node="retrieve_context", label="Recuperar contexto", state="running"),
@@ -229,14 +232,19 @@ CONVERSATION_GENERATING = CONVERSATION.model_copy(
         ],
     }
 )
+# PA-314: pedida la detención; termina el paso en curso («Deteniendo…»).
+CONVERSATION_CANCELLING = CONVERSATION_GENERATING.model_copy(update={"cancel_requested": True})
 CONVERSATION_SIMULATED = CONVERSATION.model_copy(
     update={
         "state": "simulated",
         "review": None,
+        "jira_baseline": None,  # PA-316: terminada, ya no se itera
         "result": PublishOutcome(simulated=True, plan=PLAN, approved_by="af-demo", approved_at=NOW),
     }
 )
-CONVERSATION_DISCARDED = CONVERSATION.model_copy(update={"state": "discarded", "review": None})
+CONVERSATION_DISCARDED = CONVERSATION.model_copy(
+    update={"state": "discarded", "review": None, "jira_baseline": None}
+)
 CONVERSATION_QA = CONVERSATION_GENERATING.model_copy(
     update={
         "id": "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e",

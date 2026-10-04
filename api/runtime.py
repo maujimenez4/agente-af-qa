@@ -10,7 +10,7 @@
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +18,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from adapters.base import AuthProvider, TaskType
 from adapters.llm.router import ModelChoice, ModelRouter
+from api.cancel import CancellableLLM
 from api.models import ErrorBody, Flow, Mode
 from api.sessions import LoginLimiter, SessionStore
 from core.config import Settings
@@ -60,8 +61,10 @@ class Run:
     mode: Mode
     project: str
     title: str
-    operation: str | None = None  # start | iterate | approve | edit | discard
+    operation: str | None = None  # start | iterate | retry | approve | edit | discard
     running: bool = False
+    # PA-314: señal de esta operación (nueva en cada `begin`: un reintento no nace cancelado).
+    cancel: threading.Event = field(default_factory=threading.Event)
     nodes: list[str] = field(default_factory=list)  # nodos terminados en la operación
     error: ErrorBody | None = None
     seq: int = 0  # cambia con cada evento (SSE)
@@ -90,12 +93,34 @@ class RunRegistry:
             if run.running:
                 return False
             run.operation, run.running, run.nodes, run.error = operation, True, [], None
+            run.cancel = threading.Event()
             self._bump(run)
             return True
 
     def node_done(self, run: Run, node: str) -> None:
         with self._lock:
             run.nodes.append(node)
+            self._bump(run)
+
+    def request_cancel(self, run: Run, allowed: frozenset[str]) -> str:
+        """PA-314: activa la señal de la operación en curso si se puede cancelar.
+
+        Comprueba y activa bajo el mismo candado que `begin`: una aprobación que empiece justo
+        después nunca recibe la señal de la generación que acaba de terminar. Devuelve
+        «ok», «idle» (no está generando) u «operation» (lo que hace no se cancela).
+        """
+        with self._lock:
+            if not run.running:
+                return "idle"
+            if run.operation not in allowed:
+                return "operation"
+            run.cancel.set()
+            self._bump(run)
+            return "ok"
+
+    def touch(self, run: Run) -> None:
+        """Avisa a quien espera (SSE) de un cambio sin otro efecto (p. ej. «Deteniendo…»)."""
+        with self._lock:
             self._bump(run)
 
     def finish(self, run: Run, error: ErrorBody | None = None) -> None:
@@ -202,7 +227,9 @@ def build_runtime() -> Runtime:
     def workspace() -> Workspace:
         router = model_router(config)
         container = build_session_container(config, base, router, recorder)
-        graph = build_graph(container, checkpointer=checkpointer, handoffs=handoffs)
+        # PA-314: el grafo no empieza una llamada al LLM si su operación se ha cancelado.
+        cancellable = replace(container, llm=CancellableLLM(container.llm))
+        graph = build_graph(cancellable, checkpointer=checkpointer, handoffs=handoffs)
         return Workspace(
             container=container,
             graph=graph,

@@ -90,11 +90,23 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
 
   Las opciones de `POST /start/propose` traen el `origin` listo.
 
+## Novedades para el frontend
+Todo lo nuevo **solo añade** rutas, campos opcionales o valores de `ErrorCode`: lo existente no cambia. Regenera los tipos desde `openapi.yaml`.
+
+| Desde | Qué | Cómo se usa |
+|---|---|---|
+| Ronda 9 (PA-314) | `POST /conversations/{id}/cancel` → 202 `ConversationOut` | Botón «Detener» en Generando e Iterar. Mientras termina el paso en curso, `cancel_requested=true` («Deteniendo…»); **una llamada al LLM ya en curso no se corta**. Al acabar: `state=error` con `error.code=cancelled` (ofrece «Reintentar» con `/retry`) o, si el siguiente paso era la revisión, `state=in_review` con la propuesta ya generada y `cancel_requested=false`. Aprobar o publicar no se cancelan: 409 `not_cancellable` (también si no está generando). Nunca escribe en Jira |
+| Ronda 9 (PA-316) | `ConversationOut.jira_baseline` (`UserStory` o `null`) | Versión «Jira» del selector de versiones en Iterar: la HU tal como está en Jira, estructurada. Solo al evolucionar una HU existente; `null` en una HU nueva, en QA, antes de la primera versión y tras publicar o descartar. No cuesta ninguna llamada al LLM |
+| Ronda 9 (PA-285) | Texto del arranque guiado | La opción de una épica dice «HU nueva en la épica DEMO-1», como el título de la conversación |
+| Ronda 8 (PA-276) | `POST /conversations/{id}/retry` → 202 `ConversationOut` | Botón «Reintentar» cuando `state=error` (también tras `cancelled`): repite el paso que falló. 409 `not_in_error` si no está en error o si lo que falló es aprobar o publicar (nunca se escribe dos veces en Jira); en QA encadenada, 409 `handoff_unavailable` si la HU volvió a la lista |
+| Ronda 8 (PA-317) | Título «HU nueva en la épica DEMO-1» | Las conversaciones ya guardadas conservan el título anterior |
+| Ronda 6 (PA-103, PA-272) | `GET /quality-reviews` → `QualityReviewSummary[]` | Revisiones de calidad de la persona, guardadas: júntalas con `GET /conversations` por `updated_at` y pinta «Informe listo» con `state=done`. El informe, con `GET /quality-reviews/{id}` |
+
 ## Estado
 | Parte | Contenido | Estado |
 |---|---|---|
 | 1 | Contrato completo, ejemplos y API simulada | Hecho (las rutas reales responden 501) |
-| 2 | API real sobre el contenedor y el grafo, sesión, CSRF y SSE | Hecha (las revisiones de calidad viven en memoria del proceso, PA-103) |
+| 2 | API real sobre el contenedor y el grafo, sesión, CSRF y SSE | Hecha (revisiones de calidad guardadas desde PA-272) |
 | QA encadenada | `/conversations/{id}/handoff`, `/qa/handoffs` y `/qa/handoffs/{id}/take` | Hecha (T-54 y PA-105) |
 
 **Aún no están en el contrato.** Se añadirán con su tarea; mientras, la pantalla queda «disponible pronto»:
@@ -102,7 +114,6 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
 - reintentar solo los fallidos (PA-05);
 - auditoría e historial;
 - pestaña Memoria (T-33);
-- administración (T-29);
-- revisiones de calidad en la lista de conversaciones;
+- administración (T-29).
 
 Requisitos de seguridad de la parte 2: `docs/api/requisitos-parte-2.md`.

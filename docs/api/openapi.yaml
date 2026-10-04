@@ -1304,6 +1304,7 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -1625,6 +1626,67 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
+                jira_baseline:
+                  internal_id: HU-02
+                  jira_key: DEMO-3
+                  title: Renovar un préstamo
+                  role: persona socia de la biblioteca
+                  action: renovar un préstamo activo desde la web o la app
+                  benefit: no tener que acudir al mostrador para ampliar el plazo
+                  description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                  business_goal: Reducir las visitas al mostrador por renovaciones.
+                  scope_includes:
+                  - Renovación desde la ficha del préstamo
+                  - Renovación desde la app
+                  scope_excludes:
+                  - Renovación de materiales audiovisuales
+                  acceptance_criteria:
+                  - id: CA-01
+                    title: Renovación permitida
+                    given:
+                    - un préstamo activo con menos de 2 renovaciones
+                    - sin reservas pendientes
+                    when:
+                    - la persona socia pulsa «Renovar»
+                    then:
+                    - el vencimiento se amplía 21 días
+                  - id: CA-02
+                    title: Renovación rechazada por reservas
+                    given:
+                    - un préstamo activo con reservas pendientes
+                    when:
+                    - la persona socia pulsa «Renovar»
+                    then:
+                    - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                  business_rules:
+                  - id: RN-01
+                    description: Máximo 2 renovaciones por préstamo.
+                  - id: RN-02
+                    description: No se renueva si hay reservas pendientes.
+                  assumptions:
+                  - La persona socia ha iniciado sesión.
+                  constraints:
+                  - Plazo de préstamo de 21 días (reglamento, art. 7).
+                  dependencies:
+                  - DEMO-2
+                  alternate_flows:
+                  - Renovación desde el correo de aviso de vencimiento.
+                  exceptions:
+                  - El servicio de catálogo no responde.
+                  related_features:
+                  - Reservas
+                  changes_from_previous: []
+                  related_requirements: []
+                  priority: Must
+                  sources:
+                  - kind: rag
+                    ref: DOC-01
+                    excerpt: Cada préstamo admite hasta 2 renovaciones.
+                  - kind: jira
+                    ref: DEMO-3
+                    excerpt: Renovar un préstamo
+                  open_questions: []
         '401':
           description: Sin sesión o caducada.
           content:
@@ -1881,6 +1943,7 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -2219,6 +2282,67 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
+                jira_baseline:
+                  internal_id: HU-02
+                  jira_key: DEMO-3
+                  title: Renovar un préstamo
+                  role: persona socia de la biblioteca
+                  action: renovar un préstamo activo desde la web o la app
+                  benefit: no tener que acudir al mostrador para ampliar el plazo
+                  description: La persona socia renueva un préstamo activo antes de su vencimiento.
+                  business_goal: Reducir las visitas al mostrador por renovaciones.
+                  scope_includes:
+                  - Renovación desde la ficha del préstamo
+                  - Renovación desde la app
+                  scope_excludes:
+                  - Renovación de materiales audiovisuales
+                  acceptance_criteria:
+                  - id: CA-01
+                    title: Renovación permitida
+                    given:
+                    - un préstamo activo con menos de 2 renovaciones
+                    - sin reservas pendientes
+                    when:
+                    - la persona socia pulsa «Renovar»
+                    then:
+                    - el vencimiento se amplía 21 días
+                  - id: CA-02
+                    title: Renovación rechazada por reservas
+                    given:
+                    - un préstamo activo con reservas pendientes
+                    when:
+                    - la persona socia pulsa «Renovar»
+                    then:
+                    - se muestra el aviso «El ejemplar tiene reservas pendientes»
+                  business_rules:
+                  - id: RN-01
+                    description: Máximo 2 renovaciones por préstamo.
+                  - id: RN-02
+                    description: No se renueva si hay reservas pendientes.
+                  assumptions:
+                  - La persona socia ha iniciado sesión.
+                  constraints:
+                  - Plazo de préstamo de 21 días (reglamento, art. 7).
+                  dependencies:
+                  - DEMO-2
+                  alternate_flows:
+                  - Renovación desde el correo de aviso de vencimiento.
+                  exceptions:
+                  - El servicio de catálogo no responde.
+                  related_features:
+                  - Reservas
+                  changes_from_previous: []
+                  related_requirements: []
+                  priority: Must
+                  sources:
+                  - kind: rag
+                    ref: DOC-01
+                    excerpt: Cada préstamo admite hasta 2 renovaciones.
+                  - kind: jira
+                    ref: DEMO-3
+                    excerpt: Renovar un préstamo
+                  open_questions: []
         '401':
           description: Sin sesión o caducada.
           content:
@@ -2464,6 +2588,7 @@ paths:
                   errors: []
                   failed_ids: []
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '409':
           description: 'Rechazo del registro de aprobaciones: la conversación no se recupera.'
           content:
@@ -2604,6 +2729,7 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -2684,6 +2810,149 @@ paths:
                 error:
                   code: not_in_error
                   message: 'La conversación no está en error: no hay nada que reintentar.'
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+  /api/v1/conversations/{conversation_id}/cancel:
+    post:
+      tags:
+      - Conversaciones
+      summary: Detener una generación en curso (PA-314)
+      description: 'Pide detener la operación que está generando (crear, iterar o reintentar). **No interrumpe
+        una llamada al LLM ya en curso**: se para al terminar esa llamada o el paso actual, sin empezar
+        el siguiente; mientras, `cancel_requested=true` («Deteniendo…»). Queda en `state=error` con `error.code=cancelled`
+        y se puede reintentar con `/retry`; si el siguiente paso era la revisión, queda en revisión con
+        la propuesta ya generada. Nunca escribe en Jira: aprobar o publicar no se cancelan (409 `not_cancellable`,
+        también si no está generando).'
+      operationId: cancel_api_v1_conversations__conversation_id__cancel_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          description: Identificador de la conversación.
+          title: Conversation Id
+        description: Identificador de la conversación.
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationOut'
+              example:
+                id: 8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d
+                title: Evolucionar DEMO-3
+                project: DEMO
+                flow: evolve
+                mode: functional
+                state: generating
+                progress:
+                - node: load_origin
+                  label: Cargar el origen
+                  state: done
+                - node: retrieve_context
+                  label: Recuperar contexto
+                  state: running
+                - node: generate
+                  label: Generar la propuesta
+                  state: pending
+                versions: []
+                feedback:
+                - Mismas reglas que en la web.
+                updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: true
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no pertenece a la persona (mismo mensaje en los dos casos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa conversación o no es tuya.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No está generando, o lo que hace es aprobar o publicar (eso no se cancela).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_cancellable
+                  message: 'La conversación no está generando: no hay nada que detener.'
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
@@ -2824,6 +3093,7 @@ paths:
                 feedback:
                 - Mismas reglas que en la web.
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -4374,6 +4644,7 @@ paths:
                 versions: []
                 feedback: []
                 updated_at: '2026-10-02T10:30:00Z'
+                cancel_requested: false
         '401':
           description: Sin sesión o caducada.
           content:
@@ -5127,6 +5398,20 @@ components:
           type: string
           format: date-time
           title: Updated At
+        cancel_requested:
+          type: boolean
+          title: Cancel Requested
+          description: 'PA-314: se pidió detener la generación y aún está terminando el paso en curso
+            («Deteniendo…»). Vuelve a `false` al terminar.'
+          default: false
+        jira_baseline:
+          anyOf:
+          - $ref: '#/components/schemas/UserStory'
+          - type: 'null'
+          description: 'PA-316: la HU tal como está en Jira, estructurada (la versión de partida que el
+            agente ya calculó; nunca se llama al LLM para esto). Solo al evolucionar una HU existente
+            y mientras se puede iterar; `null` en una HU nueva, en QA, antes de la primera versión y cuando
+            la conversación termina (aprobada, simulada, publicada o descartada).'
       type: object
       required:
       - id
@@ -5263,6 +5548,8 @@ components:
           - http_error
           - not_in_review
           - not_in_error
+          - not_cancellable
+          - cancelled
           - approval_rejected
           - handoff_unavailable
           - operation_failed

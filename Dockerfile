@@ -2,9 +2,12 @@
 # Reproducible con el lockfile (`uv sync --frozen`), sin dependencias de desarrollo, con usuario no
 # root y sin secretos: el `.env` no se copia (.dockerignore) y llega en tiempo de ejecución con
 # `env_file` en docker-compose.yml. Pesa varios GB por torch y docling (ingesta de documentos).
-FROM python:3.12-slim
+# PA-280: imágenes base fijadas por digest (índice multiarquitectura) para que la imagen sea
+# reproducible. Consultados el 2026-10-04 con `docker buildx imagetools inspect`:
+# python:3.12-slim → Python 3.12.15; uv 0.12.18. Para actualizar, vuelve a consultarlos.
+FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.18 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.18@sha256:3adc3706091ce7c2fe595e669628caedd6d951551b92b258b7e7dbe06d9440bc /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

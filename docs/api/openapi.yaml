@@ -5448,6 +5448,188 @@ paths:
                   retry_after: null
       security:
       - sessionCookie: []
+  /api/v1/admin/connections/test:
+    post:
+      tags:
+      - Administración
+      summary: Probar las conexiones (Jira, PostgreSQL, modelos y embeddings)
+      description: Una comprobación por servicio, en paralelo y con 5 s como máximo cada una; un fallo
+        no impide las demás. Sin generar texto con ningún modelo. Una prueba cada 10 s por persona.
+      operationId: run_connection_test_api_v1_admin_connections_test_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionsTestOut'
+              example:
+                checks:
+                - service: Jira
+                  ok: true
+                  detail: Conexión correcta con api.atlassian.com.
+                  duration_ms: 412
+                - service: PostgreSQL
+                  ok: true
+                  detail: Conexión correcta con db:5432; migraciones al día (0006_quality_reviews).
+                  duration_ms: 38
+                - service: Modelos · ollama
+                  ok: false
+                  detail: 'Faltan modelos: qwen3:8b.'
+                  duration_ms: 21
+                - service: Embeddings
+                  ok: true
+                  detail: 1 modelo disponible.
+                  duration_ms: 19
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '429':
+          description: Una prueba de conexiones cada 10 s por persona.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Espera unos segundos antes de volver a probar las conexiones.
+                  retry_after: 10.0
+        '403':
+          description: Solo para `admin`, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: La API no ha podido arrancar o falta la configuración.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: 'La configuración no está disponible: no se pueden comprobar los servicios.'
+  /api/v1/admin/models:
+    get:
+      tags:
+      - Administración
+      summary: Modelos por tarea y de embeddings (solo lectura)
+      description: 'De cada proveedor, solo el host: nunca la URL entera ni la clave.'
+      operationId: list_models_api_v1_admin_models_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminModelsOut'
+              example:
+                tasks:
+                - task: functional
+                  chain:
+                  - provider: ollama
+                    model: qwen3:8b
+                    host: ollama:11434
+                embeddings:
+                  provider: ollama
+                  model: bge-m3
+                  host: ollama:11434
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+        '429':
+          description: Una prueba de conexiones cada 10 s por persona.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: rate_limited
+                  message: Espera unos segundos antes de volver a probar las conexiones.
+                  retry_after: 10.0
+        '403':
+          description: Solo para `admin`, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+        '503':
+          description: La API no ha podido arrancar o falta la configuración.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: service_unavailable
+                  message: 'La configuración no está disponible: no se pueden comprobar los servicios.'
+      security:
+      - sessionCookie: []
 components:
   schemas:
     AcceptanceCriterion:
@@ -5487,6 +5669,58 @@ components:
       - then
       title: AcceptanceCriterion
       description: Criterio de aceptación en Gherkin (RF-16).
+    AdminModelOut:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        model:
+          type: string
+          title: Model
+        host:
+          type: string
+          title: Host
+          description: Solo el host (y el puerto) del proveedor; nunca la URL entera.
+      type: object
+      required:
+      - provider
+      - model
+      - host
+      title: AdminModelOut
+    AdminModelsOut:
+      properties:
+        tasks:
+          items:
+            $ref: '#/components/schemas/AdminTaskModelsOut'
+          type: array
+          title: Tasks
+        embeddings:
+          $ref: '#/components/schemas/AdminModelOut'
+      type: object
+      required:
+      - tasks
+      - embeddings
+      title: AdminModelsOut
+    AdminTaskModelsOut:
+      properties:
+        task:
+          type: string
+          title: Task
+        chain:
+          items:
+            $ref: '#/components/schemas/AdminModelOut'
+          type: array
+          title: Chain
+        override:
+          anyOf:
+          - $ref: '#/components/schemas/ModelChoiceOut'
+          - type: 'null'
+          description: Modelo elegido en la sesión de quien consulta, si lo hay.
+      type: object
+      required:
+      - task
+      - chain
+      title: AdminTaskModelsOut
     ApproveIn:
       properties:
         fingerprint:
@@ -5601,6 +5835,41 @@ components:
       required:
       - project
       title: ChooseProjectOut
+    ConnectionCheckOut:
+      properties:
+        service:
+          type: string
+          title: Service
+          description: «Jira», «PostgreSQL», «Modelos · <proveedor>», «Embeddings».
+        ok:
+          type: boolean
+          title: Ok
+        detail:
+          type: string
+          title: Detail
+        duration_ms:
+          type: integer
+          minimum: 0.0
+          title: Duration Ms
+      type: object
+      required:
+      - service
+      - ok
+      - detail
+      - duration_ms
+      title: ConnectionCheckOut
+      description: Resultado de comprobar un servicio; `detail` en español y sin secretos.
+    ConnectionsTestOut:
+      properties:
+        checks:
+          items:
+            $ref: '#/components/schemas/ConnectionCheckOut'
+          type: array
+          title: Checks
+      type: object
+      required:
+      - checks
+      title: ConnectionsTestOut
     ContextBudgetOut:
       properties:
         used:

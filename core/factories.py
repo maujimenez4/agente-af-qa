@@ -17,10 +17,11 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import SecretStr
 
 from adapters.auth.local import LocalAuthProvider
-from adapters.base import IssueSummary, LLMProvider, PublishResult, TaskType
+from adapters.base import IssueSummary, IssueTracker, LLMProvider, PublishResult, TaskType
 from adapters.embeddings.ollama import OllamaEmbeddings
 from adapters.errors import AuthenticationError, ExternalServiceError, PublishError
 from adapters.jira.tracker import JiraCloudTracker
+from adapters.llm.catalog import HttpModelCatalog
 from adapters.llm.fallback import FallbackLLMProvider
 from adapters.llm.openai_compatible import OpenAICompatibleProvider, StructuredPrompts
 from adapters.llm.router import ModelChoice, ModelRouter
@@ -34,6 +35,7 @@ from core.container import Container, build_container
 from core.conversations import SqlConversationStore
 from core.graph.builder import postgres_checkpointer
 from core.handoff import SqlHandoffStore
+from core.health import ConnectionTester, database_check
 from core.impact.versions import StoryVersionStore
 from core.memory.generator import LLMMemoryGenerator
 from core.projects import SqlLastProjectStore
@@ -284,3 +286,24 @@ def build_session_container(
     """
     llm = build_llm_provider(config, recorder, router=router)
     return replace(base, llm=llm, memory_generator=LLMMemoryGenerator(llm))
+
+
+def build_connection_tester(
+    config: AppConfig, issue_tracker: IssueTracker | None
+) -> tuple[ConnectionTester, HttpModelCatalog]:
+    """Prueba de conexiones de la Administración (T-29): el catálogo de modelos de cada proveedor
+    de las cadenas y de embeddings, y `SELECT 1` en PostgreSQL. Quien llama cierra el catálogo."""
+    names = {ref.provider for chain in config.models.tasks.values() for ref in chain}
+    names.add(config.models.embeddings.provider)
+    providers = names & set(config.models.providers)
+    catalog = HttpModelCatalog(
+        base_urls={p: config.base_url_for(p) for p in providers},
+        api_keys={p: config.api_key_for(p) for p in providers},
+    )
+    tester = ConnectionTester(
+        config,
+        catalog,
+        issue_tracker=issue_tracker,
+        database_check=database_check(config.settings.sqlalchemy_url()),
+    )
+    return tester, catalog

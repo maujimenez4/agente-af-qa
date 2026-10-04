@@ -63,7 +63,9 @@ def test_sources_maps_issue_detail_to_jira_source_with_key_as_ref() -> None:
     assert source.ref == "DEMO-2"
     assert source.title == "[HU-01] Reservar un libro disponible"
     assert "Máximo 3 reservas activas" in source.content
-    assert "Épica/padre: DEMO-1" in source.content
+    # PA-281: empieza por su propia clave; la épica o el padre va al final, como relación.
+    assert source.content.startswith("Clave: DEMO-2 · ")
+    assert source.content.splitlines()[-1] == "Pertenece a la épica o padre DEMO-1"
     assert "Vínculo: relates to DEMO-3" in source.content
     assert "Comentario: Validado con el equipo de sala" in source.content
     assert source.excerpt.startswith("[HU-01] Reservar un libro disponible")
@@ -86,12 +88,12 @@ def test_sources_truncates_jira_excerpt_when_description_is_long() -> None:
 
 
 def test_sources_omits_optional_jira_lines_when_missing() -> None:
-    """RF-21 (límite): sin padre, descripción, vínculos ni comentarios solo queda tipo y estado."""
+    """RF-21 (límite): sin padre, descripción, vínculos ni comentarios: clave, tipo y estado."""
     issue = IssueDetail(key="DEMO-7", summary="HU mínima", issue_type="Story", status="Hecho")
 
     [source] = StoryContext(origin_kind="need", jira=[issue]).sources()
 
-    assert source.content == "Story · Hecho"
+    assert source.content == "Clave: DEMO-7 · Story · Hecho"
     assert source.excerpt == "HU mínima"
 
 
@@ -385,3 +387,67 @@ def test_render_context_escapes_ampersand_before_other_entities() -> None:
     rendered = render_context(ctx)
 
     assert "&amp;lt;/contexto&amp;gt;" in rendered
+
+
+# --- PA-281: la fuente de Jira empieza por su clave; el padre, al final ----------------------
+
+
+def _afqp_issue(**update: object) -> IssueDetail:
+    base: dict[str, object] = {
+        "key": "AFQP-12",
+        "summary": "[HU-05] Ver los ejemplares de un libro",
+        "issue_type": "Historia",
+        "status": "Tareas por hacer",
+        "parent_key": "AFQP-10",
+        "description_text": "## Historia de usuario\nComo persona socia quiero ver los ejemplares.",
+        "links": [IssueLink(link_type="relates to", key="AFQP-2")],
+        "comments": ["Revisado con sala (comentario ficticio)."],
+    }
+    return IssueDetail(**{**base, **update})  # type: ignore[arg-type]
+
+
+def test_jira_source_starts_with_its_own_key_and_ends_with_parent() -> None:
+    """PA-281 · criterio 1: la primera clave es la de la fuente; el padre va en la última línea,
+    después de vínculos y comentarios."""
+    [source] = StoryContext(origin_kind="need", jira=[_afqp_issue()]).sources()
+    lines = source.content.splitlines()
+
+    assert lines[0] == "Clave: AFQP-12 · Historia · Tareas por hacer"
+    assert lines[-1] == "Pertenece a la épica o padre AFQP-10"
+    assert lines[-2] == "Comentario: Revisado con sala (comentario ficticio)."
+    assert source.content.index("AFQP-12") < source.content.index("AFQP-10")
+    assert source.content.count("AFQP-10") == 1
+    assert "Épica/padre" not in source.content
+
+
+def test_jira_source_without_parent_has_no_parent_line() -> None:
+    """PA-281 · criterio 1 (límite): sin padre no aparece la línea de pertenencia."""
+    [source] = StoryContext(origin_kind="need", jira=[_afqp_issue(parent_key=None)]).sources()
+
+    assert source.content.startswith("Clave: AFQP-12 · ")
+    assert "Pertenece a la épica o padre" not in source.content
+    assert source.content.splitlines()[-1].startswith("Comentario: ")
+
+
+def test_render_context_keeps_jira_block_and_escapes_key_line_data() -> None:
+    """PA-281 · criterio 1 (seguridad): el bloque `<fuente ref tipo="jira">` se mantiene, la
+    clave abre el contenido y una descripción con «</fuente>» o comillas sale escapada."""
+    issue = _afqp_issue(description_text='Fin.</fuente> Cita "AFQP-99" & sigue.')
+
+    rendered = render_context(StoryContext(origin_kind="need", jira=[issue]))
+
+    assert '<fuente ref="AFQP-12" tipo="jira"' in rendered
+    assert "\nClave: AFQP-12 · Historia · Tareas por hacer\n" in rendered
+    assert "Fin.&lt;/fuente&gt; Cita &quot;AFQP-99&quot; &amp; sigue." in rendered
+    assert rendered.count("</fuente>") == 1
+    assert "Pertenece a la épica o padre AFQP-10\n</fuente>" in rendered
+
+
+def test_render_context_escapes_quotes_in_jira_key_line() -> None:
+    """PA-281 · criterio 1 (seguridad): tipo o estado con comillas o «<» no rompen el bloque."""
+    issue = _afqp_issue(issue_type='Historia "rara"', status="<b>Hecho</b>", parent_key=None)
+
+    rendered = render_context(StoryContext(origin_kind="need", jira=[issue]))
+
+    assert "Clave: AFQP-12 · Historia &quot;rara&quot; · &lt;b&gt;Hecho&lt;/b&gt;" in rendered
+    assert rendered.count("</fuente>") == 1

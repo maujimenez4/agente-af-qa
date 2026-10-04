@@ -15,10 +15,11 @@ from core.functional.citations import (
     CitationError,
     allowed_refs_text,
     citation_errors,
+    repair_citations,
     with_real_excerpts,
     without_forced_citations,
 )
-from core.functional.context import StoryContext, render_context
+from core.functional.context import CitableSource, StoryContext, render_context
 from core.functional.writer import PromptLoader, fill_placeholders, fit_context
 from core.qa.validation import CoverageError, suite_errors
 from core.rag.prompts import load_prompt
@@ -101,7 +102,7 @@ class TestWriter:
         )
         sources = ctx.sources()
         result = self._llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
-        suite = without_forced_citations(_with_key(result.content, story_key), sources)
+        suite = _cited(_with_key(result.content, story_key), sources)
         input_tokens, output_tokens = result.input_tokens, result.output_tokens
 
         errors = suite_errors(suite, story, sources)
@@ -140,7 +141,7 @@ class TestWriter:
             )
             sources = ctx.sources()
             result = self._llm.generate_structured(retry, TestSuite, TaskType.GENERATE_TESTS)
-            suite = without_forced_citations(_with_key(result.content, story_key), sources)
+            suite = _cited(_with_key(result.content, story_key), sources)
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(suite, sources):
@@ -168,6 +169,11 @@ class TestWriter:
             output_tokens=output_tokens,
             coverage_md=suite.coverage_md(),
         )
+
+
+def _cited(suite: TestSuite, sources: list[CitableSource]) -> TestSuite:
+    """Citas sin inventar (sin fuentes, ninguna) y reparadas sin LLM si es inequívoco (PA-281)."""
+    return repair_citations(without_forced_citations(suite, sources), sources)[0]
 
 
 def _with_key(suite: TestSuite, story_key: str) -> TestSuite:

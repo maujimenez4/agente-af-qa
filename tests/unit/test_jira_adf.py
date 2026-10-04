@@ -1057,11 +1057,16 @@ def test_markdown_to_adf_fence_still_recognized(md: str, language: str) -> None:
     assert node.get("attrs", {}).get("language", "") == language
 
 
-def test_markdown_to_adf_link_label_with_bracket_stays_literal() -> None:
-    """PA-230 (comportamiento fijado): una etiqueta con `[` dentro ya no forma enlace (así el
-    patrón es lineal); el texto se conserva tal cual, sin marca `link`."""
-    [paragraph] = markdown_to_adf("[uno [dos]](https://ejemplo.invalid)")["content"]
+def test_markdown_to_adf_link_label_stops_at_an_inner_bracket() -> None:
+    """PA-230 (comportamiento fijado): la etiqueta no admite «[» (así el patrón es lineal). En
+    «[uno [dos](url)» antes se enlazaba «uno [dos»; ahora «[uno » queda como texto literal y el
+    enlace es solo «dos». El texto completo se conserva."""
+    url = "https://ejemplo.invalid"
+    [paragraph] = markdown_to_adf(f"[uno [dos]({url})")["content"]
+    nodes = paragraph["content"]
+    linked = [n["text"] for n in nodes if any(m["type"] == "link" for m in n.get("marks", []))]
+    assert linked == ["dos"]
+    assert "".join(n.get("text", "") for n in nodes) == "[uno dos"
     assert all(
-        "marks" not in n or n["marks"][0]["type"] != "link" for n in paragraph["content"][:1]
+        m["attrs"]["href"] == url for n in nodes for m in n.get("marks", []) if m["type"] == "link"
     )
-    assert "".join(n.get("text", "") for n in paragraph["content"]).startswith("[uno ")

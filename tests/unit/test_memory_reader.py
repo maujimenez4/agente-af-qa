@@ -200,16 +200,36 @@ def test_parse_memory_roundtrip_with_empty_list_item() -> None:
     assert parse_memory(memory.to_markdown()) == memory
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Limitación del formato (PA-288): el título de la sección siguiente dentro del "
-    "texto parte el campo; se arregla escapando en `Memory.to_markdown()` (schemas/, congelado).",
-)
 def test_parse_memory_roundtrip_with_next_section_heading_inside_text() -> None:
-    """T-33 · límite: un `## Alcance` dentro del objetivo (el título de la sección siguiente)
-    no debería abrir la sección; hoy el objetivo se trunca y el alcance se corrompe."""
+    """T-33 · PA-288: un `## Alcance` dentro del objetivo (el título de la sección siguiente)
+    no abre la sección: `to_markdown` lo escapa."""
     memory = make_memory(objective="Texto ficticio\n## Alcance\nsigue el objetivo")
     assert parse_memory(memory.to_markdown()) == memory
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"scope": "Alcance ficticio\n## Reglas de negocio\n- no es una regla"},
+        {"business_rules": ["Regla ficticia\n- no es otra regla", "-5 grados como dato"]},
+        {"decisions": ["Decisión ficticia\n## Dependencias\n—"]},
+        {"objective": "—"},
+        {"changes": ["\\ya empezaba por barra", "C:\\ruta\\ficticia"]},
+        {"references": ["# título de markdown ficticio"]},
+    ],
+)
+def test_parse_memory_roundtrip_with_structure_like_lines(fields: dict[str, object]) -> None:
+    """PA-288: líneas del LLM que parecen estructura (títulos, `- `, «—», barra) vuelven igual."""
+    memory = make_memory(**fields)
+    assert parse_memory(memory.to_markdown()) == memory
+
+
+def test_to_markdown_escapes_only_structure_like_lines() -> None:
+    """PA-288: el escape es el de markdown (una barra delante) y solo en las líneas que lo
+    necesitan; el resto del texto no cambia."""
+    markdown = make_memory(objective="Objetivo ficticio\n## Alcance\nfin").to_markdown()
+    assert "Objetivo ficticio\n\\## Alcance\nfin" in markdown
+    assert "\n## Alcance\n" in markdown  # el título real de la sección sigue intacto
 
 
 # --- memory_title ----------

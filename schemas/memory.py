@@ -14,6 +14,24 @@ _SECTIONS = (
     ("Criterios de aceptación", "acceptance_criteria"),
     ("Referencias", "references"),
 )
+EMPTY_SECTION = "—"
+
+
+def escape_line(line: str) -> str:
+    """PA-288: una línea del texto del LLM que se confundiría con la estructura de la memoria
+    (un `## Título`, un `- elemento`, el «—» de sección vacía o una barra invertida propia) lleva
+    una barra invertida delante, como en markdown, para que releerla no parta el campo."""
+    if line.startswith(("#", "-", "\\")) or line.strip() == EMPTY_SECTION:
+        return "\\" + line
+    return line
+
+
+def unescape_line(line: str) -> str:
+    return line[1:] if line.startswith("\\") else line
+
+
+def _escape(text: str) -> str:
+    return "\n".join(escape_line(line) for line in text.split("\n"))
 
 
 class Memory(BaseModel):
@@ -44,7 +62,7 @@ class Memory(BaseModel):
             value: str | list[str] = getattr(self, name)
             lines += ["", f"## {title}"]
             if isinstance(value, str):
-                lines.append(value.strip() or "—")
+                lines.append(_escape(value.strip()) or EMPTY_SECTION)
             else:
-                lines += [f"- {item}" for item in value] or ["—"]
+                lines += [f"- {_escape(item)}" for item in value] or [EMPTY_SECTION]
         return "\n".join(lines) + "\n"

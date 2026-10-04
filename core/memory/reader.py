@@ -20,7 +20,7 @@ from adapters.base import VectorStore
 from core.logging import get_logger
 from core.projects import ISSUE_KEY, project_of
 from schemas.memory import _SECTIONS as SECTIONS  # mismos títulos y orden que `to_markdown`
-from schemas.memory import Memory
+from schemas.memory import EMPTY_SECTION, Memory, unescape_line
 
 log = get_logger(__name__)
 
@@ -30,7 +30,6 @@ DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
 MAX_QUERY_CHARS = 100
 MAX_FILE_BYTES = 256 * 1024  # una memoria real ocupa unos pocos KB
-EMPTY_SECTION = "—"
 _FRONTMATTER = re.compile(r"\A---\n(?P<head>.*?)\n---\n", re.DOTALL)
 _TEXT_FIELDS = {name for name, info in Memory.model_fields.items() if info.annotation is str}
 
@@ -86,7 +85,7 @@ def parse_memory(text: str) -> Memory:
 def _sections(lines: list[str]) -> dict[str, list[str]]:
     """Reparte las líneas por sección. Los encabezados se buscan **en orden**, así que un
     `## Algo` dentro del texto del LLM no abre una sección nueva, salvo que sea justo el título
-    de la siguiente (limitación del formato sin escapar: PA-288)."""
+    de la siguiente; `to_markdown` lo escapa (PA-288)."""
     titles = [title for title, _name in SECTIONS]
     found: dict[str, list[str]] = {}
     current: list[str] | None = None
@@ -103,16 +102,18 @@ def _sections(lines: list[str]) -> dict[str, list[str]]:
 
 def _text(lines: list[str]) -> str:
     value = "\n".join(lines).strip()
-    return "" if value == EMPTY_SECTION else value
+    if value == EMPTY_SECTION:
+        return ""
+    return "\n".join(unescape_line(line) for line in value.split("\n"))
 
 
 def _items(lines: list[str]) -> list[str]:
     items: list[str] = []
     for line in "\n".join(lines).strip("\n").splitlines():
         if line.startswith("- ") or line == "-":  # `to_markdown` escribe «- » si está vacío
-            items.append(line[2:])
+            items.append(unescape_line(line[2:]))
         elif items:  # continuación de un elemento con saltos de línea
-            items[-1] += "\n" + line
+            items[-1] += "\n" + unescape_line(line)
         elif line.strip() != EMPTY_SECTION and line.strip():
             raise ValueError("Lista de memoria no válida.")
     return items

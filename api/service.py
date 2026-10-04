@@ -8,6 +8,7 @@ aprobaciones.
 """
 
 import re
+import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
@@ -18,6 +19,7 @@ from langgraph.types import Command
 from adapters.base import TaskType, User
 from adapters.errors import AgentError, NotFoundError
 from adapters.llm.router import ModelChoice
+from api.cancel import CANCELLED_MESSAGE, GenerationCancelledError, cancellation
 from api.errors import ApiError, to_api_error
 from api.models import (
     ConversationCreateIn,
@@ -63,6 +65,7 @@ from core.permissions import Permission, require
 from core.projects import normalize_issue_key, normalize_project_key, project_of
 from core.usage import DEFAULT_TZ, UsageQueries
 from schemas.artifact import Artifact
+from schemas.user_story import UserStory
 
 log = get_logger("api.service")
 
@@ -86,6 +89,19 @@ NOT_RETRYABLE = ApiError(
     "El paso que falló es la aprobación o la publicación en Jira y no se reintenta: "
     "empieza una conversación nueva o revisa en Jira lo que llegó a publicarse.",
 )
+# PA-314: solo se detiene lo que genera; aprobar (publicar y la memoria) nunca se corta.
+CANCELLABLE_OPERATIONS = frozenset({"start", "iterate", "retry"})
+NOT_GENERATING = ApiError(
+    409,
+    "not_cancellable",
+    "La conversación no está generando: no hay nada que detener.",
+)
+NOT_CANCELLABLE = ApiError(
+    409,
+    "not_cancellable",
+    "Aprobar y publicar en Jira no se pueden detener: espera a que termine.",
+)
+CANCELLED = ApiError(409, "cancelled", CANCELLED_MESSAGE)
 HANDOFF_RELEASED = ApiError(
     409,
     "handoff_unavailable",
@@ -452,16 +468,26 @@ def _run_graph(
     `on_error` se ejecuta si falla, **antes** de marcar el run como terminado (PA-276).
     """
     started = time.perf_counter()
+    # PA-314: la señal de ESTA operación, tomada una sola vez; aprobar (publicar) no la respeta
+    # nunca, aunque alguien la active por una carrera con una generación que acaba de terminar.
+    signal = run.cancel if run.operation in CANCELLABLE_OPERATIONS else threading.Event()
     try:
-        for update in ws.graph.stream(graph_input, config, stream_mode="updates"):
-            for node in nodes_in_update(update):
-                if node in STEP_LABELS:
-                    rt.runs.node_done(run, node)
+        with cancellation(signal):  # en este hilo
+            for update in ws.graph.stream(graph_input, config, stream_mode="updates"):
+                finished = nodes_in_update(update)
+                for node in finished:
+                    if node in STEP_LABELS:
+                        rt.runs.node_done(run, node)
+                if signal.is_set() and _stops_after(finished):
+                    raise GenerationCancelledError
         rt.runs.finish(run)
     except Exception as exc:  # el mensaje pasa por la lista blanca; el tipo va al log
         if on_error is not None:
             on_error()
-        rt.runs.finish(run, to_api_error(exc).body)
+        body = (
+            CANCELLED.body if isinstance(exc, GenerationCancelledError) else to_api_error(exc).body
+        )
+        rt.runs.finish(run, body)
         log.warning(
             "error en la operación",
             user=run.owner,
@@ -476,6 +502,31 @@ def _run_graph(
             action=run.operation,
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
+
+
+def _stops_after(finished: list[str]) -> bool:
+    """PA-314: ¿se detiene tras estos nodos? Se decide por el nodo que acaba de terminar y no
+    por el checkpoint: LangGraph emite la actualización antes de guardarlo, y leerlo ahí puede
+    dar el paso anterior. Tras `generate` lo siguiente es `human_review`, que solo pausa con la
+    propuesta ya generada: se deja correr (queda en revisión, no en un callejón sin salida).
+    Tras `load_origin`, `retrieve_context` o `human_review` (al iterar) se para antes del
+    siguiente paso, que queda pendiente y se puede reintentar con `/retry`."""
+    return bool(finished) and "generate" not in finished
+
+
+def cancel(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> Run:
+    """PA-314: pide detener la generación en curso; se para al terminar la llamada al LLM o el
+    paso en curso, sin empezar el siguiente. Nunca escribe en Jira."""
+    _config, run, row = open_conversation(rt, ws, user, thread_id)
+    run = _ensure_run(rt, row, run)
+    require(user, generate_permission(row.mode if row else run.mode))
+    outcome = rt.runs.request_cancel(run, CANCELLABLE_OPERATIONS)
+    if outcome == "idle":
+        raise NOT_GENERATING
+    if outcome == "operation":
+        raise NOT_CANCELLABLE
+    log.info("generación detenida a petición", user=user.username, action="cancel")
+    return run
 
 
 def _ensure_run(rt: Runtime, row: ConversationSummary | None, run: Run | None) -> Run:
@@ -710,7 +761,26 @@ def describe(
         result=_result(ws, state, row, values, plan),
         error=error,
         updated_at=max(updated) if updated else datetime.now(UTC),
+        cancel_requested=bool(run and run.running and run.cancel.is_set()),
+        jira_baseline=_jira_baseline(ws, mode, kind, state, values),
     )
+
+
+def _jira_baseline(
+    ws: Workspace, mode: str, kind: str, state: str, values: Mapping[str, Any]
+) -> UserStory | None:
+    """PA-316: la versión de partida que el grafo ya guardó (`state["baseline"]`), sin LLM."""
+    artifact = values.get("artifact")
+    if mode != "functional" or kind != "story" or not isinstance(artifact, Artifact):
+        return None
+    if state not in ("generating", "in_review", "error"):
+        return None  # terminada (aprobada, simulada, publicada o descartada): ya no se itera
+    try:
+        saved = (ws.container.state_store.load(str(artifact.id)) or {}).get("baseline")
+        return UserStory.model_validate(saved) if saved else None
+    except Exception:  # solo informativo: si no se puede leer, el frontend no la muestra
+        log.warning("versión de Jira sin leer", action="jira_baseline")
+        return None
 
 
 def conversation_out(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> ConversationOut:

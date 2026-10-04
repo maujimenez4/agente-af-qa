@@ -50,6 +50,8 @@ ErrorCode = Literal[
     # estado de la conversación
     "not_in_review",
     "not_in_error",  # PA-276: reintentar una conversación que no está en error
+    "not_cancellable",  # PA-314: no está generando, o lo que hace es aprobar o publicar
+    "cancelled",  # PA-314: la persona detuvo la generación (se puede reintentar)
     "approval_rejected",
     "handoff_unavailable",
     "operation_failed",
@@ -273,6 +275,18 @@ class ConversationOut(BaseModel):
     result: PublishOutcome | None = None
     error: ErrorBody | None = None
     updated_at: datetime
+    cancel_requested: bool = Field(
+        default=False,
+        description="PA-314: se pidió detener la generación y aún está terminando el paso en "
+        "curso («Deteniendo…»). Vuelve a `false` al terminar.",
+    )
+    jira_baseline: UserStory | None = Field(
+        default=None,
+        description="PA-316: la HU tal como está en Jira, estructurada (la versión de partida que "
+        "el agente ya calculó; nunca se llama al LLM para esto). Solo al evolucionar una HU "
+        "existente y mientras se puede iterar; `null` en una HU nueva, en QA, antes de la primera "
+        "versión y cuando la conversación termina (aprobada, simulada, publicada o descartada).",
+    )
 
 
 class IterateIn(BaseModel):

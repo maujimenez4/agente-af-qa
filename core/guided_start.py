@@ -198,7 +198,7 @@ def _option_for(issue: IssueDetail, mode: Mode) -> StartOption | None:
             return None  # «El modo QA parte siempre de una HU existente.»
         return StartOption(
             kind="new_story_in_epic",
-            label=f"Nueva HU en {issue.key}",
+            label=f"HU nueva en la épica {issue.key}",  # PA-285: como el título (PA-317)
             origin=Origin(kind="epic", key=issue.key, project=project),
             issue=_summary(issue),
         )

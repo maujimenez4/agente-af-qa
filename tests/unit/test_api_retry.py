@@ -411,8 +411,8 @@ def test_contract_error_code_enum_contains_not_in_error() -> None:
 
 
 def test_contract_keeps_every_route_of_the_committed_contract() -> None:
-    """Criterio 3: respecto al contrato de HEAD, solo se añade la ruta de reintento; ninguna
-    ruta ni método existente desaparece."""
+    """Criterio 3: respecto al contrato de HEAD, ninguna ruta ni método existente desaparece
+    (el frontend ya lo consume) y la ruta de reintento sigue publicada."""
     git = shutil.which("git")
     if git is None:
         pytest.skip("git no está disponible")
@@ -432,7 +432,7 @@ def test_contract_keeps_every_route_of_the_committed_contract() -> None:
     before = operations(yaml.safe_load(shown.stdout.decode("utf-8")))
     after = operations(_published())
     assert before <= after
-    assert after - before <= {(RETRY_PATH, "post")}
+    assert (RETRY_PATH, "post") in after
 
 
 # --- Lo que no se reintenta: publicar (security-reviewer) --------------------------------------

@@ -768,6 +768,34 @@ def retry(request: Request, conversation_id: str = ConversationId) -> Conversati
 
 
 @conversations.post(
+    "/{conversation_id}/cancel",
+    response_model=ConversationOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Detener una generación en curso (PA-314)",
+    description="Pide detener la operación que está generando (crear, iterar o reintentar). "
+    "**No interrumpe una llamada al LLM ya en curso**: se para al terminar esa llamada o el paso "
+    "actual, sin empezar el siguiente; mientras, `cancel_requested=true` («Deteniendo…»). Queda en "
+    "`state=error` con `error.code=cancelled` y se puede reintentar con `/retry`; si el siguiente "
+    "paso era la revisión, queda en revisión con la propuesta ya generada. Nunca escribe en Jira: "
+    "aprobar o publicar no se cancelan (409 `not_cancellable`, también si no está generando).",
+    responses={
+        202: _json(ex.dump(ex.CONVERSATION_CANCELLING)),
+        **AUTH,
+        **NOT_FOUND,
+        409: _err(
+            "not_cancellable",
+            "La conversación no está generando: no hay nada que detener.",
+            "No está generando, o lo que hace es aprobar o publicar (eso no se cancela).",
+        ),
+    },
+)
+def cancel(request: Request, conversation_id: str = ConversationId) -> ConversationOut:
+    rt, _s, ws, user = _ctx(request)
+    service.cancel(rt, ws, user, conversation_id)
+    return service.conversation_out(rt, ws, user, conversation_id)
+
+
+@conversations.post(
     "/{conversation_id}/discard",
     response_model=ConversationOut,
     summary="Descartar la propuesta",

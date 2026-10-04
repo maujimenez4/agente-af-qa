@@ -5,11 +5,13 @@ real); cada sesión tiene su grafo y su router. `run_inline=True` hace que las o
 largas terminen antes de responder, para que las pruebas sean deterministas.
 """
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from adapters.base import TaskType
 from adapters.llm.router import ModelChoice, ModelRouter
+from api.cancel import CancellableLLM
 from api.runtime import Runtime, Workspace, new_runtime
 from core.config import Settings
 from core.container import Container
@@ -46,7 +48,9 @@ def fake_runtime(
 
     def workspace() -> Workspace:
         router = ModelRouter(FAKE_CHAINS, lambda _c: FakeLLMProvider(), providers={"ollama": True})
-        graph = build_graph(base, checkpointer=checkpointer, handoffs=handoffs)
+        # Como la app (PA-314): el grafo usa el LLM que respeta la cancelación.
+        cancellable = replace(base, llm=CancellableLLM(base.llm))
+        graph = build_graph(cancellable, checkpointer=checkpointer, handoffs=handoffs)
         chains = {task: list(chain) for task, chain in FAKE_CHAINS.items()}
         return Workspace(
             container=base,

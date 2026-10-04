@@ -227,7 +227,9 @@ def _append_text(nodes: list[Node], value: str, marks: tuple[str, ...]) -> None:
 # --- Escritura: Markdown → ADF (T-27, SPEC-00 §8, PA-49) -----------------------------------
 
 _FENCE = re.compile(r"^\s*```\s*([A-Za-z0-9_+-]{0,20})\s*$")
-_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
+# PA-143: sin `\s*$` tras un grupo perezoso (backtracking cuadrático con miles de espacios);
+# los espacios del título se quitan con `.strip()`.
+_HEADING = re.compile(r"^(#{1,6})\s(.*)$")
 _LIST_ITEM = re.compile(r"^( *)([-*+]|\d{1,9}[.)])\s+(.*)$")
 _RULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
 # Celda del separador de tabla (`---`, `:--`, `-:`); se valida celda a celda, sin `\s*`
@@ -261,7 +263,7 @@ def _parse_blocks(lines: list[str]) -> list[Node]:
             i += 1  # cierre del bloque (o fin del texto si falta)
         elif match := _HEADING.match(line):
             level = len(match.group(1))
-            content = _md_inline(match.group(2))
+            content = _md_inline(match.group(2).strip())
             blocks.append({"type": "heading", "attrs": {"level": level}, "content": content})
             i += 1
         elif _RULE.match(line):

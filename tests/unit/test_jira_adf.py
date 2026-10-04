@@ -981,3 +981,38 @@ def test_table_builds_header_row_and_literal_cells() -> None:
     assert action == [{"type": "text", "text": "**pulsa** <b>Renovar</b>"}]
     assert second["content"][1]["content"] == [{"type": "paragraph"}]  # sin texto vacío
     assert adf_to_text({"type": "doc", "content": [node]}).splitlines()[0] == "| # | Acción |"
+
+
+# --- PA-143: _HEADING sin backtracking ------------------------------------------------------
+
+
+def test_markdown_to_adf_heading_is_linear_with_many_spaces() -> None:
+    """PA-143 (ReDoS): «# a» + 20 000 espacios + «b» tardaba ~4,5 s; ahora es lineal."""
+    import time
+
+    started = time.perf_counter()
+    adf = markdown_to_adf("# a" + " " * 20_000 + "b")
+    assert time.perf_counter() - started < 0.5
+    assert adf["content"][0]["type"] == "heading"
+
+
+@pytest.mark.parametrize(
+    ("md", "level", "title"),
+    [
+        ("# Título   ", 1, "Título"),
+        ("###   Varios   espacios  ", 3, "Varios   espacios"),
+        ("## ", 2, ""),
+    ],
+)
+def test_markdown_to_adf_heading_keeps_title_without_surrounding_spaces(
+    md: str, level: int, title: str
+) -> None:
+    """PA-143: el título sale igual que antes, sin los espacios de los extremos."""
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "heading" and node["attrs"]["level"] == level
+    assert "".join(c.get("text", "") for c in node.get("content", [])) == title
+
+
+def test_markdown_to_adf_hashes_without_space_are_not_a_heading() -> None:
+    """PA-143 (límite): «##» sin espacio sigue sin ser un título."""
+    assert markdown_to_adf("##titulo")["content"][0]["type"] == "paragraph"

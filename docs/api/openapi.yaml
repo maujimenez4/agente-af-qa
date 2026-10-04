@@ -5112,6 +5112,342 @@ paths:
                   code: invalid_request
                   message: 'La petición no es válida: revisa password.'
                   retry_after: null
+  /api/v1/memories:
+    get:
+      tags:
+      - Memoria
+      summary: Memorias de las HU publicadas (más recientes primero)
+      description: 'Solo las de los proyectos que ve la conexión de Jira. `q` busca, sin distinguir mayúsculas,
+        en la clave y en el texto de la memoria. Lista vacía: «Aún no hay memorias. Se generan al publicar
+        una HU en Jira (modo real).»'
+      operationId: list_memories_api_v1_memories_get
+      parameters:
+      - name: project
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 50
+            pattern: ^[A-Za-z][A-Za-z0-9_]+$
+          - type: 'null'
+          title: Project
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          default: ''
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemorySummary'
+                title: Response List Memories Api V1 Memories Get
+              example:
+              - key: DEMO-9001
+                project: DEMO
+                title: 'Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web
+                  de la Biblioteca de Villaficticia sin p…'
+                version: 2
+                updated_at: '2026-10-02T10:30:00Z'
+                indexed: true
+              - key: DEMO-9002
+                project: DEMO
+                title: 'Ejemplo ficticio: permitir a una persona socia reservar un libro prestado para
+                  recogerlo cuando se devuelva.'
+                version: 1
+                updated_at: '2026-10-02T10:30:00Z'
+                indexed: false
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
+  /api/v1/memories/{key}:
+    get:
+      tags:
+      - Memoria
+      summary: 'Una memoria: su contenido estructurado y su `.md`'
+      description: '`memory` se pinta campo a campo como texto (lo escribió el LLM); `markdown` es solo
+        para descargarlo. El mismo 404 si no existe, si es de un proyecto que no ve la conexión o si la
+        clave no es válida.'
+      operationId: get_memory_api_v1_memories__key__get
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Key
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryOut'
+              example:
+                key: DEMO-9001
+                project: DEMO
+                title: 'Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web
+                  de la Biblioteca de Villaficticia sin p…'
+                version: 2
+                updated_at: '2026-10-02T10:30:00Z'
+                indexed: true
+                memory:
+                  artifact_type: user_story
+                  jira_key: DEMO-9001
+                  version: 2
+                  objective: 'Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde
+                    la web de la Biblioteca de Villaficticia sin pasar por el mostrador.'
+                  scope: 'Memoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una
+                    HU real. Incluye la renovación desde «Mis préstamos»; no incluye pagos.'
+                  business_rules:
+                  - 'RN-1: un préstamo se renueva como máximo dos veces.'
+                  - 'RN-2: no se renueva un libro que otra persona socia tenga reservado.'
+                  decisions:
+                  - La nueva fecha de devolución se calcula desde el día de la renovación.
+                  dependencies:
+                  - 'DEMO-9002: reservas de libros (memoria de ejemplo).'
+                  changes:
+                  - 'v2: se añade el límite de dos renovaciones (RN-1).'
+                  acceptance_criteria:
+                  - 'CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.'
+                  - 'CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece.'
+                  references:
+                  - DEMO-9001
+                  - 'Corpus ficticio: normativa-prestamo-villaficticia.md'
+                markdown: '---
+
+                  jira_key: DEMO-9001
+
+                  artifact_type: user_story
+
+                  version: 2
+
+                  ---
+
+
+                  # Memoria · DEMO-9001 (v2)
+
+
+                  ## Objetivo
+
+                  Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la
+                  Biblioteca de Villaficticia sin pasar por el mostrador.
+
+
+                  ## Alcance
+
+                  Memoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una HU real.
+                  Incluye la renovación desde «Mis préstamos»; no incluye pagos.
+
+
+                  ## Reglas de negocio
+
+                  - RN-1: un préstamo se renueva como máximo dos veces.
+
+                  - RN-2: no se renueva un libro que otra persona socia tenga reservado.
+
+
+                  ## Decisiones
+
+                  - La nueva fecha de devolución se calcula desde el día de la renovación.
+
+
+                  ## Dependencias
+
+                  - DEMO-9002: reservas de libros (memoria de ejemplo).
+
+
+                  ## Cambios
+
+                  - v2: se añade el límite de dos renovaciones (RN-1).
+
+
+                  ## Criterios de aceptación
+
+                  - CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.
+
+                  - CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece.
+
+
+                  ## Referencias
+
+                  - DEMO-9001
+
+                  - Corpus ficticio: normativa-prestamo-villaficticia.md
+
+                  '
+        '401':
+          description: Sin sesión o caducada.
+          content:
+            application/json:
+              example:
+                error:
+                  code: unauthenticated
+                  message: Inicia sesión para continuar.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida.
+          content:
+            application/json:
+              example:
+                error:
+                  code: forbidden
+                  message: No tienes permiso para realizar esta acción.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de un servicio externo (Jira o el LLM).
+          content:
+            application/json:
+              example:
+                error:
+                  code: rate_limited
+                  message: Jira ha alcanzado su límite de peticiones.
+                  retry_after: 30.0
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Cuerpo de más de 256 KB.
+          content:
+            application/json:
+              example:
+                error:
+                  code: payload_too_large
+                  message: La petición es demasiado grande.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error no previsto (sin detalles internos).
+          content:
+            application/json:
+              example:
+                error:
+                  code: unexpected
+                  message: Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio externo caído (Jira, PostgreSQL, Ollama).
+          content:
+            application/json:
+              example:
+                error:
+                  code: service_unavailable
+                  message: No se pudo conectar con Jira. Revisa la URL del sitio y la red.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe o no se puede ver (mismo mensaje).
+          content:
+            application/json:
+              example:
+                error:
+                  code: not_found
+                  message: No existe esa memoria o no la puedes ver.
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Petición no válida (sin devolver lo enviado).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: invalid_request
+                  message: 'La petición no es válida: revisa password.'
+                  retry_after: null
+      security:
+      - sessionCookie: []
 components:
   schemas:
     AcceptanceCriterion:
@@ -6027,6 +6363,149 @@ components:
       - username
       - password
       title: LoginIn
+    Memory:
+      properties:
+        artifact_type:
+          $ref: '#/components/schemas/ArtifactType'
+        jira_key:
+          type: string
+          minLength: 1
+          title: Jira Key
+        version:
+          type: integer
+          exclusiveMinimum: 0.0
+          title: Version
+        objective:
+          type: string
+          title: Objective
+        scope:
+          type: string
+          title: Scope
+        business_rules:
+          items:
+            type: string
+          type: array
+          title: Business Rules
+        decisions:
+          items:
+            type: string
+          type: array
+          title: Decisions
+        dependencies:
+          items:
+            type: string
+          type: array
+          title: Dependencies
+        changes:
+          items:
+            type: string
+          type: array
+          title: Changes
+        acceptance_criteria:
+          items:
+            type: string
+          type: array
+          title: Acceptance Criteria
+        references:
+          items:
+            type: string
+          type: array
+          title: References
+      type: object
+      required:
+      - artifact_type
+      - jira_key
+      - version
+      - objective
+      - scope
+      - business_rules
+      - decisions
+      - dependencies
+      - changes
+      - acceptance_criteria
+      - references
+      title: Memory
+    MemoryOut:
+      properties:
+        key:
+          type: string
+          title: Key
+          description: Clave de la HU en Jira.
+        project:
+          type: string
+          title: Project
+        title:
+          type: string
+          title: Title
+          description: El objetivo de la memoria, recortado a 120 caracteres.
+        version:
+          type: integer
+          title: Version
+          description: Versión de la HU publicada que resume.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Última vez que se escribió la memoria (UTC).
+        indexed:
+          type: boolean
+          title: Indexed
+          description: Si está incorporada al RAG (`memoria-<CLAVE>`).
+        memory:
+          $ref: '#/components/schemas/Memory'
+          description: Se pinta campo a campo como texto (lo escribió el LLM).
+        markdown:
+          type: string
+          title: Markdown
+          description: El `.md` de la memoria, solo para descargarlo.
+      type: object
+      required:
+      - key
+      - project
+      - title
+      - version
+      - updated_at
+      - indexed
+      - memory
+      - markdown
+      title: MemoryOut
+      description: 'Una memoria completa: el resumen de la lista, su contenido estructurado y su `.md`.'
+    MemorySummary:
+      properties:
+        key:
+          type: string
+          title: Key
+          description: Clave de la HU en Jira.
+        project:
+          type: string
+          title: Project
+        title:
+          type: string
+          title: Title
+          description: El objetivo de la memoria, recortado a 120 caracteres.
+        version:
+          type: integer
+          title: Version
+          description: Versión de la HU publicada que resume.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Última vez que se escribió la memoria (UTC).
+        indexed:
+          type: boolean
+          title: Indexed
+          description: Si está incorporada al RAG (`memoria-<CLAVE>`).
+      type: object
+      required:
+      - key
+      - project
+      - title
+      - version
+      - updated_at
+      - indexed
+      title: MemorySummary
+      description: Una memoria en la lista (sin su contenido).
     ModelChoiceOut:
       properties:
         provider:

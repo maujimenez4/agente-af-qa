@@ -1228,6 +1228,8 @@ def create_app(
         openapi_url="/api/openapi.json" if development else None,
     )
     app.state.runtime = holder
+    from api.memories import router as memories  # T-33; importa `AUTH` de este módulo
+
     for router in (
         auth,
         projects,
@@ -1237,6 +1239,7 @@ def create_app(
         executions_router,
         qa,
         settings_router,
+        memories,
     ):
         app.include_router(router, prefix=API_PREFIX)
 

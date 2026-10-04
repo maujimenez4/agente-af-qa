@@ -98,8 +98,12 @@ class StoryVersionStore:
             where=ARTIFACTS.c.version <= upsert.excluded.version,
         )
         with self._transaction() as conn:
+            # PA-146: la fila del artefacto queda bloqueada hasta el final de la transacción, así
+            # las comprobaciones de tipo, contenido y última versión (PA-199) no se cruzan con
+            # otro `save` del mismo artefacto. La primera versión la protege la clave primaria
+            # de `artifact_versions`.
             stored_type = conn.execute(
-                sa.select(ARTIFACTS.c.type).where(ARTIFACTS.c.id == artifact.id)
+                sa.select(ARTIFACTS.c.type).where(ARTIFACTS.c.id == artifact.id).with_for_update()
             ).scalar_one_or_none()
             if stored_type is not None and stored_type != artifact.type.value:
                 # PA-34: las versiones anteriores se leerían con otro modelo.

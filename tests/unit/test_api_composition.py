@@ -101,6 +101,7 @@ def test_streamlit_compose_passes_handoffs_to_build_graph(
     )
     monkeypatch.setattr(app_session, "shared_checkpointer", lambda _c: "checkpointer")
     monkeypatch.setattr(app_session, "shared_handoffs", lambda _c: store)
+    monkeypatch.setattr(app_session, "shared_quality_reviews", lambda _c: "quality")
     monkeypatch.setattr(app_session, "build_graph", fake_build_graph)
 
     session = app_session.SessionState()
@@ -108,6 +109,7 @@ def test_streamlit_compose_passes_handoffs_to_build_graph(
 
     assert session.compose_error is None
     assert seen["handoffs"] is store
+    assert session.quality_store == "quality"  # PA-277: un almacén por proceso
 
 
 # --- correcciones de security-reviewer -----------------------------------------------------------

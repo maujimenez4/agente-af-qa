@@ -32,6 +32,11 @@ _FINGERPRINT_FIELDS = {"id", "version", "type", "origin_key", "content", "impact
 _MISMATCH = "La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto."
 _DAMAGED = "El registro de aprobaciones de este artefacto está dañado; revísalo antes de continuar."
 _NOT_CURRENT = "Esta aprobación ya no está vigente; vuelve a revisar el artefacto."
+_BUSY = (
+    "Otro proceso está cambiando el registro de aprobaciones de este artefacto; "
+    "vuelve a intentarlo."
+)
+MAX_LEDGER_RETRIES = 5
 
 
 def _sha256(payload: object) -> str:
@@ -104,6 +109,27 @@ def _locked[**P, R](method: Callable[P, R]) -> Callable[P, R]:
     return wrapper
 
 
+class _LedgerConflictError(Exception):
+    """Otro proceso escribió el registro entre la lectura y la escritura (PA-140)."""
+
+
+def _retried[**P, R](method: Callable[P, R]) -> Callable[P, R]:
+    """PA-140: si otro proceso cambió el registro mientras se decidía, se relee y se vuelve a
+    decidir con los datos frescos (un segundo consumo falla entonces cerrado, PA-173). Tras
+    `MAX_LEDGER_RETRIES` conflictos seguidos, `ApprovalError`: nunca se escribe a ciegas."""
+
+    @functools.wraps(method)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        for _ in range(MAX_LEDGER_RETRIES):
+            try:
+                return method(*args, **kwargs)
+            except _LedgerConflictError:
+                continue
+        raise ApprovalError(_BUSY)
+
+    return wrapper
+
+
 @dataclass
 class ApprovalLedger:
     """Registro de aprobaciones; con `store`, persistente por artefacto (T-25, PA-06).
@@ -118,6 +144,8 @@ class ApprovalLedger:
     _targets: dict[str, PublishTarget] = field(default_factory=dict)
     _offers: dict[str, str] = field(default_factory=dict)
     _approvals: dict[tuple[str, int], Approval] = field(default_factory=dict)
+    # PA-140: revisión del registro leída del almacén (la escritura condicional la exige).
+    _revisions: dict[str, int] = field(default_factory=dict, repr=False, compare=False)
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
     # PA-141: artefactos con una publicación en curso en este proceso.
     _publishing: set[str] = field(default_factory=set, repr=False, compare=False)
@@ -125,6 +153,7 @@ class ApprovalLedger:
     # no las devuelve aunque el consumo o su guardado fallen: nada se escribe dos veces.
     _spent: set[tuple[str, int]] = field(default_factory=set, repr=False, compare=False)
 
+    @_retried
     @_locked
     def offer(self, artifact: Artifact, target: PublishTarget) -> str:
         """Registra la versión que se muestra; la operación no puede cambiar entre iteraciones."""
@@ -151,6 +180,7 @@ class ApprovalLedger:
             artifact_id
         ) == content_fingerprint(artifact)
 
+    @_retried
     @_locked
     def record(self, artifact: Artifact, target: PublishTarget) -> Approval:
         """Aprueba la versión ofrecida; la oferta se consume y no se reaprueba lo publicado."""
@@ -187,6 +217,7 @@ class ApprovalLedger:
             return None
         return approval
 
+    @_retried
     @_locked
     def consume(self, approval: Approval, published: Artifact) -> None:
         """Marca la aprobación como usada y guarda la huella de lo publicado.
@@ -256,7 +287,9 @@ class ApprovalLedger:
         """
         if self.store is None:
             return
-        target, offer, approvals = _parse_ledger(artifact_id, self.store.load(artifact_id))
+        state = self.store.load(artifact_id)
+        target, offer, approvals = _parse_ledger(artifact_id, state)
+        self._revisions[artifact_id] = _stored_revision(state)
         self._targets.pop(artifact_id, None)
         self._offers.pop(artifact_id, None)
         for key in [key for key in self._approvals if key[0] == artifact_id]:
@@ -272,13 +305,23 @@ class ApprovalLedger:
         if self.store is None:
             return
         target = self._targets.get(artifact_id)
+        expected = self._revisions.get(artifact_id, 0)
         ledger = {
+            "revision": expected + 1,
             "target": asdict(target) if target else None,
             "offer": self._offers.get(artifact_id),
             "approvals": [
                 _approval_to(a) for (aid, _v), a in self._approvals.items() if aid == artifact_id
             ],
         }
+        replace_ledger = getattr(self.store, "replace_ledger", None)
+        if replace_ledger is not None:
+            # PA-140: escritura condicional; si otro proceso escribió antes, se relee y decide.
+            if not replace_ledger(artifact_id, ledger, expected):
+                raise _LedgerConflictError()
+            self._revisions[artifact_id] = expected + 1
+            return
+        # Almacén sin escritura condicional (compatibilidad): lectura, cambio y escritura.
         state = self.store.load(artifact_id)
         if state is None:
             state = {}
@@ -291,6 +334,17 @@ def _approval_to(approval: Approval) -> dict[str, Any]:
     data = asdict(approval)
     data["at"] = approval.at.isoformat()
     return data
+
+
+def _stored_revision(state: object) -> int:
+    """Revisión del registro guardado (0 si no hay); `ApprovalError` si no es un entero ≥ 0."""
+    ledger = state.get("ledger") if isinstance(state, dict) else None
+    if not isinstance(ledger, dict) or "revision" not in ledger:
+        return 0
+    revision = ledger["revision"]
+    if type(revision) is not int or revision < 0:
+        raise ApprovalError(_DAMAGED)
+    return revision
 
 
 def _parse_ledger(

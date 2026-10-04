@@ -148,13 +148,15 @@ class SpyEngine:
     def __init__(self, value: Any = None) -> None:
         self.value = value
         self.statements: list[Any] = []
+        self.parameters: list[dict[str, Any] | None] = []
 
     @contextmanager
     def begin(self) -> Iterator["SpyEngine"]:
         yield self
 
-    def execute(self, statement: Any) -> _Result:
+    def execute(self, statement: Any, parameters: dict[str, Any] | None = None) -> _Result:
         self.statements.append(statement)
+        self.parameters.append(parameters)
         return _Result(self.value)
 
 
@@ -790,14 +792,17 @@ def test_in_memory_store_is_not_changed_when_saved_dict_is_mutated_later() -> No
 
 
 def test_sql_store_builds_upsert_when_saving() -> None:
-    """Persistencia: `save` es un upsert por `artifact_id` con el estado completo."""
+    """Persistencia: `save` es un upsert por `artifact_id` con el estado completo, que no
+    retrocede la revisión del registro (PA-140)."""
     engine = SpyEngine()
     artifact_id = str(uuid4())
     SqlArtifactStateStore(engine).save(artifact_id, {"ledger": None})  # type: ignore[arg-type]
     (statement,) = engine.statements
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "ON CONFLICT (artifact_id) DO UPDATE" in sql
-    assert _params(statement)["artifact_id"] == UUID(artifact_id)
+    assert "revision" in sql
+    (parameters,) = engine.parameters
+    assert parameters is not None and parameters["artifact_id"] == UUID(artifact_id)
 
 
 def test_sql_store_rejects_non_uuid_id_when_loading() -> None:

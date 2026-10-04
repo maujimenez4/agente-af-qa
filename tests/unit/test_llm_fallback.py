@@ -760,3 +760,192 @@ def test_chain_logs_omit_content_with_real_provider_when_timeout() -> None:
     text = json.dumps(logs, ensure_ascii=False, default=str)
     for forbidden in (FAKE_KEY, BODY_MARKER, "RESPUESTA-PRIVADA-FICTICIA", MESSAGES[0].content):
         assert forbidden not in text
+
+
+# --- PA-145 · Aviso de consumo diario también tras un fallo con tokens gastados ------------
+
+
+def _failure(spent: tuple[int, int], cls: type[ExternalServiceError] = ExternalServiceError) -> Any:
+    """Error de proveedor que ya había consumido tokens (como los marca openai_compatible)."""
+    error = cls("Fallo ficticio del proveedor.", service="a")
+    error.spent_tokens = spent  # type: ignore[attr-defined]
+    return error
+
+
+def _budget_warnings(logs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [entry for entry in logs if entry["event"] == "llm_daily_budget_warning"]
+
+
+def test_daily_warning_is_logged_when_failed_call_spent_tokens_over_threshold() -> None:
+    """PA-145 · RNF-27: si la llamada falla tras consumir tokens, se registran y, si el
+    consumo del día supera el umbral, se avisa aunque no haya respuesta."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", model="ma", error=_failure((70, 40)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    assert [r.total_tokens for r in recorder.records] == [110]
+    (warning,) = _budget_warnings(logs)
+    assert warning["tokens_today"] == 110
+    assert warning["threshold"] == 100
+    assert warning["log_level"] == "warning"
+
+
+def test_daily_warning_is_logged_when_structured_output_error_spent_tokens() -> None:
+    """PA-145: también con `StructuredOutputError` (no hay respaldo, pero sí consumo)."""
+    recorder = SpyRecorder(total=500)
+    error = _failure((30, 20), StructuredOutputError)
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", error=error)],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(StructuredOutputError):
+        fallback.generate_structured(MESSAGES, UserStory, TASK)
+
+    assert len(recorder.records) == 1
+    assert len(_budget_warnings(logs)) == 1
+
+
+def test_daily_warning_is_logged_per_recorded_attempt_when_chain_falls_back() -> None:
+    """PA-145: un fallo con tokens y la respuesta del siguiente proveedor avisan cada uno
+    tras registrar su consumo."""
+    recorder = SpyRecorder(total=1_000)
+    fallback = FallbackLLMProvider(
+        lambda _task: [
+            FakeLLMProvider(provider="a", error=_failure((10, 5))),
+            FakeLLMProvider(provider="b"),
+        ],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs:
+        result = fallback.generate(MESSAGES, TASK)
+
+    assert result.provider == "b"
+    assert [r.provider for r in recorder.records] == ["a", "b"]
+    assert len(_budget_warnings(logs)) == 2
+
+
+def test_daily_warning_is_not_logged_when_failed_call_stays_below_threshold() -> None:
+    """PA-145 (límite): por debajo del umbral, el fallo se registra pero no se avisa."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", error=_failure((50, 49)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    assert [r.total_tokens for r in recorder.records] == [99]
+    assert _budget_warnings(logs) == []
+
+
+def test_daily_warning_is_logged_when_failed_call_reaches_threshold_exactly() -> None:
+    """PA-145 (límite): llegar exactamente al umbral ya avisa (`>=`)."""
+    recorder = InMemoryUsageRecorder()
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", error=_failure((50, 50)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    assert len(_budget_warnings(logs)) == 1
+
+
+def test_daily_usage_is_not_read_when_failed_call_spent_no_tokens() -> None:
+    """PA-145 (negativo): un fallo sin tokens consumidos no se registra ni consulta el día."""
+    recorder = SpyRecorder(total=10_000)
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", error=_failure((0, 0)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    assert recorder.records == []
+    assert recorder.since_calls == []
+    assert _budget_warnings(logs) == []
+
+
+def test_daily_usage_is_not_read_when_failed_call_and_no_threshold() -> None:
+    """PA-145 (negativo): sin umbral configurado no se consulta el consumo del día."""
+    recorder = SpyRecorder(total=10_000)
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", error=_failure((70, 40)))], recorder
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    assert len(recorder.records) == 1
+    assert recorder.since_calls == []
+    assert _budget_warnings(logs) == []
+
+
+def test_failed_call_logs_usage_not_read_and_no_warning_when_daily_read_fails() -> None:
+    """PA-145 · RNF-12 (error): si leer el consumo del día falla tras registrar el fallo, se
+    registra `llm_usage_not_read`, no hay aviso diario y se propaga el error del proveedor."""
+    recorder = BrokenRecorder("tokens_since")
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", model="ma", error=_failure((70, 40)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError) as info:
+        fallback.generate(MESSAGES, TASK)
+
+    assert not isinstance(info.value.__cause__, sa.exc.OperationalError)
+    assert len(recorder.records) == 1
+    (not_read,) = [entry for entry in logs if entry["event"] == "llm_usage_not_read"]
+    assert not_read["error"] == "OperationalError"
+    assert not_read["model"] == "ma"
+    assert not_read["task"] == TASK.value
+    assert _budget_warnings(logs) == []
+    text = json.dumps(logs, ensure_ascii=False, default=str)
+    assert "MARCADOR-SQL-NO-MOSTRAR" not in text
+    assert "test-key" not in text
+
+
+def test_failed_call_logs_not_recorded_and_skips_daily_check_when_record_fails() -> None:
+    """PA-145 · RNF-12 (error): si el registro del fallo falla, `llm_usage_not_recorded`, sin
+    leer el consumo del día ni avisar."""
+
+    @dataclass
+    class FailingRecordSpy(BrokenRecorder):
+        since_calls: list[datetime] = field(default_factory=list)
+
+        def tokens_since(self, since: datetime) -> int:
+            self.since_calls.append(since)
+            return 10_000
+
+    recorder = FailingRecordSpy("record")
+    fallback = FallbackLLMProvider(
+        lambda _task: [FakeLLMProvider(provider="a", model="ma", error=_failure((70, 40)))],
+        recorder,
+        daily_token_warning=100,
+    )
+
+    with capture_logs() as logs, pytest.raises(ExternalServiceError):
+        fallback.generate(MESSAGES, TASK)
+
+    events = [entry["event"] for entry in logs]
+    assert events.count("llm_usage_not_recorded") == 1
+    assert "llm_usage_not_read" not in events
+    assert recorder.since_calls == []
+    assert _budget_warnings(logs) == []

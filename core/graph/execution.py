@@ -17,7 +17,6 @@ Un grafo propio y pequeño, separado del de HU y suites:
 import hashlib
 import json
 import re
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any, Literal, NotRequired, TypedDict
 
@@ -32,8 +31,8 @@ from core.audit import AuditEntry
 from core.container import Container
 from core.conversations import NOT_YOURS, THREAD_ID
 from core.logging import get_logger
+from core.personal_data import personal_data_kind
 from core.projects import normalize_issue_key, project_of
-from core.qa import validation as suite_validation
 from schemas.test_case import MAX_EVIDENCE_CHARS, ExecutionStatus
 
 log = get_logger("core.graph.execution")
@@ -198,49 +197,10 @@ def _reject_sensitive_evidence(key: str, evidence: str) -> None:
             f"La evidencia de {key} parece contener una credencial o un token; quítala antes "
             "de registrarla."
         )
-    if kind := _personal_data_kind(evidence):
+    if kind := personal_data_kind(evidence):
         raise ExecutionRejectedError(
             f"La evidencia de {key} parece contener un dato personal ({kind}); usa datos ficticios."
         )
-
-
-_EMAIL_BEFORE = 64  # parte local de un email realista
-_EMAIL_AFTER = 255  # dominio
-
-
-def _personal_data_kind(text: str) -> str | None:
-    """Mismos patrones y mismo orden que la validación de la suite, en tiempo lineal.
-
-    La evidencia la escribe la persona (hasta `MAX_EVIDENCE_CHARS` por caso) y el patrón de
-    email de la suite tiene coste cuadrático con tramos largos sin `@` (PA-142): aquí solo se
-    busca en tramos acotados alrededor de cada `@`. DNI, NIE, IBAN y teléfono son lineales y se
-    buscan en el texto completo, así que la cobertura es la misma que en la suite.
-    """
-    for span in _around_at(text):
-        for match in suite_validation._EMAIL.finditer(span):
-            if not suite_validation._FICTITIOUS_DOMAIN.search(match.group(1)):
-                return "email"
-    if suite_validation._DNI.search(text) or suite_validation._NIE.search(text):
-        return "documento de identidad"
-    if suite_validation._IBAN.search(text):
-        return "IBAN"
-    if suite_validation._PHONE.search(text):
-        return "teléfono"
-    return None
-
-
-def _around_at(text: str) -> Iterator[str]:
-    """Tramos alrededor de cada `@`, unidos si se solapan (sin tramos largos sin `@`)."""
-    begin = end = -1
-    for match in re.finditer("@", text):
-        lo, hi = max(0, match.start() - _EMAIL_BEFORE), match.end() + _EMAIL_AFTER
-        if lo > end:
-            if end >= 0:
-                yield text[begin:end]
-            begin = lo
-        end = max(end, hi)
-    if end >= 0:
-        yield text[begin:end]
 
 
 def _case_error(case_key: str, exc: Exception) -> str:

@@ -81,3 +81,12 @@ def test_empty_database_url_falls_back_to_postgres_variables(
     clean_db_env.setenv("POSTGRES_HOST", "db")
     url = Settings(_env_file=None).sqlalchemy_url()  # type: ignore[call-arg]
     assert url.host == "db"
+
+
+def test_groq_models_file_keeps_its_prudent_context_window() -> None:
+    """PA-229: `models.groq.yaml` declara su ventana (32 768) y no hereda la de 8192."""
+    from core.config import ROOT_DIR, load_models_config
+
+    limits = load_models_config(ROOT_DIR / "config" / "models.groq.yaml").limits
+    assert limits.context_window == 32_768
+    assert limits.context_token_budget == 8000

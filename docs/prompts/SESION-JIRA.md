@@ -1,6 +1,6 @@
-# SESIÓN JIRA · Ronda 6: PA-114, que el contexto nunca se trunque en silencio (arreglo completo)
+# SESIÓN JIRA · Ronda 7: cierres pendientes (PA-143, PA-228, PA-229, PA-278 y PA-280)
 
-Tu ronda 5 ya está fusionada en `PreProduccion`. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu PA-114 ya está fusionada y **verificada en el e2e real**: 0 truncados y lectura del prompt la mitad de rápida. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
@@ -8,53 +8,46 @@ git fetch origin
 git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
 cd .claude/worktrees/area-a
 uv sync
-uv run pytest -m "not integration"          # en verde, sin xfail
+uv run python -m pytest -m "not integration"   # en verde, sin xfail
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu ronda 5 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, puesta al día desde `PreProduccion`.
 
-**En esta ronda haces PA-114, prioridad alta.** Sale de la prueba real de punta a punta. Lee antes el informe `docs/pruebas/E2E-local-2026-10-02.md`, sobre todo §6.1.
+Contexto: el sistema funciona de punta a punta con el modelo local (e2e real del 2026-10-04: HU 5,3 min, evolucionar 7,8 min, suite 5,5 min, sin truncados ni OOM). Esta ronda cierra pendientes.
 
-## El problema (medido)
-- Evolucionar, la suite, iterar y revisar la calidad desbordan la ventana de 8192 tokens de Ollama.
-- Ollama hace *context shift*: descarta ~4000 tokens del principio (instrucciones y fuentes) y **responde 200 con una salida que valida**. El agente no se entera.
-- **Causa:** `core/context/budget.py` estima `caracteres / 4` (`CHARS_PER_TOKEN = 4`), pero en español con qwen3 se miden **~3,2 caracteres por token** (instrucciones 3,35; contexto 3,19; HU previa 3,02).
-
-  El contexto «de 4108 tokens» ocupa ~5500 reales. Por eso el presupuesto de 6000 ni se alcanzaba y bajarlo a 4500 no cambiaba nada.
-
-## Decisión del usuario: arreglo completo
-1. **Estimación honesta:** `CHARS_PER_TOKEN = 3` en `core/context/budget.py`. Revisa y ajusta las pruebas que dependan del 4.
-2. **Presupuesto equivalente al medido.** Ollama midió que `context_token_budget: 2500` con `/4` (unos 10 000 caracteres de contexto) cabe con margen en todas las llamadas. Con `/3` el equivalente es **~3300**.
-
-   Cambia en `config/models.yaml` **solo** `limits.context_token_budget` (a 3300) y el valor por defecto de `core/context/service.py` (`DEFAULT_TOKEN_BUDGET`). Autorizado por la principal.
-3. **Ventana configurable** (autorizado en `core/config.py`, solo esto): `limits.context_window` (tokens de la ventana del modelo), por defecto 8192, y en `config/models.yaml` con 8192.
-4. **Guarda antes de llamar al LLM** en los escritores con mucho contexto: `core/functional/writer.py` (generar, evolucionar, estructurar, iterar), `core/qa/writer.py` (suite) y `core/quality.py` (revisión). Valora también `core/impact/` y `core/memory/`.
-   - Estima el mensaje **completo**: instrucciones + contexto + HU previa + feedback + reintento si lo hay.
-   - Comprueba que **estimado + `max_output_tokens` de la tarea ≤ `context_window`**.
-   - Si no cabe, recorta primero las fuentes de menos prioridad: los últimos fragmentos del RAG y después las HU relacionadas. **Nunca** la HU de origen, la HU previa ni las instrucciones.
-   - Si ni así cabe, error claro en español (`AgentError`). Nunca un truncado silencioso.
-   - **Los reintentos (de citas, de cobertura) también pasan por la guarda:** son los mensajes más largos.
-   - El recorte queda en el log, sin contenido (solo recuentos).
-5. **Mide la estimación:** con un par de textos reales del corpus (`data/seed/corpus/`), comprueba que `/3` no se queda corto respecto a lo que midió Ollama (§6.1 del informe), y deja un margen.
-6. **Imports de `escape_data`** en `core/qa/`: cámbialos a `core.text`.
+## Tareas (lee el texto completo de cada PA en `docs/KANBAN.md`)
+1. **PA-143:** ReDoS en `_HEADING` de `adapters/jira/adf.py`. Cámbialo por `rstrip()` y sin `\s*$`, con una prueba de tiempo.
+2. **PA-228:** `core/graph/nodes.py` debe pasar a `StoryWriter`, `TestWriter` e `ImpactAnalyzer` sus límites (`limits=PromptLimits.from_config(container.config)`) en vez de que los resuelvan con `get_config()`.
+3. **PA-229:** `config/models.groq.yaml` necesita su `limits.context_window` real y un `context_token_budget` coherente con la estimación de 3 caracteres por token.
+4. **PA-278:** `POSTGRES_HOST` y el puerto en `Settings` (autorizado en `core/config.py`, solo esto).
+   - `sqlalchemy_url()` los usa (por defecto `127.0.0.1` y 5432).
+   - El servicio `app` de `docker-compose.yml` pasa `POSTGRES_HOST=db` en lugar de componer `DATABASE_URL` con la contraseña sin codificar.
+   - Documéntalo en el README.
+5. **PA-280:** fija las imágenes base del `Dockerfile` por digest (`@sha256:…`). Consulta los digest actuales y anota en un comentario la versión a la que corresponden.
 
 ## Reglas
 - **Puedes tocar:**
-  - `core/context/budget.py` y `core/context/service.py` (presupuesto);
-  - `core/functional/writer.py`, `core/qa/`, `core/quality.py`, `core/memory/` e `core/impact/` (si aplica);
-  - `core/config.py` (solo el campo autorizado) y `config/models.yaml` (solo `context_token_budget` y `context_window`);
+  - `adapters/jira/`;
+  - `core/graph/nodes.py` (solo PA-228);
+  - `core/config.py` (solo PA-278);
+  - `config/models.groq.yaml`;
+  - `docker-compose.yml` (solo el servicio `app`), `Dockerfile` y `README.md`;
   - sus pruebas.
 
-  **No toques `core/functional/context.py` ni `core/functional/citations.py`:** la sesión Modelos está cambiando ahí cómo se presentan y reparan las citas. Si chocáis en `core/functional/writer.py`, avísame.
-- **Kanban:** cierra PA-114 con la fecha; tu fila en el registro; propuestas en PA-228…PA-249.
-- **Pruebas:** con fakes, incluido el caso límite (justo cabe; no cabe y se recorta; ni recortando cabe → error; el reintento también se recorta) y que el origen, la HU previa y las instrucciones nunca se recortan. Nada contra el LLM real.
-- **Nombres en las pruebas:** no uses `secret`, `password` ni `token` como nombre de variables con valores literales, ni texto que imite una clave privada. Gitleaks los marca y el CI falla.
+  No toques `api/`, `app/`, `core/approvals.py`, `core/qa/`, `core/functional/`, `core/quality.py` ni `config/models.yaml`.
+- **No recrees contenedores** ni cambies el `.env`.
+- **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
+- **Nombres en las pruebas:** sin `secret`, `password` ni `token` como nombre de variables con literales, y sin textos que imiten una clave privada (gitleaks).
+- **Kanban:**
+  - cierra las PA con la fecha;
+  - añade tu fila al registro;
+  - **propuestas en PA-230…PA-249**.
 - **Antes del commit:**
-  - pytest, `ruff check` y `ruff format --check` en verde;
+  - `uv run python -m pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar:** `git push origin ses-jira` y avísame.
+- **Sin fusionar.** Haz `git push origin ses-jira` y avísame.
 
-Empieza presentándome el plan (dónde va la guarda, cómo estima y qué recorta) antes de escribir código.
+Empieza presentándome el plan breve antes de tocar código.

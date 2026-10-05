@@ -37,7 +37,7 @@ import type { components } from '../api/schema'
 
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
-import { mockSuiteConversation } from './qaSuite.ts'
+import { mockSuiteConversation, nextSuiteVersion } from './qaSuite.ts'
 
 const API = '/api/v1'
 
@@ -498,7 +498,7 @@ export function createHandlers(db: MockDb) {
               const base = example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200')
               // QA: la suite sintética (PA-326: el contrato aún no trae una revisión de QA de ejemplo).
               const reviewed = run.previous
-                ? nextVersion(run.previous, run.pendingFeedback ?? '')
+                ? (run.previous.mode === 'qa' ? nextSuiteVersion : nextVersion)(run.previous, run.pendingFeedback ?? '')
                 : run.conversation.mode === 'qa'
                   ? mockSuiteConversation(base, run.storyKey ?? 'DEMO-3')
                   : base

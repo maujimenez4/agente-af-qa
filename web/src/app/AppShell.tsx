@@ -180,13 +180,7 @@ function WorkZone({ user }: { user: UserOut }) {
             }}
           />
         )}
-        {view.name === 'ready' && view.conversation.mode === 'qa' && (
-          <SoonScreen
-            title="Revisar la suite: disponible pronto"
-            text="La suite está lista. Su revisión (casos, cobertura, datos y riesgos, estrategia) llega en el siguiente bloque del flujo de QA."
-          />
-        )}
-        {view.name === 'ready' && view.conversation.mode !== 'qa' && (
+        {view.name === 'ready' && (
           <IterateScreen
             key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}

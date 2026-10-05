@@ -1,6 +1,6 @@
 // T-56: huecos de GeneratingScreen.test.tsx sobre UI.md §4.4 (Mixta 2b · Generando), §7 y
 // DESIGN-DECISIONS.md §4 bis (Generando). Datos sintéticos (DEMO-3, af-demo).
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +13,8 @@ async function generateFromHome() {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
   render(<App />)
   await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
-  await userEvent.type(screen.getByRole('textbox'), 'Renovar un préstamo desde la app')
+  await userEvent.click(screen.getByRole('textbox'))
+  await userEvent.paste('Renovar un préstamo desde la app')
   await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Evolucionar DEMO-3' }))
   const panel = screen.getByRole('complementary', { name: 'Antes de generar' })
@@ -40,14 +41,23 @@ afterEach(() => {
 describe('Generando: huecos (UI.md §4.4, DESIGN-DECISIONS.md §4 bis)', () => {
   it('si el SSE se corta sin evento final, consulta GET /conversations/{id} cada 2 s mientras siga generando', async () => {
     expect(POLL_MS).toBe(2000)
-    const timeout = vi.spyOn(window, 'setTimeout')
-    const times: number[] = []
+    // La prueba decide cuándo vence la espera de 2 s: el sondeo se guarda en lugar de programarse.
+    const polls: Array<() => void> = []
+    const realSetTimeout = window.setTimeout.bind(window)
+    vi.spyOn(window, 'setTimeout').mockImplementation(((handler: () => void, ms?: number, ...args: unknown[]) => {
+      if (ms === POLL_MS) {
+        polls.push(handler)
+        return 0
+      }
+      return realSetTimeout(handler, ms, ...args)
+    }) as typeof window.setTimeout)
+    let gets = 0
     mockServer.use(
       http.get('/api/v1/conversations/:id/events', () => HttpResponse.error()),
       http.get('/api/v1/conversations/:id', ({ params }) => {
-        times.push(Date.now())
+        gets += 1
         const current = runOf(String(params.id))
-        if (times.length === 1) {
+        if (gets === 1) {
           // Sigue generando: los pasos avanzan con lo que devuelve el GET.
           return HttpResponse.json({ ...current, state: 'generating', progress: [{ node: 'load_origin', label: 'Cargar el origen', state: 'done' }] })
         }
@@ -56,11 +66,14 @@ describe('Generando: huecos (UI.md §4.4, DESIGN-DECISIONS.md §4 bis)', () => {
     )
     await generateFromHome()
     expect(await within(screen.getByRole('status')).findByText(/Cargar el origen/)).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Propuesta lista · Versión 1 · 0 cambios frente a Jira' }, { timeout: 5000 })).toBeInTheDocument()
-    expect(times).toHaveLength(2)
-    expect((times[1] ?? 0) - (times[0] ?? 0)).toBeGreaterThanOrEqual(POLL_MS - 100)
-    expect(timeout.mock.calls.some(([, ms]) => ms === POLL_MS)).toBe(true)
-  }, 10000)
+    // Tras el primer GET, sigue generando: queda programada una consulta a los 2 s y no se repite antes.
+    await waitFor(() => expect(polls).toHaveLength(1))
+    expect(gets).toBe(1)
+    act(() => polls[0]?.())
+    expect(await screen.findByRole('heading', { name: 'Propuesta lista · Versión 1 · 0 cambios frente a Jira' })).toBeInTheDocument()
+    expect(gets).toBe(2)
+    expect(polls).toHaveLength(1)
+  })
 
   it('un too_many_streams al abrir el SSE no es un fallo de la generación: consulta el estado y termina', async () => {
     mockServer.use(

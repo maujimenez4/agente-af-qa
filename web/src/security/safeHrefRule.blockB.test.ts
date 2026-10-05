@@ -7,9 +7,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 const UNSAFE = /safeHref\(\)/
 let eslint: ESLint
 
-beforeAll(() => {
+// La primera pasada carga la configuración y los plugins: se paga aquí, una vez, y no en la primera prueba.
+// Mismo límite que una prueba (testTimeout), no uno mayor.
+beforeAll(async () => {
   eslint = new ESLint()
-})
+  await eslint.lintText('export {}\n', { filePath: 'src/security/fragmento-ficticio.tsx' })
+}, 15_000)
 
 /** Mensajes de no-restricted-syntax / no-restricted-properties de un componente con `jsx`. */
 async function lint(jsx: string, prelude = ''): Promise<string[]> {

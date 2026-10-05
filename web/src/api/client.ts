@@ -14,8 +14,8 @@ import type {
   ProposeIn,
   SessionOut,
   SettingsOut,
-  SourcePreview,
   SourcesIn,
+  SourcesOut,
   StartProposal,
   UsageTodayOut,
 } from './types.ts'
@@ -117,7 +117,7 @@ export const api = {
 
   propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body),
   sources: (origin: OriginIn, excluded: string[] = []) =>
-    request<SourcePreview[]>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn),
+    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn),
 
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),

@@ -73,7 +73,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     let cancelled = false
     api
       .sources(operation.origin)
-      .then((value) => !cancelled && setSources(value))
+      .then((value) => !cancelled && setSources(value.sources))
       .catch((cause: unknown) => {
         if (!cancelled && cause instanceof ApiRequestError) setError(cause.error)
       })

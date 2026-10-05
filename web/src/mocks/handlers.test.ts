@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { ConversationOut, ProgressStep, SessionOut } from '../api/types.ts'
+import type { ConversationOut, ProgressStep, SessionOut, SourcesOut } from '../api/types.ts'
 import { DEMO_PASSWORD } from './db.ts'
+import { MOCK_BUDGET_LIMIT } from './handlers.ts'
 import { mockDb } from './node.ts'
 
 const url = (path: string) => new URL(`/api/v1${path}`, window.location.origin)
@@ -143,5 +144,26 @@ describe('API simulada (MSW) con los ejemplos del contrato', () => {
     const response = await post('/qa/handoffs/x/take', {}, csrf)
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ error: { code: 'not_found' } })
+  })
+})
+
+describe('API simulada: POST /start/sources con presupuesto (PA-102)', () => {
+  const origin = { kind: 'story', key: 'DEMO-3', project: 'DEMO' }
+
+  it('devuelve {sources, budget} como el contrato', async () => {
+    const csrf = await login()
+    const body = (await (await post('/start/sources', { origin, excluded_sources: [] }, csrf)).json()) as SourcesOut
+    expect(body.sources[0]).toMatchObject({ ref: 'DEMO-3', required: true })
+    expect(body.budget).toMatchObject({ limit: MOCK_BUDGET_LIMIT, dropped_sources: 0, truncated_sources: 0 })
+    expect(body.budget.used).toBeGreaterThan(0)
+  })
+
+  it('una fuente excluida no se reúne y baja el presupuesto; la de origen no se excluye', async () => {
+    const csrf = await login()
+    const all = (await (await post('/start/sources', { origin, excluded_sources: [] }, csrf)).json()) as SourcesOut
+    const fewer = (await (await post('/start/sources', { origin, excluded_sources: ['DOC-01', 'DEMO-3'] }, csrf)).json()) as SourcesOut
+    expect(fewer.sources.map((source) => source.ref)).not.toContain('DOC-01')
+    expect(fewer.sources.map((source) => source.ref)).toContain('DEMO-3')
+    expect(fewer.budget.used).toBeLessThan(all.budget.used)
   })
 })

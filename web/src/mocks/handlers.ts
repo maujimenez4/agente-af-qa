@@ -16,6 +16,7 @@ import type {
   SessionOut,
   SourcePreview,
   SourcesIn,
+  SourcesOut,
   StartOption,
   StartProposal,
 } from '../api/types.ts'
@@ -38,6 +39,15 @@ import { example } from './examples.ts'
 const API = '/api/v1'
 
 // Documentos y memoria sintéticos del RAG simulado (categorías de core/rag/documents.py).
+/** Presupuesto simulado: tokens estimados por fuente, sobre 6.000 disponibles (PA-102). */
+export const MOCK_BUDGET_LIMIT = 6000
+const MOCK_TOKENS: Record<SourcePreview['kind'], number> = { jira: 900, rag: 450, memory: 550 }
+
+function mockBudget(sources: readonly SourcePreview[]): SourcesOut['budget'] {
+  const used = sources.reduce((total, source) => total + (MOCK_TOKENS[source.kind] ?? 400), 0)
+  return { used: Math.min(used, MOCK_BUDGET_LIMIT), limit: MOCK_BUDGET_LIMIT, dropped_sources: 0, truncated_sources: 0 }
+}
+
 const MOCK_SOURCES: SourcePreview[] = [
   { ref: 'DOC-01', kind: 'rag', title: 'Reglamento de préstamo', category: 'politicas', required: false },
   { ref: 'DOC-08', kind: 'rag', title: 'Especificación del préstamo digital', category: 'documentacion', required: false },
@@ -259,7 +269,7 @@ export function createHandlers(db: MockDb) {
     http.post(
       `${API}/start/sources`,
       mutation(async ({ request }) => {
-        const { origin } = (await request.json()) as SourcesIn
+        const { origin, excluded_sources: excluded } = (await request.json()) as SourcesIn
         const card = origin.key ? issueCard(origin.key) : undefined
         const required: SourcePreview[] = card
           ? [
@@ -272,7 +282,10 @@ export function createHandlers(db: MockDb) {
               },
             ]
           : []
-        return HttpResponse.json([...required, ...MOCK_SOURCES] as JsonBodyType)
+        // Como core/guided_start.py: las excluidas no se reúnen (ni salen ni cuentan en el presupuesto).
+        const sources = [...required, ...MOCK_SOURCES].filter((source) => source.required || !excluded.includes(source.ref))
+        const body: SourcesOut = { sources, budget: mockBudget(sources) }
+        return HttpResponse.json(body as JsonBodyType)
       }),
     ),
 

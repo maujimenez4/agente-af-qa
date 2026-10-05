@@ -54,6 +54,8 @@ describe('Resultado tras aprobar', () => {
     const region = await approveFromList()
     expect(screen.getByRole('img', { name: 'Avance: fase 3 de 4, Aprobada' })).toBeInTheDocument()
     expect(within(region).getByRole('img', { name: 'Publicación simulada' })).toBeInTheDocument()
+    // Flujo unido fuera de la entrega: tras una simulación no se ofrece pasar la HU a QA, ni siquiera como «disponible pronto».
+    expect(within(region).queryByRole('button', { name: 'Pedir sus pruebas a QA' })).toBeNull()
     expect(within(region).getByText('Aprobada · simulada')).toBeInTheDocument()
     expect(within(region).getByText('Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.')).toBeInTheDocument()
     expect(within(region).getByText('No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:')).toBeInTheDocument()
@@ -69,6 +71,8 @@ describe('Resultado tras aprobar', () => {
 
   it('publicada: fase 4, «Publicado en Jira», operaciones hechas, claves y acciones «disponible pronto» con su motivo', async () => {
     mockDb.forceApprove = 'published'
+    // Sin dirección de Jira, *Abrir DEMO-3 en Jira* sigue «disponible pronto» pase lo que pase con /settings (sin carrera).
+    mockDb.settings = { ...mockDb.settings, jira_browse_url: null }
     const region = await approveFromList()
     expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicado' })).toBeInTheDocument()
     expect(within(region).getByRole('heading', { level: 2, name: 'Publicado en Jira' })).toBeInTheDocument()

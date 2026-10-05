@@ -62,12 +62,12 @@ export const QA_OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
     ...OUTCOME_TEXTS.published,
     title: 'Suite publicada en Jira',
     lead: 'Los casos ya están en Jira como subtareas, con la estrategia y la matriz adjuntas:',
-    note: 'Cuando ejecutes las pruebas, podrás registrar aquí el resultado (llega con QA 6).',
+    note: 'Cuando ejecutes las pruebas, podrás registrar aquí el resultado (llega más adelante).',
   },
   partial: {
     ...OUTCOME_TEXTS.partial,
     lead: 'Se aprobaron estas operaciones. Parte ya está en Jira; lo que falló se indica debajo:',
-    note: 'Lo creado se mantiene. Reintentar solo lo que falló llegará más adelante (PA-05); mientras, revisa las subtareas en Jira.',
+    note: 'Lo creado se mantiene. Reintentar solo lo que falló llegará más adelante; mientras, revisa las subtareas en Jira.',
   },
 }
 

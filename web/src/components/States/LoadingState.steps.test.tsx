@@ -1,6 +1,8 @@
-// PA-327: la API manda en `progress` todos sus pasos (la HU, 5 con «Guardar la memoria»; QA, 4 sin él). La lista
-// pinta los que lleguen, sin un número fijo, y la Q de carga avanza con los tres nodos de generar (iguales en HU y
-// QA) y se completa con `review_ready`: los pasos de publicar no la mueven. Etiquetas de ejemplo, como la API.
+// PA-327: hoy la API manda en `progress` sus 5 pasos (con «Guardar la memoria») y las etiquetas de la HU, también en
+// QA; cuando se fusione PA-327, QA tendrá 4 (sin él). La lista pinta los que lleguen, sin un número fijo, y la Q de
+// carga avanza con los tres nodos de generar (iguales en HU y QA) y se completa con `review_ready`: los pasos de
+// publicar no la mueven. Las etiquetas de la HU son las de `api/service.py`; las de QA, hipotéticas (cada una
+// describe lo que hace su nodo).
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ProgressStep } from '../../api/types.ts'
@@ -17,9 +19,9 @@ const HU_STEPS: Array<[ProgressStep['node'], string]> = [
   ['memorize', 'Guardar la memoria de la HU publicada'],
 ]
 const QA_STEPS: Array<[ProgressStep['node'], string]> = [
-  ['load_origin', 'Recuperar la HU y el contexto'],
-  ['retrieve_context', 'Generar casos y escenarios'],
-  ['generate', 'Validar la cobertura'],
+  ['load_origin', 'Leer la HU de origen en Jira'],
+  ['retrieve_context', 'Recuperar el contexto (documentos, memoria y casos de HU relacionadas)'],
+  ['generate', 'Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia'],
   ['publish', 'Publicar la suite en Jira'],
 ]
 
@@ -32,7 +34,7 @@ const qState = () => document.querySelector('[data-q-state]')?.getAttribute('dat
 
 describe.each([
   ['HU, 5 pasos', HU_STEPS],
-  ['QA, 4 pasos (PA-327)', QA_STEPS],
+  ['QA, 4 pasos (PA-327, etiquetas hipotéticas)', QA_STEPS],
 ])('%s', (_, steps) => {
   it('la lista pinta todos los pasos que llegan, con su etiqueta y su estado', () => {
     render(<LoadingState title="Generando…" events={progress(steps, ['done', 'running'])} />)

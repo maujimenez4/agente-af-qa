@@ -30,7 +30,7 @@ const SOON = {
   history: 'El historial es solo para administración y llega después del punto de control de la demo.',
   jira: 'La dirección de Jira no está disponible.',
   memory: 'La pestaña Memoria llega después del punto de control de la demo.',
-  execution: 'Registrar la ejecución (QA 6) llega en la siguiente ronda.',
+  execution: 'Registrar la ejecución de las pruebas llega más adelante.',
   qa: 'No entra en esta entrega: QA prepara las pruebas escribiendo la clave de la HU.',
 }
 
@@ -106,9 +106,10 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
         <div className={styles.actions}>
           {outcome === 'simulated' ? (
             <>
-              {canHandoff && <HandoffAction conversationId={conversation.id} />}
+              {canHandoff && !qa && <HandoffAction conversationId={conversation.id} />}
               <SoonButton label="Ver el registro de auditoría" note={SOON.audit} />
-              <SoonButton label="Ir al historial" note={SOON.history} />
+              {/* UI.md §6.5: en QA, la simulación solo ofrece la auditoría. */}
+              {!qa && <SoonButton label="Ir al historial" note={SOON.history} />}
             </>
           ) : (
             <>
@@ -119,8 +120,10 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
               ) : (
                 <SoonButton label={key ? `Abrir ${key} en Jira` : 'Abrir en Jira'} note={SOON.jira} />
               )}
+              {/* UI.md §6.5: *Registrar la ejecución* solo con la suite publicada entera; en parte, lo que toca es
+                  *Reintentar solo los fallidos* (PA-05), fuera de alcance. */}
               {qa ? (
-                <SoonButton label="Registrar la ejecución" variant="primary" note={SOON.execution} />
+                outcome === 'published' && <SoonButton label="Registrar la ejecución" variant="primary" note={SOON.execution} />
               ) : (
                 <SoonButton label="Ver la memoria" note={SOON.memory} />
               )}

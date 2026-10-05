@@ -96,6 +96,12 @@ describe('Vistas de la suite', () => {
     expect(screen.getByText('Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.')).toBeInTheDocument()
   })
 
+  it('Cobertura sin referencias: lo dice y no afirma que cada CA tenga un caso', () => {
+    render(<CoverageView suite={{ ...SUITE, cases: SUITE.cases.map((item) => ({ ...item, criterion_ids: [], rule_ids: [] })) }} />)
+    expect(screen.getByText('Los casos no dicen qué CA o RN verifican.')).toBeInTheDocument()
+    expect(screen.queryByText(/Cada CA y cada RN tiene al menos un caso/)).toBeNull()
+  })
+
   it('Datos y riesgos: tabla de datos ficticios, riesgos, dependencias y áreas de impacto', () => {
     render(<DataRisksView suite={SUITE} />)
     const table = screen.getByRole('table', { name: 'Datos sintéticos de la suite' })

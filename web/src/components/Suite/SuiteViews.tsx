@@ -108,7 +108,7 @@ export function CoverageView({ suite }: { suite: TestSuite }) {
           </table>
         </div>
       )}
-      <p className={p.muted}>Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.</p>
+      {rows.length > 0 && <p className={p.muted}>Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.</p>}
     </div>
   )
 }
@@ -121,8 +121,8 @@ function Bullets({ title, items, empty }: { title: string; items: readonly strin
         <p className={p.empty}>{empty}</p>
       ) : (
         <ul className={p.bullets}>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
+          {items.map((item, index) => (
+            <li key={`${index}-${item}`}>{item}</li>
           ))}
         </ul>
       )}
@@ -154,7 +154,8 @@ export function DataRisksView({ suite }: { suite: TestSuite }) {
               {suite.synthetic_data.map((row, index) => (
                 <tr key={index}>
                   {columns.map((column) => (
-                    <td key={column}>{row[column] ?? ''}</td>
+                    // Solo propiedades propias: una clave como «constructor» no lee nada heredado.
+                    <td key={column}>{Object.hasOwn(row, column) ? String(row[column]) : ''}</td>
                   ))}
                 </tr>
               ))}

@@ -1,5 +1,5 @@
-// QA 4 · Recibo y QA 5 · Resultado (UI.md §6.4 y §6.5) de punta a punta contra la API simulada: recoger la HU,
-// revisar la suite, aprobarla con su huella y ver el resultado simulado, publicado o en parte (PA-324: `approved`).
+// QA 4 · Recibo y QA 5 · Resultado (UI.md §6.4 y §6.5) de punta a punta contra la API simulada: escribir la clave de
+// la HU, revisar la suite, aprobarla con su huella y ver el resultado simulado, publicado o en parte (PA-324: `approved`).
 // Datos sintéticos (DEMO-3, qa-demo).
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -53,6 +53,9 @@ describe('QA 5 · Resultado', () => {
     expect(within(region).queryByText(/memoria/i)).toBeNull()
     expect(within(region).getByText(/^Suite versión 1 aprobada por qa-demo/)).toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: 'Pedir sus pruebas a QA' })).toBeNull()
+    // §6.5: en QA, la simulación solo ofrece la auditoría.
+    expect(within(region).getByRole('button', { name: 'Ver el registro de auditoría' })).toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: 'Ir al historial' })).toBeNull()
     mockServer.events.removeAllListeners()
   })
 
@@ -65,8 +68,9 @@ describe('QA 5 · Resultado', () => {
     expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicado' })).toBeInTheDocument()
     expect(within(region).getByText('Claves en Jira: DEMO-21, DEMO-22, DEMO-23, DEMO-24')).toBeInTheDocument()
     expect(within(region).getByRole('list', { name: 'Operaciones hechas en Jira' })).toHaveTextContent('Crear 4 subtareas en DEMO-3')
-    expect(within(region).getByRole('button', { name: 'Registrar la ejecución' })).toHaveAccessibleDescription('Registrar la ejecución (QA 6) llega en la siguiente ronda.')
-    expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Registrar la ejecución' })).toHaveAccessibleDescription('Registrar la ejecución de las pruebas llega más adelante.')
+    // Con `jira_browse_url` en /settings pasa a ser un enlace: se espera a que llegue (sin carrera).
+    expect(await within(region).findByRole('link', { name: /Abrir DEMO-3 en Jira/ })).toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: 'Ver la memoria' })).toBeNull()
     expect(within(region).queryByText(/memoria/i)).toBeNull()
   })
@@ -77,6 +81,11 @@ describe('QA 5 · Resultado', () => {
     await userEvent.click(within(receipt).getAllByRole('checkbox')[0] as HTMLElement)
     await userEvent.click(within(receipt).getByRole('button', { name: 'Aprobar y publicar' }))
     const region = await screen.findByRole('region', { name: 'Publicada en parte' })
+    // Como la HU (PA-304: el lienzo dice fase 3).
+    expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicada en parte' })).toBeInTheDocument()
+    // §6.5: en parte no se ofrece registrar la ejecución (lo que toca es reintentar los fallidos, PA-05).
+    expect(within(region).queryByRole('button', { name: 'Registrar la ejecución' })).toBeNull()
+    expect(await within(region).findByRole('link', { name: /Abrir DEMO-3 en Jira/ })).toBeInTheDocument()
     const failed = within(region).getByRole('alert')
     expect(failed).toHaveTextContent('No se pudo crear CP-04: Jira no respondió (mensaje ficticio).')
     expect(failed).toHaveTextContent('Fallaron: CP-04')

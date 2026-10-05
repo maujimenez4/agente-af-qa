@@ -94,12 +94,16 @@ function WorkZone({ user }: { user: UserOut }) {
   const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
   const [picked, setPicked] = useState<JiraPick | undefined>()
   const [openError, setOpenError] = useState<ApiError | undefined>()
+  // Cuántas veces se ha abierto una conversación desde la lista: forma parte de la `key` de su pantalla.
+  const [opened, setOpened] = useState(0)
 
   // Retomar una conversación de la lista (T-52): según su estado, Generando, Iterar o un aviso.
   const openConversation = async (threadId: string) => {
     setOpenError(undefined)
     try {
       const conversation = await api.conversation(threadId)
+      // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
+      setOpened((count) => count + 1)
       if (conversation.state === 'generating') {
         setView({ name: 'generating', conversation })
       } else if (conversation.state === 'in_review') {
@@ -158,7 +162,7 @@ function WorkZone({ user }: { user: UserOut }) {
         )}
         {view.name === 'generating' && (
           <GeneratingScreen
-            key={view.conversation.id}
+            key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
             onReady={(conversation) => {
               setView({ name: 'ready', conversation })
@@ -176,7 +180,7 @@ function WorkZone({ user }: { user: UserOut }) {
         )}
         {view.name === 'ready' && (
           <IterateScreen
-            key={view.conversation.id}
+            key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
             onDiscarded={() => {
               setCurrentId(undefined)
@@ -192,7 +196,7 @@ function WorkZone({ user }: { user: UserOut }) {
         )}
         {view.name === 'receipt' && (
           <ReceiptScreen
-            key={view.conversation.id}
+            key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
             onBack={(conversation) => setView({ name: 'ready', conversation })}
             onDone={(conversation) => {
@@ -212,7 +216,7 @@ function WorkZone({ user }: { user: UserOut }) {
             }}
           />
         )}
-        {view.name === 'result' && <ResultScreen key={view.conversation.id} conversation={view.conversation} />}
+        {view.name === 'result' && <ResultScreen key={`${view.conversation.id}-${opened}`} conversation={view.conversation} />}
         {view.name === 'closed' && (
           <ClosedConversation
             conversation={view.conversation}

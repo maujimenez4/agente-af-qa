@@ -16,7 +16,8 @@ export function safeHref(value: unknown): string | undefined {
   if (href.startsWith('/')) return href.startsWith('//') ? undefined : href
   try {
     const url = new URL(href)
-    // Con usuario o contraseña («https://jira.atlassian.net@otro.test/») el enlace engaña o expone credenciales.
+    // Con usuario o contraseña (una URL que lleva «usuario:clave» o un sitio de Jira antes de la «@» del host real)
+    // el enlace engaña o expone credenciales.
     if (url.username || url.password) return undefined
     return ALLOWED_PROTOCOLS.has(url.protocol) && url.hostname ? url.href : undefined
   } catch {

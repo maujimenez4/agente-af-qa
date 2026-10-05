@@ -27,7 +27,7 @@ function changedFields(impact: ImpactAnalysis | null | undefined): string | unde
 }
 
 function linkReason(impact: ImpactAnalysis | null | undefined, key: string): string | undefined {
-  const reason = impact?.affected.find((item) => item.jira_key === key)?.reason
+  const reason = (impact?.affected ?? []).find((item) => item.jira_key === key)?.reason
   return reason ? `${reason.trim().replace(/[.]$/, '')}.` : undefined
 }
 
@@ -37,7 +37,7 @@ export function receiptOperations(plan: readonly PlanItem[], version: number, ti
     item.op === 'update_story'
       ? [
           operationOf(item, index, version, title, impact),
-          { id: `${index}-comment`, label: `Añadir a ${item.key} un comentario con los cambios`, detail: 'Tabla de cambios (campo, antes y después) para quien siga la HU.' },
+          { id: `${index}-comment`, label: `Añadir a ${item.key ?? 'la HU'} un comentario con los cambios`, detail: 'Tabla de cambios (campo, antes y después) para quien siga la HU.' },
         ]
       : [operationOf(item, index, version, title, impact)],
   )
@@ -47,19 +47,20 @@ function operationOf(item: PlanItem, index: number, version: number, title: stri
   const id = `${index}-${item.op ?? 'op'}`
   switch (item.op) {
     case 'update_story':
-      return { id, label: `Actualizar ${item.key} con la versión ${version}`, detail: changedFields(impact) ?? title }
+      return { id, label: `Actualizar ${item.key ?? 'la HU'} con la versión ${version}`, detail: changedFields(impact) ?? title }
     case 'create_story':
       return {
         id,
-        label: item.epic ? `Crear la HU en la épica ${item.epic}` : `Crear la HU en el proyecto ${item.project}`,
+        label: item.epic ? `Crear la HU en la épica ${item.epic}` : item.project ? `Crear la HU en el proyecto ${item.project}` : 'Crear la HU',
         detail: title,
       }
     case 'link':
-      return { id, label: `Vincular ${item.from} con ${item.to}`, detail: linkReason(impact, item.to ?? '') ?? `Vínculo «${item.type ?? 'relates to'}».` }
+      return { id, label: `Vincular ${item.from ?? 'la HU'} con ${item.to ?? 'otra incidencia'}`, detail: linkReason(impact, item.to ?? '') ?? `Vínculo «${item.type ?? 'relates to'}».` }
     case 'publish_suite': {
-      const cases = Number(item.cases)
+      // `Number('')` es 0: un `cases` vacío no es «0 casos».
+      const cases = item.cases?.trim() ? Number(item.cases) : Number.NaN
       const count = Number.isFinite(cases) ? `${cases} ${cases === 1 ? 'caso de prueba' : 'casos de prueba'}` : 'los casos de prueba'
-      return { id, label: `Publicar ${count} en ${item.story}`, detail: 'Como subtareas con la etiqueta «caso-prueba».' }
+      return { id, label: `Publicar ${count} en ${item.story ?? 'la HU'}`, detail: 'Como subtareas con la etiqueta «caso-prueba».' }
     }
     default: {
       // Operación que el frontend no conoce (versión futura de la API): se muestra tal cual, como texto.

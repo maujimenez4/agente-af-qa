@@ -259,6 +259,7 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 ## 7. Herramientas
 
 - **Versiones exactas** (`.npmrc` con `save-exact`) y `package-lock.json` versionado.
+- **Vitest con la mitad de los núcleos** (`maxWorkers: '50%'` en `vite.config.ts`). Por defecto Vitest usa todos menos uno (11 de 12 en el equipo del área B). Con jsdom y MSW, eso satura la CPU y lo único sensible es el primer arranque de la app en cada archivo: si tarda más de los 3 s de espera de Testing Library, la prueba falla. Medido el 2026-10-05: con 11 hilos y tres suites a la vez fallaban de 1 a 35 pruebas por suite; con 6 hilos, 1362 de 1362 en las tres. Una suite sola tarda lo mismo (unos 73 s frente a 78 s). Las pruebas que dependían del reloj ya no lo hacen: el SSE de prueba sigue abierto (`src/test/sse.ts`), el sondeo de Generando lo dispara la prueba y los clics del antirrebote van en el mismo instante. No se han subido tiempos de espera.
 - **TypeScript 6.0**, no 7: `typescript-eslint` 8 solo admite `<6.1`.
 - **ESLint 9**, no 10: `eslint-plugin-jsx-a11y` 6 aún no admite ESLint 10. npm marca ESLint 9 como fuera de soporte; se subirá cuando jsx-a11y lo admita.
 - **Reglas de seguridad en ESLint** (`eslint.config.js`). Dan error:

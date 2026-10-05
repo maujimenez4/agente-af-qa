@@ -17,6 +17,7 @@ import math
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any, get_args
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, Path, Query, Request, Response, status
@@ -1123,11 +1124,24 @@ def take_handoff(
     responses={200: _json(ex.dump(ex.SETTINGS)), **AUTH},
 )
 def get_settings(request: Request) -> SettingsOut:
-    _rt, _s, ws, _user = _ctx(request)
+    rt, _s, ws, _user = _ctx(request)
     return SettingsOut(
         publish_mode=ws.container.publish_mode,
         tasks=[service.task_models(ws, task) for task in TaskType],
+        jira_browse_url=jira_browse_url(rt.settings.jira_base_url),
     )
+
+
+def jira_browse_url(base_url: str | None) -> str | None:
+    """PA-318: `https://<sitio>/browse/` o `None`: ni otro esquema, ni usuario, ruta o consulta."""
+    if not base_url:
+        return None
+    parts = urlsplit(base_url.strip())
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        return None
+    if parts.path.strip("/") or parts.query or parts.fragment:
+        return None
+    return f"https://{parts.netloc}/browse/"
 
 
 @settings_router.get(

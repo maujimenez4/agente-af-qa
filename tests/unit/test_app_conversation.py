@@ -498,9 +498,10 @@ def test_plan_of_evolution_is_described(tmp_path: Path) -> None:
     assert conv.view is not None
     plan = conv.view.plan
     assert describe_operation(plan[0]) == "Actualizar DEMO-3 con la versión revisada"
+    assert describe_operation(plan[1]) == "Añadir a DEMO-3 un comentario con los cambios"  # PA-319
     for op in plan:
         assert describe_operation(op) != op["op"]  # todas las operaciones son conocidas
-    for op in plan[1:]:
+    for op in plan[2:]:
         assert op["op"] == "link"
         assert describe_operation(op) == f"Vincular DEMO-3 con {op['to']} (relates to)"
 
@@ -948,7 +949,10 @@ def test_approve_in_simulation_gives_simulated_outcome(tmp_path: Path) -> None:
     assert conv.outcome is not None
     assert conv.outcome.kind == "simulated"
     assert conv.outcome.approved_by == AF_USER
-    assert conv.outcome.operations == ["Actualizar DEMO-3 con la versión revisada"]
+    assert conv.outcome.operations == [
+        "Actualizar DEMO-3 con la versión revisada",
+        "Añadir a DEMO-3 un comentario con los cambios",  # PA-319
+    ]
     assert conv.view is None
     assert conv.finished == _ENDED["simulated"]
     assert conv.status == "simulated"

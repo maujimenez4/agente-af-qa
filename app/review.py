@@ -140,6 +140,8 @@ def describe_operation(op: Mapping[str, str]) -> str:
         epic = op.get("epic")
         where = f"en la épica {epic}" if epic else f"en el proyecto {op.get('project', '')}"
         return f"Crear una HU nueva {where}"
+    if kind == "comment":
+        return f"Añadir a {op.get('key', '')} un comentario con los cambios"
     if kind == "link":
         return f"Vincular {op.get('from', '')} con {op.get('to', '')} ({op.get('type', '')})"
     if kind == "publish_suite":
@@ -217,16 +219,12 @@ def receipt_items(view: ReviewView) -> list[ReceiptItem]:
     for index, op in enumerate(view.plan):
         kind = op.get("op", "")
         if kind == "update_story":
-            detail = " ".join(
-                part
-                for part in (
-                    _changed_fields(view.impact),
-                    "Se añade un comentario con los cambios.",
-                )
-                if part
-            )
             text = f"Actualizar {op.get('key', '')} con la versión {view.version}"
-            items.append(ReceiptItem(f"{index}-update", text, detail))
+            items.append(ReceiptItem(f"{index}-update", text, _changed_fields(view.impact)))
+        elif kind == "comment":
+            items.append(
+                ReceiptItem(f"{index}-comment", describe_operation(op), "Tabla antes / después.")
+            )
         elif kind == "create_story":
             items.append(
                 ReceiptItem(f"{index}-create", describe_operation(op), "Con la versión revisada.")

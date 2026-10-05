@@ -700,7 +700,11 @@ class GraphNodes:
             raise PublishError("La operación aprobada no corresponde a una HU.")
         if target.origin_kind == "story" and target.origin_key:
             source, epic = target.origin_key, parent_key  # PA-38: nunca vincular a su épica
-            plan = [{"op": "update_story", "project": project, "key": source}]
+            plan = [
+                {"op": "update_story", "project": project, "key": source},
+                # PA-319: `update_story` siempre deja el comentario con la tabla de cambios.
+                {"op": "comment", "key": source},
+            ]
         else:
             source = "(HU nueva)"
             epic = target.origin_key if target.origin_kind == "epic" else None

@@ -29,7 +29,8 @@ export function PhaseQ({ phase, name, size = 26 }: PhaseQProps) {
         state={`phase-${phase}`}
       />
       <span aria-hidden="true">
-        <b className={styles.phaseStrong}>Fase {phase} de 4</b> · {label}
+        <b className={styles.phaseStrong}>Fase {phase} de 4</b>
+        <span className={styles.phaseName}> · {label}</span>
       </span>
     </div>
   )

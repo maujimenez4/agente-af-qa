@@ -46,7 +46,7 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
               aria-controls={panelId}
               onClick={() => setOpen(!open)}
             >
-              {open ? 'Ocultar el panel' : 'Mostrar el panel'}
+              <span className={styles.toggleLabel}>{open ? 'Ocultar el panel' : 'Mostrar el panel'}</span>
             </Button>
           )}
         </header>

@@ -75,7 +75,7 @@ describe('Resultado tras aprobar', () => {
     expect(within(region).getByRole('list', { name: 'Operaciones hechas en Jira' })).toBeInTheDocument()
     expect(within(region).getByText('Claves en Jira: DEMO-3')).toBeInTheDocument()
     expect(within(region).queryByText(/Modo de prueba activo/)).toBeNull()
-    expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La API aún no da la dirección de Jira para abrir la HU (PA-318).')
+    expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La dirección de Jira no está disponible.')
     expect(within(region).getByRole('button', { name: 'Ver la memoria' })).toHaveAttribute('aria-disabled', 'true')
     expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAttribute('aria-disabled', 'true')
   })

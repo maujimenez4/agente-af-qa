@@ -13,7 +13,7 @@
 - **Seguridad:** `safeHref` y una regla de ESLint que lo exige en todo `href` o `src` dinámico (PA-308).
 - **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página, sin el carril cortado y sin títulos cortados (`DESIGN-DECISIONS.md` §2).
 - **Revisar casos en el navegador:** `?simular=huella|aprobacion-rechazada|no-en-revision|publicado|parcial` (solo `dev:mock`).
-- **Disponible pronto:** admin, Revisar la calidad, QA, *Editar a mano*, auditoría, historial, *Abrir en Jira*, *Ver la memoria* y *Pedir sus pruebas a QA*.
+- **Disponible pronto:** admin, Revisar la calidad, QA, *Editar a mano*, auditoría, historial, *Ver la memoria* y *Pedir sus pruebas a QA*.
 
 ## API real
 La prueba la hace **la principal en su equipo**, entre el 2026-10-05 y el 2026-10-06, con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única: `API-LOCAL.md` solo enlaza a ella. En este equipo no se monta el backend. Los fallos llegan como comentarios en la PR.
@@ -30,8 +30,7 @@ Con la CPU ocupada, alguna prueba de Origen o Generando puede agotar su tiempo. 
 - **De la principal:**
   - PA-311 (validar el login) y PA-315 (citas por CA y RN);
   - corregir el ejemplo de `jira_baseline`: incluye el CA-02, que sus diffs dan por nuevo.
-  - PA-318, PA-319 y PA-324 las ha resuelto en la PR: falta aplicarlas aquí (paso 3).
-- **Del área B:** PA-300 (UI.md, con dos diferencias: *Volver a la propuesta* en el recibo y el aviso de modo de prueba solo en simulación), PA-304, PA-310 y PA-312.
+- **Del área B:** PA-300 (UI.md, con dos diferencias: *Volver a la propuesta* en el recibo y el aviso de modo de prueba solo en simulación), PA-304, PA-310, PA-312 y PA-325 (enlazar también las claves publicadas y las de Impacto).
 
 ## Siguiente (orden acordado el 2026-10-05)
 1. Fusionar `origin/PreProduccion`, `npm run api:types` y `npm run api:check`.

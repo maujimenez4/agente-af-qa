@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react'
+import { api } from '../../api/client.ts'
+import { safeHref } from '../../security/safeHref.ts'
 import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
-import { SoonButton } from '../../components/Button/index.ts'
+import { ButtonLink, SoonButton } from '../../components/Button/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
 import { ResultQ } from '../../components/QMark/index.ts'
@@ -9,7 +12,7 @@ import { Workspace } from '../../components/Workspace/index.ts'
 import { proposalVersions } from '../Iterate/iterateText.ts'
 import { receiptOperations } from '../Receipt/receiptText.ts'
 import styles from './Result.module.css'
-import { approvedLine, OUTCOME_TEXTS, outcomeOf } from './resultText.ts'
+import { approvedLine, jiraIssueUrl, OUTCOME_TEXTS, outcomeOf } from './resultText.ts'
 
 export interface ResultScreenProps {
   conversation: ConversationOut & { result: PublishOutcome }
@@ -19,7 +22,7 @@ export interface ResultScreenProps {
 const SOON = {
   audit: 'El registro de auditoría aún no está en el contrato de la API.',
   history: 'El historial es solo para administración y llega después del punto de control de la demo.',
-  jira: 'La API aún no da la dirección de Jira para abrir la HU (PA-318).',
+  jira: 'La dirección de Jira no está disponible.',
   memory: 'La pestaña Memoria llega después del punto de control de la demo.',
   qa: 'Pasar la HU a QA llega en el paso siguiente del plan.',
 }
@@ -36,6 +39,7 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
   const done = outcome === 'published'
   const listLabel = { simulated: 'Operaciones que se habrían hecho', published: 'Operaciones hechas en Jira', partial: 'Operaciones aprobadas' }[outcome]
   const key = result.plan.find((item) => item.op === 'update_story')?.key ?? result.published_keys[0]
+  const jiraUrl = jiraIssueUrl(useJiraBrowseUrl(outcome !== 'simulated'), key)
 
   return (
     <Workspace title={conversationTitle(conversation.title)} phase={texts.phase} phaseName={texts.phaseName}>
@@ -90,7 +94,13 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
             </>
           ) : (
             <>
-              <SoonButton label={key ? `Abrir ${key} en Jira` : 'Abrir en Jira'} note={SOON.jira} />
+              {jiraUrl && key ? (
+                <ButtonLink href={safeHref(jiraUrl)} external>
+                  Abrir {key} en Jira
+                </ButtonLink>
+              ) : (
+                <SoonButton label={key ? `Abrir ${key} en Jira` : 'Abrir en Jira'} note={SOON.jira} />
+              )}
               <SoonButton label="Ver la memoria" note={SOON.memory} />
               <SoonButton label="Pedir sus pruebas a QA" variant="primary" note={SOON.qa} />
             </>
@@ -101,4 +111,23 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
       </section>
     </Workspace>
   )
+}
+
+/** `SettingsOut.jira_browse_url` (PA-318). Solo se pide si hay algo que abrir en Jira; si falla, no hay enlace. */
+function useJiraBrowseUrl(needed: boolean): string | null {
+  const [browseUrl, setBrowseUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!needed) return
+    let cancelled = false
+    api
+      .settings()
+      .then((settings) => {
+        if (!cancelled) setBrowseUrl(settings.jira_browse_url ?? null)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [needed])
+  return browseUrl
 }

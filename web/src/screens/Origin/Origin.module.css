@@ -1,0 +1,155 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q-md);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+}
+
+.label {
+  flex-grow: 1;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.operation {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.hint {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.textarea {
+  padding: var(--space-2) 10px;
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  resize: vertical;
+  font-size: var(--text-sm);
+}
+
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0 0 6px;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.source {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--space-2) 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.source:hover {
+  background: var(--color-bg);
+}
+
+/* Decisión 15: casillas naranjas para elegir fuentes. */
+.source input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+}
+
+.source[data-required] {
+  cursor: default;
+}
+
+.sourceText {
+  display: flex;
+  flex-direction: column;
+}
+
+.code {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.generate {
+  width: 100%;
+}
+
+.note {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Presupuesto de tokens (UI.md §4.3, PA-102): texto, barra y avisos. */
+.budget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.budget[data-warning] {
+  border-color: var(--color-warn-border);
+  background: var(--color-warn-bg);
+}
+
+.budgetLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.budgetTrack {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-bg);
+}
+
+.budgetValue {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-primary);
+  transition: width var(--dur-base) var(--ease);
+}
+
+.budget[data-warning] .budgetValue {
+  background: var(--color-warn);
+}
+
+.budgetNote {
+  font-size: var(--text-2xs);
+  color: var(--color-warn-text);
+}

@@ -1,0 +1,163 @@
+/* Estado vacío, cargando y error (lienzo Estados.dc.html, UI.md §7). */
+.empty {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-6);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.loading {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+}
+
+/* Lista de procesos con marcas de 22 px (decisión 5). */
+.steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.mark {
+  width: var(--step-mark);
+  height: var(--step-mark);
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-3xs);
+  font-weight: var(--weight-bold);
+}
+
+.step[data-state='pending'] .mark {
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.step[data-state='running'] {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.step[data-state='running'] .mark {
+  background: var(--color-text);
+  color: var(--color-surface);
+}
+
+/* Decisión 7: el progreso hecho es naranja. */
+.step[data-state='done'] {
+  color: var(--color-text);
+}
+
+.step[data-state='done'] .mark {
+  background: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* Tarjeta de error */
+.error {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid;
+  border-radius: var(--radius-xl);
+}
+
+.error[data-tone='error'] {
+  background: var(--color-error-bg);
+  border-color: var(--color-error-border);
+  color: var(--color-error-text);
+}
+
+.error[data-tone='warning'] {
+  background: var(--color-warn-bg);
+  border-color: var(--color-warn-border);
+  color: var(--color-warn-text);
+}
+
+.error[data-tone='neutral'] {
+  background: var(--color-surface);
+  border-color: var(--color-border-soft);
+  color: var(--color-text);
+}
+
+.errorTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.errorMessage {
+  font-size: var(--text-sm);
+}
+
+.errorNote {
+  font-size: var(--text-xs);
+  opacity: 0.85;
+}
+
+.errorActions {
+  margin-top: var(--space-1);
+}
+
+/* Aviso (modo de prueba) */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  border: var(--border-width) solid var(--color-warn-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  font-size: var(--text-xs);
+}
+
+/* Skeleton del panel mientras se genera */
+.skeleton {
+  display: grid;
+  gap: 10px;
+}
+
+.skeletonLine {
+  height: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-border-soft);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

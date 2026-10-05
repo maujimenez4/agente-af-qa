@@ -1,0 +1,106 @@
+/* Compositor (lienzo MixtoInicio .composer): borde #93A0AB, radio 16 y anillo de foco propio. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  transition:
+    border-color var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease);
+}
+
+.composer:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--ring-composer);
+}
+
+.composer[data-disabled] {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+
+.textarea {
+  width: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.textarea:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+/* Botón de herramienta (lienzo .tool) */
+.tool {
+  height: var(--control-md);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Proyecto (lienzo .proj) */
+.project {
+  height: var(--control-md);
+  padding: 0 10px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.project:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.projectName {
+  color: var(--color-text-muted);
+}
+
+/* Modelo de solo lectura hasta Iterar (DESIGN-DECISIONS.md §4 bis). */
+.model {
+  height: var(--control-md);
+  padding: 0 10px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

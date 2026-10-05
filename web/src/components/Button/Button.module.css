@@ -1,0 +1,107 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-btn);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--dur-base) var(--ease),
+    color var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
+}
+
+/* Microinteracción: −6 % de brillo al pulsar (UI.md §8). */
+.button:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.button:disabled {
+  background: var(--color-border-soft);
+  border-color: var(--color-border-soft);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* Tamaños: 44, 36 y 28 px. */
+.lg {
+  height: var(--control-lg);
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.md {
+  height: var(--control-md);
+  padding: 0 var(--space-3);
+  border-radius: 9px;
+  font-size: var(--text-xs);
+}
+
+.sm {
+  height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+}
+
+/* Variantes */
+.primary {
+  border: var(--border-width) solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.secondary {
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.ghost {
+  border: var(--border-width) solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.ghost:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
+.danger {
+  border: var(--border-width) solid var(--color-error);
+  background: var(--color-surface);
+  color: var(--color-error-text);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--color-error-bg);
+}
+
+/* Solo icono: cuadrado del alto del tamaño. */
+.iconOnly {
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.iconOnly.md {
+  border-radius: var(--radius-md);
+}
+
+/* Acción que aún no está en la demo: atenuada y sin efecto (aria-disabled, SoonButton). */
+.soon[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

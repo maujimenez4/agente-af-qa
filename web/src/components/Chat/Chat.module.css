@@ -1,0 +1,129 @@
+/* Conversación (lienzo MixtoOrigen / MixtoIterar). */
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.user {
+  align-self: flex-end;
+  max-width: 72%;
+  padding: 10px 14px;
+  border-radius: var(--radius-q);
+  background: var(--color-bg);
+  font-size: var(--text-body);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-q-sm);
+  background: var(--color-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.body {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--text-body);
+  line-height: var(--leading-relaxed);
+}
+
+/* HU encontrada o reconocida (lienzo .found) */
+.found {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 14px;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q-md);
+}
+
+.foundText {
+  flex-grow: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.foundTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.muted {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Operación fijada (lienzo .fixed) */
+.fixed {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--space-3) 14px;
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-q-md);
+  background: var(--color-primary-tint);
+  font-size: var(--text-sm);
+}
+
+.fixedIcon {
+  margin-top: 2px;
+  color: var(--color-primary-text);
+}
+
+.fixedText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rise {
+  animation: rise var(--dur-slow) var(--ease) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Evento del sistema (lienzo .event): píldora gris con icono. */
+.event {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--color-bg);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

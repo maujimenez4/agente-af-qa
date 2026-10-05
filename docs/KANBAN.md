@@ -9,7 +9,7 @@
 
 | ⬜ Backlog | 🔄 En curso | 👀 En revisión | ✅ Hecho | ⛔ Bloqueado |
 |---|---|---|---|---|
-| T-36, T-39 … T-46, T-57 | T-56 | — | T-01 … T-35, T-37, T-47 … T-55, T-58, T-59 | T-38 (R-01) |
+| T-36, T-39, T-41 … T-46, T-57 | T-40, T-56 | — | T-01 … T-35, T-37, T-47 … T-55, T-58, T-59 | T-38 (R-01) |
 
 ---
 
@@ -151,7 +151,7 @@
 | T-37 | Registro de ejecución por CP (transiciones de estado y comentario de evidencia) | A | RF-28 | ✅ (cubierta por T-47; R-01 cerrada con la opción A) |
 | T-38 | Propuesta de defecto vinculado ante un fallo | A | RF-29 | ⛔ (fuera del MVP: R-01 cerrada con la opción A) |
 | T-39 | Probar la aceleración iGPU con Vulkan y comparar calidad local frente a nube por tarea (Could) | A | RNF-07 | ⬜ |
-| T-40 | Langfuse y panel de métricas por modelo y tarea | A/B | RNF-24 | ⬜ |
+| T-40 | Langfuse y panel de métricas por modelo y tarea | A/B | RNF-24 | 🔄 (sesión Modelos, `ses-langfuse`: Langfuse Cloud y contenido con el interruptor `LANGFUSE_CAPTURE_CONTENT`, decisiones del usuario 2026-10-05) |
 | T-41 | Lenguaje natural a JQL (solo lectura, validada) | A | RF-50 | ⬜ |
 | T-42 | Ingesta automática desde carpeta | B | RF-49 | ⬜ |
 | T-43 | Gestión de documentos: listar, eliminar y reindexar | B | RF-13 | ⬜ |

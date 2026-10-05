@@ -36,7 +36,7 @@ describe('Inicio (Mixta 1, UI.md §4.1)', () => {
   it('la ayuda del compositor cambia con el flujo', async () => {
     await openHome()
     await userEvent.click(flowCard('Evolucionar una HU'))
-    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU, por ejemplo DEMO-3, y qué quieres cambiar.' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU, por ejemplo DEMO-3, y qué quieres cambiar. (Intro para enviar, Mayús+Intro para nueva línea)' })).toBeInTheDocument()
   })
 
   it('muestra el proyecto preseleccionado, el modelo de solo lectura y el aviso de simulación', async () => {

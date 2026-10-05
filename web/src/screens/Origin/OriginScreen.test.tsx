@@ -115,7 +115,7 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     const bodies = createBodies()
     await startWithText('Renovar un préstamo desde la app')
     await userEvent.click(await screen.findByRole('button', { name: 'Evolucionar DEMO-3' }))
-    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional)' }), 'También desde el correo de aviso')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional) (Intro para enviar, Mayús+Intro para nueva línea)' }), 'También desde el correo de aviso')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     expect(within(screen.getByRole('log')).getByText('También desde el correo de aviso')).toBeInTheDocument()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))

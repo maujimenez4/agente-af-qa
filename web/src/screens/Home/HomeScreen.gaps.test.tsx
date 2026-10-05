@@ -54,7 +54,7 @@ describe('Inicio: textos y flujos por permisos (UI.md §3, §4.1)', () => {
       .getAllByRole('button')
       .filter((button) => button.getAttribute('aria-pressed') === 'true')
     expect(pressed.map((button) => button.textContent)).toEqual([expect.stringContaining('Revisar la calidad de una HU')])
-    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU que quieres revisar, por ejemplo DEMO-4.' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU que quieres revisar, por ejemplo DEMO-4. (Intro para enviar, Mayús+Intro para nueva línea)' })).toBeInTheDocument()
   })
 
   it('test_qa_clicking_disabled_story_flow_keeps_tests', async () => {
@@ -63,7 +63,7 @@ describe('Inicio: textos y flujos por permisos (UI.md §3, §4.1)', () => {
     await userEvent.click(flowCard('Evolucionar una HU'))
     expect(flowCard('Preparar pruebas')).toHaveAttribute('aria-pressed', 'true')
     expect(flowCard('Evolucionar una HU')).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU para la que quieres pruebas, por ejemplo DEMO-3.' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Escribe la clave de la HU para la que quieres pruebas, por ejemplo DEMO-3. (Intro para enviar, Mayús+Intro para nueva línea)' })).toBeInTheDocument()
   })
 
   it('test_qa_all_story_flows_disabled_with_hint', async () => {

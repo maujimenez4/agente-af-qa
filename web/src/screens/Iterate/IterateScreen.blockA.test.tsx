@@ -26,7 +26,7 @@ const jiraButton = () => within(versions()).getByRole('button', { name: 'Versió
 
 async function askChange(change = 'Cambio ficticio') {
   mockDb.stepDelayMs = SLOW_STEP_MS
-  await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), change)
+  await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), change)
   await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 }
 
@@ -139,7 +139,7 @@ describe('Iterar · tarjeta de error de /retry (bloque A)', () => {
     mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json(EXAMPLE)))
     await userEvent.click(within(alert).getByRole('button', { name: 'Actualizar' }))
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
-    expect(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' })).toBeEnabled()
+    expect(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' })).toBeEnabled()
   })
 
   it('el titular de «Generación detenida» lleva el tono neutro y «Reintentar»', async () => {

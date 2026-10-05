@@ -10,6 +10,13 @@
   gap: 6px;
 }
 
+/* «Nueva conversación», el buscador y la nota del pie no encogen: con una lista larga solo se desplaza .groups. */
+.newButton,
+.search,
+.note {
+  flex-shrink: 0;
+}
+
 .newButton {
   height: var(--control-lg);
   margin-bottom: var(--space-1);

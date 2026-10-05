@@ -1,5 +1,5 @@
 // Presupuesto de tokens del panel «Antes de generar» (UI.md §4.3, PA-102). Datos sintéticos (DEMO, af-demo).
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,7 +12,8 @@ async function evolveDemo3() {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
   render(<App />)
   await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
-  await userEvent.type(screen.getByRole('textbox'), 'Renovar un préstamo desde la app')
+  await userEvent.click(screen.getByRole('textbox'))
+  await userEvent.paste('Renovar un préstamo desde la app')
   await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Evolucionar DEMO-3' }))
   await within(panel()).findByRole('checkbox', { name: /HU de origen/ })
@@ -87,10 +88,12 @@ describe('Origen · presupuesto de tokens (PA-102)', () => {
       if (new URL(request.url).pathname === '/api/v1/start/sources') calls += 1
     })
     const box = within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ })
-    await userEvent.click(box)
-    await userEvent.click(box)
-    await userEvent.click(box)
+    // Tres clics en el mismo instante: con userEvent, en un equipo cargado se separan más que el antirrebote.
+    fireEvent.click(box)
+    fireEvent.click(box)
+    fireEvent.click(box)
     await waitFor(() => expect(calls).toBe(1))
+    expect(box).not.toBeChecked()
   })
 
   it('avisa de las fuentes que no caben', async () => {

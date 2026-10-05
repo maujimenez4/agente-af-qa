@@ -169,6 +169,7 @@ function WorkZone({ user }: { user: UserOut }) {
               setView({ name: 'ready', conversation })
               reload()
             }}
+            onReviewReady={reload}
             onRetry={() => {
               if (view.request) {
                 setView({ name: 'origin', request: view.request })

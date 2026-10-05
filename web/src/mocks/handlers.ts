@@ -37,6 +37,7 @@ import type { components } from '../api/schema'
 
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
+import { mockSuiteConversation } from './qaSuite.ts'
 
 const API = '/api/v1'
 
@@ -396,7 +397,7 @@ export function createHandlers(db: MockDb) {
           feedback: body.feedback,
           updated_at: now,
         }
-        db.runs.set(id, { conversation, script: generationScript() })
+        db.runs.set(id, { conversation, script: generationScript(), storyKey: body.origin.key ?? undefined })
         const current = db.session
         const summary: ConversationSummary = {
           thread_id: id,
@@ -494,9 +495,13 @@ export function createHandlers(db: MockDb) {
               controller.enqueue(encoder.encode(sse(reviewing ? 'review_ready' : 'result', done)))
             } else if (run.conversation.state === 'generating') {
               await delay(db.stepDelayMs)
+              const base = example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200')
+              // QA: la suite sintética (PA-326: el contrato aún no trae una revisión de QA de ejemplo).
               const reviewed = run.previous
                 ? nextVersion(run.previous, run.pendingFeedback ?? '')
-                : example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200')
+                : run.conversation.mode === 'qa'
+                  ? mockSuiteConversation(base, run.storyKey ?? 'DEMO-3')
+                  : base
               run.previous = undefined
               run.pendingFeedback = undefined
               run.conversation = {
@@ -645,7 +650,7 @@ export function createHandlers(db: MockDb) {
           state: 'generating',
           progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
         }
-        db.runs.set(id, { conversation, script: generationScript() })
+        db.runs.set(id, { conversation, script: generationScript(), storyKey: handoff?.story_key ?? undefined })
         db.conversations.unshift({
           ...example<ConversationSummary[]>('GET /api/v1/conversations 200')[0],
           thread_id: id,

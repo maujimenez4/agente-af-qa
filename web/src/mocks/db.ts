@@ -102,6 +102,8 @@ export interface MockRun {
   /** Al iterar: la conversación en revisión de la que parte la versión nueva y el cambio pedido. */
   previous?: ConversationOut
   pendingFeedback?: string
+  /** QA: la HU de la que se preparan las pruebas (la suite sintética la usa como `story_jira_key`). */
+  storyKey?: string
   /** POST /cancel: el SSE se detiene antes del siguiente paso (PA-314). */
   cancel?: boolean
   /** POST /approve: la revisión aprobada y la huella recibida; el SSE da `result` o `review_ready` con error. */

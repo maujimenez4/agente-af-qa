@@ -26,6 +26,7 @@ from core.container import Container
 from core.handoff import HandoffStore
 from core.logging import get_logger
 from core.quality import InMemoryQualityReviewStore, QualityReviewStore
+from core.tracing import NullTracer, Tracer
 from core.usage import UsageQueries
 
 log = get_logger("api.runtime")
@@ -152,6 +153,8 @@ class Runtime:
     # PA-305: lectura de `llm_usage` (T-32) y umbral de aviso diario.
     usage: UsageQueries | None = None
     token_warning: int = 180_000
+    # T-40: trazas del proceso (`Container.tracer`); se envía lo pendiente al cerrar.
+    tracer: Tracer = field(default_factory=NullTracer)
 
     def submit(self, fn: Callable[[], None]) -> None:
         if self.run_inline:
@@ -166,6 +169,7 @@ class Runtime:
     def shutdown(self) -> None:
         if self.executor is not None:
             self.executor.shutdown(wait=False, cancel_futures=True)
+        self.tracer.shutdown()  # con tope de tiempo; nunca falla
 
 
 def new_runtime(
@@ -249,4 +253,5 @@ def build_runtime() -> Runtime:
     if interrupted := rt.quality.interrupt_running():
         log.info("revisiones de calidad interrumpidas", action="review_quality", count=interrupted)
     rt.token_warning = config.models.limits.daily_token_warning
+    rt.tracer = base.tracer
     return rt

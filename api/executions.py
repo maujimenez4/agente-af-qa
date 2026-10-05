@@ -7,6 +7,7 @@ existe o es de otra persona.
 """
 
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from typing import Any
 
 from langgraph.types import Command
@@ -27,6 +28,8 @@ from api.service import pending_payload
 from core.conversations import THREAD_ID, new_conversation_config
 from core.graph.execution import KIND, initial_execution_state
 from core.permissions import Permission, require
+from core.tracing import Operation, operation_name, with_trace_callbacks
+from core.tracing import operation as traced_operation
 
 NOT_YOURS = "No existe ese registro o no es tuyo."
 CANNOT_CONTINUE = "Este registro no puede continuar. Empieza uno nuevo; nada se ha escrito en Jira."
@@ -55,8 +58,27 @@ def create(rt: Runtime, ws: Workspace, user: User, story_key: str) -> str:
     require(user, PERMISSION)
     config = new_conversation_config(user.username)
     thread_id = str(config["configurable"]["thread_id"])  # type: ignore[index]
-    _graph(ws).invoke(initial_execution_state(user.username, story_key), config)
+    with _traced(ws, user, thread_id, "start", story_key) as trace:
+        _graph(ws).invoke(
+            initial_execution_state(user.username, story_key), with_trace_callbacks(config, trace)
+        )
     return thread_id
+
+
+def _traced(
+    ws: Workspace, user: User, thread_id: str, operation: str, story_key: str | None = None
+) -> AbstractContextManager[Operation | None]:
+    """T-40: traza de una operación del registro de la ejecución."""
+    project = story_key.split("-", 1)[0] if story_key else None
+    return traced_operation(
+        ws.container.tracer,
+        f"ejecucion · {operation_name(operation)}",
+        session_id=thread_id,
+        user_id=user.username,
+        mode="qa",
+        flow="execution",
+        project=project,
+    )
 
 
 def _snapshot(ws: Workspace, user: User, thread_id: str) -> Any:
@@ -87,14 +109,16 @@ def _resume(
     rt: Runtime, ws: Workspace, user: User, thread_id: str, operation: str, answer: dict[str, Any]
 ) -> None:
     require(user, PERMISSION)
-    _snapshot(ws, user, thread_id)
+    story_key = (_snapshot(ws, user, thread_id).values or {}).get("story_key")
     run = _run(rt, thread_id, user)
     if run.running or pending_payload(_graph(ws).get_state(_config(thread_id, user))) is None:
         raise NOT_IN_REVIEW_EXECUTION
     if not rt.execution_runs.begin(run, operation):
         raise NOT_IN_REVIEW_EXECUTION
     try:
-        _graph(ws).invoke(Command(resume=answer), _config(thread_id, user))
+        with _traced(ws, user, thread_id, operation, story_key) as trace:
+            config = with_trace_callbacks(_config(thread_id, user), trace)
+            _graph(ws).invoke(Command(resume=answer), config)
     except Exception as exc:
         error = to_api_error(exc)
         rt.execution_runs.finish(run, error.body)

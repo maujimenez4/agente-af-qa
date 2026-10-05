@@ -9,9 +9,13 @@ lo conserva y lo pasa a `build_llm_provider(router=...)`: `set_override` afecta 
 llamadas del proveedor compuesto.
 """
 
+import atexit
+import logging
+import threading
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
+from urllib.parse import urlparse
 
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import SecretStr
@@ -37,12 +41,22 @@ from core.graph.builder import postgres_checkpointer
 from core.handoff import SqlHandoffStore
 from core.health import ConnectionTester, database_check
 from core.impact.versions import StoryVersionStore
+from core.logging import get_logger
 from core.memory.generator import LLMMemoryGenerator
 from core.projects import SqlLastProjectStore
 from core.rag.prompts import load_prompt
+from core.tracing import (
+    LLMTraceObserver,
+    NullTracer,
+    Tracer,
+    TracingVectorStore,
+    secret_mask,
+)
 from schemas.artifact import Artifact
 from schemas.memory import Memory
 from schemas.test_case import ExecutionStatus, TestSuite
+
+log = get_logger(__name__)
 
 ProviderFactory = Callable[[ModelChoice], LLMProvider]
 
@@ -78,7 +92,69 @@ def build_llm_provider(
         router.chain,
         recorder,
         daily_token_warning=config.models.limits.daily_token_warning,
+        observer=LLMTraceObserver(),  # T-40: sin operación trazada en curso no hace nada
     )
+
+
+_TRACER_LOGGED = False
+_TRACERS: dict[tuple[str, str, str, bool], Tracer] = {}
+_TRACERS_LOCK = threading.Lock()
+
+
+def build_tracer(settings: Settings) -> Tracer:
+    """Trazas en Langfuse Cloud (T-40) si están las dos claves; si no, `NullTracer`: no hace
+    nada, no llama a la red y lo dice una sola vez en el log. Si el SDK no arranca, tampoco.
+
+    Uno por proceso y configuración (Streamlit compone un contenedor por sesión); al cerrar el
+    proceso se envía lo pendiente con tope de tiempo (`atexit`).
+    """
+    global _TRACER_LOGGED
+    public, private = settings.langfuse_public_key, settings.langfuse_secret_key
+    if not (public and private and public.get_secret_value() and private.get_secret_value()):
+        if not _TRACER_LOGGED:
+            _TRACER_LOGGED = True
+            log.info("trazas de Langfuse desactivadas: faltan las claves", action="tracing")
+        return NullTracer()
+    if not _secure_host(settings.langfuse_host):
+        log.warning("trazas de Langfuse desactivadas: LANGFUSE_HOST sin https", action="tracing")
+        return NullTracer()
+    key = (  # también la secreta: rotarla crea otro trazador
+        public.get_secret_value(),
+        private.get_secret_value(),
+        settings.langfuse_host,
+        settings.langfuse_capture_content,
+    )
+    with _TRACERS_LOCK:
+        if key not in _TRACERS:
+            _TRACERS[key] = _langfuse_tracer(settings, public, private)
+        return _TRACERS[key]
+
+
+def _secure_host(host: str) -> bool:
+    """Las claves viajan en cada envío: solo `https`, salvo un Langfuse local."""
+    parsed = urlparse(host.strip())
+    local = parsed.hostname in {"localhost", "127.0.0.1"}
+    return parsed.scheme == "https" or (parsed.scheme == "http" and local)
+
+
+def _langfuse_tracer(settings: Settings, public: SecretStr, private: SecretStr) -> Tracer:
+    # Sus avisos de depuración podrían incluir el contenido de los spans sin enmascarar.
+    logging.getLogger("langfuse").setLevel(logging.WARNING)
+    try:
+        from adapters.observability.langfuse import LangfuseTracer
+
+        tracer = LangfuseTracer(
+            public_key=public,
+            secret_key=private,
+            host=settings.langfuse_host,
+            capture_content=settings.langfuse_capture_content,
+            mask=secret_mask(settings.secret_values()),
+        )
+    except Exception as exc:  # las trazas nunca impiden arrancar
+        log.warning("trazas de Langfuse no disponibles", action="tracing", error=type(exc).__name__)
+        return NullTracer()
+    atexit.register(tracer.shutdown)
+    return tracer
 
 
 def build_usage_recorder(config: AppConfig) -> SqlUsageRecorder:
@@ -260,7 +336,7 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
         test_management=build_test_management(config.settings),  # T-30
         llm=llm,
         embeddings=build_embeddings(config),
-        vector_store=build_vector_store(config),
+        vector_store=TracingVectorStore(build_vector_store(config)),  # T-40: pasos del RAG
         memory_generator=LLMMemoryGenerator(llm),  # T-33
         auth=build_auth(config),
         audit=build_audit(config),
@@ -269,6 +345,7 @@ def build_app_container(config: AppConfig, *, router: ModelRouter | None = None)
         last_projects=build_last_projects(config),
         conversations=build_conversations(config),
         require_actor=True,  # T-52: sin persona autenticada en la config no se actúa
+        tracer=build_tracer(config.settings),  # T-40
     )
 
 

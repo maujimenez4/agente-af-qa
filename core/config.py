@@ -215,6 +215,14 @@ class Settings(BaseSettings):
     postgres_port: PositiveInt = 5432
     database_url: SecretStr | None = None
 
+    # Trazas en Langfuse Cloud (T-40, RNF-24): sin las dos claves, desactivado (sin red).
+    langfuse_public_key: SecretStr | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_host: str = "https://cloud.langfuse.com"  # región de la UE
+    # Con `true`, la traza lleva prompts, contexto del RAG y respuestas (enmascarados); si no,
+    # solo métricas (modelo, tarea, nodo, tokens, latencia y errores).
+    langfuse_capture_content: bool = False
+
     # Aplicación
     app_env: str = "development"
     log_level: str = "INFO"

@@ -27,6 +27,7 @@ from core.config import ROOT_DIR, AppConfig, ConfigError
 from core.conversations import ConversationStore, InMemoryConversationStore
 from core.logging import configure_logging
 from core.projects import InMemoryLastProjectStore, LastProjectStore, ProjectService
+from core.tracing import NullTracer, Tracer
 from schemas.artifact import Artifact
 
 DEFAULT_MEMORY_DIR = ROOT_DIR / "data" / "memory"
@@ -66,6 +67,8 @@ class Container:
     conversations: ConversationStore = field(default_factory=InMemoryConversationStore)
     # T-52: en la app, toda invocación del grafo lleva `configurable.user` (si falta, falla).
     require_actor: bool = False
+    # T-40: trazas de las operaciones (Langfuse); sin claves, `NullTracer` (no hace nada).
+    tracer: Tracer = field(default_factory=NullTracer)
 
     def __post_init__(self) -> None:
         # El registro de aprobaciones persiste en el mismo almacén de estado del contenedor.
@@ -113,6 +116,7 @@ def build_container(
     last_projects: LastProjectStore | None = None,
     conversations: ConversationStore | None = None,
     require_actor: bool = False,
+    tracer: Tracer | None = None,
 ) -> Container:
     """Compone el contenedor. Sin adaptadores reales todavía, cada dependencia es obligatoria."""
     if config is not None:
@@ -147,4 +151,5 @@ def build_container(
         last_projects=last_projects or InMemoryLastProjectStore(),
         conversations=conversations or InMemoryConversationStore(),
         require_actor=require_actor,
+        tracer=tracer or NullTracer(),
     )

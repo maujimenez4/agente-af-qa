@@ -33,6 +33,7 @@ from core.guided_start import GuidedStart, StartProposal
 from core.permissions import Permission, require
 from core.projects import ISSUE_KEY, normalize_issue_key, normalize_project_key, project_of
 from core.quality import QualityReviewer
+from core.tracing import operation as traced_operation
 
 log = structlog.get_logger(__name__)
 
@@ -275,7 +276,15 @@ def view_issue(container: Container, user: User, key: str) -> IssueOut:
 
 
 def review_quality(container: Container, user: User, key: str) -> QualityOut:
-    review = QualityReviewer(container).review(user, key)  # exige su permiso (REVIEW_PERMISSION)
+    with traced_operation(  # T-40: la única herramienta que llama al LLM
+        container.tracer,
+        "revisar_calidad",
+        user_id=user.username,
+        mode="mcp",
+        flow="review",
+        project=_project_or_none(key),
+    ):
+        review = QualityReviewer(container).review(user, key)  # exige su permiso
     report = review.report
     return QualityOut(
         key=review.jira_key,
@@ -297,6 +306,14 @@ def review_quality(container: Container, user: User, key: str) -> QualityOut:
         model=f"{review.provider}/{review.model}",
         prompt_version=review.prompt_version,
     )
+
+
+def _project_or_none(raw_key: str) -> str | None:
+    """Proyecto de la clave para la etiqueta de la traza; `None` si la clave no es válida."""
+    try:
+        return project_of(normalize_issue_key(raw_key))
+    except ValueError:
+        return None
 
 
 def context_sources(container: Container, user: User, key: str) -> SourcesOut:

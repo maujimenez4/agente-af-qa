@@ -37,7 +37,7 @@ def main() -> int:
     configure_logging(settings.log_level, secrets=settings.secret_values(), stream=sys.stderr)
     # Las bibliotecas HTTP registran URLs completas (con query string): solo avisos. `openai` y
     # `mcp` usan `httpx2`/`httpcore2`; el SDK de MCP configura el logging raíz a INFO en stderr.
-    for name in ("httpx", "httpcore", "httpx2", "httpcore2", "openai", "mcp"):
+    for name in ("httpx", "httpcore", "httpx2", "httpcore2", "openai", "mcp", "langfuse"):
         logging.getLogger(name).setLevel(logging.WARNING)
     username = (settings.mcp_user or "").strip()
     if not username:
@@ -52,7 +52,10 @@ def main() -> int:
     except Exception as exc:  # otros fallos pueden citar la conexión: solo el tipo
         print(f"{NO_COMPOSE} ({type(exc).__name__})", file=sys.stderr)
         return 1
-    build_server(container, user).run("stdio")
+    try:
+        build_server(container, user).run("stdio")
+    finally:
+        container.tracer.shutdown()  # T-40: envía las trazas pendientes (tope de 2 s)
     return 0
 
 

@@ -9,10 +9,12 @@ import { mockDb, mockServer } from '../../mocks/node.ts'
 
 /** Pasos del SSE simulado lo bastante lentos para pulsar *Detener* a mitad. */
 const SLOW_STEP_MS = 150
+/** Pasos aún más largos para ver el estado intermedio «Deteniendo…». */
+const STOPPING_STEP_MS = 1500
 
-async function generateFromHome() {
+async function generateFromHome(stepMs = SLOW_STEP_MS) {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
-  mockDb.stepDelayMs = SLOW_STEP_MS
+  mockDb.stepDelayMs = stepMs
   render(<App />)
   await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
   await userEvent.type(screen.getByRole('textbox'), 'Renovar un préstamo desde la app')
@@ -37,12 +39,15 @@ afterEach(() => mockServer.events.removeAllListeners())
 describe('Generando · Detener y Reintentar', () => {
   it('«Detener» pide /cancel, dice «Deteniendo…» y termina en «Generación detenida» con el mensaje de la API', async () => {
     const calls = posts()
-    await generateFromHome()
+    // Pasos largos: la API para al terminar el paso en curso, así «Deteniendo…» se ve antes del final.
+    await generateFromHome(STOPPING_STEP_MS)
     await userEvent.click(screen.getByRole('button', { name: 'Detener la generación' }))
-    expect(await screen.findByRole('button', { name: 'Deteniendo la generación…' })).toBeDisabled()
-    expect(screen.getByText('Deteniendo la generación…', { selector: '*:not(button)' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Deteniendo la generación…' })).toBeDisabled()
+      expect(screen.getByText('Deteniendo la generación…', { selector: '*:not(button)' })).toBeInTheDocument()
+    })
 
-    const alert = await screen.findByRole('alert')
+    const alert = await screen.findByRole('alert', {}, { timeout: STOPPING_STEP_MS * 3 })
     expect(within(alert).getByRole('heading', { name: 'Generación detenida' })).toBeInTheDocument()
     expect(alert).toHaveTextContent(CANCELLED_MESSAGE)
     expect(calls).toContain('cancel')

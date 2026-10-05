@@ -23,6 +23,9 @@ export default defineConfig(({ command, mode }) => {
       css: true,
       restoreMocks: true,
       unstubGlobals: true,
+      // Pruebas de pantalla con MSW y SSE simulado: con todos los núcleos ocupados se acercan a los 5 s
+      // por defecto. 15 s evita falsos fallos por carga sin ocultar un bloqueo real.
+      testTimeout: 15_000,
     },
   }
 })

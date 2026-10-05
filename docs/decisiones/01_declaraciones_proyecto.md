@@ -189,7 +189,7 @@ Leyenda: ✅ aprobado · 🔍 en revisión · ⏸ aplazado · **(PA)** Propuesta
 | RF-25 | Generar datos sintéticos coherentes con las reglas de negocio | EP-04 | v1.0 | Should | ✅ |
 | RF-26 | Generar la estrategia de pruebas de una HU o épica | EP-04 | v1.0 | Should | ✅ |
 | RF-27 | Identificar riesgos, dependencias y áreas de impacto | EP-04 | v1.0 | Should | ✅ |
-| RF-28 | Registrar resultados de ejecución por caso de prueba (estado y evidencia) | EP-04 | v1.0 | Should | ⬜ R-01 (A) |
+| RF-28 | Registrar resultados de ejecución por caso de prueba (estado y evidencia) | EP-04 | v1.0 | Should | ✅ (T-47, R-01 A) |
 | RF-29 | Proponer un defecto vinculado ante un caso fallido **(PA)** | EP-04 | v2.0 | Could | ⏸ R-01 (A) |
 | RF-30 | Publicar los artefactos de QA aprobados en Jira: CP como subtareas, estrategia y matriz como adjuntos (§6.2) | EP-04 | v1.0 | Must | ✅ |
 | RF-31 | Mostrar una vista previa del artefacto y de los cambios tal como quedarán en Jira | EP-05 | v1.0 | Must | ✅ |

@@ -1,107 +1,211 @@
 # Modelo C4 · Agente de IA de AF y QA
 
-Modelo C4 en tres niveles (contexto, contenedores y componentes), estado a 2026-10-02 tras la D-04 revisada. La fuente de verdad sigue siendo `docs/specs/SPEC-00-fundacional.md`; el contrato de la API está en `docs/api/openapi.yaml`. La vista simplificada está en `docs/arquitectura.md`.
+Modelo C4 en tres niveles, más una vista dinámica (estado a 2026-10-05). La vista simple para explicarlo está en `docs/arquitectura.md`. La fuente de verdad es `docs/specs/SPEC-00-fundacional.md`, y el contrato de la API, `docs/api/openapi.yaml`.
 
-## Nivel 1 · Contexto del sistema
+**Cómo leer los diagramas:** cada nivel amplía una caja del anterior. Se dibujan como diagramas de flujo con la notación y los colores de C4 (el tipo `C4` de Mermaid coloca mal las cajas).
+
+| Color | Elemento C4 |
+|---|---|
+| Azul oscuro | Persona |
+| Azul | Nuestro sistema o uno de sus contenedores |
+| Azul claro | Componente dentro de un contenedor |
+| Gris | Sistema externo |
+
+## Nivel 1 · Contexto
+
+Quién usa el sistema y con qué sistemas externos habla.
 
 ```mermaid
-C4Context
-    title Contexto · Agente de IA de Análisis Funcional y QA
+flowchart TB
+    af(["<b>Analista funcional</b><br/>crea, evoluciona y revisa HU"])
+    qa(["<b>QA</b><br/>genera suites y registra la ejecución"])
+    admin(["<b>Administrador</b><br/>conexiones y modelos"])
+    asis["<b>Asistente de IA</b><br/>Claude Desktop, Claude Code, VS Code<br/><i>sistema externo</i>"]
 
-    Person(af, "Analista funcional", "Crea, evoluciona y revisa Historias de Usuario")
-    Person(qa, "QA", "Genera y aprueba suites de prueba de una HU")
-    Person(admin, "Administrador", "Gestiona conexiones, modelos y documentos")
+    sys["<b>Agente de IA de AF y QA</b><br/>genera HU y artefactos de QA con el contexto de Jira<br/>y de la base de conocimiento, y publica solo lo aprobado"]
 
-    System(agent, "Agente de IA de AF y QA", "Genera HU y artefactos de QA con contexto de Jira y del RAG; publica solo lo aprobado")
+    jira["<b>Jira Cloud</b><br/>épicas, HU, casos de prueba como subtareas,<br/>adjuntos y vínculos<br/><i>sistema externo</i>"]
+    llm["<b>Modelos de IA</b><br/>abiertos y gratuitos, hoy Ollama local<br/><i>sistema externo</i>"]
+    lf["<b>Langfuse Cloud</b><br/>trazas, tokens y latencias<br/><i>sistema externo</i>"]
 
-    System_Ext(jira, "Jira Cloud", "Épicas, HU, subtareas de casos de prueba, adjuntos y vínculos")
-    System_Ext(llm, "Modelos de IA", "Open-weight y gratuitos; hoy Ollama local")
+    af -- "genera y aprueba HU" --> sys
+    qa -- "genera y aprueba suites" --> sys
+    admin -- "comprueba y configura" --> sys
+    asis -- "consulta (MCP, solo lectura)" --> sys
+    sys -- "lee contexto y publica lo aprobado<br/>[REST v3]" --> jira
+    sys -- "pide salidas estructuradas y embeddings<br/>[API compatible con OpenAI]" --> llm
+    sys -. "envía trazas [HTTPS]" .-> lf
 
-    Rel(af, agent, "Genera y aprueba HU")
-    Rel(qa, agent, "Genera y aprueba suites de prueba")
-    Rel(admin, agent, "Configura y carga documentos")
-    Rel(agent, jira, "Lee contexto; publica lo aprobado", "REST v3")
-    Rel(agent, llm, "Pide salidas estructuradas", "API compatible con OpenAI")
-
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+    classDef persona fill:#08427b,stroke:#052e56,color:#fff
+    classDef sistema fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
+    class af,qa,admin persona
+    class sys sistema
+    class asis,jira,llm,lf externo
 ```
 
 ## Nivel 2 · Contenedores
 
-```mermaid
-C4Container
-    title Contenedores · Agente de IA de AF y QA
-
-    Person(user, "Analista funcional / QA / Administrador")
-
-    System_Boundary(sys, "Agente de IA de AF y QA") {
-        Container(web, "Frontend web", "React, TypeScript, Vite (web/)", "Pantallas de la «Propuesta mixta»: conversaciones, revisión y aprobación, QA")
-        Container(api, "API HTTP", "Python, FastAPI (api/)", "Sesión con cookie y CSRF, conversaciones, progreso por SSE, aprobar con huella")
-        Container(st, "UI Streamlit (plan B)", "Python, Streamlit (app/)", "Alternativa hasta el punto de control T-57")
-        Container(core, "Núcleo del agente", "Python, LangGraph", "Grafo de generación, contexto, validación, aprobación y publicación")
-        ContainerDb(db, "Base de datos", "PostgreSQL + pgvector", "Usuarios, artefactos y versiones, auditoría, conversaciones, documentos y fragmentos del RAG")
-        Container(files, "Corpus y memorias", "Archivos .md / .pdf / .docx", "Documentos de la base de conocimiento y memorias de HU publicadas")
-    }
-
-    System_Ext(jira, "Jira Cloud", "REST v3")
-    System_Ext(llm, "Modelos de IA", "Ollama local (Docker)")
-
-    Rel(user, web, "Usa", "HTTPS")
-    Rel(web, api, "Llama", "JSON + SSE")
-    Rel(api, core, "Invoca el grafo y reanuda la revisión", "en proceso")
-    Rel(st, core, "Plan B", "en proceso")
-    Rel(core, db, "Lee y escribe", "SQL / búsqueda híbrida")
-    Rel(core, files, "Ingesta y genera memorias")
-    Rel(core, jira, "Lee contexto; escribe solo desde publish", "HTTPS")
-    Rel(core, llm, "Generación y embeddings", "HTTP")
-
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
-```
-
-La API y el núcleo se ejecutan en el mismo proceso de Python; se separan aquí porque tienen responsabilidades distintas. El frontend nunca habla con Jira ni con el LLM: solo con la API. PostgreSQL y Ollama se levantan con Docker Compose.
-
-## Nivel 3 · Componentes del núcleo del agente
+Qué piezas ejecutables y almacenes forman el sistema.
 
 ```mermaid
-C4Component
-    title Componentes · Núcleo del agente
+flowchart TB
+    user(["<b>Analista funcional / QA / Administrador</b>"])
+    asis["<b>Asistente de IA</b><br/><i>externo</i>"]
 
-    Container(api, "API HTTP", "FastAPI")
+    subgraph SYS["Agente de IA de AF y QA"]
+        direction TB
+        web["<b>Web</b><br/>[React, TypeScript, Vite · web/]<br/>pantallas de la «Propuesta mixta»"]
+        st["<b>UI Streamlit</b> · plan B<br/>[Python, Streamlit · app/]<br/>los dos flujos completos"]
+        api["<b>API HTTP</b><br/>[Python, FastAPI · api/]<br/>sesión con cookie y CSRF, progreso por SSE,<br/>aprobar con huella, detener y reintentar"]
+        mcp["<b>Servidor MCP</b><br/>[Python, SDK mcp · mcp_server/]<br/>6 herramientas de solo lectura"]
+        core["<b>Núcleo del agente</b><br/>[Python, LangGraph · core/ + adapters/]<br/>grafos, contexto, generación, validación,<br/>aprobación y publicación"]
+        db[("<b>Base de datos</b><br/>[PostgreSQL + pgvector]<br/>usuarios, conversaciones, versiones,<br/>aprobaciones, auditoría, uso del LLM,<br/>documentos y fragmentos del RAG")]
+        files[("<b>Archivos</b><br/>[.md, .pdf, .docx]<br/>corpus y memorias de HU")]
+    end
 
-    Container_Boundary(core, "Núcleo del agente") {
-        Component(graph, "Orquestador", "core/graph · LangGraph", "load_origin → retrieve_context → generate → human_review → publish → memorize")
-        Component(context, "Servicio de contexto", "core/context", "Reúne Jira y RAG con presupuesto de tokens")
-        Component(writers, "Generadores", "core/functional, core/qa", "StoryWriter (HU, revisión de calidad) y TestWriter (suites) con validación")
-        Component(impact, "Análisis de impacto", "core/impact", "Diff entre versiones y HU afectadas")
-        Component(control, "Control y aprobación", "state_machine, approvals, audit", "Estados, huella de lo aprobado y auditoría")
-        Component(convs, "Conversaciones", "core/conversations, guided_start, projects", "Persistencia, arranque guiado y proyecto por conversación")
-        Component(rag, "RAG", "core/rag", "Ingesta, fragmentado e indexado")
-        Component(memory, "Memoria", "core/memory", "Resumen .md de cada HU publicada")
-        Component(adapters, "Adaptadores", "adapters/*", "Jira (lectura y escritura), casos de prueba, LLM con respaldo, vector store, embeddings, autenticación")
-    }
+    jira["<b>Jira Cloud</b><br/><i>externo</i>"]
+    llm["<b>Ollama</b><br/>[Docker]<br/>qwen3:1.7b, phi4-mini, bge-m3"]
+    lf["<b>Langfuse Cloud</b><br/><i>externo</i>"]
 
-    ContainerDb(db, "Base de datos", "PostgreSQL + pgvector")
-    System_Ext(jira, "Jira Cloud")
-    System_Ext(llm, "Modelos de IA")
+    user -- "usa [HTTPS]" --> web
+    user -- "usa" --> st
+    asis -- "stdio" --> mcp
+    web -- "JSON + SSE [/api/v1]" --> api
+    api -- "en proceso" --> core
+    st -- "en proceso" --> core
+    mcp -- "en proceso, solo lecturas" --> core
+    core -- "SQL y búsqueda híbrida" --> db
+    core -- "ingesta y memorias" --> files
+    core -- "lee, y escribe solo desde publish [REST v3]" --> jira
+    core -- "generación y embeddings [HTTP]" --> llm
+    core -. "trazas [OTLP/HTTPS]" .-> lf
 
-    Rel(api, graph, "Arranca y reanuda")
-    Rel(api, convs, "Lista y retoma")
-    Rel(graph, context, "Pide contexto")
-    Rel(graph, writers, "Genera")
-    Rel(writers, impact, "Evoluciones")
-    Rel(graph, control, "Valida la aprobación")
-    Rel(graph, memory, "Tras publicar")
-    Rel(memory, rag, "Reindexa")
-    Rel(context, adapters, "Usa")
-    Rel(writers, adapters, "Usa")
-    Rel(rag, adapters, "Usa")
-    Rel(adapters, jira, "REST v3")
-    Rel(adapters, llm, "API compatible con OpenAI")
-    Rel(adapters, db, "SQL")
-    Rel(control, db, "Audita")
-    Rel(convs, db, "Checkpointer y conversaciones")
-
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+    classDef persona fill:#08427b,stroke:#052e56,color:#fff
+    classDef contenedor fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
+    class user persona
+    class web,st,api,mcp,core,db,files contenedor
+    class asis,jira,llm,lf externo
 ```
 
-El núcleo depende solo de los protocolos de `adapters/base.py`; qué implementación se usa se decide en `core/container.py` y `core/factories.py`.
+- **Un solo proceso de Python por entrada:** la API, Streamlit y el servidor MCP cargan el núcleo como biblioteca. Se dibujan por separado porque tienen responsabilidades distintas.
+- **La web** solo habla con la API, nunca con Jira ni con los modelos.
+- **El servidor MCP** envuelve Jira con un proxy que solo deja pasar lecturas.
+- **Docker Compose** levanta PostgreSQL y Ollama; la API tiene además su propia imagen (perfil `full`).
+
+## Nivel 3 · Componentes del núcleo
+
+Qué hay dentro del contenedor «Núcleo del agente», agrupado por responsabilidad.
+
+```mermaid
+flowchart TB
+    entradas["<b>API · Streamlit · MCP</b><br/><i>contenedores</i>"]
+
+    subgraph CORE["Núcleo del agente"]
+        direction TB
+
+        subgraph ORQ["Orquestación"]
+            direction LR
+            maingraph["<b>Grafo principal</b><br/>core/graph<br/>origen → contexto → generar →<br/>revisión humana → publicar → memoria"]
+            exec["<b>Grafo de ejecución</b><br/>core/graph/execution<br/>casos → revisión → registrar en Jira"]
+            convs["<b>Conversaciones</b><br/>conversations, guided_start,<br/>projects, handoff (QA encadenada)"]
+        end
+
+        subgraph INT["Inteligencia"]
+            direction LR
+            ctx["<b>Contexto</b><br/>core/context<br/>Jira + RAG + memorias<br/>con presupuesto de tokens"]
+            writers["<b>Generadores</b><br/>core/functional, core/qa, quality<br/>HU, suites y revisión INVEST,<br/>con validación y citas"]
+            impact["<b>Impacto</b><br/>core/impact<br/>cambios frente a Jira<br/>y HU afectadas"]
+            mem["<b>Memoria</b><br/>core/memory<br/>resumen de cada HU publicada"]
+            rag["<b>RAG</b><br/>core/rag<br/>ingesta, fragmentos,<br/>índice y prompts"]
+        end
+
+        subgraph CTL["Control"]
+            direction LR
+            appr["<b>Aprobaciones</b><br/>approvals, state_machine<br/>huella de lo aprobado"]
+            audit["<b>Auditoría y permisos</b><br/>audit, permissions,<br/>personal_data"]
+        end
+
+        subgraph SOP["Soporte"]
+            direction LR
+            trace["<b>Trazas</b><br/>core/tracing"]
+            usage["<b>Uso y salud</b><br/>usage, health"]
+            comp["<b>Composición</b><br/>config, container, factories"]
+        end
+
+        adapters["<b>Adaptadores</b> · adapters/<br/>Jira (lectura y publicación) · casos de prueba · LLM con cadena de respaldo ·<br/>embeddings · vector store · autenticación · Langfuse<br/><i>el núcleo solo conoce sus protocolos (adapters/base.py)</i>"]
+    end
+
+    db[("PostgreSQL + pgvector")]
+    jira["Jira Cloud"]
+    llm["Ollama"]
+    lf["Langfuse Cloud"]
+
+    entradas --> ORQ
+    maingraph --> ctx & writers & appr
+    writers --> impact
+    maingraph -- "tras publicar" --> mem
+    mem --> rag
+    ctx --> rag
+    exec --> appr
+    ORQ & INT --> adapters
+    CTL --> db
+    adapters --> db & jira & llm
+    adapters -.-> lf
+
+    classDef componente fill:#85bbf0,stroke:#5d82a8,color:#000
+    classDef contenedor fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
+    class maingraph,exec,convs,ctx,writers,impact,mem,rag,appr,audit,trace,usage,comp,adapters componente
+    class entradas,db contenedor
+    class jira,llm,lf externo
+```
+
+- **Orquestación:**
+  - el grafo principal sirve para los dos modos (HU y QA) y se pausa en la revisión humana; el estado se guarda en PostgreSQL, así que una conversación se puede retomar;
+  - el grafo de ejecución registra en Jira el resultado de cada caso de prueba (T-47).
+- **Inteligencia:**
+  - los generadores piden al modelo una salida con un esquema fijo (`schemas/`) y validan los identificadores y las citas;
+  - los prompts están en `prompts/<tarea>.md` con su versión.
+- **Control:** el único escritor en Jira es el paso `publish`, y exige la huella de lo aprobado; cada decisión queda auditada.
+- **Adaptadores:** el núcleo depende solo de los protocolos de `adapters/base.py`; qué implementación se usa se decide en `core/container.py` y `core/factories.py`. En las pruebas, los mismos protocolos tienen dobles en `tests/fakes/`.
+
+## Vista dinámica · Evolucionar una HU
+
+El recorrido de una operación real, desde la web hasta Jira.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor AF as Analista funcional
+    participant W as Web / Streamlit
+    participant A as API
+    participant G as Grafo principal
+    participant J as Jira Cloud
+    participant R as RAG (pgvector)
+    participant M as Modelo (Ollama)
+
+    AF->>W: elige la HU y pulsa «Generar»
+    W->>A: POST /conversations
+    A-->>W: 202 · progreso por SSE
+    A->>G: arranca el grafo
+    G->>J: lee la HU, sus vínculos y su épica
+    G->>R: busca documentos y memorias
+    G->>M: pide la HU evolucionada (salida estructurada)
+    M-->>G: HU propuesta
+    G->>G: valida identificadores y citas, y calcula el impacto
+    G-->>W: propuesta en revisión (con la versión de Jira para comparar)
+    AF->>W: pide un cambio
+    W->>A: POST /iterate
+    A->>G: vuelve a generar con la petición
+    G-->>W: nueva versión en revisión
+    AF->>W: aprueba
+    W->>A: POST /approve con la huella
+    A->>G: publicar
+    G->>J: actualiza la HU (o lo simula)
+    G->>R: memoria de la HU (solo en publicación real)
+    G-->>W: resultado
+```
+
+Cada operación deja además una traza en Langfuse con sus pasos, sus llamadas al modelo y la búsqueda en el RAG.

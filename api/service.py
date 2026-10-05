@@ -63,6 +63,8 @@ from core.handoff import NOT_AVAILABLE as HANDOFF_NOT_AVAILABLE
 from core.logging import get_logger
 from core.permissions import Permission, require
 from core.projects import normalize_issue_key, normalize_project_key, project_of
+from core.tracing import operation as traced_operation
+from core.tracing import operation_name, with_trace_callbacks
 from core.usage import DEFAULT_TZ, UsageQueries
 from schemas.artifact import Artifact
 from schemas.user_story import UserStory
@@ -472,7 +474,19 @@ def _run_graph(
     # nunca, aunque alguien la active por una carrera con una generación que acaba de terminar.
     signal = run.cancel if run.operation in CANCELLABLE_OPERATIONS else threading.Event()
     try:
-        with cancellation(signal):  # en este hilo
+        with (
+            cancellation(signal),  # en este hilo
+            traced_operation(  # T-40: una traza por operación, con un paso por nodo
+                ws.container.tracer,
+                operation_name(run.operation),
+                session_id=run.thread_id,
+                user_id=run.owner,
+                mode=run.mode,
+                flow=run.flow,
+                project=run.project,
+            ) as trace,
+        ):
+            config = with_trace_callbacks(config, trace)
             for update in ws.graph.stream(graph_input, config, stream_mode="updates"):
                 finished = nodes_in_update(update)
                 for node in finished:

@@ -28,7 +28,9 @@ from app.session import SessionState, go, open_quality
 from app.text import md_escape, md_lines
 from app.views.frame import simulation_notice
 from core.logging import get_logger
+from core.projects import project_of
 from core.quality import QualityReviewer, QualityReviewStore, StoredQualityReview, new_review
+from core.tracing import operation as traced_operation
 from schemas.quality import QualityReport
 
 log = get_logger(__name__)
@@ -109,7 +111,16 @@ def _run(
     with st.status("Revisando la calidad…", expanded=True) as status:
         st.markdown("  \n".join(f"· {step}" for step in REVIEW_STEPS))
         try:
-            result = QualityReviewer(ws.container).review(user, key, excluded)
+            with traced_operation(  # T-40
+                ws.container.tracer,
+                "revisar_calidad",
+                session_id=review_id,
+                user_id=user.username,
+                mode="functional",
+                flow="review",
+                project=project_of(key),
+            ):
+                result = QualityReviewer(ws.container).review(user, key, excluded)
         except Exception as exc:  # el mensaje pasa por la lista blanca; el tipo va al log
             status.update(label="No se ha podido revisar la HU", state="error")
             log.warning(

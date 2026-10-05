@@ -13,6 +13,7 @@ from typing import Any, Literal, Self
 
 import yaml
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -214,6 +215,19 @@ class Settings(BaseSettings):
     postgres_host: str = "127.0.0.1"
     postgres_port: PositiveInt = 5432
     database_url: SecretStr | None = None
+
+    # Trazas en Langfuse Cloud (T-40, RNF-24): sin las dos claves, desactivado (sin red).
+    langfuse_public_key: SecretStr | None = None
+    langfuse_secret_key: SecretStr | None = None
+    # Región de la UE por defecto. También se lee `LANGFUSE_BASE_URL`, el nombre que trae el
+    # apartado `.env` de Langfuse; si están los dos, manda `LANGFUSE_HOST`.
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("langfuse_host", "langfuse_base_url"),
+    )
+    # Con `true`, la traza lleva prompts, contexto del RAG y respuestas (enmascarados); si no,
+    # solo métricas (modelo, tarea, nodo, tokens, latencia y errores).
+    langfuse_capture_content: bool = False
 
     # Aplicación
     app_env: str = "development"

@@ -9,6 +9,7 @@ dependencies = [
     "docling>=2.131.0",
     "fastapi>=0.118,<0.142",
     "httpx>=0.28.1",
+    "langfuse==4.15.6",
     "langgraph>=1.2.12",
     "langgraph-checkpoint-postgres>=3.1.2",
     "mcp>=2.2,<2.3",
@@ -41,7 +42,9 @@ package = false
 # versiones son de hace menos de 7 días. Se pueden quitar a partir del 2026-10-08.
 # Excepción: una versión en cuarentena se acepta si corrige vulnerabilidades (`cryptography`
 # 50.0.2 lleva OpenSSL 4.0.3, versión de seguridad; ver PA-323).
-constraint-dependencies = ["pyjwt<2.15.1", "sse-starlette<3.5"]
+# PA-294 (T-40): cuarentena de la transitiva de `langfuse` googleapis-common-protos 1.75.5
+# (2026-09-29); se puede quitar a partir del 2026-10-07.
+constraint-dependencies = ["pyjwt<2.15.1", "sse-starlette<3.5", "googleapis-common-protos<1.75.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

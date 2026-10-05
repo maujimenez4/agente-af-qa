@@ -1,7 +1,8 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-05
 
-**Estado:** T-56 🔄 en `area-b`, con `PreProduccion` fusionada el 2026-10-05 (incluida la ronda 8 de la sesión UI en Origen). Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5). Lint, Vitest, build y `npm run api:check` en verde.
-**PR:** [#4](https://github.com/maujimenez4/agente-af-qa/pull/4) `area-b → PreProduccion` («T-56 (parte 3): flujo de QA»), ya fusionada. Las anteriores también: la #2 (`3b5dd46`) y la #3 («T-56 (parte 2): frontend React, flujo de QA y pulido»). **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
+**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Rama de trabajo actual: `t56-qa-cobertura`** (creada desde `area-b` el 2026-10-05). Lint, Vitest, build y `npm run api:check` en verde.
+**PR abierta:** [#6](https://github.com/maujimenez4/agente-af-qa/pull/6) `area-b → PreProduccion` («T-56: flujo de QA por roles, recibo y resultado de la suite», bloque 5). **Pendiente** de la prueba del flujo de QA contra la API real en el equipo de la principal y de la aprobación de su responsable. Ya fusionadas: la #2, la #3 y la #4.
+**Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
 
@@ -29,6 +30,7 @@
 La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única (`API-LOCAL.md` solo enlaza a ella). En este equipo no se monta el backend. Quiere probar el flujo de QA contra su API antes de fusionar la PR del bloque 5.
 
 ## Sistema de entregas (confirmado por la principal, 2026-10-05)
+- **Una rama propia por bloque mientras la PR anterior siga abierta.** No hacer push a `area-b` mientras la #6 esté abierta: cualquier commit se añadiría a ella. El bloque siguiente va en `t56-qa-cobertura`; su PR se abre (`t56-qa-cobertura → PreProduccion`) cuando la #6 esté fusionada, o antes si la principal lo pide.
 - **Una PR pequeña por bloque terminado**, `area-b → PreProduccion`. **Antes de abrirla**, todo en verde:
   - test-writer, spec-checker (CONFORME) y security-reviewer (APTO);
   - Vitest (la suite completa, sin otras sesiones cargando el equipo), lint, build y `npm run api:check`.
@@ -87,5 +89,10 @@ El contrato ya trae PA-326 y PA-327 (fusionado en `area-b` con la PR del bloque 
   - PA-310, PA-312 y PA-325.
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (falta quitar el apaño del MSW).
 
-## Siguiente
-PR del bloque 5 («T-56: flujo de QA por roles, recibo y resultado de la suite»); después, la PR del contrato de QA (arriba) y **esperar la confirmación del responsable antes de empezar Memoria**.
+## Siguiente (en `t56-qa-cobertura`)
+1. **PA-326 en Cobertura:** `ReviewPayload.coverage_md` y `ReviewPayload.uncovered` (`null` = «no se sabe», listas vacías = «todo cubierto»; no se tratan igual).
+2. **PA-118:** que `generate.mjs` copie `components.examples` a `examples.json`; el MSW y las pruebas usan `ConversationQaInReview` (y las etiquetas de QA en la API simulada).
+3. **Quitar el apaño de `jira_baseline` del MSW** (`mockBaseline`).
+4. Después, por este orden: **Memoria**, **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»).
+
+Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. Esperar la confirmación del responsable antes de empezar Memoria.

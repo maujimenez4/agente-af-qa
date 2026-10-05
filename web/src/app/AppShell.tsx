@@ -211,6 +211,9 @@ function WorkZone({ user }: { user: UserOut }) {
 }
 
 // Conversación terminada: su aviso o, si acabó en error, la tarjeta con el mensaje de la API tal cual.
+// /retry ya no puede repetir nada: solo queda empezar otra. Con un fallo pasajero (429, 503…) se puede volver a pedir.
+const RETRY_FINAL = new Set<string>(['not_in_error', 'handoff_unavailable'])
+
 // En error se puede repetir el paso que falló con POST /retry (PA-276); un 409 not_in_error se muestra.
 function ClosedConversation({
   conversation,
@@ -241,7 +244,7 @@ function ClosedConversation({
         {/* El mensaje de la API tal cual; las acciones van fuera de la tarjeta. */}
         <ErrorCard error={retryError ?? conversation.error} />
         <span className={styles.closedActions}>
-          {!retryError && (
+          {!(retryError && RETRY_FINAL.has(retryError.code)) && (
             <Button variant="primary" disabled={retrying} onClick={() => void retry()}>
               Reintentar
             </Button>

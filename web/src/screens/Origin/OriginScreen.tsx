@@ -9,7 +9,7 @@ import { ErrorCard } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 import styles from './Origin.module.css'
-import { BUDGET_DEBOUNCE_MS, budgetView } from './budget.ts'
+import { BUDGET_DEBOUNCE_MS, BUDGET_FAILED, budgetView } from './budget.ts'
 import { createBody, fixedTitle, operationFromIssue, operationFromOption, sourceDetail, type Operation } from './operation.ts'
 
 export interface OriginScreenProps {
@@ -106,7 +106,12 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
           budgetFor.current = key
           setBudget(value.budget)
         })
-        .catch(() => !cancelled && setBudget(undefined))
+        .catch(() => {
+          if (cancelled) return
+          // Sin presupuesto válido: la próxima vez se vuelve a pedir aunque las casillas coincidan.
+          budgetFor.current = BUDGET_FAILED
+          setBudget(undefined)
+        })
     }, BUDGET_DEBOUNCE_MS)
     return () => {
       cancelled = true

@@ -108,3 +108,25 @@ describe('Retomar una conversación terminada en error: Reintentar (PA-276)', ()
     expect(screen.getByRole('button', { name: 'Empezar una conversación nueva' })).toBeInTheDocument()
   })
 })
+
+describe('Retomar en error: un fallo pasajero de /retry (H-2)', () => {
+  it('con un 503 en /retry se muestra el mensaje y «Reintentar» sigue disponible y vuelve a pedirlo', async () => {
+    const failed = { ...EXAMPLE, state: 'error' as const, review: null, error: { code: 'cancelled' as const, message: 'Generación detenida (ficticio).', retry_after: null } }
+    let retries = 0
+    mockServer.use(
+      http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })),
+      http.post('/api/v1/conversations/:id/retry', () => {
+        retries += 1
+        return retries === 1
+          ? HttpResponse.json({ error: { code: 'service_unavailable', message: 'Servicio no disponible (ficticio).', retry_after: null } }, { status: 503 })
+          : HttpResponse.json({ ...EXAMPLE, state: 'generating', review: null, error: null }, { status: 202 })
+      }),
+    )
+    await resume(failed)
+    await userEvent.click(await screen.findByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByText('Servicio no disponible (ficticio).')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByText('Generando la propuesta…')).toBeInTheDocument()
+    expect(retries).toBe(2)
+  })
+})

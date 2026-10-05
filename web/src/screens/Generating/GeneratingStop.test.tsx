@@ -115,3 +115,40 @@ describe('Iterar · Detener y Reintentar', () => {
     await waitFor(() => expect(within(screen.getByRole('log', { name: 'Conversación' })).getAllByText('Cambio ficticio')).toHaveLength(1))
   })
 })
+
+describe('Generando · fallos del propio /retry (H-1) y detener justo antes de la revisión', () => {
+  it('un 429 en /retry muestra su tarjeta y «Reintentar» vuelve a pedir /retry, sin abandonar la conversación', async () => {
+    const calls = posts()
+    await generateFromHome()
+    await userEvent.click(screen.getByRole('button', { name: 'Detener la generación' }))
+    mockServer.use(
+      http.post(
+        '/api/v1/conversations/:id/retry',
+        () => HttpResponse.json({ error: { code: 'rate_limited', message: 'Límite de uso (ficticio).', retry_after: 0 } }, { status: 429 }),
+        { once: true },
+      ),
+    )
+    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Reintentar' }))
+    const limited = await screen.findByText('Límite de uso (ficticio).')
+    await userEvent.click(within(limited.closest('[role=alert]') as HTMLElement).getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByRole('button', { name: 'Ver la propuesta' }, { timeout: 4000 })).toBeInTheDocument()
+    expect(calls.filter((call) => call === 'retry')).toHaveLength(2)
+    expect(calls.filter((call) => call === 'conversations')).toHaveLength(1)
+  })
+
+  it('si al detener el siguiente paso era la revisión, termina en la propuesta y no en «Generación detenida»', async () => {
+    mockServer.use(
+      http.post('/api/v1/conversations/:id/cancel', ({ params }) => {
+        const run = mockDb.runs.get(String(params.id))
+        if (!run) return HttpResponse.json({ error: { code: 'not_found', message: 'x', retry_after: null } }, { status: 404 })
+        // Como la API: la generación ya no tiene más pasos que cortar y pasa a la revisión.
+        run.script = []
+        return HttpResponse.json({ ...run.conversation, cancel_requested: true }, { status: 202 })
+      }),
+    )
+    await generateFromHome()
+    await userEvent.click(screen.getByRole('button', { name: 'Detener la generación' }))
+    expect(await screen.findByRole('button', { name: 'Ver la propuesta' }, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.queryByText('Generación detenida')).toBeNull()
+  })
+})

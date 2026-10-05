@@ -52,7 +52,19 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
     }
   }
 
-  const retryAction = (failure: ApiError) => (presentError(failure).action === 'refresh' ? () => void refresh() : onRetry)
+  // Acción de la tarjeta si falla el propio /retry: un fallo pasajero (429, 503…) vuelve a pedir /retry,
+  // no abandona la conversación; not_in_error lee el estado; lo demás vuelve a Origen o a Inicio.
+  const retryAction = (failure: ApiError): (() => void) => {
+    switch (presentError(failure).action) {
+      case 'refresh':
+        return () => void refresh()
+      case 'retry':
+      case 'regenerate':
+        return () => void retry()
+      default:
+        return onRetry
+    }
+  }
 
   const panel = (
     <SidePanel title="Propuesta de HU" size="md">

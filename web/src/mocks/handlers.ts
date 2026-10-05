@@ -470,7 +470,7 @@ export function createHandlers(db: MockDb) {
         const run = runFor(params.id)
         if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
         if (run.conversation.state !== 'generating') {
-          return error(409, 'not_cancellable', 'No hay ninguna generación en curso que detener.')
+          return error(409, 'not_cancellable', 'La conversación no está generando: no hay nada que detener.')
         }
         run.cancel = true
         run.conversation = { ...run.conversation, cancel_requested: true }

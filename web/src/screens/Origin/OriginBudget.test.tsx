@@ -121,3 +121,24 @@ describe('Origen · presupuesto de tokens (PA-102)', () => {
     expect(within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ })).toBeInTheDocument()
   })
 })
+
+describe('Origen · presupuesto tras un fallo (H-5)', () => {
+  it('si falla una consulta, al volver a las casillas del último cálculo correcto se vuelve a pedir y se pinta', async () => {
+    await evolveDemo3()
+    const before = usedOf((await within(panel()).findByText(/^Contexto ·/)).textContent)
+    const box = () => within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ })
+    await userEvent.click(box())
+    await waitFor(() => expect(usedOf(within(panel()).getByText(/^Contexto ·/).textContent)).toBeLessThan(before))
+    mockServer.use(
+      http.post(
+        '/api/v1/start/sources',
+        () => HttpResponse.json({ error: { code: 'service_unavailable', message: 'Servicio no disponible (ficticio).', retry_after: null } }, { status: 503 }),
+        { once: true },
+      ),
+    )
+    await userEvent.click(box())
+    await waitFor(() => expect(within(panel()).queryByText(/^Contexto ·/)).toBeNull())
+    await userEvent.click(box())
+    expect(await within(panel()).findByText(/^Contexto ·/)).toBeInTheDocument()
+  })
+})

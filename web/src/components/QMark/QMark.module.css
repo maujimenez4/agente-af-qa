@@ -77,6 +77,14 @@
   color: var(--color-text);
 }
 
+/* En una conversación estrecha (1024 px con el panel abierto) basta con «Fase N de 4»: el nombre
+   sigue en el nombre accesible. */
+@container conversation (max-width: 640px) {
+  .phaseName {
+    display: none;
+  }
+}
+
 .typing {
   display: flex;
   align-items: center;

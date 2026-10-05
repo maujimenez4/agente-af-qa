@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { safeHref } from '../../security/safeHref.ts'
 import { Icon, type IconName } from '../Icon/index.ts'
 import styles from './Button.module.css'
 
@@ -54,5 +55,34 @@ export function IconButton({
     <button type={type} className={classes(variant, size, className, true)} aria-label={label} {...rest}>
       <Icon name={icon} size={ICON_SIZE[size]} />
     </button>
+  )
+}
+
+export interface ButtonLinkProps {
+  /** Ya pasado por `safeHref` (la regla de ESLint lo exige); se comprueba otra vez aquí. */
+  href: string | undefined
+  variant?: ButtonVariant
+  size?: ButtonSize
+  /** Abre en otra pestaña (enlaces a Jira) y lo anuncia a los lectores de pantalla. */
+  external?: boolean
+  children: ReactNode
+}
+
+// Enlace con aspecto de botón (p. ej. «Abrir DEMO-3 en Jira»). El destino siempre pasa por `safeHref` (PA-308):
+// si no es seguro, se pinta como texto, sin enlace ni aspecto de botón.
+export function ButtonLink({ href, variant = 'secondary', size = 'lg', external = false, children }: ButtonLinkProps) {
+  const safe = safeHref(href)
+  if (!safe) return <span>{children}</span>
+  return (
+    <a
+      className={classes(variant, size, styles.link)}
+      href={safeHref(safe)}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
+    >
+      {children}
+      {external && ' '}
+      {external && <span className="visually-hidden">(se abre en otra pestaña)</span>}
+    </a>
   )
 }

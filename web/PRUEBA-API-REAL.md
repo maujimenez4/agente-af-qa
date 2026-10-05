@@ -63,6 +63,8 @@ npm run dev                          # http://localhost:5173, proxy de /api a 12
 - [ ] Iterar: pedir un cambio crea v2; el selector muestra v1, v2 y «Jira».
 - [ ] Recibo (*Revisar y aprobar*): las operaciones del plan; *Aprobar y publicar* envía la huella exacta.
 - [ ] Resultado simulado: «Modo de prueba activo» y nada escrito en Jira (compruébalo en Jira).
+- [ ] Recibo: tras «Actualizar `<HU>`…» va «Añadir a `<HU>` un comentario con los cambios» (viene del plan, PA-319).
+- [ ] Si alguna vez se publica de verdad (solo con autorización): *Abrir `<HU>` en Jira* abre la HU con `jira_browse_url` (PA-318); con un vínculo fallido, «Publicada en parte» (PA-324).
 
 **Nueva necesidad**
 - [ ] Describir una necesidad con `<ÉPICA>`: el arranque guiado propone «HU nueva en la épica `<ÉPICA>`» o una HU parecida, y si procede avisa de `project_changed` o `ignored_projects`.
@@ -77,7 +79,7 @@ npm run dev                          # http://localhost:5173, proxy de /api a 12
 - [ ] `qa-demo`: Inicio con «Preparar pruebas»; el flujo de QA sale como «disponible pronto».
 - [ ] `admin-demo`: la pantalla de administración sale como «disponible pronto».
 
-**«Disponible pronto» a propósito** (no son fallos): Revisar la calidad, el flujo de QA, administración, *Editar a mano*, historial (admin), *Abrir en Jira* (PA-318), *Ver la memoria* y *Pedir sus pruebas a QA*.
+**«Disponible pronto» a propósito** (no son fallos): Revisar la calidad, el flujo de QA, administración, *Editar a mano*, historial (admin), *Ver la memoria* y *Pedir sus pruebas a QA*.
 
 ## 6. Si algo falla, qué anotar
 Un comentario en la PR por fallo, con:

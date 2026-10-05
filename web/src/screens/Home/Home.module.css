@@ -6,6 +6,13 @@
   padding: var(--space-7);
 }
 
+/* Ventanas bajas (1024×768): menos aire arriba y abajo para que Inicio quepa sin desplazarse. */
+@media (max-height: 800px) {
+  .page {
+    padding-block: var(--space-5);
+  }
+}
+
 .content {
   width: 100%;
   max-width: var(--hero-max);

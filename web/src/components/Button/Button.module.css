@@ -13,6 +13,11 @@
     border-color var(--dur-base) var(--ease);
 }
 
+/* Enlace con aspecto de botón (ButtonLink). */
+.link {
+  text-decoration: none;
+}
+
 /* Microinteracción: −6 % de brillo al pulsar (UI.md §8). */
 .button:active:not(:disabled) {
   filter: brightness(0.94);

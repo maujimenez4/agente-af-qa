@@ -40,7 +40,15 @@
   font-size: var(--text-xs);
 }
 
+/* A 1024 px la lista cede 24 px a la conversación para que su cabecera quepa con el panel abierto. */
+@media (max-width: 1199px) {
+  .list {
+    width: calc(var(--conversations-width) - 24px);
+  }
+}
+
 .groups {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;

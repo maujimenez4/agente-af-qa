@@ -47,6 +47,7 @@ describe('textos del recibo', () => {
     const ops = receiptOperations(
       [
         { op: 'update_story', project: 'DEMO', key: 'DEMO-3' },
+        { op: 'comment', key: 'DEMO-3' },
         { op: 'link', from: 'DEMO-3', to: 'DEMO-2', type: 'relates to' },
         { op: 'link', from: 'DEMO-3', to: 'DEMO-9', type: 'relates to' },
       ],
@@ -61,6 +62,11 @@ describe('textos del recibo', () => {
       ['Vincular DEMO-3 con DEMO-9', 'Vínculo «relates to».'],
     ])
     expect(new Set(ops.map((op) => op.id)).size).toBe(4)
+  })
+
+  it('PA-319: el comentario con los cambios sale solo del plan; sin «comment», no se deduce', () => {
+    const ops = receiptOperations([{ op: 'update_story', project: 'DEMO', key: 'DEMO-3' }], 2, 'Renovar un préstamo', null)
+    expect(ops.map((op) => op.label)).toEqual(['Actualizar DEMO-3 con la versión 2'])
   })
 
   it.each([

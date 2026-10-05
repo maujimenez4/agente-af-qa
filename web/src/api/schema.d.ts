@@ -1670,6 +1670,11 @@ export interface components {
         /** SettingsOut */
         SettingsOut: {
             /**
+             * Jira Browse Url
+             * @description PA-318: prefijo para abrir una incidencia en Jira (`{jira_browse_url}{clave}`); `null` si no hay sitio de Jira configurado. Solo `https`.
+             */
+            jira_browse_url?: string | null;
+            /**
              * Publish Mode
              * @enum {string}
              */
@@ -3216,6 +3221,10 @@ export interface operations {
                      *             "key": "DEMO-3"
                      *           },
                      *           {
+                     *             "op": "comment",
+                     *             "key": "DEMO-3"
+                     *           },
+                     *           {
                      *             "op": "link",
                      *             "from": "DEMO-3",
                      *             "to": "DEMO-2",
@@ -3779,6 +3788,10 @@ export interface operations {
                      *           {
                      *             "op": "update_story",
                      *             "project": "DEMO",
+                     *             "key": "DEMO-3"
+                     *           },
+                     *           {
+                     *             "op": "comment",
                      *             "key": "DEMO-3"
                      *           },
                      *           {
@@ -4703,6 +4716,10 @@ export interface operations {
                      *           {
                      *             "op": "update_story",
                      *             "project": "DEMO",
+                     *             "key": "DEMO-3"
+                     *           },
+                     *           {
+                     *             "op": "comment",
                      *             "key": "DEMO-3"
                      *           },
                      *           {
@@ -9279,7 +9296,8 @@ export interface operations {
                      *             }
                      *           ]
                      *         }
-                     *       ]
+                     *       ],
+                     *       "jira_browse_url": "https://villaficticia-ejemplo.atlassian.net/browse/"
                      *     }
                      */
                     "application/json": components["schemas"]["SettingsOut"];

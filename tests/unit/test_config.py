@@ -442,3 +442,24 @@ def test_model_options_are_frozen() -> None:
 
     with pytest.raises(ValidationError):
         options.think = True  # type: ignore[misc]
+
+
+def test_langfuse_host_defaults_to_eu_region(clean_env: pytest.MonkeyPatch) -> None:
+    """T-40: sin variables, la región de la UE de Langfuse Cloud."""
+    clean_env.delenv("LANGFUSE_HOST", raising=False)
+    clean_env.delenv("LANGFUSE_BASE_URL", raising=False)
+    assert Settings(_env_file=None).langfuse_host == "https://cloud.langfuse.com"
+
+
+def test_langfuse_base_url_is_read_as_host(clean_env: pytest.MonkeyPatch) -> None:
+    """T-40: `LANGFUSE_BASE_URL`, el nombre del apartado `.env` de Langfuse, también vale."""
+    clean_env.delenv("LANGFUSE_HOST", raising=False)
+    clean_env.setenv("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com")
+    assert Settings(_env_file=None).langfuse_host == "https://us.cloud.langfuse.com"
+
+
+def test_langfuse_host_wins_over_base_url(clean_env: pytest.MonkeyPatch) -> None:
+    """T-40: con los dos nombres, manda `LANGFUSE_HOST`."""
+    clean_env.setenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    clean_env.setenv("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com")
+    assert Settings(_env_file=None).langfuse_host == "https://cloud.langfuse.com"

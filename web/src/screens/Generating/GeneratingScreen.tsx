@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
@@ -8,7 +8,7 @@ import { ErrorCard, LoadingState, presentError, Skeleton } from '../../component
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import styles from './Generating.module.css'
-import { readyHeadline } from './headline.ts'
+import { qaHeaderTitle, readyHeadline } from './headline.ts'
 import { useGeneration } from './useGeneration.ts'
 
 export interface GeneratingScreenProps {
@@ -20,15 +20,28 @@ export interface GeneratingScreenProps {
    * vuelve a Origen y fuentes con la misma operación o, si no la hay, a Inicio.
    */
   onRetry: () => void
+  /** Llegó la propuesta o la suite (review_ready): la lista de conversaciones deja de decir «En curso». */
+  onReviewReady?: () => void
 }
 
 // Mixta 2b · Generando (UI.md §4.4): la Q de carga avanza con los eventos del SSE.
 // *Detener* (PA-314) en el compositor; *Reintentar* repite el paso que falló con POST /retry (PA-276).
-export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingScreenProps) {
+export function GeneratingScreen({ conversation, onReady, onRetry, onReviewReady }: GeneratingScreenProps) {
   const [current, setCurrent] = useState(conversation)
   const [retryError, setRetryError] = useState<ApiError | undefined>()
   const { state, stopping, stopError, stop } = useGeneration(current)
   const ready = state.status === 'ready' ? state.conversation : undefined
+  // Una vez por propuesta lista, no en cada pintado: el callback se lee de una referencia.
+  const reviewReady = useRef(onReviewReady)
+  useEffect(() => {
+    reviewReady.current = onReviewReady
+  })
+  const readyId = ready?.id
+  useEffect(() => {
+    if (readyId) reviewReady.current?.()
+  }, [readyId])
+  // QA 2 (UI.md §6.2): el mismo patrón con los textos de la suite.
+  const qa = conversation.mode === 'qa'
 
   const retry = async () => {
     setRetryError(undefined)
@@ -67,28 +80,36 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
   }
 
   const panel = (
-    <SidePanel title="Propuesta de HU" size="md">
+    <SidePanel title={qa ? 'Suite de pruebas' : 'Propuesta de HU'} size="md">
       {state.status === 'ready' ? (
-        <p className={styles.note}>La propuesta está lista. Ábrela para revisarla.</p>
+        <p className={styles.note}>{qa ? 'La suite está lista. Ábrela para revisarla.' : 'La propuesta está lista. Ábrela para revisarla.'}</p>
       ) : (
         <>
-          <p className={styles.note}>La propuesta aparece aquí cuando las citas están comprobadas.</p>
+          <p className={styles.note}>
+            {qa ? 'La suite aparece aquí cuando la cobertura está comprobada.' : 'La propuesta aparece aquí cuando las citas están comprobadas.'}
+          </p>
           {state.status === 'running' && <Skeleton lines={8} />}
         </>
       )}
     </SidePanel>
   )
 
-  const loadingTitle = ready ? readyHeadline(ready) : stopping ? 'Deteniendo la generación…' : 'Generando la propuesta…'
+  const loadingTitle = ready
+    ? readyHeadline(ready)
+    : stopping
+      ? 'Deteniendo la generación…'
+      : qa
+        ? 'Generando la suite…'
+        : 'Generando la propuesta…'
 
   return (
     <Workspace
-      title={conversationTitle(conversation.title)}
+      title={qa ? qaHeaderTitle(conversationTitle(conversation.title)) : conversationTitle(conversation.title)}
       phase={2}
       panel={panel}
       composer={
         <Composer
-          placeholder="Espera a la propuesta para pedir cambios"
+          placeholder={qa ? 'Espera a la suite para pedir cambios' : 'Espera a la propuesta para pedir cambios'}
           value=""
           onChange={() => undefined}
           onSubmit={() => undefined}
@@ -100,7 +121,9 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
       }
     >
       <ChatLog>
-        <ChatEvent>Generar propuesta · {conversationTitle(conversation.title)}</ChatEvent>
+        <ChatEvent>
+          {qa ? 'Generar la suite' : 'Generar propuesta'} · {conversationTitle(conversation.title)}
+        </ChatEvent>
         <AssistantMessage>
           {retryError ? (
             <ErrorCard key={`retry-${retryError.code}-${retryError.message}`} error={retryError} onAction={retryAction(retryError)} />
@@ -117,7 +140,7 @@ export function GeneratingScreen({ conversation, onReady, onRetry }: GeneratingS
           {ready && (
             <div className={styles.rise}>
               <Button variant="primary" onClick={() => onReady(ready)}>
-                Ver la propuesta
+                {qa ? 'Ver la suite' : 'Ver la propuesta'}
               </Button>
             </div>
           )}

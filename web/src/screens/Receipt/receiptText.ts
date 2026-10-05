@@ -1,7 +1,6 @@
 // Textos del recibo de aprobación (UI.md §4.6, contrato §5): una operación por elemento de `review.plan`.
-// El plan lo construye core/graph/nodes.py (`update_story`, `create_story`, `link`, `publish_suite`).
-// `update_story` escribe además un comentario con la tabla de cambios (`_diff_comment_md`), que el plan no
-// trae como operación propia (PA-319): el recibo lo muestra como una casilla más, para que se apruebe viéndolo.
+// El plan lo construye core/graph/nodes.py (`update_story`, `comment`, `create_story`, `link`, `publish_suite`).
+// El recibo muestra solo lo que trae el plan: el comentario con los cambios llega como `{"op": "comment"}` (PA-319).
 import type { ImpactAnalysis } from '../../components/Proposal/index.ts'
 import { fieldLabel } from '../../components/Proposal/index.ts'
 
@@ -33,14 +32,7 @@ function linkReason(impact: ImpactAnalysis | null | undefined, key: string): str
 
 /** «Actualizar DEMO-3 con la versión 3», «Vincular DEMO-3 con DEMO-2»… con su detalle. */
 export function receiptOperations(plan: readonly PlanItem[], version: number, title: string, impact: ImpactAnalysis | null | undefined): ReceiptOperation[] {
-  return plan.flatMap((item, index) =>
-    item.op === 'update_story'
-      ? [
-          operationOf(item, index, version, title, impact),
-          { id: `${index}-comment`, label: `Añadir a ${item.key ?? 'la HU'} un comentario con los cambios`, detail: 'Tabla de cambios (campo, antes y después) para quien siga la HU.' },
-        ]
-      : [operationOf(item, index, version, title, impact)],
-  )
+  return plan.map((item, index) => operationOf(item, index, version, title, impact))
 }
 
 function operationOf(item: PlanItem, index: number, version: number, title: string, impact: ImpactAnalysis | null | undefined): ReceiptOperation {
@@ -48,6 +40,8 @@ function operationOf(item: PlanItem, index: number, version: number, title: stri
   switch (item.op) {
     case 'update_story':
       return { id, label: `Actualizar ${item.key ?? 'la HU'} con la versión ${version}`, detail: changedFields(impact) ?? title }
+    case 'comment':
+      return { id, label: `Añadir a ${item.key ?? 'la HU'} un comentario con los cambios`, detail: 'Tabla de cambios (campo, antes y después) para quien siga la HU.' }
     case 'create_story':
       return {
         id,

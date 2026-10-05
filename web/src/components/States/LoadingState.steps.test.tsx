@@ -1,8 +1,7 @@
-// PA-327: hoy la API manda en `progress` sus 5 pasos (con «Guardar la memoria») y las etiquetas de la HU, también en
-// QA; cuando se fusione PA-327, QA tendrá 4 (sin él). La lista pinta los que lleguen, sin un número fijo, y la Q de
-// carga avanza con los tres nodos de generar (iguales en HU y QA) y se completa con `review_ready`: los pasos de
-// publicar no la mueven. Las etiquetas de la HU son las de `api/service.py`; las de QA, hipotéticas (cada una
-// describe lo que hace su nodo).
+// PA-327: la API manda en `progress` sus pasos por modo (`step_labels` en `api/service.py`): 5 en la HU, con «Guardar
+// la memoria», y 4 en QA, sin él. La lista pinta los que lleguen, sin un número fijo, y la Q de carga avanza con los
+// tres nodos de generar (iguales en HU y QA) y se completa con `review_ready`: los pasos de publicar no la mueven.
+// Las etiquetas son las de `STEP_LABELS` y `QA_STEP_LABELS`.
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ProgressStep } from '../../api/types.ts'
@@ -19,10 +18,10 @@ const HU_STEPS: Array<[ProgressStep['node'], string]> = [
   ['memorize', 'Guardar la memoria de la HU publicada'],
 ]
 const QA_STEPS: Array<[ProgressStep['node'], string]> = [
-  ['load_origin', 'Leer la HU de origen en Jira'],
-  ['retrieve_context', 'Recuperar el contexto (documentos, memoria y casos de HU relacionadas)'],
+  ['load_origin', 'Recuperar la HU de origen'],
+  ['retrieve_context', 'Recuperar el contexto (Jira, documentos y memoria)'],
   ['generate', 'Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia'],
-  ['publish', 'Publicar la suite en Jira'],
+  ['publish', 'Publicar (o simular la publicación de) los casos de prueba en Jira'],
 ]
 
 /** Los pasos con los estados dados en orden; el resto, pendientes. */
@@ -34,7 +33,7 @@ const qState = () => document.querySelector('[data-q-state]')?.getAttribute('dat
 
 describe.each([
   ['HU, 5 pasos', HU_STEPS],
-  ['QA, 4 pasos (PA-327, etiquetas hipotéticas)', QA_STEPS],
+  ['QA, 4 pasos (PA-327)', QA_STEPS],
 ])('%s', (_, steps) => {
   it('la lista pinta todos los pasos que llegan, con su etiqueta y su estado', () => {
     render(<LoadingState title="Generando…" events={progress(steps, ['done', 'running'])} />)

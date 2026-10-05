@@ -1628,6 +1628,11 @@ export interface components {
          */
         ReviewPayload: {
             artifact: components["schemas"]["Artifact"];
+            /**
+             * Coverage Md
+             * @description PA-326, solo en QA: la matriz de cobertura CA/RN × CP en Markdown, la misma que se adjunta como `matriz-<CLAVE>.md` (sin IA). En una HU, `null`.
+             */
+            coverage_md?: string | null;
             /** Decisions */
             decisions: ("iterate" | "edit" | "approve" | "discard")[];
             /**
@@ -1655,6 +1660,8 @@ export interface components {
             target: {
                 [key: string]: string | null;
             };
+            /** @description PA-326, solo en QA: los CA y RN de la HU de origen que no tienen ningún caso. **`null` significa «no se sabe»** (no se pudo leer la HU de origen sin llamar al LLM); **listas vacías significan «todo cubierto»**. Sale de la HU que el grafo ya cargó: la versión de partida estructurada o la HU aprobada de la entrega a QA. En una HU, siempre `null`. */
+            uncovered?: components["schemas"]["UncoveredRefs"] | null;
             /** Version */
             version: number;
         };
@@ -1861,6 +1868,22 @@ export interface components {
             synthetic_data: {
                 [key: string]: string;
             }[];
+        };
+        /**
+         * UncoveredRefs
+         * @description PA-326: CA y RN de la HU de origen sin ningún caso de prueba (pestaña Cobertura).
+         */
+        UncoveredRefs: {
+            /**
+             * Criteria
+             * @description CA sin casos (p. ej. `CA-03`).
+             */
+            criteria: string[];
+            /**
+             * Rules
+             * @description RN sin casos (p. ej. `RN-02`).
+             */
+            rules: string[];
         };
         /**
          * UsageTodayOut
@@ -3400,19 +3423,6 @@ export interface operations {
                      *             "then": [
                      *               "el vencimiento se amplía 21 días"
                      *             ]
-                     *           },
-                     *           {
-                     *             "id": "CA-02",
-                     *             "title": "Renovación rechazada por reservas",
-                     *             "given": [
-                     *               "un préstamo activo con reservas pendientes"
-                     *             ],
-                     *             "when": [
-                     *               "la persona socia pulsa «Renovar»"
-                     *             ],
-                     *             "then": [
-                     *               "se muestra el aviso «El ejemplar tiene reservas pendientes»"
-                     *             ]
                      *           }
                      *         ],
                      *         "business_rules": [
@@ -4897,19 +4907,6 @@ export interface operations {
                      *             ],
                      *             "then": [
                      *               "el vencimiento se amplía 21 días"
-                     *             ]
-                     *           },
-                     *           {
-                     *             "id": "CA-02",
-                     *             "title": "Renovación rechazada por reservas",
-                     *             "given": [
-                     *               "un préstamo activo con reservas pendientes"
-                     *             ],
-                     *             "when": [
-                     *               "la persona socia pulsa «Renovar»"
-                     *             ],
-                     *             "then": [
-                     *               "se muestra el aviso «El ejemplar tiene reservas pendientes»"
                      *             ]
                      *           }
                      *         ],
@@ -8502,17 +8499,22 @@ export interface operations {
                      *       "progress": [
                      *         {
                      *           "node": "load_origin",
-                     *           "label": "Cargar el origen",
+                     *           "label": "Recuperar la HU de origen",
                      *           "state": "done"
                      *         },
                      *         {
                      *           "node": "retrieve_context",
-                     *           "label": "Recuperar contexto",
+                     *           "label": "Recuperar el contexto (Jira, documentos y memoria)",
                      *           "state": "running"
                      *         },
                      *         {
                      *           "node": "generate",
-                     *           "label": "Generar la propuesta",
+                     *           "label": "Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia",
+                     *           "state": "pending"
+                     *         },
+                     *         {
+                     *           "node": "publish",
+                     *           "label": "Publicar (o simular la publicación de) los casos de prueba en Jira",
                      *           "state": "pending"
                      *         }
                      *       ],

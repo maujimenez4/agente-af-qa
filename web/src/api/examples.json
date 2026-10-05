@@ -1136,19 +1136,6 @@
           "then": [
             "el vencimiento se amplía 21 días"
           ]
-        },
-        {
-          "id": "CA-02",
-          "title": "Renovación rechazada por reservas",
-          "given": [
-            "un préstamo activo con reservas pendientes"
-          ],
-          "when": [
-            "la persona socia pulsa «Renovar»"
-          ],
-          "then": [
-            "se muestra el aviso «El ejemplar tiene reservas pendientes»"
-          ]
         }
       ],
       "business_rules": [
@@ -1739,19 +1726,6 @@
           ],
           "then": [
             "el vencimiento se amplía 21 días"
-          ]
-        },
-        {
-          "id": "CA-02",
-          "title": "Renovación rechazada por reservas",
-          "given": [
-            "un préstamo activo con reservas pendientes"
-          ],
-          "when": [
-            "la persona socia pulsa «Renovar»"
-          ],
-          "then": [
-            "se muestra el aviso «El ejemplar tiene reservas pendientes»"
           ]
         }
       ],
@@ -3359,17 +3333,22 @@
     "progress": [
       {
         "node": "load_origin",
-        "label": "Cargar el origen",
+        "label": "Recuperar la HU de origen",
         "state": "done"
       },
       {
         "node": "retrieve_context",
-        "label": "Recuperar contexto",
+        "label": "Recuperar el contexto (Jira, documentos y memoria)",
         "state": "running"
       },
       {
         "node": "generate",
-        "label": "Generar la propuesta",
+        "label": "Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia",
+        "state": "pending"
+      },
+      {
+        "node": "publish",
+        "label": "Publicar (o simular la publicación de) los casos de prueba en Jira",
         "state": "pending"
       }
     ],

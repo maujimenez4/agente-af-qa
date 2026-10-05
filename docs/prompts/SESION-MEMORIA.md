@@ -57,7 +57,7 @@ Ejemplo real: «Crea un nuevo proyecto en JIRA llamado pruebas» → opciones de
 - **No mates procesos globales.** Pídeselo también a los subagentes.
 - **Kanban:**
   - fila en el registro;
-  - propuestas en **PA-150…PA-199**, la primera libre.
+  - propuestas en **PA-125…PA-139** (tu rango PA-150…PA-199 está lleno).
 - **Antes del commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
 - **Sin fusionar.** Haz `git push -u origin ses-origen` y avísame.
 

@@ -49,7 +49,9 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
 - **Casos de aprobación que la pantalla no provoca sola**, añadiendo `?simular=` a la URL (solo con `npm run dev:mock`; se aplica a cada *Aprobar y publicar* de esa pestaña):
   - `?simular=huella`: la huella no casa → vuelve al recibo con «No se aprobó» y el motivo;
   - `?simular=aprobacion-rechazada`: 409 `approval_rejected` → *Empezar de nuevo*;
-  - `?simular=no-en-revision`: 409 `not_in_review` → *Actualizar*.
+  - `?simular=no-en-revision`: 409 `not_in_review` → *Actualizar*;
+  - `?simular=publicado`: publicación real (fase 4, «Publicado en Jira»), sin escribir en ningún Jira;
+  - `?simular=parcial`: publicación en parte, con un error ficticio de vínculo.
 
   Quita el parámetro y recarga para volver al comportamiento normal (al recargar se pierde la sesión simulada: vuelve a iniciar sesión).
 - **Catálogo del sistema de diseño:** `http://localhost:5173/?catalogo`, solo en desarrollo.

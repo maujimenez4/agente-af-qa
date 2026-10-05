@@ -1,7 +1,7 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut } from '../../api/types.ts'
-import { Button } from '../../components/Button/index.ts'
+import { Button, SoonButton } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, UserMessage } from '../../components/Chat/index.ts'
 import { Chip } from '../../components/Chip/index.ts'
 import { Composer, ModelTag } from '../../components/Composer/index.ts'
@@ -38,23 +38,6 @@ export interface IterateScreenProps {
 type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources'
 
 type Entry = { kind: 'user'; text: string } | { kind: 'assistant'; version: number; animate: boolean }
-
-const SOON_TEXT = 'Disponible pronto: llega después del punto de control de la demo.'
-
-// Acción que aún no está en la demo (DESIGN-DECISIONS.md §4 bis): enfocable, con su descripción y sin efecto.
-function SoonButton({ label, primary = false }: { label: string; primary?: boolean }) {
-  const noteId = useId()
-  return (
-    <>
-      <Button variant={primary ? 'primary' : 'secondary'} className={styles.soon} aria-disabled="true" aria-describedby={noteId}>
-        {label}
-      </Button>
-      <span id={noteId} className="visually-hidden">
-        {SOON_TEXT}
-      </span>
-    </>
-  )
-}
 
 // Seguir una iteración en curso: cuando llega review_ready, la propuesta nueva sustituye a la anterior.
 function Iterating({

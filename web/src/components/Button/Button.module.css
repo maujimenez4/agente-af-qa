@@ -99,3 +99,9 @@
 .iconOnly.md {
   border-radius: var(--radius-md);
 }
+
+/* Acción que aún no está en la demo: atenuada y sin efecto (aria-disabled, SoonButton). */
+.soon[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,0 +1,108 @@
+/* Mixta 4 · Resultado (UI.md §4.7, lienzo MixtoPublicado). */
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.lead {
+  font-size: var(--text-sm);
+}
+
+.operations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-q-md);
+  background: var(--color-surface);
+  list-style: none;
+}
+
+.operation {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--space-2) 10px;
+  font-size: var(--text-sm);
+}
+
+/* En simulación, número en un círculo vacío; publicada, ✓ sobre naranja (lienzo). */
+.mark {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+}
+
+.mark[data-done] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-text);
+}
+
+.operationText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.muted {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-error-border);
+  border-radius: var(--radius-md);
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  font-size: var(--text-sm);
+}
+
+.failed ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.approved {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}

@@ -138,6 +138,9 @@ function mockBaseline(conversation: ConversationOut): UserStory | null {
 /** Paso del SSE al aprobar: publicar (en simulación no escribe en Jira). */
 const PUBLISH_STEP: Pick<ProgressStep, 'node' | 'label'> = { node: 'publish', label: 'Publicar en Jira' }
 
+/** Error ficticio de una publicación parcial (`?simular=parcial`). */
+export const PARTIAL_ERROR = 'No se pudo vincular DEMO-3 con DEMO-2: Jira respondió 403 (mensaje ficticio).'
+
 /** Mensaje del grafo cuando la huella no casa (UI.md §5): la revisión sigue con `review.error`. */
 export const FINGERPRINT_MISMATCH = 'La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.'
 
@@ -145,7 +148,7 @@ export const FINGERPRINT_MISMATCH = 'La aprobación no corresponde a la versión
  * Final de la aprobación simulada: con la huella exacta, `simulated` (o `published` en `live`) con su
  * `PublishOutcome`; si no casa, vuelve a la revisión con `review.error` y la misma huella.
  */
-function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false): ConversationOut {
+function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, partial = false): ConversationOut {
   const approving = run.approving
   if (!approving) return run.conversation
   run.approving = undefined
@@ -157,9 +160,13 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false): Con
     return run.conversation
   }
   const key = review.plan.find((item) => item.op === 'update_story')?.key
+  // Publicación parcial (RNF-13): no es un error HTTP; queda `approved` con `result.errors`.
+  const errors = live && partial ? [PARTIAL_ERROR] : []
   run.conversation = {
     ...reviewing,
-    state: live ? 'published' : 'simulated',
+    // Como la API: tras aprobar ya no hay revisión abierta.
+    review: null,
+    state: live ? (partial ? 'approved' : 'published') : 'simulated',
     progress: [{ ...PUBLISH_STEP, state: 'done' }],
     result: {
       simulated: !live,
@@ -167,7 +174,7 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false): Con
       approved_by: approvedBy,
       approved_at: new Date().toISOString(),
       published_keys: live && key ? [key] : [],
-      errors: [],
+      errors,
       failed_ids: [],
     },
   }
@@ -477,7 +484,9 @@ export function createHandlers(db: MockDb) {
             }
             if (run.conversation.state === 'generating' && run.approving) {
               await delay(db.stepDelayMs)
-              const done = finishApproval(run, db.session?.username, db.settings.publish_mode === 'live')
+              const forced = db.forceApprove
+              const live = db.settings.publish_mode === 'live' || forced === 'published' || forced === 'partial'
+              const done = finishApproval(run, db.session?.username, live, forced === 'partial')
               const reviewing = done.state === 'in_review'
               setSummary(done.id, { status: reviewing ? 'in_review' : (done.state as ConversationSummary['status']) })
               controller.enqueue(encoder.encode(sse(reviewing ? 'review_ready' : 'result', done)))

@@ -64,12 +64,6 @@
   color: var(--color-text-muted);
 }
 
-/* Acción que aún no está en la demo: atenuada y sin efecto (aria-disabled). */
-.soon[aria-disabled='true'] {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 /* Versión «Jira» del selector (PA-316): la HU de Jira, sin pestañas ni marcas. */
 .jira {
   display: flex;

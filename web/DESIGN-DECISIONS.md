@@ -165,7 +165,15 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Errores:** 409 `approval_rejected` → *Empezar de nuevo* (Inicio); 409 `not_in_review` → *Actualizar* (lee el estado y sale del recibo si ya no está en revisión).
   - **Botones:** *Descartar* (con confirmación), **Volver a la propuesta** y *Aprobar y publicar*. UI.md dice *Volver a generar* (`iterate`), pero iterar necesita un cambio pedido: se vuelve a Iterar, donde se pide.
   - **Panel:** «Historial de la HU», con las versiones (modelo, versión del prompt y hora de `VersionOut.created_at`) y la de partida desde Jira si la hay. Quién iteró y cuándo (`audit_log`) no está en el contrato.
-  - **Tras aprobar:** de momento, el aviso de conversación terminada; la pantalla de Resultado llega con el paso siguiente.
+  - **Tras aprobar:** se abre el Resultado.
+- **Resultado** (Mixta 4, UI.md §4.7): según `ConversationOut.result` (`PublishOutcome`):
+  - **Simulada** (`simulated`): fase 3 «Aprobada», Q fija en 3/4, «Aprobada · simulada», aviso de modo de prueba, las operaciones numeradas («se habrían hecho») y la nota de que la aprobación sigue vigente.
+  - **Publicada** (`published`, sin errores): fase 4 «Publicado», Q que se completa, operaciones con ✓ y las claves de `published_keys`.
+  - **En parte** (`errors` o `failed_ids`, estado `approved`): fase 4 «Publicada en parte» y «Lo que no se pudo publicar» con los mensajes de la API tal cual. No es un error HTTP (RNF-13).
+  - **Acciones** del lienzo, todas «disponible pronto» con su motivo en la descripción: *Ver el registro de auditoría* e *Ir al historial* (no están en el contrato / solo admin), *Abrir DEMO-3 en Jira* (falta la URL de Jira, PA-318), *Ver la memoria* (pestaña Memoria, después de T-57) y *Pedir sus pruebas a QA* (paso siguiente). *Reintentar solo los fallidos* es PA-05.
+  - Pie: «Versión N aprobada por af-demo a las 15:47» (la versión sale de `versions`: tras aprobar, `review` es `null`).
+  - Retomar desde la lista una conversación aprobada, simulada o publicada abre su Resultado.
+  - En la API simulada, `?simular=publicado` y `?simular=parcial` (web/README.md) permiten ver los tres casos.
 - **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso). Si terminó en `error`, se muestra `ConversationOut.error` tal cual (UI.md §7), sin acción en la tarjeta, con *Reintentar* (`POST /retry`, abre Generando) y un botón para empezar otra. Sin `error` en la respuesta, se muestra el texto de respaldo y también *Reintentar*; si `/retry` responde `not_in_error` (o `handoff_unavailable`), se muestra ese mensaje y solo queda empezar otra; con un fallo pasajero (429, 503…) se muestra y *Reintentar* sigue disponible. Si se retoma generando y falla sin conversación que reintentar, la acción lleva a Inicio: no hay una petición de Origen a la que volver.
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.

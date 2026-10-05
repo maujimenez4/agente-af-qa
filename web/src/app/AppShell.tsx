@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, toApiError } from '../api/client.ts'
-import type { ApiError, ConversationOut, UserOut } from '../api/types.ts'
+import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
 import { Button } from '../components/Button/index.ts'
 import { ConversationList, conversationTitle } from '../components/ConversationList/index.ts'
@@ -12,6 +12,8 @@ import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
 import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
 import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
 import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
+import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
+import { hasResult } from '../screens/Result/resultText.ts'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -59,6 +61,7 @@ type WorkView =
   | { name: 'generating'; conversation: ConversationOut; request?: StartRequest }
   | { name: 'ready'; conversation: ConversationOut }
   | { name: 'receipt'; conversation: ConversationOut }
+  | { name: 'result'; conversation: ConversationOut & { result: PublishOutcome } }
   | { name: 'closed'; conversation: ConversationOut }
 
 // Conversaciones ya cerradas: aprobar y publicar llegan después de T-57 (recibo y resultado).
@@ -101,6 +104,8 @@ function WorkZone({ user }: { user: UserOut }) {
         setView({ name: 'generating', conversation })
       } else if (conversation.state === 'in_review') {
         setView({ name: 'ready', conversation })
+      } else if (hasResult(conversation)) {
+        setView({ name: 'result', conversation })
       } else {
         setView({ name: 'closed', conversation })
       }
@@ -191,7 +196,9 @@ function WorkZone({ user }: { user: UserOut }) {
             conversation={view.conversation}
             onBack={(conversation) => setView({ name: 'ready', conversation })}
             onDone={(conversation) => {
-              setView(conversation.state === 'in_review' ? { name: 'ready', conversation } : { name: 'closed', conversation })
+              if (conversation.state === 'in_review') setView({ name: 'ready', conversation })
+              else if (hasResult(conversation)) setView({ name: 'result', conversation })
+              else setView({ name: 'closed', conversation })
               reload()
             }}
             onDiscarded={() => {
@@ -205,6 +212,7 @@ function WorkZone({ user }: { user: UserOut }) {
             }}
           />
         )}
+        {view.name === 'result' && <ResultScreen key={view.conversation.id} conversation={view.conversation} />}
         {view.name === 'closed' && (
           <ClosedConversation
             conversation={view.conversation}

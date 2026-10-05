@@ -105,15 +105,17 @@ export interface MockRun {
 }
 
 /** Respuestas de POST /approve que la pantalla no puede provocar por sí sola. */
-export type ForcedApproval = 'fingerprint' | 'approval_rejected' | 'not_in_review'
+export type ForcedApproval = 'fingerprint' | 'approval_rejected' | 'not_in_review' | 'published' | 'partial'
 
 const FORCED_APPROVALS: Record<string, ForcedApproval> = {
   huella: 'fingerprint',
   'aprobacion-rechazada': 'approval_rejected',
   'no-en-revision': 'not_in_review',
+  publicado: 'published',
+  parcial: 'partial',
 }
 
-/** `?simular=huella|aprobacion-rechazada|no-en-revision` → la respuesta forzada; otro valor, ninguna. */
+/** `?simular=huella|aprobacion-rechazada|no-en-revision|publicado|parcial` → la respuesta forzada; otro valor, ninguna. */
 export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   const value = new URLSearchParams(search).get('simular')
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined

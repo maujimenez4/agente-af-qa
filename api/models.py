@@ -465,6 +465,11 @@ class UsageTodayOut(BaseModel):
 class SettingsOut(BaseModel):
     publish_mode: Literal["simulation", "live"]
     tasks: list[TaskModelsOut]
+    jira_browse_url: str | None = Field(
+        default=None,
+        description="PA-318: prefijo para abrir una incidencia en Jira "
+        "(`{jira_browse_url}{clave}`); `null` si no hay sitio de Jira configurado. Solo `https`.",
+    )
 
 
 class ModelOverrideIn(BaseModel):

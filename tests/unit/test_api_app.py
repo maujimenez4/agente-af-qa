@@ -1685,3 +1685,37 @@ def test_issue_card_published_by_agent_is_null_when_the_store_fails(tmp_path: Pa
     response = a.get("/issues/DEMO-3")
     assert response.status_code == 200
     assert response.json()["published_by_agent"] is None
+
+
+def test_settings_without_jira_site_has_no_browse_url(api: Api) -> None:
+    """PA-318: sin sitio de Jira configurado, `jira_browse_url` es `null`."""
+    response = api.client.get(f"{API_PREFIX}/settings")
+    assert response.status_code == 200, response.text
+    assert response.json()["jira_browse_url"] is None
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected"),
+    [
+        (
+            "https://villaficticia-ejemplo.atlassian.net",
+            "https://villaficticia-ejemplo.atlassian.net/browse/",
+        ),
+        (
+            "https://villaficticia-ejemplo.atlassian.net/",
+            "https://villaficticia-ejemplo.atlassian.net/browse/",
+        ),
+        (None, None),
+        ("", None),
+        ("http://villaficticia-ejemplo.atlassian.net", None),
+        ("javascript:alert(1)", None),
+        ("https://usuario:clave@villaficticia-ejemplo.atlassian.net", None),
+        ("https://villaficticia-ejemplo.atlassian.net/otra/ruta", None),
+        ("https://villaficticia-ejemplo.atlassian.net/?q=1", None),
+    ],
+)
+def test_jira_browse_url_only_accepts_a_plain_https_site(
+    base_url: str | None, expected: str | None
+) -> None:
+    """PA-318: solo `https://<sitio>`; otro esquema, credenciales, ruta o consulta → `None`."""
+    assert app_module.jira_browse_url(base_url) == expected

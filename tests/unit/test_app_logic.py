@@ -1896,6 +1896,7 @@ def test_message_for_value_error_from_manual_edit_shows_its_message() -> None:
 # --- T-31 · Recibo de aprobación y resultado (UI.md §4.5–4.7, §5, §6.4–6.5) ------------------
 
 UPDATE_OP = {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
+COMMENT_OP = {"op": "comment", "key": "DEMO-3"}
 LINK_OP = {"op": "link", "from": "DEMO-3", "to": "DEMO-2", "type": "relates to"}
 CREATE_OP = {"op": "create_story", "project": "DEMO", "epic": "DEMO-1"}
 SUITE_OP = {"op": "publish_suite", "project": "DEMO", "story": "DEMO-3", "cases": "5"}
@@ -1974,17 +1975,20 @@ def test_approve_answer_returns_decision_and_exact_fingerprint() -> None:
 
 
 def test_receipt_items_update_story_lists_changed_fields_and_comment() -> None:
-    """UI.md §4.6 · RF-31: «Actualizar DEMO-3 con la versión N» con los campos cambiados."""
-    (item,) = receipt_items(_view([UPDATE_OP], version=3, impact=_impact()))
-    assert item.text == "Actualizar DEMO-3 con la versión 3"
-    assert item.detail == "Cambia: título, descripción. Se añade un comentario con los cambios."
+    """UI.md §4.6 · RF-31 · PA-319: «Actualizar DEMO-3 con la versión N» con los campos
+    cambiados, y el comentario con los cambios como casilla propia."""
+    update, comment = receipt_items(_view([UPDATE_OP, COMMENT_OP], version=3, impact=_impact()))
+    assert update.text == "Actualizar DEMO-3 con la versión 3"
+    assert update.detail == "Cambia: título, descripción."
+    assert comment.text == "Añadir a DEMO-3 un comentario con los cambios"
+    assert comment.detail == "Tabla antes / después."
 
 
-def test_receipt_items_update_story_without_impact_only_mentions_comment() -> None:
-    """UI.md §4.6 (límite): sin `impact` el detalle solo menciona el comentario."""
+def test_receipt_items_update_story_without_impact_has_no_detail() -> None:
+    """UI.md §4.6 (límite): sin `impact`, la actualización no lleva detalle."""
     (item,) = receipt_items(_view([UPDATE_OP], version=1))
     assert item.text == "Actualizar DEMO-3 con la versión 1"
-    assert item.detail == "Se añade un comentario con los cambios."
+    assert item.detail == ""
 
 
 def test_receipt_items_update_story_truncates_many_changed_fields() -> None:

@@ -77,12 +77,12 @@ uv run python -m api        # 127.0.0.1:8000, un solo proceso y sin access log
   - `provider_timeout`: el modelo no respondió a tiempo;
   - `rate_limited`, con `retry_after`: los proveedores están en su límite;
   - `service_unavailable`: todos los proveedores fallaron;
-  - `publish_failed`: Jira rechazó la publicación. Una publicación **parcial** no es un error: llega en `result.errors`, con el estado `approved`.
+  - `publish_failed`: Jira rechazó la publicación. Una publicación **parcial** no es un error: llega en `result.errors` (ver «Estados de una conversación»).
 - **Consumo de hoy** (anillo del carril): `GET /settings/usage` devuelve `tokens_today` y `warning_threshold`. Es el consumo de **toda la instalación** (`scope: "global"`): el registro de uso no guarda la persona. Incluye el `422` de validación, que nunca devuelve lo enviado.
 - **Estados de una conversación:**
   - **en la lista** (`ConversationSummary.status`): `started`, `in_review`, `approved`, `simulated`, `published` y `discarded`;
   - **en el detalle** (`ConversationOut.state`): `generating` en lugar de `started` (el grafo está trabajando), los demás iguales, y además `error` (falló la última operación);
-  - una publicación parcial queda en `approved`, con `result.errors` y `result.failed_ids`.
+  - una publicación parcial (PA-324): una **suite** con casos que no se pudieron crear queda en `approved`, con `result.errors` y `result.failed_ids`; una **HU** ya escrita con algún vínculo fallido queda en `published`, con `result.errors`. Trata los dos estados.
 - **Flujo y origen:**
   - `flow=need` admite un origen `need` o `epic`;
   - `evolve` y `tests` admiten solo `story`;
@@ -95,6 +95,9 @@ Todo lo nuevo **solo añade** rutas, campos opcionales o valores de `ErrorCode`:
 
 | Desde | Qué | Cómo se usa |
 |---|---|---|
+| 2026-10-05 (PA-318) | `SettingsOut.jira_browse_url` (`string` o `null`) | «Abrir DEMO-3 en Jira» y los enlaces a las claves publicadas: `{jira_browse_url}{clave}`. Siempre `https://<sitio>/browse/`; `null` sin sitio configurado. Pásalo igualmente por `safeHref` |
+| 2026-10-05 (PA-319) | Operación `{"op": "comment", "key": …}` en `review.plan`, justo después de `update_story` | El comentario con la tabla de cambios ya no hay que deducirlo: es su propia casilla del recibo. No cambia la huella |
+| 2026-10-05 (PA-324) | Aclaración del estado tras una publicación parcial | Suite con casos sin crear → `approved`; HU escrita con algún vínculo fallido → `published`. En los dos, `result.errors` |
 | Ronda 10 (T-33) | `GET /memories?project=&q=&limit=` → `MemorySummary[]` y `GET /memories/{key}` → `MemoryOut` | Pestaña «Memoria»: las memorias de las HU publicadas de los proyectos que ve la conexión, más recientes primero; `q` busca en la clave y en el texto. Cada una trae `title` (el objetivo, como mucho 120 caracteres), `version`, `updated_at` e `indexed` (si está en el RAG). En el detalle, `memory` se pinta campo a campo **como texto** (lo escribió el LLM) y `markdown` es solo para descargarlo. Lista vacía: «Aún no hay memorias. Se generan al publicar una HU en Jira (modo real).» El mismo 404 `not_found` si no existe, si es de un proyecto que no se ve o si la clave no es válida. Los tres roles pueden leer; no llama al LLM ni escribe nada. Datos de ejemplo en local: `uv run python -m core.memory.seed_demo` |
 | Ronda 10 (T-29 mínima) | `POST /admin/connections/test` → `ConnectionsTestOut` y `GET /admin/models` → `AdminModelsOut` | Página **Administración**, solo para `admin` (los demás roles: 403 `forbidden`). «Probar conexiones» devuelve una fila por servicio (`service`, `ok`, `detail`, `duration_ms`): Jira, PostgreSQL (con la revisión de Alembic), `Modelos · <proveedor>` y Embeddings; pinta ✅/❌, el detalle y el tiempo. Tarda como mucho unos 5 s; lleva CSRF y admite **una prueba cada 10 s por persona** (429 `rate_limited` con `retry_after`). Un proveedor sin clave sale como «Sin configurar.». `GET /admin/models`: cadena de modelos por tarea y modelo de embeddings, de cada proveedor **solo el host**, y `override` si la sesión eligió otro modelo. No escribe en Jira ni genera texto |
 | Ronda 9 (PA-314) | `POST /conversations/{id}/cancel` → 202 `ConversationOut` | Botón «Detener» en Generando e Iterar. Mientras termina el paso en curso, `cancel_requested=true` («Deteniendo…»); **una llamada al LLM ya en curso no se corta**. Al acabar: `state=error` con `error.code=cancelled` (ofrece «Reintentar» con `/retry`) o, si el siguiente paso era la revisión, `state=in_review` con la propuesta ya generada y `cancel_requested=false`. Aprobar o publicar no se cancelan: 409 `not_cancellable` (también si no está generando). Nunca escribe en Jira |

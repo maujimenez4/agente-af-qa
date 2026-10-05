@@ -216,9 +216,10 @@ def test_simulated_plan_for_evolution_updates_story_and_links_affected(tmp_path:
     plan = _audit(container).entries(artifact.id)[-1].detail["plan"]
 
     assert plan[0] == {"op": "update_story", "project": "DEMO", "key": "DEMO-3"}
-    assert plan[1:] == _links(artifact, "DEMO-3")
-    assert plan[1:], "el fake propone al menos una HU afectada (DEMO-2)"
-    assert all(step["to"] != "DEMO-3" for step in plan[1:])
+    assert plan[1] == {"op": "comment", "key": "DEMO-3"}  # PA-319
+    assert plan[2:] == _links(artifact, "DEMO-3")
+    assert plan[2:], "el fake propone al menos una HU afectada (DEMO-2)"
+    assert all(step["to"] != "DEMO-3" for step in plan[2:])
 
 
 def test_simulated_plan_for_epic_creates_story_and_skips_epic_link(tmp_path: Path) -> None:

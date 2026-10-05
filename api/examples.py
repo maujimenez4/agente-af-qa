@@ -116,6 +116,7 @@ ARTIFACT = Artifact(
 )
 PLAN = [
     {"op": "update_story", "project": "DEMO", "key": "DEMO-3"},
+    {"op": "comment", "key": "DEMO-3"},
     {"op": "link", "from": "DEMO-3", "to": "DEMO-2", "type": "relates to"},
 ]
 
@@ -383,6 +384,7 @@ HANDOFFS = [
 ]
 SETTINGS = SettingsOut(
     publish_mode="simulation",
+    jira_browse_url="https://villaficticia-ejemplo.atlassian.net/browse/",
     tasks=[
         TaskModelsOut(
             task="generate_story",

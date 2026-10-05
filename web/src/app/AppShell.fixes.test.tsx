@@ -7,6 +7,7 @@ import examples from '../api/examples.json'
 import type { ConversationOut } from '../api/types.ts'
 import { App } from '../App.tsx'
 import { mockDb, mockServer } from '../mocks/node.ts'
+import { openEventStream } from '../test/sse.ts'
 
 const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
 
@@ -28,7 +29,7 @@ describe('Retomar una conversación generando (H-2, PA-276)', () => {
         () => new HttpResponse(`event: error\ndata: ${JSON.stringify(failure)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } }),
         { once: true },
       ),
-      http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })),
+      http.get('/api/v1/conversations/:id/events', openEventStream),
       http.post('/api/v1/conversations/:id/retry', () => {
         retries += 1
         return HttpResponse.json({ ...EXAMPLE, state: 'generating', review: null, error: null }, { status: 202 })
@@ -84,7 +85,7 @@ describe('Retomar una conversación terminada en error: Reintentar (PA-276)', ()
   it('«Reintentar» llama a /retry y abre Generando', async () => {
     let retries = 0
     mockServer.use(
-      http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })),
+      http.get('/api/v1/conversations/:id/events', openEventStream),
       http.post('/api/v1/conversations/:id/retry', () => {
         retries += 1
         return HttpResponse.json({ ...EXAMPLE, state: 'generating', review: null, error: null }, { status: 202 })
@@ -116,7 +117,7 @@ describe('Retomar en error: un fallo pasajero de /retry (H-2)', () => {
     const failed = { ...EXAMPLE, state: 'error' as const, review: null, error: { code: 'cancelled' as const, message: 'Generación detenida (ficticio).', retry_after: null } }
     let retries = 0
     mockServer.use(
-      http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })),
+      http.get('/api/v1/conversations/:id/events', openEventStream),
       http.post('/api/v1/conversations/:id/retry', () => {
         retries += 1
         return retries === 1

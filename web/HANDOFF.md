@@ -26,7 +26,7 @@ Con la CPU ocupada por otros procesos, alguna prueba de Origen o Generando puede
 - **De la principal:**
   - PA-311 (validar el login), PA-315 (citas por CA y RN), **PA-318 (URL de Jira para *Abrir en Jira*)**, PA-319 (el comentario con los cambios como operación del plan) y PA-324 (estado de una publicación parcial);
   - corregir el ejemplo de `jira_baseline`: incluye el CA-02, que sus diffs dan por nuevo.
-- **Del área B:** PA-300 (UI.md, con las dos diferencias del recibo), PA-304, PA-310 y PA-312.
+- **Del área B:** PA-300 (UI.md, con dos diferencias: *Volver a la propuesta* en el recibo y el aviso de modo de prueba solo en simulación), PA-304, PA-310 y PA-312.
 
 ## Siguiente
 1. **Pulido para T-57:** 1280×800 primero (el carril se corta y hay scroll de página), después 1024 px (el título se corta); teclado, foco y reducir movimiento.

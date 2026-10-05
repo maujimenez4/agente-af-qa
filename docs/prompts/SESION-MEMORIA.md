@@ -1,57 +1,64 @@
-# SESIÓN UI · Ronda 7: robustez del núcleo (PA-140, PA-142, PA-145, PA-146 y PA-277)
+# SESIÓN UI · Ronda 8: conversación en «Origen y fuentes» de la web (React)
 
-> Encargo de la **sesión UI**. Tu ronda 6 (defectos de T-35) ya está fusionada.
+> Encargo de la **sesión UI**. Tu ronda 7 ya está fusionada. Esta vez trabajas en la **web en React** (`web/`), que ya está en `PreProduccion`. Es del responsable del área B: **avisado de que esta sesión toca solo la pantalla Origen**.
 
 Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
-```bash
+```powershell
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/ses-ui switch -C ses-ui origin/PreProduccion
-cd .claude/worktrees/ses-ui
-uv sync
-uv run python -m pytest -m "not integration"   # en verde, sin xfail
+git -C .claude/worktrees/ses-ui switch -C ses-origen origin/PreProduccion
+cd .claude/worktrees/ses-ui/web
+npm ci
+npm test            # en este equipo pueden fallar 2 o 3 pruebas de «Retomar en error · Reintentar» (dependen del tiempo; ya avisado)
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-ui`**, puesta al día desde `PreProduccion`.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-origen`**, creada desde `PreProduccion`. Tu ronda 7 ya está fusionada.
 
-Contexto: el sistema ya funciona de punta a punta con el modelo local. El e2e real del 2026-10-04 pasa sin truncados, sin reintentos de citas y sin OOM (`docs/pruebas/E2E-local-2026-10-02.md`). Esta ronda es de **robustez**: ninguna PA cambia el comportamiento visible.
+**Esta vez trabajas en `web/`**, el frontend en React (T-56) del responsable del área B. Lee antes:
+- `web/README.md` y `web/DESIGN-DECISIONS.md`: convenciones, componentes y cómo se prueba;
+- `docs/specs/UI.md` §4.3 (Mixta 2 · Origen fijado);
+- `docs/api/README.md` (arranque guiado: `POST /start/propose`).
 
-## Tareas (lee el texto completo de cada PA en `docs/KANBAN.md`)
-1. **PA-140:** escritura atómica del registro de aprobaciones **entre procesos**. Propón en el plan una de dos opciones:
-   - escritura condicional en `ArtifactStateStore` (una revisión dentro del estado y `UPDATE … WHERE revision = …`);
-   - o `SELECT … FOR UPDATE`.
+## El fallo (encontrado probando contra la API real)
+En **Origen y fuentes**, tras escribir una necesidad, el asistente muestra la propuesta del arranque guiado con sus opciones («Evolucionar AFQP-25», «Crear HU nueva»…).
 
-   Que un cambio de otro proceso (p. ej. `consumed=True`) nunca se pierda. Si toca el protocolo `ArtifactStateStore` (`core/artifact_state.py`), está autorizado; mantén el almacén en memoria compatible.
-2. **PA-146:** serializa la comprobación de versión de `StoryVersionStore.save` (`SELECT … FOR UPDATE` sobre la fila de `artifacts`).
-3. **PA-145:** el aviso de presupuesto diario también se evalúa tras registrar los tokens de una llamada fallida (`adapters/llm/fallback.py`).
-4. **PA-142:** el detector de datos personales de `core/qa/validation.py` tiene coste cuadrático. Usa el enfoque que ya tiene `core/graph/execution.py` y que haya un único detector común.
-5. **PA-277:** la UI de Streamlit usa el almacén persistente de revisiones de calidad (`QualityReviewStore`, como la API) y su lista.
+Si la persona **no elige ninguna y escribe otro mensaje**, el mensaje aparece en el chat pero **no pasa nada**: el composer («Añade detalles a la necesidad (opcional)») lo guarda en `details` sin respuesta, y parece que el agente se ha colgado.
+
+Ejemplo real: «Crea un nuevo proyecto en JIRA llamado pruebas» → opciones de HU parecidas → «Evoluciona AFQP-25» → silencio.
+
+## Tareas (`web/src/screens/Origin/OriginScreen.tsx` y sus pruebas)
+1. **Sin operación elegida** (`operation === undefined`), un mensaje nuevo **vuelve a pedir la propuesta**:
+   - `POST /start/propose` con ese texto, el proyecto y el modo;
+   - la nueva propuesta sale como **otro mensaje del asistente**, con sus opciones, y las anteriores quedan desactivadas. Así «Evoluciona AFQP-25» reconoce la clave y ofrece «Evolucionar AFQP-25»;
+   - mientras espera, el composer queda desactivado;
+   - si falla, la tarjeta de error de siempre (`ErrorCard`).
+2. **Con la operación elegida**, el mensaje sigue siendo un detalle (restricción) para la generación, como hoy, pero el asistente **responde**: «Anotado: lo tendré en cuenta al generar.».
+3. **Cuando la propuesta sale de una búsqueda por texto** (sin clave reconocida), el mensaje del asistente añade una línea fija: «Puedo crear una HU nueva, evolucionar una existente o preparar sus pruebas. No gestiono proyectos de Jira.».
+   - En el flujo de QA, la frase equivalente para pruebas.
+4. **El placeholder del composer** describe lo que hará:
+   - sin operación elegida: «Escribe otra necesidad o una clave de Jira»;
+   - con operación elegida: «Añade detalles a la necesidad (opcional)».
 
 ## Reglas
-- **Puedes tocar:**
-  - `core/approvals.py`, `core/artifact_state.py` y `core/impact/versions.py`;
-  - `adapters/llm/fallback.py`;
-  - `core/qa/validation.py`, `core/graph/execution.py` (solo para compartir el detector) y un módulo común nuevo si hace falta;
-  - `app/` (PA-277);
-  - sus pruebas.
+- **Solo** `web/src/screens/Origin/**`, y si hace falta `web/src/mocks/**` (la API simulada) y textos compartidos. No toques el cliente (`web/src/api/**`): es de la sesión MCP, que está probando la conexión en `ses-web`. Tampoco otras pantallas, ni `api/`, `core/` o `app/`.
+- **Las convenciones de `web/`:** componentes existentes, textos en español, nada de `dangerouslySetInnerHTML`, enlaces por `safeHref`.
+- **Pruebas (Vitest con MSW):**
+  - un segundo mensaje sin operación vuelve a proponer (y reconoce una clave);
+  - con operación elegida, el detalle se confirma;
+  - la línea de capacidades solo en una búsqueda por texto;
+  - el composer desactivado mientras espera;
+  - un error de `/start/propose` muestra la tarjeta.
 
-  No toques `api/`, `core/functional/`, `core/context/`, `adapters/jira/`, `config/` ni `schemas/`.
-- **Pruebas:**
-  - las de concurrencia entre procesos o con PostgreSQL llevan la marca `integration` y usan bases de datos temporales; se pueden ejecutar (Postgres está levantado);
-  - pruebas de tiempo para PA-142.
-- **Windows:** si `pytest` está bloqueado por la directiva de aplicaciones, usa `uv run python -m pytest`.
-- **Nombres en las pruebas:** no uses `secret`, `password` ni `token` como nombre de variables con valores literales, ni texto que imite una clave privada (gitleaks).
+  Pruebas deterministas: nada que dependa de cuánto dura un estado en pantalla.
+- **Verificación:** `npm run lint`, `npx tsc -b`, `npm test` y `npm run api:check` en verde (salvo las 2 o 3 de «Reintentar» ya conocidas: dilo si fallan).
+- **No mates procesos globales.** Pídeselo también a los subagentes.
 - **Kanban:**
-  - cierra las PA con la fecha;
-  - añade tu fila al registro;
-  - **propuestas en PA-147…PA-149, después PA-150+ libres**.
-- **Antes del commit:**
-  - `uv run python -m pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde;
-  - `spec-checker` CONFORME y `security-reviewer` APTO.
-  - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push origin ses-ui` y avísame.
+  - fila en el registro;
+  - propuestas en **PA-150…PA-199**, la primera libre.
+- **Antes del commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
+- **Sin fusionar.** Haz `git push -u origin ses-origen` y avísame.
 
-Empieza presentándome el plan (sobre todo PA-140) antes de escribir código.
+Empieza presentándome el plan antes de escribir código.

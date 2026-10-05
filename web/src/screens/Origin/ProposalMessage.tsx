@@ -17,9 +17,21 @@ export interface ProposalMessageProps {
   origin?: IssueSummary
 }
 
-function issueDetail(issue: IssueSummary, card: IssueCard | undefined): string {
+function testCasesText(count: number | null | undefined): string | undefined {
+  if (count === null || count === undefined) return undefined
+  if (count === 0) return 'sin casos de prueba en Jira'
+  return `${count} ${count === 1 ? 'caso de prueba' : 'casos de prueba'} en Jira`
+}
+
+// En QA (UI.md §6.1) la ficha añade los casos que ya tiene en Jira (PA-104) y si la publicó el agente.
+function issueDetail(issue: IssueSummary, card: IssueCard | undefined, qa = false): string {
   if (!card) return `${issue.issue_type} · ${issue.status}`
-  const parts = [card.epic_key ? `Épica ${card.epic_key}` : undefined, `${card.criteria_count} criterios y ${card.rules_count} reglas`]
+  const parts = [
+    card.epic_key ? `Épica ${card.epic_key}` : undefined,
+    `${card.criteria_count} criterios y ${card.rules_count} reglas`,
+    qa ? testCasesText(card.test_cases) : undefined,
+    qa && card.published_by_agent ? 'publicada por el agente' : undefined,
+  ]
   return parts.filter(Boolean).join(' · ')
 }
 
@@ -68,7 +80,7 @@ export function ProposalMessage({ proposal, mode, disabled, onChoose, origin }: 
       {!recognized && <p>{capabilitiesLine(mode)}</p>}
       <FoundIssue
         title={shown ? `${shown.key}, ${shown.summary}` : 'HU nueva'}
-        detail={shown ? issueDetail(shown, card) : `En el proyecto ${project}`}
+        detail={shown ? issueDetail(shown, card, mode === 'qa') : `En el proyecto ${project}`}
         actions={proposal.options.map((option, index) => (
           <Button
             key={option.label}

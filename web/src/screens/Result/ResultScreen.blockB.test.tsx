@@ -80,7 +80,7 @@ describe('Resultado · suite de QA (`publish_suite`)', () => {
 describe('Resultado · teclado en las acciones «disponible pronto»', () => {
   it('se llega a cada acción con Tab y ni Intro ni Espacio cambian la pantalla', async () => {
     const region = renderResult({ simulated: false, published_keys: ['DEMO-3'] }, { state: 'published' })
-    const names = ['Abrir DEMO-3 en Jira', 'Ver la memoria', 'Pedir sus pruebas a QA']
+    const names = ['Abrir DEMO-3 en Jira', 'Ver la memoria']
     const before = region.innerHTML
     for (const name of names) {
       const button = within(region).getByRole('button', { name })

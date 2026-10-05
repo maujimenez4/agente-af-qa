@@ -3,6 +3,7 @@
 import type {
   ConversationOut,
   ConversationSummary,
+  HandoffOut,
   IssueCard,
   IssueSummary,
   ProgressStep,
@@ -88,6 +89,9 @@ export function issueCard(key: string): IssueCard | undefined {
     epic_key: issue.issue_type === 'Epic' ? null : (epicOf(issue.key) ?? null),
     criteria_count: issue.issue_type === 'Epic' ? 0 : 2,
     rules_count: issue.issue_type === 'Epic' ? 0 : 2,
+    // PA-104: subtareas CP en Jira y si la publicó el agente (como el ejemplo del contrato: ninguna, no).
+    test_cases: issue.issue_type === 'Epic' ? null : 0,
+    published_by_agent: issue.issue_type === 'Epic' ? null : false,
   }
 }
 
@@ -119,6 +123,11 @@ const FORCED_APPROVALS: Record<string, ForcedApproval> = {
 export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   const value = new URLSearchParams(search).get('simular')
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
+}
+
+/** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
+export function takenFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'ya-recogida'
 }
 
 /** `?simular=muchas-conversaciones`: la lista con muchas conversaciones (solo en el navegador). */
@@ -160,6 +169,10 @@ export interface MockDb {
   forceApprove?: ForcedApproval
   conversations: ConversationSummary[]
   runs: Map<string, MockRun>
+  /** QA encadenada (T-54): HU pasadas a QA y aún sin recoger. */
+  handoffs: HandoffOut[]
+  /** `?simular=ya-recogida`: al recoger, otra persona se adelantó (409 `handoff_unavailable`). */
+  forceTaken?: boolean
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }
@@ -172,6 +185,7 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     usage: example<UsageTodayOut>('GET /api/v1/settings/usage 200'),
     conversations: example<ConversationSummary[]>('GET /api/v1/conversations 200'),
     runs: new Map(),
+    handoffs: example<HandoffOut[]>('GET /api/v1/qa/handoffs 200'),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

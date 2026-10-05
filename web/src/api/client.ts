@@ -6,6 +6,7 @@ import type {
   ConversationCreateIn,
   ConversationOut,
   ConversationSummary,
+  HandoffOut,
   IssueCard,
   IssueSummary,
   IterateIn,
@@ -130,6 +131,11 @@ export const api = {
     request<ConversationOut>('POST', `/conversations/${enc(id)}/approve`, { fingerprint } satisfies ApproveIn),
   cancel: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/cancel`),
   retry: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/retry`),
+
+  // QA encadenada (T-54): el analista pasa la HU a QA; QA ve las pendientes y recoge una.
+  handoff: (id: string) => request<HandoffOut>('POST', `/conversations/${enc(id)}/handoff`),
+  qaHandoffs: () => request<HandoffOut[]>('GET', '/qa/handoffs'),
+  takeHandoff: (id: string) => request<ConversationOut>('POST', `/qa/handoffs/${enc(id)}/take`),
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),

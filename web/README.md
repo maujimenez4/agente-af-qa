@@ -52,6 +52,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
   - `?simular=no-en-revision`: 409 `not_in_review` → *Actualizar*;
   - `?simular=publicado`: publicación real (fase 4, «Publicado en Jira»), sin escribir en ningún Jira;
   - `?simular=parcial`: publicación en parte, con un error ficticio de vínculo;
+  - `?simular=ya-recogida`: al recoger una HU pendiente de pruebas (QA), otra persona se adelantó (409 `handoff_unavailable`);
   - `?simular=muchas-conversaciones`: 120 conversaciones ficticias en 30 días, para revisar la lista larga (este se aplica al cargar la página).
 
   Quita el parámetro y recarga para volver al comportamiento normal (al recargar se pierde la sesión simulada: vuelve a iniciar sesión).

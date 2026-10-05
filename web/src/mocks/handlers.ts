@@ -9,6 +9,7 @@ import type {
   ConversationOut,
   ConversationSummary,
   ErrorCode,
+  HandoffOut,
   IssueSummary,
   IterateIn,
   LoginIn,
@@ -587,6 +588,80 @@ export function createHandlers(db: MockDb) {
         run.script = generationScript()
         setSummary(params.id, { status: 'started' })
         return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
+      }),
+    ),
+
+    // QA encadenada (T-54): el analista pasa la HU a QA; QA la ve en Inicio y la recoge.
+    http.post<{ id: string }>(
+      `${API}/conversations/:id/handoff`,
+      mutation(({ params }) => {
+        if (db.session?.role !== 'functional') return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
+        const run = runFor(params.id)
+        if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
+        if (!['approved', 'simulated', 'published'].includes(run.conversation.state)) {
+          return error(409, 'not_in_review', 'La conversación tiene una operación en curso o aún no está aprobada.')
+        }
+        // Idempotente: la misma conversación devuelve la misma entrada.
+        const id = params.id.replace(/-/g, '')
+        const existing = db.handoffs.find((item) => item.id === id)
+        if (existing) return HttpResponse.json(existing as JsonBodyType)
+        const result = run.conversation.result
+        const handoff: HandoffOut = {
+          id,
+          title: (run.conversation.review?.artifact.content as UserStory | undefined)?.title ?? run.conversation.title,
+          project: run.conversation.project,
+          story_key: result && !result.simulated ? (result.published_keys[0] ?? null) : null,
+          version: run.conversation.versions.at(-1)?.version ?? 1,
+          from_user: db.session.username,
+          created_at: new Date().toISOString(),
+        }
+        db.handoffs.unshift(handoff)
+        return HttpResponse.json(handoff as JsonBodyType)
+      }),
+    ),
+    http.get(
+      `${API}/qa/handoffs`,
+      query(() =>
+        db.session?.role === 'qa' ? HttpResponse.json(db.handoffs as JsonBodyType) : error(403, 'forbidden', 'No tienes permiso para realizar esta acción.'),
+      ),
+    ),
+    http.post<{ id: string }>(
+      `${API}/qa/handoffs/:id/take`,
+      mutation(({ params }) => {
+        if (db.session?.role !== 'qa') return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
+        const index = db.handoffs.findIndex((item) => item.id === params.id)
+        if (index < 0 || db.forceTaken) {
+          if (index >= 0) db.handoffs.splice(index, 1)
+          return error(409, 'handoff_unavailable', 'Esa HU ya no está disponible para QA: puede que la haya recogido otra persona.')
+        }
+        const [handoff] = db.handoffs.splice(index, 1)
+        const id = crypto.randomUUID()
+        const now = new Date().toISOString()
+        const conversation: ConversationOut = {
+          ...example<ConversationOut>('POST /api/v1/qa/handoffs/{handoff_id}/take 202'),
+          id,
+          title: `Preparar pruebas de ${handoff?.story_key ?? handoff?.title ?? 'la HU'}`,
+          project: handoff?.project ?? 'DEMO',
+          state: 'generating',
+          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+        }
+        db.runs.set(id, { conversation, script: generationScript() })
+        db.conversations.unshift({
+          ...example<ConversationSummary[]>('GET /api/v1/conversations 200')[0],
+          thread_id: id,
+          username: db.session.username,
+          project_key: conversation.project,
+          mode: 'qa',
+          origin_kind: 'story',
+          origin_key: handoff?.story_key ?? null,
+          title: conversation.title,
+          status: 'started',
+          artifact_id: null,
+          version: null,
+          created_at: now,
+          updated_at: now,
+        } as ConversationSummary)
+        return HttpResponse.json(conversation as JsonBodyType, { status: 202 })
       }),
     ),
 

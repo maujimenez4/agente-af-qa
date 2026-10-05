@@ -49,3 +49,4 @@ export type OriginIn = Schemas['OriginIn']
 
 export type SettingsOut = Schemas['SettingsOut']
 export type UsageTodayOut = Schemas['UsageTodayOut']
+export type HandoffOut = Schemas['HandoffOut']

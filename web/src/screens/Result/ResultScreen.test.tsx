@@ -77,7 +77,9 @@ describe('Resultado tras aprobar', () => {
     expect(within(region).queryByText(/Modo de prueba activo/)).toBeNull()
     expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La dirección de Jira no está disponible.')
     expect(within(region).getByRole('button', { name: 'Ver la memoria' })).toHaveAttribute('aria-disabled', 'true')
-    expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAttribute('aria-disabled', 'true')
+    // T-54: el analista ya puede pasar la HU a QA.
+    expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toBeEnabled()
+    expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).not.toHaveAttribute('aria-disabled')
   })
 
   it('en parte: «Publicada en parte» con el error de la API tal cual y sin ocultar lo publicado', async () => {

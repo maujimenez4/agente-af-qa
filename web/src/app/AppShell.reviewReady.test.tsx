@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from '../App.tsx'
 import { mockDb } from '../mocks/node.ts'
+import { generateSuiteForDemo3 } from '../test/qaFlow.tsx'
 
 const list = () => screen.getByRole('complementary', { name: 'Conversaciones' })
 
@@ -27,13 +28,11 @@ describe('Lista de conversaciones al llegar review_ready', () => {
     expect(screen.getByRole('button', { name: 'Ver la propuesta' })).toBeInTheDocument()
   })
 
-  it('QA: al recoger una HU, la suite lista deja de decir «En curso» sin pulsar *Ver la suite*', async () => {
-    mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
-    render(<App />)
-    const pending = await screen.findByRole('region', { name: 'Pendientes de pruebas' })
-    await userEvent.click(await within(pending).findByRole('button', { name: 'Recoger DEMO-3' }))
+  it('QA: la suite lista deja de decir «En curso» sin pulsar *Ver la suite*', async () => {
+    await generateSuiteForDemo3()
+    expect(await within(list()).findByRole('button', { name: /Preparar pruebas de DEMO-3.*En curso/ })).toBeInTheDocument()
     await screen.findByRole('button', { name: 'Ver la suite' })
-    const current = await within(list()).findByRole('button', { current: true, name: /Preparar pruebas de DEMO-3.*Versión 1/ })
-    expect(current).not.toHaveTextContent('En curso')
+    await vi.waitFor(() => expect(within(list()).queryByRole('button', { name: /En curso/ })).toBeNull())
+    expect(within(list()).getByRole('button', { name: /Preparar pruebas de DEMO-3.*Versión 1/ })).toBeInTheDocument()
   })
 })

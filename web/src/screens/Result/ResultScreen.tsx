@@ -13,12 +13,15 @@ import { proposalVersions } from '../Iterate/iterateText.ts'
 import { receiptOperations } from '../Receipt/receiptText.ts'
 import { HandoffAction } from './HandoffAction.tsx'
 import styles from './Result.module.css'
-import { approvedLine, jiraIssueUrl, OUTCOME_TEXTS, outcomeOf } from './resultText.ts'
+import { approvedLine, jiraIssueUrl, OUTCOME_TEXTS, outcomeOf, QA_OUTCOME_TEXTS } from './resultText.ts'
+import { qaHeaderTitle } from '../Generating/headline.ts'
 
 export interface ResultScreenProps {
   conversation: ConversationOut & { result: PublishOutcome }
-  /** El analista puede pasar la HU a QA (T-54); QA y admin, no. */
+  /** El analista puede pasar la HU a QA (T-54); QA y admin, no. Con el flujo unido desactivado, siempre `false`. */
   canHandoff?: boolean
+  /** Flujo unido fuera de la entrega (`QA_HANDOFF_ENABLED`): *Pedir sus pruebas a QA* sale «disponible pronto». */
+  handoffSoon?: boolean
 }
 
 // Qué falta para cada acción del lienzo que aún no hace nada (DESIGN-DECISIONS.md §4 bis).
@@ -27,24 +30,36 @@ const SOON = {
   history: 'El historial es solo para administración y llega después del punto de control de la demo.',
   jira: 'La dirección de Jira no está disponible.',
   memory: 'La pestaña Memoria llega después del punto de control de la demo.',
+  execution: 'Registrar la ejecución (QA 6) llega en la siguiente ronda.',
+  qa: 'No entra en esta entrega: QA prepara las pruebas escribiendo la clave de la HU.',
 }
 
 // Mixta 4 · Resultado (UI.md §4.7): publicación simulada, real o en parte, tras aprobar en el recibo.
-export function ResultScreen({ conversation, canHandoff = false }: ResultScreenProps) {
+export function ResultScreen({ conversation, canHandoff = false, handoffSoon = false }: ResultScreenProps) {
   const { result } = conversation
   const outcome = outcomeOf(result)
-  const texts = OUTCOME_TEXTS[outcome]
+  // QA 5 (UI.md §6.5): el resultado de una suite (`publish_suite` en el plan).
+  const qa = conversation.mode === 'qa' || result.plan.some((item) => item.op === 'publish_suite')
+  const texts = (qa ? QA_OUTCOME_TEXTS : OUTCOME_TEXTS)[outcome]
   const last = proposalVersions(conversation).at(-1)
   const story = last?.story as UserStory | undefined
   const operations = receiptOperations(result.plan, last?.version ?? 1, story?.title ?? '', last?.impact)
   // Solo con todo publicado se marca cada operación con ✓: en parte, `errors` es texto y no dice cuál falló.
   const done = outcome === 'published'
   const listLabel = { simulated: 'Operaciones que se habrían hecho', published: 'Operaciones hechas en Jira', partial: 'Operaciones aprobadas' }[outcome]
-  const key = result.plan.find((item) => item.op === 'update_story')?.key ?? result.published_keys[0]
+  // La HU que se abre en Jira: la actualizada o, en una suite, la HU de sus subtareas.
+  const key =
+    result.plan.find((item) => item.op === 'update_story')?.key ||
+    result.plan.find((item) => item.op === 'publish_suite')?.story ||
+    result.published_keys[0]
   const jiraUrl = jiraIssueUrl(useJiraBrowseUrl(outcome !== 'simulated'), key)
 
   return (
-    <Workspace title={conversationTitle(conversation.title)} phase={texts.phase} phaseName={texts.phaseName}>
+    <Workspace
+      title={qa ? qaHeaderTitle(conversationTitle(conversation.title)) : conversationTitle(conversation.title)}
+      phase={texts.phase}
+      phaseName={texts.phaseName}
+    >
       <section className={styles.result} aria-labelledby="result-title">
         <div className={styles.head}>
           <ResultQ outcome={outcome} />
@@ -104,13 +119,18 @@ export function ResultScreen({ conversation, canHandoff = false }: ResultScreenP
               ) : (
                 <SoonButton label={key ? `Abrir ${key} en Jira` : 'Abrir en Jira'} note={SOON.jira} />
               )}
-              <SoonButton label="Ver la memoria" note={SOON.memory} />
-              {canHandoff && <HandoffAction conversationId={conversation.id} />}
+              {qa ? (
+                <SoonButton label="Registrar la ejecución" variant="primary" note={SOON.execution} />
+              ) : (
+                <SoonButton label="Ver la memoria" note={SOON.memory} />
+              )}
+              {canHandoff && !qa && <HandoffAction conversationId={conversation.id} />}
+              {handoffSoon && !qa && <SoonButton label="Pedir sus pruebas a QA" variant="primary" note={SOON.qa} />}
             </>
           )}
         </div>
 
-        <p className={styles.approved}>{approvedLine(last?.version, result)}</p>
+        <p className={styles.approved}>{approvedLine(last?.version, result, qa)}</p>
       </section>
     </Workspace>
   )

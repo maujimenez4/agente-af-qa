@@ -51,10 +51,18 @@ function operationOf(item: PlanItem, index: number, version: number, title: stri
     case 'link':
       return { id, label: `Vincular ${item.from ?? 'la HU'} con ${item.to ?? 'otra incidencia'}`, detail: linkReason(impact, item.to ?? '') ?? `Vínculo «${item.type ?? 'relates to'}».` }
     case 'publish_suite': {
+      // QA 4 (UI.md §6.4). `publish_suite` crea una subtarea por caso y adjunta la estrategia y la matriz a la HU
+      // (adapters/testmgmt/jira_native.py): es una sola operación del plan, así que una sola casilla.
       // `Number('')` es 0: un `cases` vacío no es «0 casos».
       const cases = item.cases?.trim() ? Number(item.cases) : Number.NaN
-      const count = Number.isFinite(cases) ? `${cases} ${cases === 1 ? 'caso de prueba' : 'casos de prueba'}` : 'los casos de prueba'
-      return { id, label: `Publicar ${count} en ${item.story ?? 'la HU'}`, detail: 'Como subtareas con la etiqueta «caso-prueba».' }
+      const story = item.story || 'la HU'
+      const count = Number.isFinite(cases) ? `${cases} ${cases === 1 ? 'subtarea' : 'subtareas'}` : 'las subtareas'
+      const files = item.story ? `estrategia-${item.story}.md y matriz-${item.story}.md` : 'la estrategia y la matriz de cobertura'
+      return {
+        id,
+        label: `Crear ${count} en ${story} con la etiqueta «caso-prueba»`,
+        detail: `Una por caso, con pasos, datos, resultado esperado y prioridad. Adjunta ${files}.`,
+      }
     }
     default: {
       // Operación que el frontend no conoce (versión futura de la API): se muestra tal cual, como texto.
@@ -73,6 +81,10 @@ export function reviewedCounter(checked: number, total: number): string {
 }
 
 /** «Generado con IA a partir de N fuentes…» (UI.md §4.6). */
-export function aiNotice(sources: number): string {
-  return `Generado con IA a partir de ${sources} ${sources === 1 ? 'fuente' : 'fuentes'}. Revisa cada operación antes de aprobar.`
+export function aiNotice(sources: number, qa = false): string {
+  const from = `${sources} ${sources === 1 ? 'fuente' : 'fuentes'}`
+  // QA (§6.4): sin «podrás reintentar solo esa», que depende de PA-05.
+  return qa
+    ? `Generado con IA a partir de la HU y ${from}. Revisa cada operación antes de aprobar. Si una subtarea falla, las demás se mantienen.`
+    : `Generado con IA a partir de ${from}. Revisa cada operación antes de aprobar.`
 }

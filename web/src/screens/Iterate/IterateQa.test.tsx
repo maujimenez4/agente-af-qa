@@ -1,21 +1,14 @@
 // QA 3 · Iterar la suite (UI.md §6.3): la conversación de Iterar con el panel de la suite (Casos, Cobertura, Datos y
 // riesgos, Estrategia), sugerencias de QA y la versión siguiente con su caso nuevo. Datos sintéticos (DEMO-3, qa-demo).
-import { render, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { App } from '../../App.tsx'
 import { mockDb } from '../../mocks/node.ts'
+import { openSuiteForDemo3 } from '../../test/qaFlow.tsx'
 
 const panel = () => screen.getByRole('complementary', { name: 'Suite de pruebas' })
 
-async function openSuite() {
-  mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
-  render(<App />)
-  const pending = await screen.findByRole('region', { name: 'Pendientes de pruebas' })
-  await userEvent.click(await within(pending).findByRole('button', { name: 'Recoger DEMO-3' }))
-  await userEvent.click(await screen.findByRole('button', { name: 'Ver la suite' }))
-  await screen.findByRole('complementary', { name: 'Suite de pruebas' })
-}
+const openSuite = openSuiteForDemo3
 
 describe('QA 3 · Iterar la suite', () => {
   it('cabecera, panel ancho con el distintivo de cobertura y las cuatro pestañas', async () => {

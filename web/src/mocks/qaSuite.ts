@@ -130,3 +130,25 @@ export function nextSuiteVersion(previous: ConversationOut, feedback: string): C
   next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]
   return next
 }
+
+/** Error ficticio de una suite publicada en parte (`?simular=parcial`): el último caso no se creó. */
+export function suitePartialError(caseId: string): string {
+  return `No se pudo crear ${caseId}: Jira no respondió (mensaje ficticio).`
+}
+
+/**
+ * Resultado de publicar la suite simulada en modo real: una subtarea ficticia por caso (DEMO-21, DEMO-22…).
+ * En parte (PA-324), el último caso no se crea y la conversación queda en `approved` con `result.errors` y
+ * `failed_ids`; si se publica entera, en `published`.
+ */
+export function suitePublishOutcome(suite: TestSuite, partial: boolean) {
+  const ids = suite.cases.map((item) => item.internal_id)
+  const failed = partial ? ids.slice(-1) : []
+  const created = ids.filter((id) => !failed.includes(id))
+  return {
+    state: partial ? ('approved' as const) : ('published' as const),
+    published_keys: created.map((_, index) => `DEMO-${21 + index}`),
+    errors: failed.map(suitePartialError),
+    failed_ids: failed,
+  }
+}

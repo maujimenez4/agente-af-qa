@@ -13,6 +13,7 @@ import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
 import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
 import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
+import { QA_HANDOFF_ENABLED } from './features.ts'
 import { hasResult } from '../screens/Result/resultText.ts'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
@@ -141,7 +142,7 @@ function WorkZone({ user }: { user: UserOut }) {
           <HomeScreen
             user={user}
             onStart={(request) => setView({ name: 'origin', request })}
-            onTaken={(conversation) => {
+            onTaken={!QA_HANDOFF_ENABLED ? undefined : (conversation) => {
               setCurrentId(conversation.id)
               setView({ name: 'generating', conversation })
               reload()
@@ -222,7 +223,8 @@ function WorkZone({ user }: { user: UserOut }) {
           <ResultScreen
             key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
-            canHandoff={user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+            canHandoff={QA_HANDOFF_ENABLED && user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+            handoffSoon={!QA_HANDOFF_ENABLED && user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
           />
         )}
         {view.name === 'closed' && (

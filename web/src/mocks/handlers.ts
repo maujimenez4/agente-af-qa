@@ -21,6 +21,7 @@ import type {
   SourcesOut,
   StartOption,
   StartProposal,
+  TestSuite,
 } from '../api/types.ts'
 import {
   DEMO_PASSWORD,
@@ -37,7 +38,7 @@ import type { components } from '../api/schema'
 
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
-import { mockSuiteConversation, nextSuiteVersion } from './qaSuite.ts'
+import { mockSuiteConversation, nextSuiteVersion, suitePublishOutcome } from './qaSuite.ts'
 
 const API = '/api/v1'
 
@@ -162,6 +163,8 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, part
     return run.conversation
   }
   const key = review.plan.find((item) => item.op === 'update_story')?.key
+  // Suite de QA: subtareas ficticias; en parte queda en `approved` con `failed_ids` (PA-324).
+  const suite = review.artifact.type === 'test_suite' && live ? suitePublishOutcome(review.artifact.content as TestSuite, partial) : undefined
   // Publicación parcial (RNF-13): no es un error HTTP; llega en `result.errors`.
   const errors = live && partial ? [PARTIAL_ERROR] : []
   run.conversation = {
@@ -169,16 +172,16 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, part
     // Como la API: tras aprobar ya no hay revisión abierta.
     review: null,
     // Como core/graph/nodes.py: una HU con un vínculo fallido queda publicada, con `result.errors`.
-    state: live ? 'published' : 'simulated',
+    state: suite ? suite.state : live ? 'published' : 'simulated',
     progress: [{ ...PUBLISH_STEP, state: 'done' }],
     result: {
       simulated: !live,
       plan: review.plan,
       approved_by: approvedBy,
       approved_at: new Date().toISOString(),
-      published_keys: live && key ? [key] : [],
-      errors,
-      failed_ids: [],
+      published_keys: suite ? suite.published_keys : live && key ? [key] : [],
+      errors: suite ? suite.errors : errors,
+      failed_ids: suite ? suite.failed_ids : [],
     },
   }
   return run.conversation

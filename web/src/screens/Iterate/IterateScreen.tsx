@@ -326,6 +326,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
               stopping={stopping}
               onReady={(next) => {
                 setStopping(false)
+                // Un error anterior (p. ej. al pedir detener) ya no aplica a la versión nueva.
+                setError(undefined)
+                setRetry(undefined)
                 const version = proposalVersions(next).at(-1)?.version ?? selected
                 setConversation(next)
                 setIterating(undefined)

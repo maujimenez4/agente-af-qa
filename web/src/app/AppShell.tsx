@@ -227,7 +227,9 @@ function ClosedConversation({
   const [retryError, setRetryError] = useState<ApiError | undefined>()
   const [retrying, setRetrying] = useState(false)
   const title = conversationTitle(conversation.title)
-  if (conversation.state === 'error' && conversation.error) {
+  // En error siempre se puede pedir /retry (docs/api/README.md), aunque la API no traiga `error`.
+  if (conversation.state === 'error') {
+    const shown = retryError ?? conversation.error
     const retry = async () => {
       setRetrying(true)
       setRetryError(undefined)
@@ -240,9 +242,9 @@ function ClosedConversation({
       }
     }
     return (
-      <SoonScreen title={title} text="Nada se ha escrito en Jira.">
+      <SoonScreen title={title} text={shown ? 'Nada se ha escrito en Jira.' : (CLOSED_TEXT.error ?? '')}>
         {/* El mensaje de la API tal cual; las acciones van fuera de la tarjeta. */}
-        <ErrorCard error={retryError ?? conversation.error} />
+        {shown && <ErrorCard error={shown} />}
         <span className={styles.closedActions}>
           {!(retryError && RETRY_FINAL.has(retryError.code)) && (
             <Button variant="primary" disabled={retrying} onClick={() => void retry()}>

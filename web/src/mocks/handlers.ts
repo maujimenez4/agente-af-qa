@@ -393,6 +393,7 @@ export function createHandlers(db: MockDb) {
           progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
         }
         run.script = generationScript()
+        run.cancel = false
         setSummary(params.id, { status: 'started' })
         return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
       }),
@@ -454,6 +455,8 @@ export function createHandlers(db: MockDb) {
                 // Solo al evolucionar; al iterar se conserva la de partida.
                 jira_baseline: run.conversation.flow === 'evolve' ? (run.conversation.jira_baseline ?? mockBaseline(reviewed)) : null,
               }
+              // Detener cuando ya solo quedaba la revisión: llega la propuesta y la petición se olvida.
+              run.cancel = false
               setSummary(run.conversation.id, { status: 'in_review', version: run.conversation.review?.version ?? 1 })
               controller.enqueue(encoder.encode(sse('review_ready', run.conversation)))
             }

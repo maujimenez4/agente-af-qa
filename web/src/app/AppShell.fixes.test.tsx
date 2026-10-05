@@ -70,9 +70,11 @@ describe('Retomar una conversación terminada en error (H-3)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
   })
 
-  it('sin `error` en la respuesta usa el texto de respaldo', async () => {
+  it('sin `error` en la respuesta usa el texto de respaldo y también ofrece «Reintentar»', async () => {
     await resume({ ...EXAMPLE, state: 'error', review: null, error: null })
     expect(await screen.findByText(/Esta conversación no puede continuar/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
   })
 })
 

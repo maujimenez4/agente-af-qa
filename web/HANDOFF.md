@@ -24,7 +24,7 @@ Con la CPU ocupada por otros procesos, alguna prueba de Origen o Generando puede
 
 ## PA abiertas
 - **De la principal:**
-  - PA-311 (validar el login), PA-315 (citas por CA y RN) y **PA-318 (URL de Jira para *Abrir en Jira*)**;
+  - PA-311 (validar el login), PA-315 (citas por CA y RN), **PA-318 (URL de Jira para *Abrir en Jira*)**, PA-319 (el comentario con los cambios como operación del plan) y PA-324 (estado de una publicación parcial);
   - corregir el ejemplo de `jira_baseline`: incluye el CA-02, que sus diffs dan por nuevo.
 - **Del área B:** PA-300 (UI.md, con las dos diferencias del recibo), PA-304, PA-310 y PA-312.
 

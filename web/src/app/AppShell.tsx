@@ -11,6 +11,7 @@ import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
 import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
 import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
+import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
 import { SoonScreen } from './SoonScreen.tsx'
@@ -57,6 +58,7 @@ type WorkView =
   // Sin `request` al retomar desde la lista: no hay una petición de Origen a la que volver.
   | { name: 'generating'; conversation: ConversationOut; request?: StartRequest }
   | { name: 'ready'; conversation: ConversationOut }
+  | { name: 'receipt'; conversation: ConversationOut }
   | { name: 'closed'; conversation: ConversationOut }
 
 // Conversaciones ya cerradas: aprobar y publicar llegan después de T-57 (recibo y resultado).
@@ -171,6 +173,27 @@ function WorkZone({ user }: { user: UserOut }) {
           <IterateScreen
             key={view.conversation.id}
             conversation={view.conversation}
+            onDiscarded={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+              reload()
+            }}
+            onRestart={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+            }}
+            onReview={(conversation) => setView({ name: 'receipt', conversation })}
+          />
+        )}
+        {view.name === 'receipt' && (
+          <ReceiptScreen
+            key={view.conversation.id}
+            conversation={view.conversation}
+            onBack={(conversation) => setView({ name: 'ready', conversation })}
+            onDone={(conversation) => {
+              setView(conversation.state === 'in_review' ? { name: 'ready', conversation } : { name: 'closed', conversation })
+              reload()
+            }}
             onDiscarded={() => {
               setCurrentId(undefined)
               setView({ name: 'home' })

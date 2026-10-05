@@ -148,7 +148,8 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Lo que el contrato no da:** el aviso «CA sin fuente», porque los CA no traen cita propia (PA-315).
   - **Pie del panel:**
     - *Descartar* pide confirmación y llama a `POST /discard`;
-    - *Editar a mano* y *Revisar y aprobar* son «disponible pronto»: se pueden enfocar, llevan su descripción y no hacen nada.
+    - *Editar a mano* es «disponible pronto»: se puede enfocar, lleva su descripción y no hace nada;
+    - *Revisar y aprobar* abre el recibo con la revisión actual (desactivado mientras se itera).
   - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`. El selector del compositor sigue en solo lectura («Modelo automático»): elegir modelo por petición (RF-42) llega con los ajustes, después de T-57.
   - **Editar a mano:** aplazado a los días 6 a 8 por decisión de la persona responsable del área B (pulir el recorrido de la demo antes). `POST /conversations/{id}/edit` ya está en el contrato.
 - **Plegar el panel derecho** (fallo reportado en Origen: costaba encontrarlo):
@@ -156,6 +157,15 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - plegado, el panel se oculta (`hidden`) sin desmontarse: conserva la pestaña, las casillas y las restricciones;
   - el botón cambia de texto y no lleva `aria-pressed` ni `aria-expanded`, para no anunciar dos veces el estado. `aria-controls` apunta al panel;
   - en ventanas estrechas el panel encoge hasta 320 px antes que la conversación (mínimo 360 px). En la cabecera, la Q y el botón no encogen: se corta el título.
+- **Recibo de aprobación** (UI.md §4.6, contrato §5; fase 3 de 4, «Revisión»):
+  - **Operaciones:** una casilla por elemento de `review.plan`, con texto propio para `update_story` («Actualizar DEMO-3 con la versión 2», con los campos que cambian según `impact.diffs`), `create_story` (en la épica o en el proyecto), `link` («Vincular DEMO-3 con DEMO-2», con el motivo de `impact.affected`) y `publish_suite`. Una operación desconocida se muestra tal cual, como texto. Solo se listan las del plan: el lienzo trae «Añadir un comentario con los cambios», pero el backend no lo hace.
+  - **Contador** «N de M revisadas» → «Todo revisado» (`aria-live`). *Aprobar y publicar* se activa solo con todas marcadas (ayuda visual: la garantía es la huella, §5.5).
+  - **Huella:** se envía exactamente `review.fingerprint` del último payload; no se guarda ni se reconstruye. `POST /approve` responde 202 y la publicación sigue por el SSE («Aprobando y publicando…», sin *Detener*: aprobar no se cancela).
+  - **Respuesta rechazada** (huella que no casa): llega `review_ready` con `review.error`; se muestra «No se aprobó» con el motivo tal cual y las casillas se vacían para revisar de nuevo.
+  - **Errores:** 409 `approval_rejected` → *Empezar de nuevo* (Inicio); 409 `not_in_review` → *Actualizar* (lee el estado y sale del recibo si ya no está en revisión).
+  - **Botones:** *Descartar* (con confirmación), **Volver a la propuesta** y *Aprobar y publicar*. UI.md dice *Volver a generar* (`iterate`), pero iterar necesita un cambio pedido: se vuelve a Iterar, donde se pide.
+  - **Panel:** «Historial de la HU», con las versiones (modelo, versión del prompt y hora de `VersionOut.created_at`) y la de partida desde Jira si la hay. Quién iteró y cuándo (`audit_log`) no está en el contrato.
+  - **Tras aprobar:** de momento, el aviso de conversación terminada; la pantalla de Resultado llega con el paso siguiente.
 - **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso). Si terminó en `error`, se muestra `ConversationOut.error` tal cual (UI.md §7), sin acción en la tarjeta, con *Reintentar* (`POST /retry`, abre Generando) y un botón para empezar otra. Sin `error` en la respuesta, se muestra el texto de respaldo y también *Reintentar*; si `/retry` responde `not_in_error` (o `handoff_unavailable`), se muestra ese mensaje y solo queda empezar otra; con un fallo pasajero (429, 503…) se muestra y *Reintentar* sigue disponible. Si se retoma generando y falla sin conversación que reintentar, la acción lleva a Inicio: no hay una petición de Origen a la que volver.
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.

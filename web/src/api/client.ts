@@ -9,6 +9,7 @@ import type {
   IssueCard,
   IssueSummary,
   IterateIn,
+  ApproveIn,
   OriginIn,
   ProjectsOut,
   ProposeIn,
@@ -125,6 +126,8 @@ export const api = {
   iterate: (id: string, feedback: string) =>
     request<ConversationOut>('POST', `/conversations/${enc(id)}/iterate`, { feedback } satisfies IterateIn),
   discard: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/discard`),
+  approve: (id: string, fingerprint: string) =>
+    request<ConversationOut>('POST', `/conversations/${enc(id)}/approve`, { fingerprint } satisfies ApproveIn),
   cancel: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/cancel`),
   retry: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/retry`),
 

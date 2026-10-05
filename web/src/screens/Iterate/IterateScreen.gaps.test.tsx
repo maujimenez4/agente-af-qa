@@ -135,9 +135,9 @@ describe('Iterar: huecos (UI.md §4.5, DESIGN-DECISIONS.md §4 bis)', () => {
     expect(screen.queryByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeNull()
   })
 
-  it('«Editar a mano» y «Revisar y aprobar» se pueden enfocar con el teclado aunque no hagan nada', async () => {
+  it('«Editar a mano» se puede enfocar con el teclado aunque no haga nada', async () => {
     await openFromList()
-    for (const name of ['Editar a mano', 'Revisar y aprobar']) {
+    for (const name of ['Editar a mano']) {
       const button = within(panel()).getByRole('button', { name })
       expect(button).not.toBeDisabled()
       button.focus()

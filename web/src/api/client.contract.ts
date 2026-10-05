@@ -26,6 +26,7 @@ export type ClientContractChecks = [
   Expect<Equal<Returns<'conversation'>, ResponseOf<`${V}/conversations/{conversation_id}`, 'get'>>>,
   Expect<Equal<Returns<'iterate'>, ResponseOf<`${V}/conversations/{conversation_id}/iterate`, 'post'>>>,
   Expect<Equal<Returns<'discard'>, ResponseOf<`${V}/conversations/{conversation_id}/discard`, 'post'>>>,
+  Expect<Equal<Returns<'approve'>, ResponseOf<`${V}/conversations/{conversation_id}/approve`, 'post'>>>,
   Expect<Equal<Returns<'cancel'>, ResponseOf<`${V}/conversations/{conversation_id}/cancel`, 'post'>>>,
   Expect<Equal<Returns<'retry'>, ResponseOf<`${V}/conversations/{conversation_id}/retry`, 'post'>>>,
   Expect<Equal<Returns<'settings'>, ResponseOf<`${V}/settings`, 'get'>>>,

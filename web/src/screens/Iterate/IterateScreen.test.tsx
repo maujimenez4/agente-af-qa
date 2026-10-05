@@ -119,15 +119,22 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     expect(within(alert).getByRole('heading', { name: 'La revisión ya no está abierta' })).toBeInTheDocument()
   })
 
-  it('«Editar a mano» y «Revisar y aprobar» están como «disponible pronto» y no hacen nada', async () => {
+  it('«Editar a mano» está como «disponible pronto» y no hace nada', async () => {
     await openFromList()
-    for (const name of ['Editar a mano', 'Revisar y aprobar']) {
+    for (const name of ['Editar a mano']) {
       const button = within(panel()).getByRole('button', { name })
       expect(button).toHaveAttribute('aria-disabled', 'true')
       expect(button).toHaveAccessibleDescription('Disponible pronto: llega después del punto de control de la demo.')
       await userEvent.click(button)
     }
     expect(screen.getByRole('complementary', { name: 'Propuesta de HU' })).toBeInTheDocument()
+  })
+
+  it('«Revisar y aprobar» abre el recibo con la versión en revisión (UI.md §4.6)', async () => {
+    await openFromList()
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Revisar y aprobar' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Versión 2 lista para revisar' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Avance: fase 3 de 4, Revisión' })).toBeInTheDocument()
   })
 
   it('descartar pide confirmación, llama a /discard y vuelve a Inicio', async () => {

@@ -31,6 +31,8 @@ export interface IterateScreenProps {
   onDiscarded: () => void
   /** La conversación no puede continuar (error o «empezar de nuevo»): vuelve a Inicio. */
   onRestart: () => void
+  /** *Revisar y aprobar*: abre el recibo con la revisión actual (UI.md §4.6). */
+  onReview: (conversation: ConversationOut) => void
 }
 
 type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources'
@@ -79,7 +81,7 @@ function Iterating({
 }
 
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
-export function IterateScreen({ conversation: initial, onDiscarded, onRestart }: IterateScreenProps) {
+export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview }: IterateScreenProps) {
   const [conversation, setConversation] = useState(initial)
   // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
   const [earlierFeedback] = useState(initial.feedback)
@@ -226,7 +228,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
               Descartar
             </Button>
             <span className={styles.spacer} />
-            <SoonButton label="Revisar y aprobar" primary />
+            <Button variant="primary" disabled={Boolean(iterating) || !conversation.review} onClick={() => onReview(conversation)}>
+              Revisar y aprobar
+            </Button>
           </div>
         )
       }

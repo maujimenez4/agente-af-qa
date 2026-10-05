@@ -211,7 +211,6 @@ describe('API simulada: 404 para lo que aún no simula', () => {
     ['GET', '/qa/handoffs'],
     ['POST', '/conversations/x/handoff'],
     ['POST', '/conversations/x/edit'],
-    ['POST', '/conversations/x/approve'],
     ['PUT', '/settings/models/generate_story'],
     ['DELETE', '/settings/models/generate_story'],
   ])('test_%s_%s_is_not_simulated', async (method, path) => {

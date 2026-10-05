@@ -100,6 +100,8 @@ export interface MockRun {
   pendingFeedback?: string
   /** POST /cancel: el SSE se detiene antes del siguiente paso (PA-314). */
   cancel?: boolean
+  /** POST /approve: la revisión aprobada y la huella recibida; el SSE da `result` o `review_ready` con error. */
+  approving?: { reviewing: ConversationOut; fingerprint: string }
 }
 
 export interface MockDb {

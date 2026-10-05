@@ -2,6 +2,7 @@
 // Responden con los ejemplos del contrato y un estado en memoria; el SSE emite los pasos uno a uno.
 import { delay, http, HttpResponse, type JsonBodyType } from 'msw'
 import type {
+  ApproveIn,
   ApiError,
   ChooseProjectIn,
   ConversationCreateIn,
@@ -132,6 +133,45 @@ function mockBaseline(conversation: ConversationOut): UserStory | null {
   story.business_rules = story.business_rules.filter((item) => !added.has(item.id))
   story.changes_from_previous = []
   return story
+}
+
+/** Paso del SSE al aprobar: publicar (en simulación no escribe en Jira). */
+const PUBLISH_STEP: Pick<ProgressStep, 'node' | 'label'> = { node: 'publish', label: 'Publicar en Jira' }
+
+/** Mensaje del grafo cuando la huella no casa (UI.md §5): la revisión sigue con `review.error`. */
+export const FINGERPRINT_MISMATCH = 'La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.'
+
+/**
+ * Final de la aprobación simulada: con la huella exacta, `simulated` (o `published` en `live`) con su
+ * `PublishOutcome`; si no casa, vuelve a la revisión con `review.error` y la misma huella.
+ */
+function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false): ConversationOut {
+  const approving = run.approving
+  if (!approving) return run.conversation
+  run.approving = undefined
+  run.script = []
+  const { reviewing, fingerprint } = approving
+  const review = reviewing.review
+  if (!review || fingerprint !== review.fingerprint) {
+    run.conversation = { ...reviewing, review: review ? { ...review, error: FINGERPRINT_MISMATCH } : null, state: 'in_review' }
+    return run.conversation
+  }
+  const key = review.plan.find((item) => item.op === 'update_story')?.key
+  run.conversation = {
+    ...reviewing,
+    state: live ? 'published' : 'simulated',
+    progress: [{ ...PUBLISH_STEP, state: 'done' }],
+    result: {
+      simulated: !live,
+      plan: review.plan,
+      approved_by: approvedBy,
+      approved_at: new Date().toISOString(),
+      published_keys: live && key ? [key] : [],
+      errors: [],
+      failed_ids: [],
+    },
+  }
+  return run.conversation
 }
 
 /** Mensaje de api/cancel.py (CANCELLED_MESSAGE). */
@@ -435,7 +475,13 @@ export function createHandlers(db: MockDb) {
               )
               controller.enqueue(encoder.encode(sse('progress', step)))
             }
-            if (run.conversation.state === 'generating') {
+            if (run.conversation.state === 'generating' && run.approving) {
+              await delay(db.stepDelayMs)
+              const done = finishApproval(run, db.session?.username, db.settings.publish_mode === 'live')
+              const reviewing = done.state === 'in_review'
+              setSummary(done.id, { status: reviewing ? 'in_review' : (done.state as ConversationSummary['status']) })
+              controller.enqueue(encoder.encode(sse(reviewing ? 'review_ready' : 'result', done)))
+            } else if (run.conversation.state === 'generating') {
               await delay(db.stepDelayMs)
               const reviewed = run.previous
                 ? nextVersion(run.previous, run.pendingFeedback ?? '')
@@ -468,11 +514,35 @@ export function createHandlers(db: MockDb) {
     ),
 
     http.post<{ id: string }>(
+      `${API}/conversations/:id/approve`,
+      mutation(async ({ request, params }) => {
+        const run = runFor(params.id)
+        if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
+        if (run.conversation.state !== 'in_review' || !run.conversation.review) {
+          return error(409, 'not_in_review', 'La conversación no tiene una propuesta en revisión (está generando o ya terminó).')
+        }
+        const { fingerprint } = (await request.json()) as ApproveIn
+        // Como la API real: 202 y la publicación en segundo plano; el final llega por el SSE.
+        run.approving = { reviewing: run.conversation, fingerprint }
+        run.conversation = {
+          ...run.conversation,
+          state: 'generating',
+          progress: [{ ...PUBLISH_STEP, state: 'pending' }],
+        }
+        run.script = [
+          { ...PUBLISH_STEP, state: 'running' },
+          { ...PUBLISH_STEP, state: 'done' },
+        ]
+        return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
+      }),
+    ),
+    http.post<{ id: string }>(
       `${API}/conversations/:id/cancel`,
       mutation(({ params }) => {
         const run = runFor(params.id)
         if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
-        if (run.conversation.state !== 'generating') {
+        // Aprobar o publicar no se cancelan (docs/api/README.md, PA-314).
+        if (run.conversation.state !== 'generating' || run.approving) {
           return error(409, 'not_cancellable', 'La conversación no está generando: no hay nada que detener.')
         }
         run.cancel = true

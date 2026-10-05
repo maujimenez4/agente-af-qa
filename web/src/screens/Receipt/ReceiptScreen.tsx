@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
@@ -30,11 +31,20 @@ function timeOf(value: string): string {
 }
 
 // Seguir la publicación tras POST /approve: el final llega por el SSE (`result` o `review_ready`).
-function Publishing({ conversation, onSettled }: { conversation: ConversationOut; onSettled: (conversation: ConversationOut | ApiError) => void }) {
+function Publishing({
+  conversation,
+  onSettled,
+  onFailed,
+}: {
+  conversation: ConversationOut
+  onSettled: (conversation: ConversationOut) => void
+  /** `retryable`: la conversación quedó en `state=error` (p. ej. `publish_failed`). */
+  onFailed: (error: ApiError, retryable: boolean) => void
+}) {
   const { state } = useGeneration(conversation)
   useEffect(() => {
     if (state.status === 'ready') onSettled(state.conversation)
-    if (state.status === 'error') onSettled(state.error)
+    if (state.status === 'error') onFailed(state.error, state.retryable)
     // Solo al cambiar de estado: el manejador cambia en cada render del padre.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
@@ -50,6 +60,8 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   const [error, setError] = useState<ApiError | undefined>()
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [busy, setBusy] = useState(false)
+  // La publicación falló: *Aprobar* queda desactivado (un nuevo intento daría 409 not_in_review).
+  const [failed, setFailed] = useState(false)
 
   const review = conversation.review
   const story = review?.artifact.content as UserStory | undefined
@@ -71,20 +83,28 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
     setChecked(new Set())
   }
 
-  const settle = (outcome: ConversationOut | ApiError) => {
+  const settle = (outcome: ConversationOut) => {
     setPublishing(undefined)
-    if (!('id' in outcome)) {
-      setError(outcome)
-      return
-    }
     if (outcome.state === 'in_review') showReview(outcome)
     else onDone(outcome)
   }
 
+  // Falló la publicación ya en marcha: la revisión no sigue abierta, así que no se vuelve a aprobar desde
+  // aquí. Con la conversación en error se abre su vista, que reintenta con POST /retry (nunca dos escrituras).
+  const publishFailed = (failure: ApiError, retryable: boolean) => {
+    setPublishing(undefined)
+    setFailed(true)
+    if (retryable) void refresh()
+    else setError(failure)
+  }
+
   const approve = async () => {
-    if (!review || !allChecked) return
-    setError(undefined)
-    setBusy(true)
+    if (!review || !allChecked || busy) return
+    // `busy` se pinta en el acto: un segundo clic ya encuentra el botón desactivado (un solo POST /approve).
+    flushSync(() => {
+      setError(undefined)
+      setBusy(true)
+    })
     try {
       // La huella tal cual la dio el último payload: nunca se guarda ni se reconstruye (UI.md §5.4).
       const next = await api.approve(conversation.id, review.fingerprint)
@@ -101,8 +121,10 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
     setError(undefined)
     try {
       const next = await api.conversation(conversation.id)
-      if (next.state === 'in_review') showReview(next)
-      else onDone(next)
+      if (next.state === 'in_review') {
+        setFailed(false)
+        showReview(next)
+      } else onDone(next)
     } catch (cause) {
       setError(toApiError(cause))
     }
@@ -126,9 +148,11 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
       case 'restart':
         return onRestart
       case 'refresh':
+      case 'backToReceipt':
         return () => void refresh()
       case 'retry':
-        return () => void approve()
+        // Solo si falló la propia petición POST /approve; tras un fallo de la publicación, se lee el estado.
+        return failed ? () => void refresh() : () => void approve()
       default:
         return undefined
     }
@@ -199,7 +223,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
 
         <p className={styles.notice}>{aiNotice(story?.sources.length ?? 0)}</p>
 
-        {publishing && <Publishing key={publishing.id} conversation={publishing} onSettled={settle} />}
+        {publishing && <Publishing key={publishing.id} conversation={publishing} onSettled={settle} onFailed={publishFailed} />}
         {error && <ErrorCard key={`${error.code}-${error.message}`} error={error} onAction={errorAction(error)} />}
 
         {confirmDiscard ? (
@@ -223,7 +247,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
               Volver a la propuesta
             </Button>
             <span className={styles.spacer} />
-            <Button variant="primary" disabled={!allChecked || busy || Boolean(publishing)} onClick={() => void approve()}>
+            <Button variant="primary" disabled={!allChecked || busy || failed || Boolean(publishing)} onClick={() => void approve()}>
               Aprobar y publicar
             </Button>
           </div>

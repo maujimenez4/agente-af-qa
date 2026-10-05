@@ -37,11 +37,20 @@ export default defineConfig([
         { selector: "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]", message: HTML_INJECTION },
         { selector: "AssignmentExpression[left.property.value=/^(innerHTML|outerHTML)$/]", message: HTML_INJECTION },
         { selector: "CallExpression[callee.property.name='insertAdjacentHTML']", message: HTML_INJECTION },
+        { selector: "JSXAttribute[name.name='srcDoc']", message: HTML_INJECTION },
         // href, src, action o formAction con una expresión: solo un literal o safeHref(…).
         {
           selector:
-            "JSXAttribute[name.name=/^(href|src|action|formAction|xlinkHref)$/] > JSXExpressionContainer > :not(Literal, TemplateLiteral[expressions.length=0], CallExpression[callee.name='safeHref'])",
+            "JSXAttribute[name.name=/^(href|src|srcSet|action|formAction|xlinkHref|poster|data|ping|cite)$/] > JSXExpressionContainer > :not(Literal, TemplateLiteral[expressions.length=0], CallExpression[callee.name='safeHref'])",
           message: UNSAFE_LINK,
+        },
+        // xlink:href con namespace y spread de props en elementos con URL: la regla de arriba no los ve.
+        // <button> e <input> quedan fuera: los componentes del sistema les reenvían props (Chip, TextField).
+        { selector: "JSXAttribute[name.type='JSXNamespacedName'][name.name.name='href']", message: UNSAFE_LINK },
+        {
+          selector:
+            "JSXOpeningElement[name.name=/^(a|img|form|iframe|use|image|object|embed|source|video|audio|area|base|link|track)$/] > JSXSpreadAttribute",
+          message: `${UNSAFE_LINK} Sin spread de props en elementos con URL.`,
         },
       ],
       'no-restricted-globals': [
@@ -60,6 +69,9 @@ export default defineConfig([
         { object: 'document', property: 'cookie', message: BROWSER_STORAGE },
         { object: 'document', property: 'write', message: HTML_INJECTION },
         { object: 'document', property: 'writeln', message: HTML_INJECTION },
+        { object: 'window', property: 'open', message: UNSAFE_LINK },
+        { object: 'location', property: 'assign', message: UNSAFE_LINK },
+        { object: 'location', property: 'replace', message: UNSAFE_LINK },
       ],
     },
   },

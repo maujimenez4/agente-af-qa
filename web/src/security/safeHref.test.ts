@@ -31,6 +31,8 @@ describe('safeHref (PA-308)', () => {
     'relativa/sin/barra',
     'https://',
     'https://ejemplo.test/a b',
+    'https://usuario:clave@ejemplo.test/',
+    'https://sitio-ficticio.atlassian.net@otro-sitio.test/browse/DEMO-3',
     '',
     '   ',
   ])('rechaza %j', (value) => {

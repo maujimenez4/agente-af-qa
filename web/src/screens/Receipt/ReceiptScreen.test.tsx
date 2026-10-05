@@ -56,10 +56,11 @@ describe('textos del recibo', () => {
     )
     expect(ops.map(({ label, detail }) => [label, detail])).toEqual([
       ['Actualizar DEMO-3 con la versión 3', 'Cambia: CA-02 (nuevo), Descripción, RN-03 (se quita).'],
+      ['Añadir a DEMO-3 un comentario con los cambios', 'Tabla de cambios (campo, antes y después) para quien siga la HU.'],
       ['Vincular DEMO-3 con DEMO-2', 'Comparte la regla de reservas.'],
       ['Vincular DEMO-3 con DEMO-9', 'Vínculo «relates to».'],
     ])
-    expect(new Set(ops.map((op) => op.id)).size).toBe(3)
+    expect(new Set(ops.map((op) => op.id)).size).toBe(4)
   })
 
   it.each([
@@ -90,18 +91,24 @@ describe('Recibo de aprobación (UI.md §4.6)', () => {
     await openReceipt()
     expect(screen.getByRole('img', { name: 'Avance: fase 3 de 4, Revisión' })).toBeInTheDocument()
     const boxes = within(operations()).getAllByRole('checkbox')
-    expect(boxes.map((box) => box.closest('label')?.querySelector('b')?.textContent)).toEqual(['Actualizar DEMO-3 con la versión 2', 'Vincular DEMO-3 con DEMO-2'])
+    // El comentario con los cambios lo escribe update_story (core/graph/nodes.py) aunque el plan no lo traiga aparte.
+    expect(boxes.map((box) => box.closest('label')?.querySelector('b')?.textContent)).toEqual([
+      'Actualizar DEMO-3 con la versión 2',
+      'Añadir a DEMO-3 un comentario con los cambios',
+      'Vincular DEMO-3 con DEMO-2',
+    ])
     expect(within(operations()).getByText('Cambia: CA-02 (nuevo).')).toBeInTheDocument()
     expect(within(operations()).getByText('Comparte la regla de reservas.')).toBeInTheDocument()
-    expect(within(operations()).getByText('0 de 2 revisadas')).toBeInTheDocument()
+    expect(within(operations()).getByText('0 de 3 revisadas')).toBeInTheDocument()
     expect(screen.getByText('Generado con IA a partir de 2 fuentes. Revisa cada operación antes de aprobar.')).toBeInTheDocument()
     expect(approveButton()).toBeDisabled()
 
     const first = boxes[0] as HTMLElement
     await userEvent.click(first)
-    expect(within(operations()).getByText('1 de 2 revisadas')).toBeInTheDocument()
+    expect(within(operations()).getByText('1 de 3 revisadas')).toBeInTheDocument()
     expect(approveButton()).toBeDisabled()
     await userEvent.click(boxes[1] as HTMLElement)
+    await userEvent.click(boxes[2] as HTMLElement)
     expect(within(operations()).getByText('Todo revisado')).toBeInTheDocument()
     expect(approveButton()).toBeEnabled()
     await userEvent.click(first)
@@ -139,7 +146,7 @@ describe('Recibo de aprobación (UI.md §4.6)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('No se aprobó')
     expect(alert).toHaveTextContent(FINGERPRINT_MISMATCH)
-    expect(within(operations()).getByText('0 de 2 revisadas')).toBeInTheDocument()
+    expect(within(operations()).getByText('0 de 3 revisadas')).toBeInTheDocument()
     expect(approveButton()).toBeDisabled()
   })
 

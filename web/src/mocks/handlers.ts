@@ -160,13 +160,14 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, part
     return run.conversation
   }
   const key = review.plan.find((item) => item.op === 'update_story')?.key
-  // Publicación parcial (RNF-13): no es un error HTTP; queda `approved` con `result.errors`.
+  // Publicación parcial (RNF-13): no es un error HTTP; llega en `result.errors`.
   const errors = live && partial ? [PARTIAL_ERROR] : []
   run.conversation = {
     ...reviewing,
     // Como la API: tras aprobar ya no hay revisión abierta.
     review: null,
-    state: live ? (partial ? 'approved' : 'published') : 'simulated',
+    // Como core/graph/nodes.py: una HU con un vínculo fallido queda publicada, con `result.errors`.
+    state: live ? 'published' : 'simulated',
     progress: [{ ...PUBLISH_STEP, state: 'done' }],
     result: {
       simulated: !live,

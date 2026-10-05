@@ -1,5 +1,5 @@
 // Enlaces construidos con datos (PA-308): solo `http(s)`, rutas del propio sitio o anclas.
-// Nunca `javascript:`, `data:`, `vbscript:`, `file:` ni URL sin esquema (`//host`), que el navegador
+// Nunca `javascript:`, `data:`, `vbscript:`, `file:`, URL con usuario o contraseña, ni sin esquema (`//host`), que el navegador
 // resolvería como otro sitio. ESLint obliga a pasar por aquí todo `href` o `src` que no sea un literal.
 
 // eslint-disable-next-line no-control-regex -- se buscan justo los caracteres de control para rechazarlos.
@@ -16,6 +16,8 @@ export function safeHref(value: unknown): string | undefined {
   if (href.startsWith('/')) return href.startsWith('//') ? undefined : href
   try {
     const url = new URL(href)
+    // Con usuario o contraseña («https://jira.atlassian.net@otro.test/») el enlace engaña o expone credenciales.
+    if (url.username || url.password) return undefined
     return ALLOWED_PROTOCOLS.has(url.protocol) && url.hostname ? url.href : undefined
   } catch {
     return undefined

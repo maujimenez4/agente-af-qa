@@ -222,6 +222,13 @@ class ProgressStep(BaseModel):
     state: StepState
 
 
+class UncoveredRefs(BaseModel):
+    """PA-326: CA y RN de la HU de origen sin ningún caso de prueba (pestaña Cobertura)."""
+
+    criteria: list[str] = Field(description="CA sin casos (p. ej. `CA-03`).")
+    rules: list[str] = Field(description="RN sin casos (p. ej. `RN-02`).")
+
+
 class ReviewPayload(BaseModel):
     """La pausa de `human_review` (UI.md §5, anexo §11 de la SPEC)."""
 
@@ -234,6 +241,19 @@ class ReviewPayload(BaseModel):
     decisions: list[Literal["iterate", "edit", "approve", "discard"]]
     error: str | None = Field(
         default=None, description="Motivo de la última respuesta rechazada (la revisión sigue)."
+    )
+    coverage_md: str | None = Field(
+        default=None,
+        description="PA-326, solo en QA: la matriz de cobertura CA/RN × CP en Markdown, la misma "
+        "que se adjunta como `matriz-<CLAVE>.md` (sin IA). En una HU, `null`.",
+    )
+    uncovered: UncoveredRefs | None = Field(
+        default=None,
+        description="PA-326, solo en QA: los CA y RN de la HU de origen que no tienen ningún "
+        "caso. **`null` significa «no se sabe»** (no se pudo leer la HU de origen sin llamar al "
+        "LLM); **listas vacías significan «todo cubierto»**. Sale de la HU que el grafo ya "
+        "cargó: la versión de partida estructurada o la HU aprobada de la entrega a QA. En una "
+        "HU, siempre `null`.",
     )
 
 

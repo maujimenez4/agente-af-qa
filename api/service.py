@@ -34,6 +34,7 @@ from api.models import (
     PublishOutcome,
     ReviewPayload,
     TaskModelsOut,
+    UncoveredRefs,
     VersionOut,
 )
 from api.runtime import Run, Runtime, Workspace
@@ -67,6 +68,7 @@ from core.tracing import operation as traced_operation
 from core.tracing import operation_name, with_trace_callbacks
 from core.usage import DEFAULT_TZ, UsageQueries
 from schemas.artifact import Artifact
+from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 
 log = get_logger("api.service")
@@ -120,6 +122,15 @@ STEP_LABELS = {
     "generate": "Generar la propuesta, validar las citas y analizar el impacto",
     "publish": "Publicar (o simular la publicación) en Jira",
     "memorize": "Guardar la memoria de la HU publicada",
+}
+# PA-327: en QA, cada etiqueta dice lo que hace el nodo en ese modo. `memorize` no aparece: en
+# QA no hace nada (D-07), así que la lista tiene 4 pasos en vez de 5.
+QA_STEP_LABELS = {
+    "load_origin": "Recuperar la HU de origen",
+    "retrieve_context": "Recuperar el contexto (Jira, documentos y memoria)",
+    "generate": "Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y "
+    "estrategia",
+    "publish": "Publicar (o simular la publicación de) los casos de prueba en Jira",
 }
 GENERATION_NODES = ("load_origin", "retrieve_context", "generate")
 PUBLISH_NODES = ("publish", "memorize")
@@ -489,8 +500,9 @@ def _run_graph(
             config = with_trace_callbacks(config, trace)
             for update in ws.graph.stream(graph_input, config, stream_mode="updates"):
                 finished = nodes_in_update(update)
+                labels = step_labels(run.mode)
                 for node in finished:
-                    if node in STEP_LABELS:
+                    if node in labels:
                         rt.runs.node_done(run, node)
                 if signal.is_set() and _stops_after(finished):
                     raise GenerationCancelledError
@@ -679,9 +691,15 @@ def _state(run: Run | None, row: ConversationSummary | None, in_review: bool) ->
     return "error"
 
 
+def step_labels(mode: str | None) -> dict[str, str]:
+    """PA-327: los pasos que se muestran y su texto, según el modo."""
+    return QA_STEP_LABELS if mode == "qa" else STEP_LABELS
+
+
 def _progress(
-    state: ConversationState, run: Run | None, values: Mapping[str, Any]
+    state: ConversationState, run: Run | None, values: Mapping[str, Any], mode: str
 ) -> list[ProgressStep]:
+    labels = step_labels(mode)
     done: set[str] = set()
     if values.get("artifact") is not None:
         done.update(GENERATION_NODES)
@@ -692,14 +710,14 @@ def _progress(
         rerun = OPERATION_NODES.get(run.operation or "", ())
         done -= set(rerun)
         done.update(run.nodes)
-        running_node = next((n for n in rerun if n not in run.nodes), None)
+        running_node = next((n for n in rerun if n not in run.nodes and n in labels), None)
     return [
         ProgressStep(
             node=node,  # type: ignore[arg-type]
             label=label,
             state="done" if node in done else "running" if node == running_node else "pending",
         )
-        for node, label in STEP_LABELS.items()
+        for node, label in labels.items()
     ]
 
 
@@ -744,7 +762,11 @@ def _failed_ids(ws: Workspace, artifact: Artifact) -> list[str]:
 
 
 def describe(
-    ws: Workspace, config: Any, run: Run | None, row: ConversationSummary | None
+    ws: Workspace,
+    config: Any,
+    run: Run | None,
+    row: ConversationSummary | None,
+    handoffs: HandoffStore | None,
 ) -> ConversationOut:
     snapshot = ws.graph.get_state(config)
     values: Mapping[str, Any] = snapshot.values or {}
@@ -766,8 +788,8 @@ def describe(
         flow=run.flow if run else flow_of(mode, kind),
         mode=mode,  # type: ignore[arg-type]
         state=state,
-        progress=_progress(state, run, values),
-        review=ReviewPayload.model_validate(dict(payload))
+        progress=_progress(state, run, values, mode),
+        review=_review(ws, handoffs, config, payload, mode, values)
         if payload and state == "in_review"
         else None,
         versions=versions,
@@ -777,6 +799,65 @@ def describe(
         updated_at=max(updated) if updated else datetime.now(UTC),
         cancel_requested=bool(run and run.running and run.cancel.is_set()),
         jira_baseline=_jira_baseline(ws, mode, kind, state, values),
+    )
+
+
+def _review(
+    ws: Workspace,
+    handoffs: HandoffStore | None,
+    config: Any,
+    payload: Mapping[str, Any],
+    mode: str,
+    values: Mapping[str, Any],
+) -> ReviewPayload:
+    """La revisión; en QA, con la matriz de cobertura y lo no cubierto (PA-326), sin LLM."""
+    review = ReviewPayload.model_validate(dict(payload))
+    suite = review.artifact.content
+    if mode != "qa" or not isinstance(suite, TestSuite):
+        return review
+    configurable = config["configurable"]
+    # La persona de la sesión (`open_conversation` ya comprobó que es la dueña), no la del estado.
+    requester = str(configurable.get("user") or "")
+    story = _source_story(
+        ws, handoffs, review.artifact, values, str(configurable["thread_id"]), requester
+    )
+    return review.model_copy(
+        update={
+            "coverage_md": suite.coverage_md(),
+            "uncovered": _uncovered(suite, story) if story is not None else None,
+        }
+    )
+
+
+def _source_story(
+    ws: Workspace,
+    handoffs: HandoffStore | None,
+    artifact: Artifact,
+    values: Mapping[str, Any],
+    thread_id: str,
+    requester: str,
+) -> UserStory | None:
+    """La HU de origen que el grafo ya cargó, o `None` si no se puede saber sin el LLM.
+
+    QA encadenada: la HU aprobada de la entrega, con las mismas comprobaciones que el grafo
+    (recogida por esta persona y en este hilo; nunca la de otra entrega). Desde Jira: la versión
+    de partida que `generate` estructuró y guardó (PA-61).
+    """
+    try:
+        if handoff_id := values.get("handoff_id"):
+            return load_taken_handoff(handoffs, str(handoff_id), requester, thread_id).story
+        saved = (ws.container.state_store.load(str(artifact.id)) or {}).get("baseline")
+        return UserStory.model_validate(saved) if saved else None
+    except Exception as exc:  # solo informativo: sin HU de origen, `uncovered` es «no se sabe»
+        log.warning("HU de origen sin leer", action="uncovered", error_type=type(exc).__name__)
+        return None
+
+
+def _uncovered(suite: TestSuite, story: UserStory) -> UncoveredRefs:
+    covered = suite.coverage()
+    return UncoveredRefs(
+        criteria=[c.id for c in story.acceptance_criteria if not covered.get(c.id)],
+        rules=[r.id for r in story.business_rules if not covered.get(r.id)],
     )
 
 
@@ -801,4 +882,4 @@ def conversation_out(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> 
     config, run, row = open_conversation(rt, ws, user, thread_id)
     if row is None and run is not None:
         row = ws.container.conversations.get(thread_id)
-    return describe(ws, config, run, row)
+    return describe(ws, config, run, row, rt.handoffs)

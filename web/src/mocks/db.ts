@@ -3,6 +3,7 @@
 import type {
   ConversationOut,
   ConversationSummary,
+  HandoffOut,
   IssueCard,
   IssueSummary,
   ProgressStep,
@@ -121,6 +122,11 @@ export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
 }
 
+/** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
+export function takenFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'ya-recogida'
+}
+
 /** `?simular=muchas-conversaciones`: la lista con muchas conversaciones (solo en el navegador). */
 export function manyConversationsFrom(search: string): boolean {
   return new URLSearchParams(search).get('simular') === 'muchas-conversaciones'
@@ -160,6 +166,10 @@ export interface MockDb {
   forceApprove?: ForcedApproval
   conversations: ConversationSummary[]
   runs: Map<string, MockRun>
+  /** QA encadenada (T-54): HU pasadas a QA y aún sin recoger. */
+  handoffs: HandoffOut[]
+  /** `?simular=ya-recogida`: al recoger, otra persona se adelantó (409 `handoff_unavailable`). */
+  forceTaken?: boolean
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }
@@ -172,6 +182,7 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     usage: example<UsageTodayOut>('GET /api/v1/settings/usage 200'),
     conversations: example<ConversationSummary[]>('GET /api/v1/conversations 200'),
     runs: new Map(),
+    handoffs: example<HandoffOut[]>('GET /api/v1/qa/handoffs 200'),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

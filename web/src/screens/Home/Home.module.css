@@ -102,3 +102,74 @@
     transform: translateY(8px);
   }
 }
+
+/* QA encadenada (T-54): HU pendientes de pruebas, solo para QA. */
+.handoffs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.handoffsTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.handoffsEmpty {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.handoffList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.handoff {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.handoffText {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.handoffHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.handoffTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handoffMeta {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+/* Ventanas bajas: menos separación entre bloques (va al final para pisar la regla base de .content). */
+@media (max-height: 800px) {
+  .content {
+    gap: var(--space-4);
+  }
+}

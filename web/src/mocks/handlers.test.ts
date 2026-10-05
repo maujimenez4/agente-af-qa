@@ -141,7 +141,7 @@ describe('API simulada (MSW) con los ejemplos del contrato', () => {
 
   it('lo que aún no simula responde 404 not_found', async () => {
     const csrf = await login()
-    const response = await post('/qa/handoffs/x/take', {}, csrf)
+    const response = await post('/conversations/x/edit', {}, csrf)
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ error: { code: 'not_found' } })
   })

@@ -145,6 +145,11 @@ function WorkZone({ user }: { user: UserOut }) {
           <HomeScreen
             user={user}
             onStart={(request) => setView({ name: 'origin', request })}
+            onTaken={(conversation) => {
+              setCurrentId(conversation.id)
+              setView({ name: 'generating', conversation })
+              reload()
+            }}
             onOpenJira={(project) => setJira({ initialProject: project?.key })}
             pickedOrigin={picked?.origin}
             pickedProject={picked?.project}
@@ -178,7 +183,13 @@ function WorkZone({ user }: { user: UserOut }) {
             }}
           />
         )}
-        {view.name === 'ready' && (
+        {view.name === 'ready' && view.conversation.mode === 'qa' && (
+          <SoonScreen
+            title="Revisar la suite: disponible pronto"
+            text="La suite está lista. Su revisión (casos, cobertura, datos y riesgos, estrategia) llega en el siguiente bloque del flujo de QA."
+          />
+        )}
+        {view.name === 'ready' && view.conversation.mode !== 'qa' && (
           <IterateScreen
             key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
@@ -216,7 +227,13 @@ function WorkZone({ user }: { user: UserOut }) {
             }}
           />
         )}
-        {view.name === 'result' && <ResultScreen key={`${view.conversation.id}-${opened}`} conversation={view.conversation} />}
+        {view.name === 'result' && (
+          <ResultScreen
+            key={`${view.conversation.id}-${opened}`}
+            conversation={view.conversation}
+            canHandoff={user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+          />
+        )}
         {view.name === 'closed' && (
           <ClosedConversation
             conversation={view.conversation}

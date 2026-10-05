@@ -106,3 +106,9 @@
   font-size: var(--text-2xs);
   color: var(--color-text-muted);
 }
+
+.handoffDone {
+  flex-basis: 100%;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

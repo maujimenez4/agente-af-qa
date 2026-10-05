@@ -208,8 +208,6 @@ describe('API simulada: sesión y CSRF', () => {
 
 describe('API simulada: 404 para lo que aún no simula', () => {
   it.each([
-    ['GET', '/qa/handoffs'],
-    ['POST', '/conversations/x/handoff'],
     ['POST', '/conversations/x/edit'],
     ['PUT', '/settings/models/generate_story'],
     ['DELETE', '/settings/models/generate_story'],

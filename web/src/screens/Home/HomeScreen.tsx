@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, ApiRequestError, toApiError } from '../../api/client.ts'
-import type { ApiError, IssueSummary, ProjectSummary, SettingsOut, StartProposal, UserOut } from '../../api/types.ts'
+import type { ApiError, ConversationOut, IssueSummary, ProjectSummary, SettingsOut, StartProposal, UserOut } from '../../api/types.ts'
 import { IconButton } from '../../components/Button/index.ts'
 import { FlowCard } from '../../components/Card/index.ts'
 import { Chip } from '../../components/Chip/index.ts'
@@ -9,6 +9,7 @@ import { QLogo } from '../../components/QMark/index.ts'
 import { ErrorCard, Notice, SIMULATION_NOTICE } from '../../components/States/index.ts'
 import { DISABLED_HINT, defaultFlow, FLOWS, type FlowId } from './flows.ts'
 import styles from './Home.module.css'
+import { QaHandoffs } from './QaHandoffs.tsx'
 
 /** Lo que Inicio pasa a la siguiente pantalla (Origen y fuentes). */
 export interface StartRequest {
@@ -30,6 +31,8 @@ export interface HomeScreenProps {
   pickedOrigin?: IssueSummary
   /** Proyecto elegido fuera de Inicio. */
   pickedProject?: ProjectSummary
+  /** QA recogió una HU pendiente (T-54): su conversación, ya generando. Sin él, no hay lista de pendientes. */
+  onTaken?: (conversation: ConversationOut) => void
 }
 
 function modelLabel(settings: SettingsOut | undefined, task: string): string {
@@ -42,7 +45,7 @@ function recentLabel(issue: IssueSummary): string {
 }
 
 // Mixta 1 · Inicio (UI.md §4.1): flujo por rol, proyecto, compositor, recientes y aviso de simulación.
-export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProject }: HomeScreenProps) {
+export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProject, onTaken }: HomeScreenProps) {
   const [flow, setFlow] = useState<FlowId>(defaultFlow(user.permissions))
   const [text, setText] = useState('')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -202,6 +205,12 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
             }
           />
         </div>
+
+        {onTaken && user.permissions.includes('generate_tests') && (
+          <div className={`${styles.rise} ${styles.d2}`}>
+            <QaHandoffs onTaken={onTaken} />
+          </div>
+        )}
 
         {projectKey && recents.length > 0 && (
           <section className={styles.recents} aria-labelledby="recents-title">

@@ -11,11 +11,14 @@ import { Notice } from '../../components/States/index.ts'
 import { Workspace } from '../../components/Workspace/index.ts'
 import { proposalVersions } from '../Iterate/iterateText.ts'
 import { receiptOperations } from '../Receipt/receiptText.ts'
+import { HandoffAction } from './HandoffAction.tsx'
 import styles from './Result.module.css'
 import { approvedLine, jiraIssueUrl, OUTCOME_TEXTS, outcomeOf } from './resultText.ts'
 
 export interface ResultScreenProps {
   conversation: ConversationOut & { result: PublishOutcome }
+  /** El analista puede pasar la HU a QA (T-54); QA y admin, no. */
+  canHandoff?: boolean
 }
 
 // Qué falta para cada acción del lienzo que aún no hace nada (DESIGN-DECISIONS.md §4 bis).
@@ -24,11 +27,10 @@ const SOON = {
   history: 'El historial es solo para administración y llega después del punto de control de la demo.',
   jira: 'La dirección de Jira no está disponible.',
   memory: 'La pestaña Memoria llega después del punto de control de la demo.',
-  qa: 'Pasar la HU a QA llega en el paso siguiente del plan.',
 }
 
 // Mixta 4 · Resultado (UI.md §4.7): publicación simulada, real o en parte, tras aprobar en el recibo.
-export function ResultScreen({ conversation }: ResultScreenProps) {
+export function ResultScreen({ conversation, canHandoff = false }: ResultScreenProps) {
   const { result } = conversation
   const outcome = outcomeOf(result)
   const texts = OUTCOME_TEXTS[outcome]
@@ -89,6 +91,7 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
         <div className={styles.actions}>
           {outcome === 'simulated' ? (
             <>
+              {canHandoff && <HandoffAction conversationId={conversation.id} />}
               <SoonButton label="Ver el registro de auditoría" note={SOON.audit} />
               <SoonButton label="Ir al historial" note={SOON.history} />
             </>
@@ -102,7 +105,7 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
                 <SoonButton label={key ? `Abrir ${key} en Jira` : 'Abrir en Jira'} note={SOON.jira} />
               )}
               <SoonButton label="Ver la memoria" note={SOON.memory} />
-              <SoonButton label="Pedir sus pruebas a QA" variant="primary" note={SOON.qa} />
+              {canHandoff && <HandoffAction conversationId={conversation.id} />}
             </>
           )}
         </div>

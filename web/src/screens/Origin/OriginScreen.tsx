@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiRequestError, toApiError } from '../../api/client.ts'
-import type { ApiError, ContextBudget, ConversationOut, IssueCard, IssueSummary, SourcePreview } from '../../api/types.ts'
-import { Badge } from '../../components/Badge/index.ts'
+import type { ApiError, ContextBudget, ConversationOut, SourcePreview, StartOption, StartProposal } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
-import { AssistantMessage, ChatLog, FixedOperation, FoundIssue, UserMessage } from '../../components/Chat/index.ts'
+import { AssistantMessage, ChatLog, FixedOperation, UserMessage } from '../../components/Chat/index.ts'
 import { Composer } from '../../components/Composer/index.ts'
 import { ErrorCard } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 import styles from './Origin.module.css'
+import { ProposalMessage, type ProposalMessageProps } from './ProposalMessage.tsx'
 import { BUDGET_DEBOUNCE_MS, BUDGET_FAILED, budgetView } from './budget.ts'
+import { NOTED, composerPlaceholder, detailsOf, latestProposal, type Turn } from './conversation.ts'
 import { createBody, fixedTitle, operationFromIssue, operationFromOption, sourceDetail, type Operation } from './operation.ts'
 
 export interface OriginScreenProps {
@@ -22,55 +23,41 @@ export interface OriginScreenProps {
 
 const FIXED_TEXT = 'No cambia durante la conversación; es lo único que se podrá aprobar y publicar.'
 
-function issueDetail(issue: IssueSummary, card: IssueCard | undefined): string {
-  if (!card) return `${issue.issue_type} · ${issue.status}`
-  const parts = [card.epic_key ? `Épica ${card.epic_key}` : undefined, `${card.criteria_count} criterios y ${card.rules_count} reglas`]
-  return parts.filter(Boolean).join(' · ')
-}
-
 // Mixta 2 · Origen fijado (UI.md §4.3): HU parecida o reconocida sin IA, operación fijada y fuentes.
 export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProps) {
-  const proposal = request.proposal
-  const project = proposal?.project ?? request.project
+  const mode = request.flow === 'tests' ? 'qa' : 'functional'
   const [operation, setOperation] = useState<Operation | undefined>(
-    request.origin ? operationFromIssue(request.origin, project, request.flow, request.text) : undefined,
+    request.origin
+      ? operationFromIssue(request.origin, request.proposal?.project ?? request.project, request.flow, request.text)
+      : undefined,
   )
-  const [card, setCard] = useState<IssueCard | undefined>()
+  // La conversación en orden: el primer turno es lo escrito en Inicio con su propuesta.
+  const [turns, setTurns] = useState<Turn[]>([{ kind: 'ask', text: request.text, proposal: request.proposal }])
+  // Esperando a POST /start/propose: composer y opciones desactivados.
+  const [proposing, setProposing] = useState(false)
   const [sources, setSources] = useState<SourcePreview[]>([])
   const [budget, setBudget] = useState<ContextBudget | undefined>()
   // Fuentes excluidas con las que se calculó `budget` (clave estable de la lista).
   const budgetFor = useRef('')
   const [excluded, setExcluded] = useState<string[]>([])
   const [restrictions, setRestrictions] = useState('')
-  const [details, setDetails] = useState<string[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<ApiError | undefined>()
   const [generating, setGenerating] = useState(false)
 
-  const shown = proposal?.recognized[0] ?? proposal?.similar[0] ?? request.origin
-  const recognized = (proposal?.recognized.length ?? 0) > 0
+  const latest = latestProposal(turns)
+  // Proyecto de la conversación: el de la última propuesta. Panel y fuentes solo cambian al elegir.
+  const project = latest?.project ?? request.project
 
-  // PA-313: si el arranque guiado cambió de proyecto, se fija (una vez) y se avisa en la conversación.
-  const projectFixed = useRef(false)
+  // PA-313: si una propuesta cambió de proyecto, se fija (una vez por propuesta) y se avisa con ella.
+  const projectFixed = useRef(new WeakSet<object>())
   useEffect(() => {
-    if (!proposal?.project_changed || projectFixed.current) return
-    projectFixed.current = true
-    api.chooseProject(proposal.project).catch((cause: unknown) => {
+    if (!latest?.project_changed || projectFixed.current.has(latest)) return
+    projectFixed.current.add(latest)
+    api.chooseProject(latest.project).catch((cause: unknown) => {
       if (cause instanceof ApiRequestError) setError(cause.error)
     })
-  }, [proposal])
-
-  useEffect(() => {
-    if (!shown) return
-    let cancelled = false
-    api
-      .issue(shown.key)
-      .then((value) => !cancelled && setCard(value))
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [shown])
+  }, [latest])
 
   useEffect(() => {
     if (!operation) return
@@ -128,13 +115,38 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     if (!operation) return
     setGenerating(true)
     setError(undefined)
-    const allRestrictions = [restrictions, ...details].map((item) => item.trim()).filter(Boolean).join('\n')
+    const allRestrictions = [restrictions, ...detailsOf(turns)].map((item) => item.trim()).filter(Boolean).join('\n')
     try {
       onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded)))
     } catch (cause) {
       setError(toApiError(cause))
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const choose = (option: StartOption, optionProject: string) => setOperation(operationFromOption(option, optionProject))
+
+  // Sin operación, un mensaje vuelve a pedir la propuesta; con ella, es un detalle para generar.
+  const send = async () => {
+    const text = draft.trim()
+    if (!text) return
+    setDraft('')
+    if (operation) {
+      setTurns((current) => [...current, { kind: 'detail', text }])
+      return
+    }
+    const index = turns.length
+    setTurns((current) => [...current, { kind: 'ask', text }])
+    setError(undefined)
+    setProposing(true)
+    try {
+      const proposal = await api.propose({ text, project, mode })
+      setTurns((current) => current.map((turn, at) => (at === index && turn.kind === 'ask' ? { ...turn, proposal } : turn)))
+    } catch (cause) {
+      setError(toApiError(cause))
+    } finally {
+      setProposing(false)
     }
   }
 
@@ -235,64 +247,34 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       panel={panel}
       composer={
         <Composer
-          placeholder="Añade detalles a la necesidad (opcional)"
+          placeholder={composerPlaceholder(operation !== undefined)}
           value={draft}
           onChange={setDraft}
           canSubmit={draft.trim().length > 0}
+          disabled={proposing}
           submitLabel="Enviar"
-          onSubmit={() => {
-            setDetails((current) => [...current, draft.trim()])
-            setDraft('')
-          }}
+          onSubmit={() => void send()}
         />
       }
     >
       <ChatLog>
-        {request.text && <UserMessage>{request.text}</UserMessage>}
-
-        {proposal && (
-          <AssistantMessage>
-            {proposal.project_changed && (
-              <p>
-                La clave es del proyecto <b>{proposal.project}</b>: la conversación pasa a {proposal.project}.
-              </p>
-            )}
-            {proposal.ignored_projects.length > 0 && (
-              <p>Las claves de otros proyectos ({proposal.ignored_projects.join(', ')}) no se usan en esta conversación.</p>
-            )}
-            {shown ? (
-              <>
-                <Badge icon="search">{recognized ? 'Clave reconocida en Jira · sin IA' : 'Búsqueda en Jira por texto · sin IA'}</Badge>
-                <p>
-                  {recognized
-                    ? `He reconocido ${shown.key} en el proyecto ${project}.`
-                    : `En el proyecto ${project} hay una HU parecida. ¿La evolucionamos o creamos una nueva?`}
-                </p>
-              </>
-            ) : (
-              <p>No he encontrado HU parecidas en el proyecto {project}.</p>
-            )}
-            <FoundIssue
-              title={shown ? `${shown.key}, ${shown.summary}` : 'HU nueva'}
-              detail={shown ? issueDetail(shown, card) : `En el proyecto ${project}`}
-              actions={proposal.options.map((option, index) => (
-                <Button
-                  key={option.label}
-                  size="md"
-                  variant={index === 0 ? 'primary' : 'secondary'}
-                  disabled={operation !== undefined}
-                  onClick={() => setOperation(operationFromOption(option, project))}
-                >
-                  {option.label}
-                </Button>
-              ))}
+        {turns.map((turn, index) =>
+          turn.kind === 'ask' ? (
+            <AskTurn
+              key={`ask-${index}`}
+              text={turn.text}
+              proposal={turn.proposal}
+              mode={mode}
+              disabled={operation !== undefined || proposing || turn.proposal !== latest}
+              onChoose={choose}
+              origin={index === 0 ? request.origin : undefined}
             />
-          </AssistantMessage>
+          ) : undefined,
         )}
 
         {operation && (
           <>
-            {proposal && <UserMessage>{operation.label}</UserMessage>}
+            {latest && <UserMessage>{operation.label}</UserMessage>}
             <AssistantMessage animate>
               <FixedOperation title={fixedTitle(operation)}>{FIXED_TEXT}</FixedOperation>
               <p>He preparado el contexto. Revisa las fuentes en el panel, añade restricciones si las hay y genera cuando quieras.</p>
@@ -300,9 +282,11 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
           </>
         )}
 
-        {details.map((detail, index) => (
-          <UserMessage key={`${index}-${detail}`}>{detail}</UserMessage>
-        ))}
+        {turns.map((turn, index) =>
+          turn.kind === 'detail' ? (
+            <DetailTurn key={`detail-${index}`} text={turn.text} />
+          ) : undefined,
+        )}
 
         {error && (
           <AssistantMessage>
@@ -311,5 +295,29 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
         )}
       </ChatLog>
     </Workspace>
+  )
+}
+
+function AskTurn({
+  text,
+  proposal,
+  ...props
+}: { text: string; proposal?: StartProposal } & Omit<ProposalMessageProps, 'proposal'>) {
+  return (
+    <>
+      {text && <UserMessage>{text}</UserMessage>}
+      {proposal && <ProposalMessage proposal={proposal} {...props} />}
+    </>
+  )
+}
+
+function DetailTurn({ text }: { text: string }) {
+  return (
+    <>
+      <UserMessage>{text}</UserMessage>
+      <AssistantMessage>
+        <p>{NOTED}</p>
+      </AssistantMessage>
+    </>
   )
 }

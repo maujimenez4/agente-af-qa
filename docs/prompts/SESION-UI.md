@@ -1,118 +1,55 @@
-# SESIÓN MODELOS · Ronda 11: trazas en Langfuse (T-40)
+# SESIÓN MODELOS · Ronda 12: contrato de QA para la web (PA-326 y PA-327)
 
-> Encargo de la **sesión Modelos**. Tu ronda 10 (`ses-memoria-ui`) ya está fusionada, y PA-288 la cerró la principal.
+> Encargo de la **sesión Modelos**. Tu ronda 11 (Langfuse, T-40) ya está fusionada.
 
 Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-b switch -C ses-langfuse origin/PreProduccion
+git -C .claude/worktrees/area-b switch -C ses-contrato-qa origin/PreProduccion
 cd .claude/worktrees/area-b
 uv sync
-uv run python -m pytest -m "not integration"   # en verde, sin xfail
+uv run python -m pytest -m "not integration"   # en verde
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-langfuse`**, creada desde `PreProduccion`. Tu ronda 10 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-contrato-qa`**, creada desde `PreProduccion`. Tu ronda 11 ya está fusionada.
 
-**Objetivo: T-40 (RNF-24, DT-09).** Cada operación del agente deja una **traza en Langfuse** con:
-- los pasos del grafo;
-- las llamadas al modelo, con tokens, latencia y cambios de proveedor;
-- la recuperación del RAG.
-
-El usuario la enseñará en la demo y en la presentación. El panel de métricas por modelo y tarea son los paneles de Langfuse: no se construye uno propio.
-
-Lee:
-- la fila de T-40 en `docs/KANBAN.md`;
-- DT-09 en `docs/decisiones/02_investigacion_tecnologica.md`;
-- cómo se registra hoy el uso del LLM (`_record_spent`, T-32) y el router (`adapters/llm/`);
-- dónde se invoca el grafo (`api/`, `app/`, `mcp_server/`).
-
-## Decisiones del usuario
-- **Langfuse Cloud**, plan gratuito; los datos son sintéticos. Nada de autoalojarlo ni de añadir servicios a `docker-compose.yml`.
-- **Contenido con un interruptor:** `LANGFUSE_CAPTURE_CONTENT`, que por defecto vale `false`.
-  - Con `true`, la traza lleva los prompts, el contexto del RAG y las respuestas.
-  - Con `false`, solo métricas: modelo, tarea, nodo, tokens, latencia y errores.
-  - En los dos casos, los secretos se enmascaran siempre, con el mismo enmascarado de `core/logging`.
+**Contexto:** el responsable de la web en React (`web/`, T-56) está haciendo el flujo de QA. Ya están QA 1 (Origen) y QA 2 (Generando), y sigue con QA 3 · Iterar la suite (pestañas Casos, Cobertura, Datos y riesgos, Estrategia). Ha pedido dos cosas a la API. Lee sus filas **PA-326** y **PA-327** en `docs/KANBAN.md`, `docs/specs/UI.md` §6.2 y §6.3, y `docs/api/README.md`.
 
 ## Tareas
-1. **Configuración** (`core/config.py`, congelado: cambio **autorizado** solo para esto):
-   - `LANGFUSE_PUBLIC_KEY` y `LANGFUSE_SECRET_KEY` como `SecretStr`;
-   - `LANGFUSE_HOST`, por defecto la región de la UE de Langfuse Cloud;
-   - `LANGFUSE_CAPTURE_CONTENT`.
-
-   Sin claves, Langfuse queda **desactivado**: no hace nada, no llama a la red y no avisa más de una vez. Documéntalo en `.env.example`.
-2. **Trazas:**
-   - **Una traza por operación** (crear, iterar, aprobar, reintentar, QA, revisión de calidad, ejecución):
-     - `session_id`: el id de la conversación;
-     - `user_id`: el usuario;
-     - etiquetas: modo, flujo y proyecto.
-   - **Un paso por nodo del grafo.** Valora la integración de Langfuse con LangChain y LangGraph (el `CallbackHandler` en `config["callbacks"]`) frente a hacerlo a mano; propón en el plan.
-   - **Llamadas al modelo** como *generations*:
-     - proveedor, modelo, tarea, tokens de entrada y de salida, latencia y coste 0 (modelos gratuitos);
-     - cada intento de la cadena de proveedores (429 → siguiente) visible como intento fallido.
-
-     Valora el envoltorio `langfuse.openai` frente a instrumentar el router; propón en el plan.
-   - **Versión del prompt** en los metadatos (`prompts/<tarea>.md`, cabecera `version:`).
-   - **RAG:** un paso con la consulta, `k`, los ids de los fragmentos y sus puntuaciones. El texto de los fragmentos, solo con el interruptor activado.
-3. **Robustez:**
-   - Si Langfuse falla o tarda, la operación del agente **nunca** falla ni espera: tiempo límite, errores capturados y un log sin secretos.
-   - `flush` al terminar cada operación y al cerrar el proceso: la API, Streamlit y el servidor MCP.
-4. **Composición:**
-   - `core/container.py` también está congelado. Si necesitas un campo nuevo en `Container` (por ejemplo, un `tracer`), está **autorizado** solo para esto.
-   - El núcleo depende de un `Protocol` pequeño; la implementación con el SDK de Langfuse va en un adaptador.
-   - Las pruebas usan un fake.
-5. **Documentación:** apartado «Trazas en Langfuse» en el `README.md`:
-   - crear la cuenta y el proyecto en la región de la UE;
-   - copiar las claves al `.env`;
-   - activar el interruptor;
-   - qué se ve en cada traza.
-
-   Añade dos o tres consultas o vistas útiles para la demo: una HU completa paso a paso, tokens por tarea y latencia por modelo.
+1. **PA-327 · Etiquetas de los pasos por modo.** Hoy `STEP_LABELS` (`api/service.py`) es el mismo en QA que en la HU, y Generando de una suite dice «Generar la propuesta, validar las citas y analizar el impacto».
+   - Etiquetas propias de QA en `ProgressStep.label`, con los textos de UI.md §6.2 adaptados a los nodos reales.
+   - **Una etiqueta nunca describe lo que el nodo no hace:** si UI.md pide 4 pasos y hay 3 nodos, el texto de `generate` en QA puede juntar lo que hace («Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia»), pero no se inventan pasos.
+   - En QA, `memorize` no se ejecuta (D-07). Comprueba que no sale como paso pendiente que nunca termina.
+   - También en el SSE, en `GET /conversations/{id}`, en `/take` y en los ejemplos del contrato.
+2. **PA-326 · Conversación de QA en revisión, en el contrato.**
+   - **Un ejemplo** de `ConversationOut` de QA en revisión: `flow: tests`, `mode: qa`, `state: in_review` y `review.artifact` con un `TestSuite` sintético (DEMO, 3 o 4 casos sobre CA-01/CA-02 y RN-01/RN-02), `review.plan` con `publish_suite` y la huella. Lo usará el MSW del frontend en lugar de inventar la forma.
+   - **La matriz de cobertura** en la revisión de QA, sin IA y sin tocar `schemas/` (congelado): `TestSuite.coverage_md()` ya la calcula (es el adjunto `matriz-<CLAVE>.md`). Propón dónde va, por ejemplo `ReviewPayload.coverage_md: str | None`, solo en QA.
+   - **Lo no cubierto:** la pestaña Cobertura necesita saber qué CA o RN de la HU **no** tienen caso. Investiga si la API puede dar los IDs de CA y RN de la HU de origen de forma determinista (la HU que ya cargó el grafo, la entrega de QA encadenada o la estructura de la incidencia) y propón un campo, por ejemplo `uncovered: {criteria: [...], rules: [...]}`. Si en algún origen no se puede saber sin una llamada al LLM, ese campo va `null` y se dice en el contrato. **Nunca** se llama al LLM solo para esto.
 
 ## Reglas
-- **Dependencia nueva `langfuse`:**
-  - cuarentena de una semana: la versión elegida tiene que tener más de 7 días en PyPI, salvo la excepción de vulnerabilidades;
-  - verifica en PyPI la versión, la licencia y las dependencias que arrastra;
-  - `uv lock` y revisa el diff: si cambia otra dependencia, justifícalo;
-  - anota todo en el registro, como hizo la sesión MCP.
-- **No es un proveedor de LLM** (D-14): no añadas SDKs de modelos.
-- **Puedes tocar:**
-  - `core/config.py` y `core/container.py` (solo lo autorizado arriba);
-  - un adaptador nuevo, por ejemplo `adapters/observability/`;
-  - `adapters/llm/` (solo instrumentar);
-  - un módulo nuevo en `core/` para el `Protocol`;
-  - `core/graph/` (solo pasar los callbacks o el tracer, sin cambiar la lógica de los nodos ni `publish`/`_publish_approved`);
-  - la composición en `core/factories.py`, `api/`, `app/` y `mcp_server/`;
-  - `.env.example`, `README.md`, `pyproject.toml` y `uv.lock`;
-  - y sus pruebas.
-
-  No toques `schemas/`, `config/` ni `web/`.
-- **Pruebas:**
-  - **sin red**;
-  - sin claves → no hace nada;
-  - con el fake: traza, pasos, *generations* con tokens y el intento fallido de la cadena;
-  - con el interruptor desactivado no viaja ningún texto; con el interruptor activado, los secretos van enmascarados;
-  - Langfuse caído o lento no rompe ni retrasa la operación.
-
-  Una prueba `integration` contra Langfuse Cloud que se salte sin claves. **No la ejecutes**: la lanza la principal.
-- **Nunca leas el `.env`.** Las claves las pone el usuario.
+- **El frontend ya consume el contrato:** solo se añaden campos opcionales y ejemplos. Nada existente cambia de forma.
+  - Regenera el contrato con `uv run python -m api.export_openapi`.
+  - Añade filas a «Novedades para el frontend» en `docs/api/README.md`.
+- **Puedes tocar:** `api/` y sus pruebas, y `docs/api/`. No toques `schemas/`, `core/`, `adapters/`, `app/` ni `web/`. Si necesitas algo de `core/`, **para y propónmelo**.
+- **Pruebas** con `fake_runtime`:
+  - las etiquetas de QA en el SSE y en el detalle;
+  - las de la HU siguen igual;
+  - `coverage_md` y lo no cubierto en una revisión de QA, y su ausencia en una de HU;
+  - el ejemplo del contrato valida contra los modelos.
 - **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
-- **gitleaks:** sin `secret`, `password` ni `token` como nombre de variables con literales. En las pruebas, valores claramente ficticios como `pk-lf-ficticia`.
+- **gitleaks:** sin `secret`, `password` ni `token` como nombre de variables con literales.
 - **Kanban:**
-  - T-40 → ✅ con la fecha;
+  - cierra PA-326 y PA-327 con la fecha;
   - tu fila en el registro;
-  - propuestas en **PA-294…PA-299**.
+  - propuestas en **PA-118…PA-124** (tu rango PA-250…PA-299 está casi lleno).
 - **Antes del commit:**
   - pytest, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push -u origin ses-langfuse` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-contrato-qa` y avísame.
 
-Empieza presentándome el plan antes de escribir código. Sobre todo:
-- `CallbackHandler` frente a hacerlo a mano;
-- `langfuse.openai` frente a instrumentar el router;
-- cómo se aplica el interruptor y el enmascarado;
-- qué versión del SDK eliges.
+Empieza presentándome el plan (las etiquetas de QA, dónde va la matriz y cómo sabes lo no cubierto en cada origen) antes de escribir código.

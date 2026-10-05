@@ -26,6 +26,8 @@ from core.conversations import new_conversation_config, resume_config
 from core.graph.nodes import ReviewRejectedError
 from core.logging import get_logger
 from core.permissions import Permission, require
+from core.tracing import operation as traced_operation
+from core.tracing import operation_name, with_trace_callbacks
 
 log = get_logger(__name__)
 
@@ -248,6 +250,19 @@ def _remember(ws: Workspace, conv: Conversation) -> None:
         ws.conversations.insert(0, conv)
 
 
+def _traced(ws: Workspace, conv: Conversation, operation: str) -> Any:
+    """T-40: traza de una operación de la conversación (crear, iterar, aprobar…)."""
+    return traced_operation(
+        ws.container.tracer,
+        operation_name(operation),
+        session_id=conv.thread_id,
+        user_id=conv.user,
+        mode=conv.request.mode,
+        flow=conv.request.flow,
+        project=conv.request.project,
+    )
+
+
 def find_open(ws: Workspace, thread_id: str) -> Conversation | None:
     return next((c for c in ws.conversations if c.thread_id == thread_id), None)
 
@@ -270,7 +285,14 @@ def start(ws: Workspace, conv: Conversation, actor: User | None = None) -> Itera
         state = build_initial_state(conv.user, conv.request)
         # Se cierra siempre aquí: un `stream` abandonado lo cerraría la recogida de basura en
         # cualquier hilo y su executor puede bloquearse esperando a otros hilos.
-        with closing(ws.graph.stream(state, conv.config, stream_mode="updates")) as updates:
+        with (
+            _traced(ws, conv, "start") as trace,  # T-40: una traza con un paso por nodo
+            closing(
+                ws.graph.stream(
+                    state, with_trace_callbacks(conv.config, trace), stream_mode="updates"
+                )
+            ) as updates,
+        ):
             for update in updates:
                 yield from nodes_in_update(update)
         _refresh(ws, conv)
@@ -305,7 +327,8 @@ def resume(
             return
     reviewed = conv.view
     try:
-        ws.graph.invoke(Command(resume=answer), conv.config)
+        with _traced(ws, conv, str(answer.get("decision") or "")) as trace:
+            ws.graph.invoke(Command(resume=answer), with_trace_callbacks(conv.config, trace))
     except Exception as exc:  # se muestra el mensaje; el tipo va al log
         _fail(conv, exc)
         if not (approving and _settle_approval(ws, conv, reviewed, conv.error)):

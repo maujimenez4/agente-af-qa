@@ -104,6 +104,7 @@ from core.quality import (
     StoredQualityReview,
     new_review,
 )
+from core.tracing import operation as traced_operation
 
 log = get_logger("api")
 
@@ -859,7 +860,16 @@ def _quality_task(
 ) -> Callable[[], None]:
     def task() -> None:
         try:
-            result = QualityReviewer(ws.container).review(user, key, excluded)
+            with traced_operation(  # T-40
+                ws.container.tracer,
+                "revisar_calidad",
+                session_id=review_id,
+                user_id=user.username,
+                mode="functional",
+                flow="review",
+                project=project_of(key),
+            ):
+                result = QualityReviewer(ws.container).review(user, key, excluded)
             rt.quality.finish(review_id, result)
         except Exception as exc:  # mensaje con lista blanca; el tipo va al log
             error = to_api_error(exc).body

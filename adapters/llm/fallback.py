@@ -8,6 +8,9 @@ no se pierde (RNF-12).
 Cada cambio de proveedor genera un `FallbackEvent` con su motivo (PA-67). La UI lo recoge
 envolviendo la invocación en `capture_fallbacks()`, que usa una `ContextVar`: cada sesión ve
 solo sus eventos.
+
+T-40: un `AttemptObserver` opcional ve cada intento de la cadena (las trazas de Langfuse los
+muestran como *generations*, también los fallidos). Si el observador falla, la llamada sigue.
 """
 
 import time
@@ -16,7 +19,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, Protocol
 
 import structlog
 from pydantic import BaseModel
@@ -34,6 +37,26 @@ log = structlog.get_logger(__name__)
 
 ChainResolver = Callable[[TaskType], Sequence[LLMProvider]]
 FallbackReason = Literal["limite", "tiempo_espera", "error"]
+
+INVALID_OUTPUT = "salida_no_valida"
+
+
+class AttemptRecord(Protocol):
+    """Un intento observado: termina bien (con el resultado) o falla (solo métricas)."""
+
+    def succeeded(self, result: LLMResult | StructuredResult) -> None: ...
+    def failed(
+        self, reason: str, error: str, input_tokens: int, output_tokens: int, latency_ms: int
+    ) -> None: ...
+
+
+class AttemptObserver(Protocol):
+    """T-40: observa cada intento de un proveedor de la cadena (p. ej. para las trazas)."""
+
+    def attempt(
+        self, task: TaskType, provider: str, model: str | None, messages: list[Message]
+    ) -> AttemptRecord | None: ...
+
 
 _REASON_TEXT: dict[FallbackReason, str] = {
     "limite": "ha alcanzado su límite de uso",
@@ -93,19 +116,21 @@ class FallbackLLMProvider:
         recorder: UsageRecorder | None = None,
         *,
         daily_token_warning: int | None = None,
+        observer: AttemptObserver | None = None,
     ) -> None:
         self._chain_for = chain_for
         self._recorder = recorder
         self._daily_token_warning = daily_token_warning
+        self._observer = observer
 
     def generate(self, messages: list[Message], task: TaskType) -> LLMResult:
-        return self._run(task, lambda provider: provider.generate(messages, task))
+        return self._run(task, lambda provider: provider.generate(messages, task), messages)
 
     def generate_structured[T: BaseModel](
         self, messages: list[Message], schema: type[T], task: TaskType
     ) -> StructuredResult[T]:
         return self._run(
-            task, lambda provider: provider.generate_structured(messages, schema, task)
+            task, lambda provider: provider.generate_structured(messages, schema, task), messages
         )
 
     def tokens_today(self) -> int:
@@ -116,7 +141,7 @@ class FallbackLLMProvider:
         return self._recorder.tokens_since(start_of_day)
 
     def _run[R: LLMResult | StructuredResult](
-        self, task: TaskType, call: Callable[[LLMProvider], R]
+        self, task: TaskType, call: Callable[[LLMProvider], R], messages: list[Message]
     ) -> R:
         chain = list(self._chain_for(task))
         if not chain:
@@ -129,14 +154,17 @@ class FallbackLLMProvider:
             name = getattr(provider, "provider", type(provider).__name__)
             model = getattr(provider, "model", None)
             start = time.monotonic()
+            attempt = self._observe(task, name, model, messages)
             try:
                 result = call(provider)
             except StructuredOutputError as exc:
                 self._record_spent(task, name, model, exc, start)
+                _attempt_failed(attempt, INVALID_OUTPUT, exc, start)
                 raise
             except ExternalServiceError as exc:
                 self._record_spent(task, name, model, exc, start)
                 reason = fallback_reason(exc)
+                _attempt_failed(attempt, reason, exc, start)
                 log.warning(
                     "llm_provider_failed",
                     action="llm_call",
@@ -152,9 +180,21 @@ class FallbackLLMProvider:
                     events.append(FallbackEvent(task, name, model, reason))
                 failures.append(exc)
                 continue
+            except Exception as exc:  # error no previsto: queda en la traza y se propaga igual
+                _attempt_failed(attempt, "error", exc, start)
+                raise
             self._record(task, result)
+            _attempt_succeeded(attempt, result)
             return result
         raise _chain_error(task, failures)
+
+    def _observe(
+        self, task: TaskType, provider: str, model: str | None, messages: list[Message]
+    ) -> AttemptRecord | None:
+        observer = self._observer
+        if observer is None:
+            return None
+        return _quietly(lambda: observer.attempt(task, provider, model, messages))
 
     def _record_spent(
         self,
@@ -246,6 +286,34 @@ class FallbackLLMProvider:
         log.warning(
             event, action="llm_call", task=task.value, model=model, error=type(exc).__name__
         )
+
+
+def _quietly[T](call: Callable[[], T] | None) -> T | None:
+    """T-40: el observador nunca tumba ni cambia la llamada al LLM."""
+    if call is None:
+        return None
+    try:
+        return call()
+    except Exception as exc:
+        log.warning("llm_attempt_not_observed", action="llm_call", error=type(exc).__name__)
+        return None
+
+
+def _attempt_succeeded(attempt: AttemptRecord | None, result: LLMResult | StructuredResult) -> None:
+    if attempt is not None:
+        _quietly(lambda: attempt.succeeded(result))
+
+
+def _attempt_failed(
+    attempt: AttemptRecord | None, reason: str, exc: BaseException, start: float
+) -> None:
+    if attempt is None:
+        return
+    input_tokens, output_tokens = spent_tokens(exc)
+    latency_ms = int((time.monotonic() - start) * 1000)
+    _quietly(
+        lambda: attempt.failed(reason, type(exc).__name__, input_tokens, output_tokens, latency_ms)
+    )
 
 
 def _chain_error(task: TaskType, failures: list[ExternalServiceError]) -> ExternalServiceError:

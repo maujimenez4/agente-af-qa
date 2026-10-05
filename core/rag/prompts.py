@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 
 from core.config import ROOT_DIR, ConfigError
+from core.tracing import note_prompt
 
 PROMPTS_DIR = ROOT_DIR / "prompts"
 _NAME = re.compile(r"[a-z0-9_]{1,64}")
@@ -36,6 +37,7 @@ def load_prompt(name: str, prompts_dir: Path = PROMPTS_DIR) -> Prompt:
         raise ConfigError(f"El prompt «{name}» no tiene cabecera con «version:».")
     if not body.strip():  # PA-224: un prompt vacío no llega al LLM
         raise ConfigError(f"El prompt «{name}» no tiene texto después de la cabecera.")
+    note_prompt(name, str(version).strip())  # T-40: versión en la traza; sin operación, nada
     return Prompt(name=name, version=str(version).strip(), text=body.strip())
 
 

@@ -147,6 +147,32 @@ Dentro de Claude Code, `/mcp` muestra el estado y las herramientas.
 npx @modelcontextprotocol/inspector uv run python -m mcp_server
 ```
 
+### Trazas en Langfuse (T-40, opcional)
+Cada operación del agente deja una traza en **Langfuse Cloud**: crear, iterar, aprobar, reintentar, QA, revisar la calidad y registrar la ejecución, en la API, en Streamlit y en el servidor MCP. Los datos del proyecto son sintéticos. Sin claves, las trazas quedan desactivadas: no se llama a la red y el log lo dice una sola vez.
+
+1. **Cuenta y proyecto.** Crea una cuenta gratuita en <https://cloud.langfuse.com> (región de la **UE**) y un proyecto, por ejemplo `agente-af-qa`.
+2. **Claves.** En *Settings → API Keys*, crea un par de claves y cópialas a tu `.env`, nunca al repositorio:
+   ```
+   LANGFUSE_PUBLIC_KEY=pk-lf-…
+   LANGFUSE_SECRET_KEY=sk-lf-…
+   LANGFUSE_HOST=https://cloud.langfuse.com
+   ```
+3. **Interruptor de contenido.** Por defecto, `LANGFUSE_CAPTURE_CONTENT=false`: la traza solo lleva métricas. Con `true` lleva además los prompts, el contexto del RAG y las respuestas. En los dos casos, los secretos se enmascaran con el mismo enmascarado de los logs. **Con datos reales, déjalo en `false`:** activarlo enviaría a un tercero el contenido de Jira, que puede incluir datos personales, y exigiría un acuerdo de encargado de tratamiento (DPA) con Langfuse y la región de la UE. La traza lleva siempre el nombre de usuario del agente (`user_id`), un identificador seudónimo.
+4. Reinicia la API, Streamlit o el servidor MCP. Las trazas aparecen en *Tracing* a los pocos segundos.
+
+**Qué se ve en cada traza**
+- **La traza:** el nombre de la operación (`crear`, `iterar`, `aprobar`, `reintentar`, `revisar_calidad`, `ejecucion · …`), la sesión (el id de la conversación), el usuario y las etiquetas `modo:…`, `flujo:…` y `proyecto:…`.
+- **Un paso por nodo del grafo** (`load_origin`, `retrieve_context`, `generate`, `human_review`, `publish`, `memorize`), con su duración. La espera de la revisión humana aparece como «pausado para revisión», no como error.
+- **Una *generation* por intento de la cadena de proveedores** (`llm · <tarea>`): proveedor, modelo, tarea, prompt y versión (`prompts/<tarea>.md`), tokens de entrada y salida, latencia y coste 0. Un 429 que pasa al siguiente proveedor se ve como un intento en `ERROR` con el motivo («límite», «tiempo de espera»…) seguido del intento que funcionó.
+- **Un paso por búsqueda del RAG** (`rag · buscar`): `k`, los filtros, los ids de los fragmentos y sus puntuaciones. La consulta y el texto de los fragmentos solo aparecen con el interruptor activado.
+
+Si Langfuse falla o tarda, la operación del agente sigue igual: el envío va en segundo plano y al cerrar se espera como mucho 2 s. `LANGFUSE_HOST` tiene que usar `https` (salvo un Langfuse en `localhost`); si no, las trazas se desactivan.
+
+**Tres vistas para la demo**
+- **Una HU completa, paso a paso.** En *Sessions*, abre la sesión de la conversación: verás sus trazas `crear` → `iterar` → `aprobar`, y dentro de cada una los nodos, las llamadas al modelo y las búsquedas del RAG en una línea de tiempo.
+- **Tokens por tarea.** En *Dashboards*, crea un gráfico de las observaciones de tipo *generation* con la suma de los tokens de entrada y de salida, agrupado por nombre (`llm · generate_story`, `llm · review_story`…).
+- **Latencia por modelo.** Otro gráfico de las *generations* con la latencia (p50 y p95) agrupada por modelo, y un filtro por nivel `ERROR` para ver los cambios de proveedor.
+
 ## Contenido
 | Archivo | Para qué sirve |
 |---|---|

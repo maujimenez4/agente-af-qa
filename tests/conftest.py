@@ -13,6 +13,10 @@ ENV_VARS = [
     "JIRA_TEST_SUBTASK_TYPE",
     "JIRA_PUBLISH_MODE",
     "GROQ_API_KEY",
+    "LANGFUSE_PUBLIC_KEY",  # T-40: sin claves en el entorno, las pruebas nunca trazan de verdad
+    "LANGFUSE_SECRET_KEY",
+    "LANGFUSE_HOST",
+    "LANGFUSE_CAPTURE_CONTENT",
     "OPENROUTER_API_KEY",
     "OLLAMA_BASE_URL",
     "POSTGRES_USER",

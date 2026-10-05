@@ -55,7 +55,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
 
   Quita el parámetro y recarga para volver al comportamiento normal (al recargar se pierde la sesión simulada: vuelve a iniciar sesión).
 - **Catálogo del sistema de diseño:** `http://localhost:5173/?catalogo`, solo en desarrollo.
-- **API real:** `uv run python -m api` en la raíz del repo (ver `docs/api/README.md`). El destino del proxy se cambia con `API_PROXY_TARGET`.
+- **API real:** `uv run python -m api` en la raíz del repo (ver `docs/api/README.md`). El destino del proxy se cambia con `API_PROXY_TARGET`. Recorrido y lista de comprobación: [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md).
 
 Antes de cada entrega: `npm run lint`, `npm run test` y `npm run build` sin errores.
 

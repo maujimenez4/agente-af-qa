@@ -14,3 +14,6 @@ ea14bb9a90f2e807eb76c966ef9a3761305f8eee:docs/KANBAN.md:private-key:397
 # `internal_detail` para que la regla no vuelva a saltar).
 ceed50021ce20031cd7dc80f077fec329431853d:tests/unit/test_api_handoff_release.py:generic-api-key:219
 ceed50021ce20031cd7dc80f077fec329431853d:tests/unit/test_api_quality_reviews.py:generic-api-key:223
+# T-40: valores ficticios «valorficticio-groq-…» para comprobar el enmascarado de las trazas.
+15bceeeb2c7bda8da290c3e2669b714b3180a13d:tests/unit/test_tracing.py:generic-api-key:50
+15bceeeb2c7bda8da290c3e2669b714b3180a13d:tests/unit/test_tracing_integration.py:generic-api-key:246

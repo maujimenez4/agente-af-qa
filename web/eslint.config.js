@@ -9,6 +9,7 @@ import tseslint from 'typescript-eslint'
 // Reglas de seguridad del frontend (web/README.md, «Reglas»): el texto de la API
 // se pinta como texto y la sesión nunca va al almacenamiento del navegador.
 const HTML_INJECTION = 'El contenido de la API se muestra como texto: no se inserta HTML.'
+const UNSAFE_LINK = 'Un enlace construido con datos pasa por safeHref() (src/security/safeHref.ts, PA-308): nunca javascript: ni data:.'
 const BROWSER_STORAGE = 'No se usa el almacenamiento del navegador: la sesión va como diga el contrato de T-55.'
 
 export default defineConfig([
@@ -36,6 +37,12 @@ export default defineConfig([
         { selector: "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]", message: HTML_INJECTION },
         { selector: "AssignmentExpression[left.property.value=/^(innerHTML|outerHTML)$/]", message: HTML_INJECTION },
         { selector: "CallExpression[callee.property.name='insertAdjacentHTML']", message: HTML_INJECTION },
+        // href, src, action o formAction con una expresión: solo un literal o safeHref(…).
+        {
+          selector:
+            "JSXAttribute[name.name=/^(href|src|action|formAction|xlinkHref)$/] > JSXExpressionContainer > :not(Literal, TemplateLiteral[expressions.length=0], CallExpression[callee.name='safeHref'])",
+          message: UNSAFE_LINK,
+        },
       ],
       'no-restricted-globals': [
         'error',

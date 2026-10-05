@@ -5,6 +5,7 @@ import { ComponentsDemo } from './ComponentsDemo.tsx'
 import { QDemo } from './QDemo.tsx'
 import { ShellDemo } from './ShellDemo.tsx'
 import { StatesDemo } from './StatesDemo.tsx'
+import { safeHref } from '../security/safeHref.ts'
 
 function ColorsSection() {
   return (
@@ -141,7 +142,7 @@ export function Catalog() {
           <ul className={styles.toc}>
             {CATALOG_SECTIONS.map((section) => (
               <li key={section.id}>
-                <a className={styles.tocLink} href={`#${section.id}`}>
+                <a className={styles.tocLink} href={safeHref(`#${section.id}`)}>
                   {section.title}
                 </a>
               </li>

@@ -1,4 +1,4 @@
-export { ChangesView, ImpactView, SourcesView, StoryView, VersionSelector, type StoryViewProps } from './ProposalViews.tsx'
+export { ChangesView, ImpactView, SourcesView, StoryView, JIRA_VERSION, VersionSelector, type StoryViewProps } from './ProposalViews.tsx'
 export {
   changeMarks,
   changesLabel,

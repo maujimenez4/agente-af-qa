@@ -143,9 +143,8 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Resumen del asistente:** además de lo que cambió y a qué afecta, «Queda 1 pregunta abierta» o «Quedan N preguntas abiertas» si `open_questions` no está vacío, para que no pasen desapercibidas (no está en el lienzo).
   - **Tarjeta de error:** *Actualizar* vuelve a leer la conversación (si ya no está en revisión, vuelve a Inicio); *Volver a generar* y *Reintentar* repiten **la operación que falló**: si falló `POST /iterate`, el cambio pedido (sin repetirlo en el chat); si falló la iteración ya en marcha o se detuvo, `POST /retry`; o *Descartar*, o la relectura de *Actualizar*. *Detener* funciona igual que en Generando; *Empezar de nuevo* vuelve a Inicio; *Iniciar sesión* cierra la sesión y vuelve a la pantalla de inicio de sesión.
   - **Panel:** versiones v1…vN de `ConversationOut.versions` más la de la revisión; pestañas Propuesta, Cambios, Impacto y Fuentes.
-  - **Lo que el contrato no da:**
-    - la versión «Jira» del lienzo (la HU tal como está en Jira; PA-316);
-    - el aviso «CA sin fuente», porque los CA no traen cita propia (PA-315).
+  - **Versión «Jira»** (PA-316): con `jira_baseline` (solo al evolucionar), el selector empieza por *Jira*. Muestra la HU tal como está en Jira, con un aviso («Así está la HU en Jira ahora…»), sin pestañas ni marcas. La primera versión de la propuesta marca «Cambiado en vN» y «Nueva» comparando con ella. La API simulada la construye a partir de la propuesta, quitando lo que los diffs dan por nuevo, porque el ejemplo del contrato trae una que ya lo incluye.
+  - **Lo que el contrato no da:** el aviso «CA sin fuente», porque los CA no traen cita propia (PA-315).
   - **Pie del panel:**
     - *Descartar* pide confirmación y llama a `POST /discard`;
     - *Editar a mano* y *Revisar y aprobar* son «disponible pronto»: se pueden enfocar, llevan su descripción y no hacen nada.

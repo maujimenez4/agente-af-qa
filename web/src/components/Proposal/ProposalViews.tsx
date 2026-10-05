@@ -11,16 +11,32 @@ import {
   type UserStory,
 } from './proposalText.ts'
 
+/** Valor de `selected` para la versión «Jira» (la HU tal como está en Jira, PA-316). */
+export const JIRA_VERSION = 0
+
 export interface VersionSelectorProps {
   versions: readonly number[]
   selected: number
+  /** Añade «Jira» delante de v1 (solo al evolucionar una HU, con `jira_baseline`). */
+  jira?: boolean
   onSelect: (version: number) => void
 }
 
-// Versiones de la propuesta (lienzo .ver): v1, v2… La activa con aria-pressed.
-export function VersionSelector({ versions, selected, onSelect }: VersionSelectorProps) {
+// Versiones de la propuesta (lienzo .ver): Jira, v1, v2… La activa con aria-pressed.
+export function VersionSelector({ versions, selected, jira = false, onSelect }: VersionSelectorProps) {
   return (
     <div className={styles.versions} role="group" aria-label="Versiones">
+      {jira && (
+        <button
+          type="button"
+          className={styles.version}
+          aria-pressed={selected === JIRA_VERSION}
+          aria-label="Versión de Jira"
+          onClick={() => onSelect(JIRA_VERSION)}
+        >
+          Jira
+        </button>
+      )}
       {versions.map((version) => (
         <button
           key={version}

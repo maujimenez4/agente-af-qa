@@ -39,10 +39,10 @@ describe('Iterar: huecos (UI.md §4.5, DESIGN-DECISIONS.md §4 bis)', () => {
     expect(within(same).queryByText(/Cambiado en v|Nueva/)).toBeNull()
   })
 
-  it('lo que el contrato no da no se pinta: ni la versión «Jira» ni el aviso «CA sin fuente» (PA-315, PA-316)', async () => {
+  it('el selector empieza por «Jira» (PA-316) y el aviso «CA sin fuente» no se pinta, porque el contrato no da la cita de cada CA (PA-315)', async () => {
     await openFromList()
     const versions = within(panel()).getByRole('group', { name: 'Versiones' })
-    expect(within(versions).getAllByRole('button').map((button) => button.textContent)).toEqual(['v2'])
+    expect(within(versions).getAllByRole('button').map((button) => button.textContent)).toEqual(['Jira', 'v2'])
     expect(screen.queryByText(/Sin respaldo en las fuentes/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Pedir fuente' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull()

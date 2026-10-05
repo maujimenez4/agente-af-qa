@@ -114,6 +114,26 @@ function nextVersion(previous: ConversationOut, feedback: string): ConversationO
   return next
 }
 
+/**
+ * Versión «Jira» simulada (PA-316), coherente con los diffs frente a Jira: la propuesta sin los CA y
+ * RN que los diffs dan por nuevos (sin «before»). El ejemplo del contrato trae una que ya los incluye.
+ */
+function mockBaseline(conversation: ConversationOut): UserStory | null {
+  const review = conversation.review
+  if (!review) return null
+  const story = structuredClone(review.artifact.content as UserStory)
+  const added = new Set(
+    (review.impact?.diffs ?? [])
+      .filter((diff) => diff.before == null)
+      .map((diff) => /^(?:acceptance_criteria|business_rules).(.+)$/.exec(diff.field)?.[1])
+      .filter(Boolean),
+  )
+  story.acceptance_criteria = story.acceptance_criteria.filter((item) => !added.has(item.id))
+  story.business_rules = story.business_rules.filter((item) => !added.has(item.id))
+  story.changes_from_previous = []
+  return story
+}
+
 /** Mensaje de api/cancel.py (CANCELLED_MESSAGE). */
 export const CANCELLED_MESSAGE = 'Generación detenida a petición tuya. Puedes reintentarla o descartar la conversación.'
 
@@ -160,12 +180,14 @@ export function createHandlers(db: MockDb) {
     if (existing) return existing
     const summary = db.conversations.find((item) => item.thread_id === id)
     if (!summary) return undefined
+    const base = example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200')
     const run: MockRun = {
       conversation: {
-        ...example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200'),
+        ...base,
         id,
         title: summary.title,
         project: summary.project_key,
+        jira_baseline: base.flow === 'evolve' ? mockBaseline(base) : null,
       },
       script: [],
     }
@@ -429,6 +451,8 @@ export function createHandlers(db: MockDb) {
                 feedback: run.conversation.feedback,
                 progress: run.conversation.progress,
                 state: 'in_review',
+                // Solo al evolucionar; al iterar se conserva la de partida.
+                jira_baseline: run.conversation.flow === 'evolve' ? (run.conversation.jira_baseline ?? mockBaseline(reviewed)) : null,
               }
               setSummary(run.conversation.id, { status: 'in_review', version: run.conversation.review?.version ?? 1 })
               controller.enqueue(encoder.encode(sse('review_ready', run.conversation)))

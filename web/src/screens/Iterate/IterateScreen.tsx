@@ -5,7 +5,17 @@ import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, UserMessage } from '../../components/Chat/index.ts'
 import { Chip } from '../../components/Chip/index.ts'
 import { Composer, ModelTag } from '../../components/Composer/index.ts'
-import { ChangesView, changesLabel, ImpactView, SourcesView, StoryView, Tabs, VersionSelector, versionSummary } from '../../components/Proposal/index.ts'
+import {
+  ChangesView,
+  changesLabel,
+  ImpactView,
+  JIRA_VERSION,
+  SourcesView,
+  StoryView,
+  Tabs,
+  VersionSelector,
+  versionSummary,
+} from '../../components/Proposal/index.ts'
 import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts'
 import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
@@ -96,8 +106,11 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
   const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(false)
 
+  // Versión «Jira» (PA-316): la HU tal como está en Jira, solo al evolucionar; la v1 se compara con ella.
+  const baseline = conversation.jira_baseline ?? undefined
+  const showingJira = selected === JIRA_VERSION && baseline !== undefined
   const shown = versions.find((item) => item.version === selected) ?? latest
-  const previous = shown ? versions[versions.indexOf(shown) - 1] : undefined
+  const previousStory = shown ? (versions[versions.indexOf(shown) - 1]?.story ?? baseline) : undefined
   const diffs = shown?.impact?.diffs ?? []
 
   const send = async (feedback: string, { repeat = false } = {}) => {
@@ -190,7 +203,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       title="Propuesta de HU"
       subtitle={`${conversationTitle(conversation.title)} · ${iterating ? 'generando' : 'en revisión'}`}
       size="md"
-      headerActions={<VersionSelector versions={versions.map((item) => item.version)} selected={selected} onSelect={setSelected} />}
+      headerActions={
+        <VersionSelector versions={versions.map((item) => item.version)} selected={showingJira ? JIRA_VERSION : shown.version} jira={baseline !== undefined} onSelect={setSelected} />
+      }
       footer={
         confirmDiscard ? (
           <div className={styles.confirm} role="group" aria-label="Confirmar el descarte">
@@ -216,12 +231,19 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
         )
       }
     >
-      <Tabs label="Contenido del panel" tabs={tabs} selected={tab} onSelect={setTab}>
-        {tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previous?.story} diffs={diffs} />}
-        {tab === 'changes' && <ChangesView diffs={diffs} againstJira={againstJira} />}
-        {tab === 'impact' && <ImpactView impact={shown.impact} />}
-        {tab === 'sources' && <SourcesView sources={shown.story.sources} />}
-      </Tabs>
+      {showingJira ? (
+        <div className={styles.jira}>
+          <p className={styles.jiraNote}>Así está la HU en Jira ahora. Elige una versión para ver qué cambia.</p>
+          <StoryView key="jira" story={baseline} version={JIRA_VERSION} previous={baseline} diffs={[]} />
+        </div>
+      ) : (
+        <Tabs label="Contenido del panel" tabs={tabs} selected={tab} onSelect={setTab}>
+          {tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previousStory} diffs={diffs} />}
+          {tab === 'changes' && <ChangesView diffs={diffs} againstJira={againstJira} />}
+          {tab === 'impact' && <ImpactView impact={shown.impact} />}
+          {tab === 'sources' && <SourcesView sources={shown.story.sources} />}
+        </Tabs>
+      )}
     </SidePanel>
   )
 

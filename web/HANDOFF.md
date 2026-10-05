@@ -1,7 +1,7 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-05
 
 **Estado:** T-56 🔄 en `area-b`, con `PreProduccion` fusionada el 2026-10-05 (incluida la ronda 8 de la sesión UI en Origen). Flujo de la HU completo; flujo de QA hasta QA 3 · Iterar la suite. Lint, Vitest, build y `npm run api:check` en verde.
-**PR:** [#3](https://github.com/maujimenez4/agente-af-qa/pull/3) `area-b → PreProduccion` («T-56 (parte 2): frontend React, flujo de QA y pulido»). La #2 se cerró al fusionar la principal `area-b` (`3b5dd46`). `gh` no está instalado: los comentarios se preparan, se copian al portapapeles y se pegan a mano.
+**PR:** [#4](https://github.com/maujimenez4/agente-af-qa/pull/4) `area-b → PreProduccion` («T-56 (parte 3): flujo de QA»), abierta el 2026-10-05. Las anteriores ya están fusionadas: la #2 (`3b5dd46`) y la #3 («T-56 (parte 2): frontend React, flujo de QA y pulido»). `gh` no está instalado: los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
 
@@ -24,7 +24,7 @@
 - **Disponible pronto:** admin, Revisar la calidad, *Editar a mano*, auditoría, historial, *Ver la memoria* y QA 6 (registrar la ejecución).
 
 ## API real
-La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única (`API-LOCAL.md` solo enlaza a ella). En este equipo no se monta el backend. Los fallos llegan como comentarios en la PR #3.
+La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única (`API-LOCAL.md` solo enlaza a ella). En este equipo no se monta el backend. Los fallos llegan como comentarios en la PR #4.
 
 ## Reglas de trabajo
 - `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.

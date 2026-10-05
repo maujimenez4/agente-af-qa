@@ -1,5 +1,6 @@
 /* Compositor (lienzo MixtoInicio .composer): borde #93A0AB, radio 16 y anillo de foco propio. */
 .composer {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -103,4 +104,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Ayuda de teclado bajo el cuadro, en el margen que ya hay debajo: no cambia la altura de la pantalla. */
+.hint {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  pointer-events: none;
 }

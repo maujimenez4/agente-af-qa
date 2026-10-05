@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { Composer, ModelTag, ProjectButton, ToolButton, type ComposerProps } from './Composer.tsx'
+import { Composer, COMPOSER_KEYS_HINT, ModelTag, ProjectButton, ToolButton, type ComposerProps } from './Composer.tsx'
 
 const PLACEHOLDER = 'Escribe la clave de la HU, por ejemplo DEMO-3, y qué quieres cambiar.'
 
@@ -22,7 +22,7 @@ function Controlled(props: Partial<ComposerProps> & { onSubmit: () => void }) {
 describe('Composer', () => {
   it('el cuadro de texto se etiqueta con su ayuda', () => {
     render(<Controlled onSubmit={vi.fn()} />)
-    expect(screen.getByRole('textbox', { name: PLACEHOLDER })).toHaveAttribute('placeholder', PLACEHOLDER)
+    expect(screen.getByRole('textbox', { name: `${PLACEHOLDER} (${COMPOSER_KEYS_HINT})` })).toHaveAttribute('placeholder', PLACEHOLDER)
   })
 
   it('sin texto no se puede enviar; con texto, sí', async () => {
@@ -36,11 +36,11 @@ describe('Composer', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
-  it('Intro hace un salto de línea y Ctrl + Intro envía', async () => {
+  it('Mayús + Intro hace un salto de línea y Ctrl + Intro envía', async () => {
     const onSubmit = vi.fn()
     render(<Controlled onSubmit={onSubmit} />)
     const box = screen.getByRole('textbox')
-    await userEvent.type(box, 'Línea uno{Enter}línea dos')
+    await userEvent.type(box, 'Línea uno{Shift>}{Enter}{/Shift}línea dos')
     expect(box).toHaveValue('Línea uno\nlínea dos')
     expect(onSubmit).not.toHaveBeenCalled()
     await userEvent.keyboard('{Control>}{Enter}{/Control}')

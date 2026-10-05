@@ -105,7 +105,7 @@ describe('Composer: desactivado y etiquetas', () => {
   it('test_label_is_hidden_but_linked_to_textarea', () => {
     /** Criterio 7: la etiqueta (ayuda) está asociada al cuadro y oculta visualmente. */
     render(<Controlled onSubmit={vi.fn()} />)
-    const label = screen.getByText(PLACEHOLDER, { selector: 'label' })
+    const label = screen.getByText(`${PLACEHOLDER} (Intro para enviar, Mayús+Intro para nueva línea)`, { selector: 'label' })
     expect(label).toHaveClass('visually-hidden')
     expect(label).toHaveAttribute('for', screen.getByRole('textbox').id)
   })
@@ -118,7 +118,7 @@ describe('Composer: desactivado y etiquetas', () => {
         <Controlled onSubmit={vi.fn()} placeholder="Dos" />
       </>,
     )
-    expect(screen.getByRole('textbox', { name: 'Uno' }).id).not.toBe(screen.getByRole('textbox', { name: 'Dos' }).id)
+    expect(screen.getByRole('textbox', { name: 'Uno (Intro para enviar, Mayús+Intro para nueva línea)' }).id).not.toBe(screen.getByRole('textbox', { name: 'Dos (Intro para enviar, Mayús+Intro para nueva línea)' }).id)
   })
 
   it('test_attachment_appears_before_textbox', () => {

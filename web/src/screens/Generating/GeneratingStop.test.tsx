@@ -96,7 +96,7 @@ describe('Iterar · Detener y Reintentar', () => {
     await userEvent.click(await within(list).findByRole('button', { name: /Evolucionar DEMO-3/ }))
     await screen.findByRole('complementary', { name: 'Propuesta de HU' })
     mockDb.stepDelayMs = SLOW_STEP_MS
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), change)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), change)
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
   }
 

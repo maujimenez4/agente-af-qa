@@ -1,4 +1,4 @@
-import { useId, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { IconButton } from '../Button/index.ts'
 import { Icon, type IconName } from '../Icon/index.ts'
 import styles from './Composer.module.css'
@@ -24,7 +24,14 @@ export interface ComposerProps {
   stopping?: boolean
 }
 
-// Compositor del chat (UI.md §2): cuadro de texto, herramientas y enviar. Ctrl/Cmd + Intro envía.
+/** Ayuda de teclado: visible bajo el cuadro y parte de su nombre accesible. */
+export const COMPOSER_KEYS_HINT = 'Intro para enviar, Mayús+Intro para nueva línea'
+
+// Si nada cambia tras un envío (p. ej. falló y el texto sigue), Intro vuelve a enviar pasado este tiempo.
+const RESEND_AFTER_MS = 1000
+
+// Compositor del chat (UI.md §2): cuadro de texto, herramientas y enviar. Intro (o Ctrl/Cmd + Intro) envía;
+// Mayús + Intro hace un salto de línea.
 export function Composer({
   placeholder,
   value,
@@ -40,24 +47,41 @@ export function Composer({
 }: ComposerProps) {
   const id = useId()
   const ready = canSubmit && !disabled
+  // Un envío por pulsación: Intro repetido antes de que la pantalla reaccione no envía dos veces.
+  const sent = useRef(false)
+  useEffect(() => {
+    sent.current = false
+  }, [value, disabled, canSubmit])
+
+  const send = () => {
+    if (!ready || sent.current) return
+    sent.current = true
+    window.setTimeout(() => {
+      sent.current = false
+    }, RESEND_AFTER_MS)
+    onSubmit()
+  }
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (ready) onSubmit()
+    send()
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && ready) {
-      event.preventDefault()
-      onSubmit()
-    }
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey) return // Mayús + Intro: salto de línea.
+    // Composición en curso (acentos, IME): Intro confirma el carácter, no envía.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    // Generando (con «Detener») no se envía nada; solo espacios tampoco.
+    if (onStop || event.repeat || !value.trim()) return
+    send()
   }
 
   return (
     <form className={styles.composer} onSubmit={submit} data-disabled={disabled ? '' : undefined}>
       {attachment}
       <label htmlFor={id} className="visually-hidden">
-        {placeholder}
+        {disabled ? placeholder : `${placeholder} (${COMPOSER_KEYS_HINT})`}
       </label>
       <textarea
         id={id}
@@ -72,6 +96,11 @@ export function Composer({
       <div className={styles.toolbar}>
         {tools}
         <span className={styles.spacer} />
+        {!disabled && (
+          <span className={styles.hint} aria-hidden="true">
+            {COMPOSER_KEYS_HINT}
+          </span>
+        )}
         {onStop ? (
           <IconButton
             icon="stop"

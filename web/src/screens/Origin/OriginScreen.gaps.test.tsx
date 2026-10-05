@@ -116,7 +116,7 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
     await startWithText('Renovar un préstamo desde la app')
     await userEvent.click(await screen.findByRole('button', { name: 'Crear HU nueva' }))
     await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Solo socios con carné')
-    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional)' }), 'También desde el aviso ficticio')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional) (Intro para enviar, Mayús+Intro para nueva línea)' }), 'También desde el aviso ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await generate()
     expect(bodies[0]?.feedback).toEqual([])

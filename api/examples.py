@@ -221,7 +221,10 @@ CONVERSATION = ConversationOut(
     feedback=["Mismas reglas que en la web."],
     updated_at=NOW,
     # PA-316: la HU tal como está en Jira (versión de partida), para el selector de versiones.
-    jira_baseline=STORY.model_copy(update={"changes_from_previous": []}),
+    # Sin el CA-02, que `IMPACT.diffs` da por nuevo en esta versión.
+    jira_baseline=STORY.model_copy(
+        update={"changes_from_previous": [], "acceptance_criteria": STORY.acceptance_criteria[:1]}
+    ),
 )
 CONVERSATION_GENERATING = CONVERSATION.model_copy(
     update={

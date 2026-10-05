@@ -88,7 +88,10 @@ describe('Resultado tras aprobar', () => {
     const failed = within(region).getByRole('alert')
     expect(failed).toHaveTextContent('Lo que no se pudo publicar')
     expect(failed).toHaveTextContent(PARTIAL_ERROR)
-    expect(within(region).getByText('Actualizar DEMO-3 con la versión 2')).toBeInTheDocument()
+    const approved = within(region).getByRole('list', { name: 'Operaciones aprobadas' })
+    expect(within(approved).getByText('Actualizar DEMO-3 con la versión 2')).toBeInTheDocument()
+    // No se sabe qué operación falló: ninguna lleva ✓.
+    expect(within(approved).queryByText('✓')).toBeNull()
   })
 
   it('retomar desde la lista una conversación simulada abre su resultado', async () => {

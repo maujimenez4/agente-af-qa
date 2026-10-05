@@ -32,7 +32,9 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
   const last = proposalVersions(conversation).at(-1)
   const story = last?.story as UserStory | undefined
   const operations = receiptOperations(result.plan, last?.version ?? 1, story?.title ?? '', last?.impact)
-  const done = outcome !== 'simulated'
+  // Solo con todo publicado se marca cada operación con ✓: en parte, `errors` es texto y no dice cuál falló.
+  const done = outcome === 'published'
+  const listLabel = { simulated: 'Operaciones que se habrían hecho', published: 'Operaciones hechas en Jira', partial: 'Operaciones aprobadas' }[outcome]
   const key = result.plan.find((item) => item.op === 'update_story')?.key ?? result.published_keys[0]
 
   return (
@@ -50,7 +52,7 @@ export function ResultScreen({ conversation }: ResultScreenProps) {
         </h2>
         <p className={styles.lead}>{texts.lead}</p>
 
-        <ol className={styles.operations} aria-label={done ? 'Operaciones hechas en Jira' : 'Operaciones que se habrían hecho'}>
+        <ol className={styles.operations} aria-label={listLabel}>
           {operations.map((operation, index) => (
             <li key={operation.id} className={styles.operation}>
               <span className={styles.mark} data-done={done ? '' : undefined} aria-hidden="true">

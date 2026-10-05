@@ -46,7 +46,7 @@ export const OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
     phaseName: 'Publicada en parte',
     badge: 'Publicada en parte',
     title: 'Publicada en parte',
-    lead: 'Parte de las operaciones ya está en Jira; las que fallaron se indican abajo:',
+    lead: 'Se aprobaron estas operaciones. Parte ya está en Jira; lo que falló se indica debajo:',
     note: 'Lo publicado se queda en Jira. Reintentar solo lo que falló llegará más adelante (PA-05); mientras, revisa las operaciones en Jira.',
   },
 }

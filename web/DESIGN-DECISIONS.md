@@ -169,7 +169,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Resultado** (Mixta 4, UI.md §4.7): según `ConversationOut.result` (`PublishOutcome`):
   - **Simulada** (`simulated`): fase 3 «Aprobada», Q fija en 3/4, «Aprobada · simulada», aviso de modo de prueba, las operaciones numeradas («se habrían hecho») y la nota de que la aprobación sigue vigente.
   - **Publicada** (`published`, sin errores): fase 4 «Publicado», Q que se completa, operaciones con ✓ y las claves de `published_keys`.
-  - **En parte** (`errors` o `failed_ids`, estado `approved`): fase 4 «Publicada en parte» y «Lo que no se pudo publicar» con los mensajes de la API tal cual. No es un error HTTP (RNF-13).
+  - **En parte** (`errors` o `failed_ids`, estado `approved`): fase 4 «Publicada en parte», las operaciones aprobadas **numeradas, sin ✓** (los `errors` son texto y no dicen qué operación falló) y «Lo que no se pudo publicar» con los mensajes de la API tal cual. No es un error HTTP (RNF-13).
   - **Acciones** del lienzo, todas «disponible pronto» con su motivo en la descripción: *Ver el registro de auditoría* e *Ir al historial* (no están en el contrato / solo admin), *Abrir DEMO-3 en Jira* (falta la URL de Jira, PA-318), *Ver la memoria* (pestaña Memoria, después de T-57) y *Pedir sus pruebas a QA* (paso siguiente). *Reintentar solo los fallidos* es PA-05.
   - Pie: «Versión N aprobada por af-demo a las 15:47» (la versión sale de `versions`: tras aprobar, `review` es `null`).
   - Retomar desde la lista una conversación aprobada, simulada o publicada abre su Resultado.

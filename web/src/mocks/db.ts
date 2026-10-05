@@ -89,6 +89,9 @@ export function issueCard(key: string): IssueCard | undefined {
     epic_key: issue.issue_type === 'Epic' ? null : (epicOf(issue.key) ?? null),
     criteria_count: issue.issue_type === 'Epic' ? 0 : 2,
     rules_count: issue.issue_type === 'Epic' ? 0 : 2,
+    // PA-104: subtareas CP en Jira y si la publicó el agente (como el ejemplo del contrato: ninguna, no).
+    test_cases: issue.issue_type === 'Epic' ? null : 0,
+    published_by_agent: issue.issue_type === 'Epic' ? null : false,
   }
 }
 

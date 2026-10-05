@@ -80,10 +80,6 @@ const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: st
     title: 'Revisar la calidad: disponible pronto',
     text: 'El informe INVEST y los hallazgos de una HU llegan después del punto de control de la demo.',
   },
-  tests: {
-    title: 'Preparar pruebas: disponible pronto',
-    text: 'El flujo de QA (casos, cobertura, datos y estrategia) llega después del punto de control de la demo.',
-  },
 }
 
 function WorkZone({ user }: { user: UserOut }) {

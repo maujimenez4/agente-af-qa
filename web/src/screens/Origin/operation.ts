@@ -71,10 +71,16 @@ export function fixedTitle(operation: Operation): string {
  * Cuerpo de POST /conversations. Las restricciones (UI.md §4.3): en una necesidad nueva se añaden
  * al texto; al evolucionar o preparar pruebas van como primer `feedback`.
  */
-export function createBody(operation: Operation, restrictions: string, excluded: readonly string[]): ConversationCreateIn {
+export function createBody(
+  operation: Operation,
+  restrictions: string,
+  excluded: readonly string[],
+  /** QA 1: tipos de caso e «Incluir además» (`qaFeedback`), antes que las indicaciones. */
+  options: readonly string[] = [],
+): ConversationCreateIn {
   const extra = restrictions.trim()
   const origin: OriginIn = { ...operation.origin }
-  const feedback: string[] = []
+  const feedback: string[] = [...options]
   if (extra) {
     if (operation.flow === 'need') origin.text = [origin.text, `Restricciones: ${extra}`].filter(Boolean).join('\n\n')
     else feedback.push(extra)

@@ -11,11 +11,11 @@ function contractErrorCodes(): string[] {
 
 const FALLBACK_TITLE = 'No se pudo completar la acción'
 
-describe('ErrorCard: los 25 códigos del contrato (DESIGN-DECISIONS.md §6, PA-306)', () => {
+describe('ErrorCard: los 28 códigos del contrato (DESIGN-DECISIONS.md §6, PA-306)', () => {
   const codes = contractErrorCodes()
 
-  it('lee los 25 valores del enum de ErrorBody.code', () => {
-    expect(codes).toHaveLength(25)
+  it('lee los 28 valores del enum de ErrorBody.code', () => {
+    expect(codes).toHaveLength(28)
   })
 
   it('tiene título propio para cada código del contrato y para ninguno más', () => {
@@ -32,6 +32,9 @@ describe('ErrorCard: los 25 códigos del contrato (DESIGN-DECISIONS.md §6, PA-3
     ['http_error', 'Petición no válida', 'error', undefined],
     ['handoff_unavailable', 'La HU ya no está disponible', 'warning', 'refresh'],
     ['operation_failed', 'No se pudo completar la operación', 'error', 'refresh'],
+    ['not_in_error', 'No hay nada que reintentar', 'warning', 'refresh'],
+    ['cancelled', 'Generación detenida', 'neutral', 'retry'],
+    ['not_cancellable', 'No se puede detener', 'warning', 'refresh'],
     ['restart', 'La conversación no puede continuar', 'error', 'restart'],
     ['too_many_streams', 'Demasiadas pestañas abiertas', 'warning', 'retry'],
     ['provider_timeout', 'El modelo no respondió a tiempo', 'warning', 'regenerate'],

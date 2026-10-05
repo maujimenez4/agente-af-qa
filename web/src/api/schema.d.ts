@@ -1,6 +1,46 @@
 // GENERADO desde docs/api/openapi.yaml con openapi-typescript: no editar a mano.
 // Regenerar con: npm run api:types (y comprobar con npm run api:check).
 export interface paths {
+    "/api/v1/admin/connections/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probar las conexiones (Jira, PostgreSQL, modelos y embeddings)
+         * @description Una comprobación por servicio, en paralelo y con 5 s como máximo cada una; un fallo no impide las demás. Sin generar texto con ningún modelo. Una prueba cada 10 s por persona.
+         */
+        post: operations["run_connection_test_api_v1_admin_connections_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Modelos por tarea y de embeddings (solo lectura)
+         * @description De cada proveedor, solo el host: nunca la URL entera ni la clave.
+         */
+        get: operations["list_models_api_v1_admin_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -119,6 +159,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations/{conversation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detener una generación en curso (PA-314)
+         * @description Pide detener la operación que está generando (crear, iterar o reintentar). **No interrumpe una llamada al LLM ya en curso**: se para al terminar esa llamada o el paso actual, sin empezar el siguiente; mientras, `cancel_requested=true` («Deteniendo…»). Queda en `state=error` con `error.code=cancelled` y se puede reintentar con `/retry`; si el siguiente paso era la revisión, queda en revisión con la propuesta ya generada. Nunca escribe en Jira: aprobar o publicar no se cancelan (409 `not_cancellable`, también si no está generando).
+         */
+        post: operations["cancel_api_v1_conversations__conversation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations/{conversation_id}/discard": {
         parameters: {
             query?: never;
@@ -207,6 +267,26 @@ export interface paths {
         put?: never;
         /** Pedir un cambio (RF-20) */
         post: operations["iterate_api_v1_conversations__conversation_id__iterate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{conversation_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reintentar una conversación que falló (PA-276)
+         * @description Retoma la conversación en `state=error` desde su último punto guardado: repite el paso que falló (por ejemplo, tras un 429 o un tiempo agotado). 409 `not_in_error` si no está en error o si lo que falló es aprobar o publicar (eso no se reintenta: nunca se escribe en Jira dos veces); en QA encadenada, 409 `handoff_unavailable` si la HU volvió a la lista.
+         */
+        post: operations["retry_api_v1_conversations__conversation_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -341,6 +421,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Memorias de las HU publicadas (más recientes primero)
+         * @description Solo las de los proyectos que ve la conexión de Jira. `q` busca, sin distinguir mayúsculas, en la clave y en el texto de la memoria. Lista vacía: «Aún no hay memorias. Se generan al publicar una HU en Jira (modo real).»
+         */
+        get: operations["list_memories_api_v1_memories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memories/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Una memoria: su contenido estructurado y su `.md`
+         * @description `memory` se pinta campo a campo como texto (lo escribió el LLM); `markdown` es solo para descargarlo. El mismo 404 si no existe, si es de un proyecto que no ve la conexión o si la clave no es válida.
+         */
+        get: operations["get_memory_api_v1_memories__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -456,7 +576,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Revisiones de calidad de la persona (más recientes primero)
+         * @description Para la lista de conversaciones: `state=done` se muestra como «Informe listo». Solo identificadores y estado; el informe se pide con `GET /quality-reviews/{id}`.
+         */
+        get: operations["list_quality_reviews_api_v1_quality_reviews_get"];
         put?: never;
         /**
          * Revisar la calidad de una HU (T-48, no publica)
@@ -575,7 +699,7 @@ export interface paths {
         put?: never;
         /**
          * Fuentes que usaría la propuesta (panel «Antes de generar»)
-         * @description Las desmarcadas van en `excluded_sources` al crear la conversación; la fila `required` (la incidencia de origen) no se puede desmarcar.
+         * @description Las desmarcadas van en `excluded_sources` al crear la conversación; la fila `required` (la incidencia de origen) no se puede desmarcar. `budget`: tokens estimados de las fuentes frente a los disponibles (PA-102); las que no caben no se envían al LLM.
          */
         post: operations["sources_api_v1_start_sources_post"];
         delete?: never;
@@ -603,6 +727,33 @@ export interface components {
             title: string;
             /** When */
             when: string[];
+        };
+        /** AdminModelOut */
+        AdminModelOut: {
+            /**
+             * Host
+             * @description Solo el host (y el puerto) del proveedor; nunca la URL entera.
+             */
+            host: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+        };
+        /** AdminModelsOut */
+        AdminModelsOut: {
+            embeddings: components["schemas"]["AdminModelOut"];
+            /** Tasks */
+            tasks: components["schemas"]["AdminTaskModelsOut"][];
+        };
+        /** AdminTaskModelsOut */
+        AdminTaskModelsOut: {
+            /** Chain */
+            chain: components["schemas"]["AdminModelOut"][];
+            /** @description Modelo elegido en la sesión de quien consulta, si lo hay. */
+            override?: components["schemas"]["ModelChoiceOut"] | null;
+            /** Task */
+            task: string;
         };
         /** ApproveIn */
         ApproveIn: {
@@ -662,6 +813,54 @@ export interface components {
             /** Project */
             project: string;
         };
+        /**
+         * ConnectionCheckOut
+         * @description Resultado de comprobar un servicio; `detail` en español y sin secretos.
+         */
+        ConnectionCheckOut: {
+            /** Detail */
+            detail: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Service
+             * @description «Jira», «PostgreSQL», «Modelos · <proveedor>», «Embeddings».
+             */
+            service: string;
+        };
+        /** ConnectionsTestOut */
+        ConnectionsTestOut: {
+            /** Checks */
+            checks: components["schemas"]["ConnectionCheckOut"][];
+        };
+        /**
+         * ContextBudgetOut
+         * @description Presupuesto de tokens del contexto que se enviará al LLM (PA-102).
+         */
+        ContextBudgetOut: {
+            /**
+             * Dropped Sources
+             * @description Fuentes que no caben y no se enviarán (incidencias y fragmentos).
+             */
+            dropped_sources: number;
+            /**
+             * Limit
+             * @description Tokens disponibles para las fuentes.
+             */
+            limit: number;
+            /**
+             * Truncated Sources
+             * @description Incidencias recortadas para que quepan.
+             */
+            truncated_sources: number;
+            /**
+             * Used
+             * @description Tokens estimados de las fuentes seleccionadas.
+             */
+            used: number;
+        };
         /** ConversationCreateIn */
         ConversationCreateIn: {
             /**
@@ -691,6 +890,12 @@ export interface components {
          *     operación falló. Una publicación parcial queda en `approved` con `result.errors`.
          */
         ConversationOut: {
+            /**
+             * Cancel Requested
+             * @description PA-314: se pidió detener la generación y aún está terminando el paso en curso («Deteniendo…»). Vuelve a `false` al terminar.
+             * @default false
+             */
+            cancel_requested: boolean;
             error?: components["schemas"]["ErrorBody"] | null;
             /**
              * Feedback
@@ -707,6 +912,8 @@ export interface components {
              * @description Identificador de la conversación (generado por el servidor).
              */
             id: string;
+            /** @description PA-316: la HU tal como está en Jira, estructurada (la versión de partida que el agente ya calculó; nunca se llama al LLM para esto). Solo al evolucionar una HU existente y mientras se puede iterar; `null` en una HU nueva, en QA, antes de la primera versión y cuando la conversación termina (aprobada, simulada, publicada o descartada). */
+            jira_baseline?: components["schemas"]["UserStory"] | null;
             /**
              * Mode
              * @enum {string}
@@ -803,7 +1010,7 @@ export interface components {
              * @description Código estable para la UI. `message` ya está en español y listo para mostrar.
              * @enum {string}
              */
-            code: "unauthenticated" | "invalid_credentials" | "too_many_attempts" | "forbidden" | "invalid_request" | "payload_too_large" | "not_found" | "project_not_found" | "method_not_allowed" | "http_error" | "not_in_review" | "approval_rejected" | "handoff_unavailable" | "operation_failed" | "restart" | "too_many_streams" | "rate_limited" | "service_unavailable" | "provider_timeout" | "invalid_model_output" | "citation_failed" | "coverage_failed" | "quality_failed" | "publish_failed" | "unexpected";
+            code: "unauthenticated" | "invalid_credentials" | "too_many_attempts" | "forbidden" | "invalid_request" | "payload_too_large" | "not_found" | "project_not_found" | "method_not_allowed" | "http_error" | "not_in_review" | "not_in_error" | "not_cancellable" | "cancelled" | "approval_rejected" | "handoff_unavailable" | "operation_failed" | "restart" | "too_many_streams" | "rate_limited" | "service_unavailable" | "provider_timeout" | "invalid_model_output" | "citation_failed" | "coverage_failed" | "quality_failed" | "publish_failed" | "unexpected";
             /**
              * Message
              * @description Mensaje en español para mostrar a la persona.
@@ -1039,6 +1246,11 @@ export interface components {
             /** Project */
             project: string;
             /**
+             * Published By Agent
+             * @description El agente publicó esta HU en Jira (PA-104); `null` si no se sabe.
+             */
+            published_by_agent?: boolean | null;
+            /**
              * Rules Count
              * @description RN contadas en la descripción, sin IA.
              */
@@ -1047,6 +1259,11 @@ export interface components {
             status: string;
             /** Summary */
             summary: string;
+            /**
+             * Test Cases
+             * @description Subtareas CP («caso-prueba») de la HU en Jira (PA-104); `null` si no se pudo consultar.
+             */
+            test_cases?: number | null;
         };
         /** IssueSummary */
         IssueSummary: {
@@ -1070,6 +1287,105 @@ export interface components {
             password: string;
             /** Username */
             username: string;
+        };
+        /** Memory */
+        Memory: {
+            /** Acceptance Criteria */
+            acceptance_criteria: string[];
+            artifact_type: components["schemas"]["ArtifactType"];
+            /** Business Rules */
+            business_rules: string[];
+            /** Changes */
+            changes: string[];
+            /** Decisions */
+            decisions: string[];
+            /** Dependencies */
+            dependencies: string[];
+            /** Jira Key */
+            jira_key: string;
+            /** Objective */
+            objective: string;
+            /** References */
+            references: string[];
+            /** Scope */
+            scope: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * MemoryOut
+         * @description Una memoria completa: el resumen de la lista, su contenido estructurado y su `.md`.
+         */
+        MemoryOut: {
+            /**
+             * Indexed
+             * @description Si está incorporada al RAG (`memoria-<CLAVE>`).
+             */
+            indexed: boolean;
+            /**
+             * Key
+             * @description Clave de la HU en Jira.
+             */
+            key: string;
+            /**
+             * Markdown
+             * @description El `.md` de la memoria, solo para descargarlo.
+             */
+            markdown: string;
+            /** @description Se pinta campo a campo como texto (lo escribió el LLM). */
+            memory: components["schemas"]["Memory"];
+            /** Project */
+            project: string;
+            /**
+             * Title
+             * @description El objetivo de la memoria, recortado a 120 caracteres.
+             */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Última vez que se escribió la memoria (UTC).
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @description Versión de la HU publicada que resume.
+             */
+            version: number;
+        };
+        /**
+         * MemorySummary
+         * @description Una memoria en la lista (sin su contenido).
+         */
+        MemorySummary: {
+            /**
+             * Indexed
+             * @description Si está incorporada al RAG (`memoria-<CLAVE>`).
+             */
+            indexed: boolean;
+            /**
+             * Key
+             * @description Clave de la HU en Jira.
+             */
+            key: string;
+            /** Project */
+            project: string;
+            /**
+             * Title
+             * @description El objetivo de la memoria, recortado a 120 caracteres.
+             */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Última vez que se escribió la memoria (UTC).
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @description Versión de la HU publicada que resume.
+             */
+            version: number;
         };
         /** ModelChoiceOut */
         ModelChoiceOut: {
@@ -1241,6 +1557,11 @@ export interface components {
         };
         /** QualityReviewOut */
         QualityReviewOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             error?: components["schemas"]["ErrorBody"] | null;
             /**
              * Evolve Feedback
@@ -1263,6 +1584,43 @@ export interface components {
              * @enum {string}
              */
             state: "running" | "done" | "error";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * QualityReviewSummary
+         * @description Una revisión en la lista de la persona (PA-103): «Informe listo» si `state=done`.
+         */
+        QualityReviewSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Issue Key */
+            issue_key: string;
+            /** Project */
+            project: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "running" | "done" | "error";
+            /**
+             * Title
+             * @description Solo el flujo y la clave («Revisar la calidad de DEMO-3»).
+             */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * ReviewPayload
@@ -1364,6 +1722,12 @@ export interface components {
              */
             excluded_sources: string[];
             origin: components["schemas"]["OriginIn"];
+        };
+        /** SourcesOut */
+        SourcesOut: {
+            budget: components["schemas"]["ContextBudgetOut"];
+            /** Sources */
+            sources: components["schemas"]["SourcePreview"][];
         };
         /**
          * StartOption
@@ -1620,6 +1984,303 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    run_connection_test_api_v1_admin_connections_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "checks": [
+                     *         {
+                     *           "service": "Jira",
+                     *           "ok": true,
+                     *           "detail": "Conexión correcta con api.atlassian.com.",
+                     *           "duration_ms": 412
+                     *         },
+                     *         {
+                     *           "service": "PostgreSQL",
+                     *           "ok": true,
+                     *           "detail": "Conexión correcta con db:5432; migraciones al día (0006_quality_reviews).",
+                     *           "duration_ms": 38
+                     *         },
+                     *         {
+                     *           "service": "Modelos · ollama",
+                     *           "ok": false,
+                     *           "detail": "Faltan modelos: qwen3:8b.",
+                     *           "duration_ms": 21
+                     *         },
+                     *         {
+                     *           "service": "Embeddings",
+                     *           "ok": true,
+                     *           "detail": "1 modelo disponible.",
+                     *           "duration_ms": 19
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ConnectionsTestOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Solo para `admin`, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Una prueba de conexiones cada 10 s por persona. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Espera unos segundos antes de volver a probar las conexiones.",
+                     *         "retry_after": 10
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description La API no ha podido arrancar o falta la configuración. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "La configuración no está disponible: no se pueden comprobar los servicios."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_models_api_v1_admin_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "tasks": [
+                     *         {
+                     *           "task": "functional",
+                     *           "chain": [
+                     *             {
+                     *               "provider": "ollama",
+                     *               "model": "qwen3:8b",
+                     *               "host": "ollama:11434"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "embeddings": {
+                     *         "provider": "ollama",
+                     *         "model": "bge-m3",
+                     *         "host": "ollama:11434"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AdminModelsOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Solo para `admin`, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Una prueba de conexiones cada 10 s por persona. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Espera unos segundos antes de volver a probar las conexiones.",
+                     *         "retry_after": 10
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description La API no ha podido arrancar o falta la configuración. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "La configuración no está disponible: no se pueden comprobar los servicios."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -2212,7 +2873,8 @@ export interface operations {
                      *       "feedback": [
                      *         "Mismas reglas que en la web."
                      *       ],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -2697,7 +3359,98 @@ export interface operations {
                      *       "feedback": [
                      *         "Mismas reglas que en la web."
                      *       ],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false,
+                     *       "jira_baseline": {
+                     *         "internal_id": "HU-02",
+                     *         "jira_key": "DEMO-3",
+                     *         "title": "Renovar un préstamo",
+                     *         "role": "persona socia de la biblioteca",
+                     *         "action": "renovar un préstamo activo desde la web o la app",
+                     *         "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+                     *         "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+                     *         "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+                     *         "scope_includes": [
+                     *           "Renovación desde la ficha del préstamo",
+                     *           "Renovación desde la app"
+                     *         ],
+                     *         "scope_excludes": [
+                     *           "Renovación de materiales audiovisuales"
+                     *         ],
+                     *         "acceptance_criteria": [
+                     *           {
+                     *             "id": "CA-01",
+                     *             "title": "Renovación permitida",
+                     *             "given": [
+                     *               "un préstamo activo con menos de 2 renovaciones",
+                     *               "sin reservas pendientes"
+                     *             ],
+                     *             "when": [
+                     *               "la persona socia pulsa «Renovar»"
+                     *             ],
+                     *             "then": [
+                     *               "el vencimiento se amplía 21 días"
+                     *             ]
+                     *           },
+                     *           {
+                     *             "id": "CA-02",
+                     *             "title": "Renovación rechazada por reservas",
+                     *             "given": [
+                     *               "un préstamo activo con reservas pendientes"
+                     *             ],
+                     *             "when": [
+                     *               "la persona socia pulsa «Renovar»"
+                     *             ],
+                     *             "then": [
+                     *               "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                     *             ]
+                     *           }
+                     *         ],
+                     *         "business_rules": [
+                     *           {
+                     *             "id": "RN-01",
+                     *             "description": "Máximo 2 renovaciones por préstamo."
+                     *           },
+                     *           {
+                     *             "id": "RN-02",
+                     *             "description": "No se renueva si hay reservas pendientes."
+                     *           }
+                     *         ],
+                     *         "assumptions": [
+                     *           "La persona socia ha iniciado sesión."
+                     *         ],
+                     *         "constraints": [
+                     *           "Plazo de préstamo de 21 días (reglamento, art. 7)."
+                     *         ],
+                     *         "dependencies": [
+                     *           "DEMO-2"
+                     *         ],
+                     *         "alternate_flows": [
+                     *           "Renovación desde el correo de aviso de vencimiento."
+                     *         ],
+                     *         "exceptions": [
+                     *           "El servicio de catálogo no responde."
+                     *         ],
+                     *         "related_features": [
+                     *           "Reservas"
+                     *         ],
+                     *         "changes_from_previous": [],
+                     *         "related_requirements": [],
+                     *         "priority": "Must",
+                     *         "sources": [
+                     *           {
+                     *             "kind": "rag",
+                     *             "ref": "DOC-01",
+                     *             "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+                     *           },
+                     *           {
+                     *             "kind": "jira",
+                     *             "ref": "DEMO-3",
+                     *             "excerpt": "Renovar un préstamo"
+                     *           }
+                     *         ],
+                     *         "open_questions": []
+                     *       }
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -3041,7 +3794,8 @@ export interface operations {
                      *         "errors": [],
                      *         "failed_ids": []
                      *       },
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -3109,6 +3863,217 @@ export interface operations {
                      *       "error": {
                      *         "code": "approval_rejected",
                      *         "message": "La aprobación no corresponde a la versión revisada; empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_api_v1_conversations__conversation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la conversación. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+                     *       "title": "Evolucionar DEMO-3",
+                     *       "project": "DEMO",
+                     *       "flow": "evolve",
+                     *       "mode": "functional",
+                     *       "state": "generating",
+                     *       "progress": [
+                     *         {
+                     *           "node": "load_origin",
+                     *           "label": "Cargar el origen",
+                     *           "state": "done"
+                     *         },
+                     *         {
+                     *           "node": "retrieve_context",
+                     *           "label": "Recuperar contexto",
+                     *           "state": "running"
+                     *         },
+                     *         {
+                     *           "node": "generate",
+                     *           "label": "Generar la propuesta",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "versions": [],
+                     *       "feedback": [
+                     *         "Mismas reglas que en la web."
+                     *       ],
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": true
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe esa conversación o no es tuya."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No está generando, o lo que hace es aprobar o publicar (eso no se cancela). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_cancellable",
+                     *         "message": "La conversación no está generando: no hay nada que detener."
                      *       }
                      *     }
                      */
@@ -3377,7 +4342,8 @@ export interface operations {
                      *       "feedback": [
                      *         "Mismas reglas que en la web."
                      *       ],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -3883,7 +4849,98 @@ export interface operations {
                      *       "feedback": [
                      *         "Mismas reglas que en la web."
                      *       ],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false,
+                     *       "jira_baseline": {
+                     *         "internal_id": "HU-02",
+                     *         "jira_key": "DEMO-3",
+                     *         "title": "Renovar un préstamo",
+                     *         "role": "persona socia de la biblioteca",
+                     *         "action": "renovar un préstamo activo desde la web o la app",
+                     *         "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+                     *         "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+                     *         "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+                     *         "scope_includes": [
+                     *           "Renovación desde la ficha del préstamo",
+                     *           "Renovación desde la app"
+                     *         ],
+                     *         "scope_excludes": [
+                     *           "Renovación de materiales audiovisuales"
+                     *         ],
+                     *         "acceptance_criteria": [
+                     *           {
+                     *             "id": "CA-01",
+                     *             "title": "Renovación permitida",
+                     *             "given": [
+                     *               "un préstamo activo con menos de 2 renovaciones",
+                     *               "sin reservas pendientes"
+                     *             ],
+                     *             "when": [
+                     *               "la persona socia pulsa «Renovar»"
+                     *             ],
+                     *             "then": [
+                     *               "el vencimiento se amplía 21 días"
+                     *             ]
+                     *           },
+                     *           {
+                     *             "id": "CA-02",
+                     *             "title": "Renovación rechazada por reservas",
+                     *             "given": [
+                     *               "un préstamo activo con reservas pendientes"
+                     *             ],
+                     *             "when": [
+                     *               "la persona socia pulsa «Renovar»"
+                     *             ],
+                     *             "then": [
+                     *               "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+                     *             ]
+                     *           }
+                     *         ],
+                     *         "business_rules": [
+                     *           {
+                     *             "id": "RN-01",
+                     *             "description": "Máximo 2 renovaciones por préstamo."
+                     *           },
+                     *           {
+                     *             "id": "RN-02",
+                     *             "description": "No se renueva si hay reservas pendientes."
+                     *           }
+                     *         ],
+                     *         "assumptions": [
+                     *           "La persona socia ha iniciado sesión."
+                     *         ],
+                     *         "constraints": [
+                     *           "Plazo de préstamo de 21 días (reglamento, art. 7)."
+                     *         ],
+                     *         "dependencies": [
+                     *           "DEMO-2"
+                     *         ],
+                     *         "alternate_flows": [
+                     *           "Renovación desde el correo de aviso de vencimiento."
+                     *         ],
+                     *         "exceptions": [
+                     *           "El servicio de catálogo no responde."
+                     *         ],
+                     *         "related_features": [
+                     *           "Reservas"
+                     *         ],
+                     *         "changes_from_previous": [],
+                     *         "related_requirements": [],
+                     *         "priority": "Must",
+                     *         "sources": [
+                     *           {
+                     *             "kind": "rag",
+                     *             "ref": "DOC-01",
+                     *             "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+                     *           },
+                     *           {
+                     *             "kind": "jira",
+                     *             "ref": "DEMO-3",
+                     *             "excerpt": "Renovar un préstamo"
+                     *           }
+                     *         ],
+                     *         "open_questions": []
+                     *       }
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -4453,7 +5510,8 @@ export interface operations {
                      *       "feedback": [
                      *         "Mismas reglas que en la web."
                      *       ],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -4521,6 +5579,217 @@ export interface operations {
                      *       "error": {
                      *         "code": "not_in_review",
                      *         "message": "La conversación no tiene una propuesta en revisión (está generando o ya terminó)."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_api_v1_conversations__conversation_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la conversación. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+                     *       "title": "Evolucionar DEMO-3",
+                     *       "project": "DEMO",
+                     *       "flow": "evolve",
+                     *       "mode": "functional",
+                     *       "state": "generating",
+                     *       "progress": [
+                     *         {
+                     *           "node": "load_origin",
+                     *           "label": "Cargar el origen",
+                     *           "state": "done"
+                     *         },
+                     *         {
+                     *           "node": "retrieve_context",
+                     *           "label": "Recuperar contexto",
+                     *           "state": "running"
+                     *         },
+                     *         {
+                     *           "node": "generate",
+                     *           "label": "Generar la propuesta",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "versions": [],
+                     *       "feedback": [
+                     *         "Mismas reglas que en la web."
+                     *       ],
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no pertenece a la persona (mismo mensaje en los dos casos). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe esa conversación o no es tuya."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No está en error (generando, en revisión o terminada). En QA encadenada, `handoff_unavailable` si la HU volvió a la lista de QA. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_in_error",
+                     *         "message": "La conversación no está en error: no hay nada que reintentar."
                      *       }
                      *     }
                      */
@@ -5903,7 +7172,9 @@ export interface operations {
                      *       "status": "Abierta",
                      *       "epic_key": "DEMO-1",
                      *       "criteria_count": 2,
-                     *       "rules_count": 2
+                     *       "rules_count": 2,
+                     *       "test_cases": 0,
+                     *       "published_by_agent": false
                      *     }
                      */
                     "application/json": components["schemas"]["IssueCard"];
@@ -5954,6 +7225,370 @@ export interface operations {
                      *       "error": {
                      *         "code": "not_found",
                      *         "message": "No existe esa conversación o no es tuya."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_memories_api_v1_memories_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                project?: string | null;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "key": "DEMO-9001",
+                     *         "project": "DEMO",
+                     *         "title": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin p…",
+                     *         "version": 2,
+                     *         "updated_at": "2026-10-02T10:30:00Z",
+                     *         "indexed": true
+                     *       },
+                     *       {
+                     *         "key": "DEMO-9002",
+                     *         "project": "DEMO",
+                     *         "title": "Ejemplo ficticio: permitir a una persona socia reservar un libro prestado para recogerlo cuando se devuelva.",
+                     *         "version": 1,
+                     *         "updated_at": "2026-10-02T10:30:00Z",
+                     *         "indexed": false
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["MemorySummary"][];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_memory_api_v1_memories__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "key": "DEMO-9001",
+                     *       "project": "DEMO",
+                     *       "title": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin p…",
+                     *       "version": 2,
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "indexed": true,
+                     *       "memory": {
+                     *         "artifact_type": "user_story",
+                     *         "jira_key": "DEMO-9001",
+                     *         "version": 2,
+                     *         "objective": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin pasar por el mostrador.",
+                     *         "scope": "Memoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una HU real. Incluye la renovación desde «Mis préstamos»; no incluye pagos.",
+                     *         "business_rules": [
+                     *           "RN-1: un préstamo se renueva como máximo dos veces.",
+                     *           "RN-2: no se renueva un libro que otra persona socia tenga reservado."
+                     *         ],
+                     *         "decisions": [
+                     *           "La nueva fecha de devolución se calcula desde el día de la renovación."
+                     *         ],
+                     *         "dependencies": [
+                     *           "DEMO-9002: reservas de libros (memoria de ejemplo)."
+                     *         ],
+                     *         "changes": [
+                     *           "v2: se añade el límite de dos renovaciones (RN-1)."
+                     *         ],
+                     *         "acceptance_criteria": [
+                     *           "CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.",
+                     *           "CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece."
+                     *         ],
+                     *         "references": [
+                     *           "DEMO-9001",
+                     *           "Corpus ficticio: normativa-prestamo-villaficticia.md"
+                     *         ]
+                     *       },
+                     *       "markdown": "---\njira_key: DEMO-9001\nartifact_type: user_story\nversion: 2\n---\n\n# Memoria · DEMO-9001 (v2)\n\n## Objetivo\nEjemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin pasar por el mostrador.\n\n## Alcance\nMemoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una HU real. Incluye la renovación desde «Mis préstamos»; no incluye pagos.\n\n## Reglas de negocio\n- RN-1: un préstamo se renueva como máximo dos veces.\n- RN-2: no se renueva un libro que otra persona socia tenga reservado.\n\n## Decisiones\n- La nueva fecha de devolución se calcula desde el día de la renovación.\n\n## Dependencias\n- DEMO-9002: reservas de libros (memoria de ejemplo).\n\n## Cambios\n- v2: se añade el límite de dos renovaciones (RN-1).\n\n## Criterios de aceptación\n- CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.\n- CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece.\n\n## Referencias\n- DEMO-9001\n- Corpus ficticio: normativa-prestamo-villaficticia.md\n"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MemoryOut"];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No existe o no se puede ver (mismo mensaje). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "No existe esa memoria o no la puedes ver."
                      *       }
                      *     }
                      */
@@ -6866,7 +8501,8 @@ export interface operations {
                      *       ],
                      *       "versions": [],
                      *       "feedback": [],
-                     *       "updated_at": "2026-10-02T10:30:00Z"
+                     *       "updated_at": "2026-10-02T10:30:00Z",
+                     *       "cancel_requested": false
                      *     }
                      */
                     "application/json": components["schemas"]["ConversationOut"];
@@ -6917,6 +8553,162 @@ export interface operations {
                      *       "error": {
                      *         "code": "handoff_unavailable",
                      *         "message": "Esa HU ya no está disponible para QA: puede que la haya recogido otra persona."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Cuerpo de más de 256 KB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "payload_too_large",
+                     *         "message": "La petición es demasiado grande."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Petición no válida (sin devolver lo enviado). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_request",
+                     *         "message": "La petición no es válida: revisa password.",
+                     *         "retry_after": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Límite de un servicio externo (Jira o el LLM). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "rate_limited",
+                     *         "message": "Jira ha alcanzado su límite de peticiones.",
+                     *         "retry_after": 30
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Error no previsto (sin detalles internos). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unexpected",
+                     *         "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Servicio externo caído (Jira, PostgreSQL, Ollama). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "service_unavailable",
+                     *         "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_quality_reviews_api_v1_quality_reviews_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "id": "b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c",
+                     *         "issue_key": "DEMO-3",
+                     *         "project": "DEMO",
+                     *         "title": "Revisar la calidad de DEMO-3",
+                     *         "state": "done",
+                     *         "created_at": "2026-10-02T10:30:00Z",
+                     *         "updated_at": "2026-10-02T10:30:00Z"
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["QualityReviewSummary"][];
+                };
+            };
+            /** @description Sin sesión o caducada. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "unauthenticated",
+                     *         "message": "Inicia sesión para continuar."
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sin permiso para el rol, o sin cabecera `X-CSRF-Token` válida. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "forbidden",
+                     *         "message": "No tienes permiso para realizar esta acción."
                      *       }
                      *     }
                      */
@@ -7097,7 +8889,9 @@ export interface operations {
                      *         "CA-02: Avisar en menos de 15 minutos.",
                      *         "Añadir un criterio de error."
                      *       ],
-                     *       "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+                     *       "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n",
+                     *       "created_at": "2026-10-02T10:30:00Z",
+                     *       "updated_at": "2026-10-02T10:30:00Z"
                      *     }
                      */
                     "application/json": components["schemas"]["QualityReviewOut"];
@@ -7309,7 +9103,9 @@ export interface operations {
                      *         "CA-02: Avisar en menos de 15 minutos.",
                      *         "Añadir un criterio de error."
                      *       ],
-                     *       "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+                     *       "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n",
+                     *       "created_at": "2026-10-02T10:30:00Z",
+                     *       "updated_at": "2026-10-02T10:30:00Z"
                      *     }
                      */
                     "application/json": components["schemas"]["QualityReviewOut"];
@@ -8277,31 +10073,39 @@ export interface operations {
                 };
                 content: {
                     /**
-                     * @example [
-                     *       {
-                     *         "ref": "DEMO-3",
-                     *         "kind": "jira",
-                     *         "title": "Renovar un préstamo",
-                     *         "category": "Story",
-                     *         "required": true
-                     *       },
-                     *       {
-                     *         "ref": "DOC-01",
-                     *         "kind": "rag",
-                     *         "title": "Reglamento de préstamo",
-                     *         "category": "politicas",
-                     *         "required": false
-                     *       },
-                     *       {
-                     *         "ref": "memoria-DEMO-2",
-                     *         "kind": "memory",
-                     *         "title": "Memoria de DEMO-2",
-                     *         "category": "memoria",
-                     *         "required": false
+                     * @example {
+                     *       "sources": [
+                     *         {
+                     *           "ref": "DEMO-3",
+                     *           "kind": "jira",
+                     *           "title": "Renovar un préstamo",
+                     *           "category": "Story",
+                     *           "required": true
+                     *         },
+                     *         {
+                     *           "ref": "DOC-01",
+                     *           "kind": "rag",
+                     *           "title": "Reglamento de préstamo",
+                     *           "category": "politicas",
+                     *           "required": false
+                     *         },
+                     *         {
+                     *           "ref": "memoria-DEMO-2",
+                     *           "kind": "memory",
+                     *           "title": "Memoria de DEMO-2",
+                     *           "category": "memoria",
+                     *           "required": false
+                     *         }
+                     *       ],
+                     *       "budget": {
+                     *         "used": 2350,
+                     *         "limit": 6000,
+                     *         "dropped_sources": 0,
+                     *         "truncated_sources": 1
                      *       }
-                     *     ]
+                     *     }
                      */
-                    "application/json": components["schemas"]["SourcePreview"][];
+                    "application/json": components["schemas"]["SourcesOut"];
                 };
             };
             /** @description Sin sesión o caducada. */

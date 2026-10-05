@@ -420,7 +420,9 @@
     "status": "Abierta",
     "epic_key": "DEMO-1",
     "criteria_count": 2,
-    "rules_count": 2
+    "rules_count": 2,
+    "test_cases": 0,
+    "published_by_agent": false
   },
   "GET /api/v1/issues/{key} 401": {
     "error": {
@@ -556,29 +558,37 @@
       "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
     }
   },
-  "POST /api/v1/start/sources 200": [
-    {
-      "ref": "DEMO-3",
-      "kind": "jira",
-      "title": "Renovar un préstamo",
-      "category": "Story",
-      "required": true
-    },
-    {
-      "ref": "DOC-01",
-      "kind": "rag",
-      "title": "Reglamento de préstamo",
-      "category": "politicas",
-      "required": false
-    },
-    {
-      "ref": "memoria-DEMO-2",
-      "kind": "memory",
-      "title": "Memoria de DEMO-2",
-      "category": "memoria",
-      "required": false
+  "POST /api/v1/start/sources 200": {
+    "sources": [
+      {
+        "ref": "DEMO-3",
+        "kind": "jira",
+        "title": "Renovar un préstamo",
+        "category": "Story",
+        "required": true
+      },
+      {
+        "ref": "DOC-01",
+        "kind": "rag",
+        "title": "Reglamento de préstamo",
+        "category": "politicas",
+        "required": false
+      },
+      {
+        "ref": "memoria-DEMO-2",
+        "kind": "memory",
+        "title": "Memoria de DEMO-2",
+        "category": "memoria",
+        "required": false
+      }
+    ],
+    "budget": {
+      "used": 2350,
+      "limit": 6000,
+      "dropped_sources": 0,
+      "truncated_sources": 1
     }
-  ],
+  },
   "POST /api/v1/start/sources 401": {
     "error": {
       "code": "unauthenticated",
@@ -717,7 +727,8 @@
     "feedback": [
       "Mismas reglas que en la web."
     ],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
   },
   "POST /api/v1/conversations 401": {
     "error": {
@@ -1089,7 +1100,98 @@
     "feedback": [
       "Mismas reglas que en la web."
     ],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false,
+    "jira_baseline": {
+      "internal_id": "HU-02",
+      "jira_key": "DEMO-3",
+      "title": "Renovar un préstamo",
+      "role": "persona socia de la biblioteca",
+      "action": "renovar un préstamo activo desde la web o la app",
+      "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+      "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+      "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+      "scope_includes": [
+        "Renovación desde la ficha del préstamo",
+        "Renovación desde la app"
+      ],
+      "scope_excludes": [
+        "Renovación de materiales audiovisuales"
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "CA-01",
+          "title": "Renovación permitida",
+          "given": [
+            "un préstamo activo con menos de 2 renovaciones",
+            "sin reservas pendientes"
+          ],
+          "when": [
+            "la persona socia pulsa «Renovar»"
+          ],
+          "then": [
+            "el vencimiento se amplía 21 días"
+          ]
+        },
+        {
+          "id": "CA-02",
+          "title": "Renovación rechazada por reservas",
+          "given": [
+            "un préstamo activo con reservas pendientes"
+          ],
+          "when": [
+            "la persona socia pulsa «Renovar»"
+          ],
+          "then": [
+            "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+          ]
+        }
+      ],
+      "business_rules": [
+        {
+          "id": "RN-01",
+          "description": "Máximo 2 renovaciones por préstamo."
+        },
+        {
+          "id": "RN-02",
+          "description": "No se renueva si hay reservas pendientes."
+        }
+      ],
+      "assumptions": [
+        "La persona socia ha iniciado sesión."
+      ],
+      "constraints": [
+        "Plazo de préstamo de 21 días (reglamento, art. 7)."
+      ],
+      "dependencies": [
+        "DEMO-2"
+      ],
+      "alternate_flows": [
+        "Renovación desde el correo de aviso de vencimiento."
+      ],
+      "exceptions": [
+        "El servicio de catálogo no responde."
+      ],
+      "related_features": [
+        "Reservas"
+      ],
+      "changes_from_previous": [],
+      "related_requirements": [],
+      "priority": "Must",
+      "sources": [
+        {
+          "kind": "rag",
+          "ref": "DOC-01",
+          "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+        },
+        {
+          "kind": "jira",
+          "ref": "DEMO-3",
+          "excerpt": "Renovar un préstamo"
+        }
+      ],
+      "open_questions": []
+    }
   },
   "GET /api/v1/conversations/{conversation_id} 401": {
     "error": {
@@ -1219,7 +1321,8 @@
     "feedback": [
       "Mismas reglas que en la web."
     ],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
   },
   "POST /api/v1/conversations/{conversation_id}/iterate 401": {
     "error": {
@@ -1597,7 +1700,98 @@
     "feedback": [
       "Mismas reglas que en la web."
     ],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false,
+    "jira_baseline": {
+      "internal_id": "HU-02",
+      "jira_key": "DEMO-3",
+      "title": "Renovar un préstamo",
+      "role": "persona socia de la biblioteca",
+      "action": "renovar un préstamo activo desde la web o la app",
+      "benefit": "no tener que acudir al mostrador para ampliar el plazo",
+      "description": "La persona socia renueva un préstamo activo antes de su vencimiento.",
+      "business_goal": "Reducir las visitas al mostrador por renovaciones.",
+      "scope_includes": [
+        "Renovación desde la ficha del préstamo",
+        "Renovación desde la app"
+      ],
+      "scope_excludes": [
+        "Renovación de materiales audiovisuales"
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "CA-01",
+          "title": "Renovación permitida",
+          "given": [
+            "un préstamo activo con menos de 2 renovaciones",
+            "sin reservas pendientes"
+          ],
+          "when": [
+            "la persona socia pulsa «Renovar»"
+          ],
+          "then": [
+            "el vencimiento se amplía 21 días"
+          ]
+        },
+        {
+          "id": "CA-02",
+          "title": "Renovación rechazada por reservas",
+          "given": [
+            "un préstamo activo con reservas pendientes"
+          ],
+          "when": [
+            "la persona socia pulsa «Renovar»"
+          ],
+          "then": [
+            "se muestra el aviso «El ejemplar tiene reservas pendientes»"
+          ]
+        }
+      ],
+      "business_rules": [
+        {
+          "id": "RN-01",
+          "description": "Máximo 2 renovaciones por préstamo."
+        },
+        {
+          "id": "RN-02",
+          "description": "No se renueva si hay reservas pendientes."
+        }
+      ],
+      "assumptions": [
+        "La persona socia ha iniciado sesión."
+      ],
+      "constraints": [
+        "Plazo de préstamo de 21 días (reglamento, art. 7)."
+      ],
+      "dependencies": [
+        "DEMO-2"
+      ],
+      "alternate_flows": [
+        "Renovación desde el correo de aviso de vencimiento."
+      ],
+      "exceptions": [
+        "El servicio de catálogo no responde."
+      ],
+      "related_features": [
+        "Reservas"
+      ],
+      "changes_from_previous": [],
+      "related_requirements": [],
+      "priority": "Must",
+      "sources": [
+        {
+          "kind": "rag",
+          "ref": "DOC-01",
+          "excerpt": "Cada préstamo admite hasta 2 renovaciones."
+        },
+        {
+          "kind": "jira",
+          "ref": "DEMO-3",
+          "excerpt": "Renovar un préstamo"
+        }
+      ],
+      "open_questions": []
+    }
   },
   "POST /api/v1/conversations/{conversation_id}/edit 401": {
     "error": {
@@ -1830,7 +2024,8 @@
       "errors": [],
       "failed_ids": []
     },
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
   },
   "POST /api/v1/conversations/{conversation_id}/approve 401": {
     "error": {
@@ -1883,6 +2078,180 @@
     }
   },
   "POST /api/v1/conversations/{conversation_id}/approve 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 202": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "generating",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "running"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "pending"
+      }
+    ],
+    "versions": [],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 409": {
+    "error": {
+      "code": "not_in_error",
+      "message": "La conversación no está en error: no hay nada que reintentar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/retry 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 202": {
+    "id": "8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d",
+    "title": "Evolucionar DEMO-3",
+    "project": "DEMO",
+    "flow": "evolve",
+    "mode": "functional",
+    "state": "generating",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Cargar el origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar contexto",
+        "state": "running"
+      },
+      {
+        "node": "generate",
+        "label": "Generar la propuesta",
+        "state": "pending"
+      }
+    ],
+    "versions": [],
+    "feedback": [
+      "Mismas reglas que en la web."
+    ],
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": true
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa conversación o no es tuya."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 409": {
+    "error": {
+      "code": "not_cancellable",
+      "message": "La conversación no está generando: no hay nada que detener."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/conversations/{conversation_id}/cancel 503": {
     "error": {
       "code": "service_unavailable",
       "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
@@ -2042,7 +2411,8 @@
     "feedback": [
       "Mismas reglas que en la web."
     ],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
   },
   "POST /api/v1/conversations/{conversation_id}/discard 401": {
     "error": {
@@ -2230,7 +2600,9 @@
       "CA-02: Avisar en menos de 15 minutos.",
       "Añadir un criterio de error."
     ],
-    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n",
+    "created_at": "2026-10-02T10:30:00Z",
+    "updated_at": "2026-10-02T10:30:00Z"
   },
   "POST /api/v1/quality-reviews 401": {
     "error": {
@@ -2271,6 +2643,61 @@
     }
   },
   "POST /api/v1/quality-reviews 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/quality-reviews 200": [
+    {
+      "id": "b2d4f6a8-1c3e-4f5a-8b9c-0d1e2f3a4b5c",
+      "issue_key": "DEMO-3",
+      "project": "DEMO",
+      "title": "Revisar la calidad de DEMO-3",
+      "state": "done",
+      "created_at": "2026-10-02T10:30:00Z",
+      "updated_at": "2026-10-02T10:30:00Z"
+    }
+  ],
+  "GET /api/v1/quality-reviews 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/quality-reviews 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/quality-reviews 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/quality-reviews 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/quality-reviews 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/quality-reviews 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/quality-reviews 503": {
     "error": {
       "code": "service_unavailable",
       "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
@@ -2341,7 +2768,9 @@
       "CA-02: Avisar en menos de 15 minutos.",
       "Añadir un criterio de error."
     ],
-    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n"
+    "report_markdown": "# Calidad de DEMO-3\n\nLa HU es valiosa y pequeña; hay un criterio ambiguo y un hueco \\(ficticio\\).\n\n## INVEST\n\n- **I · Independiente**: Bien. Motivo ficticio de I.\n- **N · Negociable**: Bien. Motivo ficticio de N.\n- **V · Valiosa**: Bien. Motivo ficticio de V.\n- **E · Estimable**: Bien. Motivo ficticio de E.\n- **S · Pequeña**: Bien. Motivo ficticio de S.\n- **T · Testeable**: Mejorable. Motivo ficticio de T.\n\n## Hallazgos\n\n- **Ambigüedad · CA-02**: «Avisar pronto» no se puede probar. Propuesta: Avisar en menos de 15 minutos.\n- **Hueco**: No dice qué pasa si la renovación falla. Propuesta: Añadir un criterio de error.\n\n## Preguntas para negocio\n\n- ¿Hay un máximo de renovaciones por año? \\(ficticio\\)\n\n## Fuentes\n\n- DOC-01\n",
+    "created_at": "2026-10-02T10:30:00Z",
+    "updated_at": "2026-10-02T10:30:00Z"
   },
   "GET /api/v1/quality-reviews/{review_id} 401": {
     "error": {
@@ -2934,7 +3363,8 @@
     ],
     "versions": [],
     "feedback": [],
-    "updated_at": "2026-10-02T10:30:00Z"
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false
   },
   "POST /api/v1/qa/handoffs/{handoff_id}/take 401": {
     "error": {
@@ -3195,6 +3625,276 @@
     "error": {
       "code": "service_unavailable",
       "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/memories 200": [
+    {
+      "key": "DEMO-9001",
+      "project": "DEMO",
+      "title": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin p…",
+      "version": 2,
+      "updated_at": "2026-10-02T10:30:00Z",
+      "indexed": true
+    },
+    {
+      "key": "DEMO-9002",
+      "project": "DEMO",
+      "title": "Ejemplo ficticio: permitir a una persona socia reservar un libro prestado para recogerlo cuando se devuelva.",
+      "version": 1,
+      "updated_at": "2026-10-02T10:30:00Z",
+      "indexed": false
+    }
+  ],
+  "GET /api/v1/memories 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/memories 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/memories 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/memories 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/memories 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/memories 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/memories 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "GET /api/v1/memories/{key} 200": {
+    "key": "DEMO-9001",
+    "project": "DEMO",
+    "title": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin p…",
+    "version": 2,
+    "updated_at": "2026-10-02T10:30:00Z",
+    "indexed": true,
+    "memory": {
+      "artifact_type": "user_story",
+      "jira_key": "DEMO-9001",
+      "version": 2,
+      "objective": "Ejemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin pasar por el mostrador.",
+      "scope": "Memoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una HU real. Incluye la renovación desde «Mis préstamos»; no incluye pagos.",
+      "business_rules": [
+        "RN-1: un préstamo se renueva como máximo dos veces.",
+        "RN-2: no se renueva un libro que otra persona socia tenga reservado."
+      ],
+      "decisions": [
+        "La nueva fecha de devolución se calcula desde el día de la renovación."
+      ],
+      "dependencies": [
+        "DEMO-9002: reservas de libros (memoria de ejemplo)."
+      ],
+      "changes": [
+        "v2: se añade el límite de dos renovaciones (RN-1)."
+      ],
+      "acceptance_criteria": [
+        "CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.",
+        "CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece."
+      ],
+      "references": [
+        "DEMO-9001",
+        "Corpus ficticio: normativa-prestamo-villaficticia.md"
+      ]
+    },
+    "markdown": "---\njira_key: DEMO-9001\nartifact_type: user_story\nversion: 2\n---\n\n# Memoria · DEMO-9001 (v2)\n\n## Objetivo\nEjemplo ficticio: permitir a una persona socia renovar un préstamo desde la web de la Biblioteca de Villaficticia sin pasar por el mostrador.\n\n## Alcance\nMemoria de ejemplo FICTICIA (Biblioteca Municipal de Villaficticia): no es una HU real. Incluye la renovación desde «Mis préstamos»; no incluye pagos.\n\n## Reglas de negocio\n- RN-1: un préstamo se renueva como máximo dos veces.\n- RN-2: no se renueva un libro que otra persona socia tenga reservado.\n\n## Decisiones\n- La nueva fecha de devolución se calcula desde el día de la renovación.\n\n## Dependencias\n- DEMO-9002: reservas de libros (memoria de ejemplo).\n\n## Cambios\n- v2: se añade el límite de dos renovaciones (RN-1).\n\n## Criterios de aceptación\n- CA-1: con un préstamo renovable, al pulsar «Renovar» se muestra la nueva fecha.\n- CA-2: con dos renovaciones hechas, el botón «Renovar» no aparece.\n\n## Referencias\n- DEMO-9001\n- Corpus ficticio: normativa-prestamo-villaficticia.md\n"
+  },
+  "GET /api/v1/memories/{key} 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/memories/{key} 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/memories/{key} 404": {
+    "error": {
+      "code": "not_found",
+      "message": "No existe esa memoria o no la puedes ver."
+    }
+  },
+  "GET /api/v1/memories/{key} 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/memories/{key} 422": {
+    "error": {
+      "code": "invalid_request",
+      "message": "La petición no es válida: revisa password.",
+      "retry_after": null
+    }
+  },
+  "GET /api/v1/memories/{key} 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Jira ha alcanzado su límite de peticiones.",
+      "retry_after": 30
+    }
+  },
+  "GET /api/v1/memories/{key} 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/memories/{key} 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "No se pudo conectar con Jira. Revisa la URL del sitio y la red."
+    }
+  },
+  "POST /api/v1/admin/connections/test 200": {
+    "checks": [
+      {
+        "service": "Jira",
+        "ok": true,
+        "detail": "Conexión correcta con api.atlassian.com.",
+        "duration_ms": 412
+      },
+      {
+        "service": "PostgreSQL",
+        "ok": true,
+        "detail": "Conexión correcta con db:5432; migraciones al día (0006_quality_reviews).",
+        "duration_ms": 38
+      },
+      {
+        "service": "Modelos · ollama",
+        "ok": false,
+        "detail": "Faltan modelos: qwen3:8b.",
+        "duration_ms": 21
+      },
+      {
+        "service": "Embeddings",
+        "ok": true,
+        "detail": "1 modelo disponible.",
+        "duration_ms": 19
+      }
+    ]
+  },
+  "POST /api/v1/admin/connections/test 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "POST /api/v1/admin/connections/test 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "POST /api/v1/admin/connections/test 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "POST /api/v1/admin/connections/test 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Espera unos segundos antes de volver a probar las conexiones.",
+      "retry_after": 10
+    }
+  },
+  "POST /api/v1/admin/connections/test 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "POST /api/v1/admin/connections/test 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "La configuración no está disponible: no se pueden comprobar los servicios."
+    }
+  },
+  "GET /api/v1/admin/models 200": {
+    "tasks": [
+      {
+        "task": "functional",
+        "chain": [
+          {
+            "provider": "ollama",
+            "model": "qwen3:8b",
+            "host": "ollama:11434"
+          }
+        ]
+      }
+    ],
+    "embeddings": {
+      "provider": "ollama",
+      "model": "bge-m3",
+      "host": "ollama:11434"
+    }
+  },
+  "GET /api/v1/admin/models 401": {
+    "error": {
+      "code": "unauthenticated",
+      "message": "Inicia sesión para continuar."
+    }
+  },
+  "GET /api/v1/admin/models 403": {
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes permiso para realizar esta acción."
+    }
+  },
+  "GET /api/v1/admin/models 413": {
+    "error": {
+      "code": "payload_too_large",
+      "message": "La petición es demasiado grande."
+    }
+  },
+  "GET /api/v1/admin/models 429": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Espera unos segundos antes de volver a probar las conexiones.",
+      "retry_after": 10
+    }
+  },
+  "GET /api/v1/admin/models 500": {
+    "error": {
+      "code": "unexpected",
+      "message": "Ha ocurrido un error inesperado. Vuelve a intentarlo o empieza de nuevo."
+    }
+  },
+  "GET /api/v1/admin/models 503": {
+    "error": {
+      "code": "service_unavailable",
+      "message": "La configuración no está disponible: no se pueden comprobar los servicios."
     }
   }
 }

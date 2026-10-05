@@ -183,7 +183,7 @@ Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `
 
 ## 6. Tarjetas de error por `code`
 
-El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el frontend, para los 25 valores de `ErrorBody.code` (`docs/api/README.md`, `api/errors.py`):
+El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el frontend, para los 28 valores de `ErrorBody.code` (`docs/api/README.md`, `api/errors.py`):
 
 | Grupo | `code` | Título | Tono | Acción |
 |---|---|---|---|---|
@@ -201,6 +201,9 @@ El mensaje es siempre el de la API, tal cual y como texto. Lo que decide el fron
 | | `approval_rejected` | Aprobación rechazada | Error | Empezar de nuevo |
 | | `handoff_unavailable` | La HU ya no está disponible | Aviso | Actualizar |
 | | `operation_failed` | No se pudo completar la operación | Error | Actualizar |
+| | `not_in_error` | No hay nada que reintentar | Aviso | Actualizar |
+| | `cancelled` | Generación detenida | Neutro | Reintentar (`POST /retry`) |
+| | `not_cancellable` | No se puede detener | Aviso | Actualizar |
 | | `restart` | La conversación no puede continuar | Error | Empezar de nuevo |
 | | `too_many_streams` | Demasiadas pestañas abiertas | Aviso | Reintentar |
 | Servicios externos | `rate_limited` | Límite de uso alcanzado | Aviso | Reintentar, tras la cuenta atrás de `retry_after` |

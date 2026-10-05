@@ -15,7 +15,7 @@ export interface ErrorPresentation {
   action?: ErrorAction
 }
 
-// DESIGN-DECISIONS.md §6: los 25 valores de ErrorBody.code (lista cerrada del contrato, PA-306).
+// DESIGN-DECISIONS.md §6: los 28 valores de ErrorBody.code (lista cerrada del contrato, PA-306).
 const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   // Sesión y permisos
   unauthenticated: { title: 'Sesión caducada', tone: 'neutral', action: 'login' },
@@ -34,6 +34,9 @@ const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   approval_rejected: { title: 'Aprobación rechazada', tone: 'error', action: 'restart' },
   handoff_unavailable: { title: 'La HU ya no está disponible', tone: 'warning', action: 'refresh' },
   operation_failed: { title: 'No se pudo completar la operación', tone: 'error', action: 'refresh' },
+  not_in_error: { title: 'No hay nada que reintentar', tone: 'warning', action: 'refresh' },
+  cancelled: { title: 'Generación detenida', tone: 'neutral', action: 'retry' },
+  not_cancellable: { title: 'No se puede detener', tone: 'warning', action: 'refresh' },
   restart: { title: 'La conversación no puede continuar', tone: 'error', action: 'restart' },
   too_many_streams: { title: 'Demasiadas pestañas abiertas', tone: 'warning', action: 'retry' },
   // Servicios externos

@@ -130,6 +130,18 @@ OPERATION_NODES = {
     "approve": PUBLISH_NODES,
 }
 ENDED = ("approved", "simulated", "published", "discarded")
+
+
+def retry_nodes(next_nodes: Iterable[str]) -> tuple[str, ...]:
+    """Nodos que repite un reintento: desde el que falló hasta el final de su tramo."""
+    pending = set(next_nodes)
+    for block in (GENERATION_NODES, PUBLISH_NODES):
+        for index, node in enumerate(block):
+            if node in pending:
+                return block[index:]
+    return ()
+
+
 # IDs de criterios y reglas en la descripción de una incidencia (plantilla de HU), sin IA.
 _CA_ID = re.compile(r"\bCA-\d+\b")
 _RN_ID = re.compile(r"\bRN-\d+\b")
@@ -447,7 +459,7 @@ def retry(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> Run:
         except HandoffError:
             raise HANDOFF_RELEASED from None
         on_error = lambda: _release_if_unstarted(ws, store, handoff_id, run, config)  # noqa: E731
-    if not rt.runs.begin(run, "retry"):
+    if not rt.runs.begin(run, "retry", retry_nodes(snapshot.next)):
         raise NOT_IN_ERROR
     rt.submit(lambda: _run_graph(rt, ws, run, None, config, on_error=on_error))
     return run
@@ -689,7 +701,13 @@ def _progress(
         done.update(PUBLISH_NODES)
     running_node = None
     if run is not None and run.running:
-        rerun = OPERATION_NODES.get(run.operation or "", ())
+        rerun = (
+            run.rerun if run.operation == "retry" else OPERATION_NODES.get(run.operation or "", ())
+        )
+        if run.operation == "retry" and rerun:
+            # Lo anterior al nodo que falló ya se hizo y no se repite (`stream(None)`).
+            ordered = (*GENERATION_NODES, *PUBLISH_NODES)
+            done.update(ordered[: ordered.index(rerun[0])])
         done -= set(rerun)
         done.update(run.nodes)
         running_node = next((n for n in rerun if n not in run.nodes), None)

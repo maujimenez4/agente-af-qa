@@ -67,6 +67,8 @@ class Run:
     # PA-314: señal de esta operación (nueva en cada `begin`: un reintento no nace cancelado).
     cancel: threading.Event = field(default_factory=threading.Event)
     nodes: list[str] = field(default_factory=list)  # nodos terminados en la operación
+    # Reintento: nodos que se repiten, desde el que falló (para pintar el paso «en curso»).
+    rerun: tuple[str, ...] = ()
     error: ErrorBody | None = None
     seq: int = 0  # cambia con cada evento (SSE)
     updated_at: datetime = field(default_factory=_now)
@@ -88,12 +90,17 @@ class RunRegistry:
         with self._lock:
             return self._runs.get(thread_id)
 
-    def begin(self, run: Run, operation: str) -> bool:
-        """Marca la operación en curso; False si ya hay otra (una a la vez por conversación)."""
+    def begin(self, run: Run, operation: str, rerun: tuple[str, ...] = ()) -> bool:
+        """Marca la operación en curso; False si ya hay otra (una a la vez por conversación).
+
+        `rerun`: en un reintento, los nodos que se repiten (el progreso marca el primero que
+        falte como «en curso» en lugar de dejar todos los pasos como pendientes).
+        """
         with self._lock:
             if run.running:
                 return False
             run.operation, run.running, run.nodes, run.error = operation, True, [], None
+            run.rerun = rerun
             run.cancel = threading.Event()
             self._bump(run)
             return True

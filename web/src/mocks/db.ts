@@ -104,11 +104,28 @@ export interface MockRun {
   approving?: { reviewing: ConversationOut; fingerprint: string }
 }
 
+/** Respuestas de POST /approve que la pantalla no puede provocar por sí sola. */
+export type ForcedApproval = 'fingerprint' | 'approval_rejected' | 'not_in_review'
+
+const FORCED_APPROVALS: Record<string, ForcedApproval> = {
+  huella: 'fingerprint',
+  'aprobacion-rechazada': 'approval_rejected',
+  'no-en-revision': 'not_in_review',
+}
+
+/** `?simular=huella|aprobacion-rechazada|no-en-revision` → la respuesta forzada; otro valor, ninguna. */
+export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
+  const value = new URLSearchParams(search).get('simular')
+  return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
+}
+
 export interface MockDb {
   session: { username: string; role: Role; csrf: string } | null
   projects: ProjectsOut
   settings: SettingsOut
   usage: UsageTodayOut | 'unavailable'
+  /** Solo para revisar en el navegador (`?simular=`): cómo responde POST /approve. */
+  forceApprove?: ForcedApproval
   conversations: ConversationSummary[]
   runs: Map<string, MockRun>
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */

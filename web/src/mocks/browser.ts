@@ -1,9 +1,12 @@
 // API simulada en el navegador: solo con `npm run dev` y VITE_API_MOCK=1 (src/main.tsx).
 import { setupWorker } from 'msw/browser'
-import { createMockDb } from './db.ts'
+import { createMockDb, forcedApprovalFrom } from './db.ts'
 import { createHandlers } from './handlers.ts'
 
 export async function startMockApi(): Promise<void> {
-  const worker = setupWorker(...createHandlers(createMockDb()))
+  const db = createMockDb()
+  // Revisión en el navegador de casos que la pantalla no provoca sola (web/README.md, «API simulada»).
+  db.forceApprove = forcedApprovalFrom(window.location.search)
+  const worker = setupWorker(...createHandlers(db))
   await worker.start({ serviceWorker: { url: '/mockServiceWorker.js' }, onUnhandledFrame: 'bypass', quiet: true })
 }

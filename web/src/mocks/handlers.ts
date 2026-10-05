@@ -522,8 +522,15 @@ export function createHandlers(db: MockDb) {
           return error(409, 'not_in_review', 'La conversación no tiene una propuesta en revisión (está generando o ya terminó).')
         }
         const { fingerprint } = (await request.json()) as ApproveIn
+        if (db.forceApprove === 'approval_rejected') {
+          return error(409, 'approval_rejected', 'La aprobación no corresponde a la versión revisada; empieza de nuevo.')
+        }
+        if (db.forceApprove === 'not_in_review') {
+          return error(409, 'not_in_review', 'La conversación no tiene una propuesta en revisión (está generando o ya terminó).')
+        }
         // Como la API real: 202 y la publicación en segundo plano; el final llega por el SSE.
-        run.approving = { reviewing: run.conversation, fingerprint }
+        // ?simular=huella: como si la pantalla tuviera la huella de una versión anterior.
+        run.approving = { reviewing: run.conversation, fingerprint: db.forceApprove === 'fingerprint' ? 'huella-ficticia-anterior' : fingerprint }
         run.conversation = {
           ...run.conversation,
           state: 'generating',

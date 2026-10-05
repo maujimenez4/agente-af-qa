@@ -15,6 +15,7 @@ proyecto DEMO). Los defectos confirmados van como `xfail(strict=True)`; el resto
 comportamiento actual.
 """
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, replace
@@ -147,13 +148,15 @@ class SpyEngine:
     def __init__(self, value: Any = None) -> None:
         self.value = value
         self.statements: list[Any] = []
+        self.parameters: list[dict[str, Any] | None] = []
 
     @contextmanager
     def begin(self) -> Iterator["SpyEngine"]:
         yield self
 
-    def execute(self, statement: Any) -> _Result:
+    def execute(self, statement: Any, parameters: dict[str, Any] | None = None) -> _Result:
         self.statements.append(statement)
+        self.parameters.append(parameters)
         return _Result(self.value)
 
 
@@ -453,6 +456,13 @@ def _seed_valid(store: InMemoryArtifactStateStore, artifact: Artifact) -> dict[s
         pytest.param(lambda lg: lg.update(approvals=["texto"]), id="approval-no-dict"),
         pytest.param(lambda lg: lg["approvals"][0].pop("fingerprint"), id="sin-fingerprint"),
         pytest.param(lambda lg: lg["approvals"][0].update(version="uno"), id="version-texto"),
+        pytest.param(lambda lg: lg["approvals"][0].update(version="1"), id="version-cadena"),
+        pytest.param(lambda lg: lg["approvals"][0].update(version=True), id="version-bool"),
+        pytest.param(lambda lg: lg["approvals"][0].update(version=1.9), id="version-float"),
+        pytest.param(lambda lg: lg["approvals"][0].update(consumed="false"), id="consumed-texto"),
+        pytest.param(lambda lg: lg["approvals"][0].update(consumed=0), id="consumed-cero"),
+        pytest.param(lambda lg: lg["target"].update(project_key=123), id="target-campo-no-str"),
+        pytest.param(lambda lg: lg.update(target={}), id="target-vacio"),
         pytest.param(lambda lg: lg["approvals"][0].update(at="ayer"), id="fecha-invalida"),
         pytest.param(lambda lg: lg["approvals"][0].update(at=12345), id="fecha-numero"),
         pytest.param(
@@ -488,13 +498,6 @@ def test_ledger_ignores_foreign_approval_when_artifact_id_differs() -> None:
     assert not _vigente(ApprovalLedger(store=store), victim)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-171): un ledger o estado que no es un dict (texto, lista, número) "
-        "lanza AttributeError en vez de ApprovalError (core/approvals.py:176-181)"
-    ),
-)
 @pytest.mark.parametrize("raw_ledger", ["texto-corrupto", ["DEMO"], 42, True])
 def test_ledger_raises_approval_error_when_ledger_is_not_a_dict(raw_ledger: Any) -> None:
     """Anexo §11: JSON del registro con tipo inesperado → `ApprovalError` (fallo cerrado)."""
@@ -505,13 +508,6 @@ def test_ledger_raises_approval_error_when_ledger_is_not_a_dict(raw_ledger: Any)
         ApprovalLedger(store=store).find(artifact, TARGET)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-171): un estado JSONB que no es objeto (texto, lista) lanza "
-        "AttributeError en vez de ApprovalError (core/approvals.py:176)"
-    ),
-)
 @pytest.mark.parametrize("raw_state", ['"texto"', ["ledger"]])
 def test_ledger_raises_approval_error_when_state_json_is_not_an_object(raw_state: Any) -> None:
     """Anexo §11: `artifact_state.state` corrupto → `ApprovalError` (fallo cerrado)."""
@@ -520,14 +516,6 @@ def test_ledger_raises_approval_error_when_state_json_is_not_an_object(raw_state
         ApprovalLedger(store=RawStateStore(raw_state)).find(artifact, TARGET)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-171): SqlArtifactStateStore devuelve el JSONB sin validar y el "
-        "ledger lanza AttributeError en vez de ApprovalError (core/approvals.py:176; "
-        "core/artifact_state.py:51-58)"
-    ),
-)
 def test_sql_backed_ledger_raises_approval_error_when_jsonb_is_a_string() -> None:
     """Anexo §11: columna `state` con un JSON escalar → `ApprovalError` (sin BD: engine espía)."""
     store = SqlArtifactStateStore(SpyEngine(value="texto-corrupto"))  # type: ignore[arg-type]
@@ -535,13 +523,6 @@ def test_sql_backed_ledger_raises_approval_error_when_jsonb_is_a_string() -> Non
         ApprovalLedger(store=store).find(_artifact(), TARGET)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-171): un ledger falso pero de tipo erróneo ([], '', 0) se trata como "
-        "ausente y la oferta lo sobrescribe sin avisar (core/approvals.py:177, 208-210)"
-    ),
-)
 @pytest.mark.parametrize("raw_ledger", [[], "", 0])
 def test_ledger_fails_closed_when_ledger_is_falsy_of_wrong_type(raw_ledger: Any) -> None:
     """Anexo §11: un registro de tipo inesperado falla cerrado y no se sobrescribe."""
@@ -553,13 +534,6 @@ def test_ledger_fails_closed_when_ledger_is_falsy_of_wrong_type(raw_ledger: Any)
     assert store.saved == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-172): una aprobación persistida sin el campo `consumed` se carga como "
-        "vigente (falla abierto) y vuelve a permitir publicar (core/approvals.py:226)"
-    ),
-)
 def test_ledger_does_not_grant_approval_when_consumed_flag_is_missing() -> None:
     """Principio 1 · un solo uso: borrar `consumed` del registro no reactiva la aprobación."""
     store = InMemoryArtifactStateStore()
@@ -574,13 +548,6 @@ def test_ledger_does_not_grant_approval_when_consumed_flag_is_missing() -> None:
     assert not _vigente(ApprovalLedger(store=store), artifact)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-172): con dos entradas de la misma versión (consumida y sin consumir) "
-        "gana la última y la aprobación vuelve a estar vigente (core/approvals.py:192-194)"
-    ),
-)
 def test_ledger_does_not_grant_approval_when_version_entry_is_duplicated() -> None:
     """Principio 1 · un solo uso: duplicar la entrada consumida sin `consumed` no reabre nada."""
     store = InMemoryArtifactStateStore()
@@ -599,13 +566,6 @@ def test_ledger_does_not_grant_approval_when_version_entry_is_duplicated() -> No
 # --- Doble consumo y concurrencia --------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-173): consume() no comprueba que la aprobación siga vigente; un "
-        "segundo consumo se acepta y sobrescribe la huella publicada (core/approvals.py:153-159)"
-    ),
-)
 def test_consume_rejects_second_use_when_approval_already_consumed() -> None:
     """Principio 1 · un solo uso: el segundo `consume` de la misma aprobación falla."""
     ledger = ApprovalLedger()
@@ -620,13 +580,6 @@ def test_consume_rejects_second_use_when_approval_already_consumed() -> None:
     assert ledger.was_published(artifact)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-173): consume() acepta una aprobación ya descartada por una oferta "
-        "posterior y la reinserta como publicada (core/approvals.py:153-159)"
-    ),
-)
 def test_consume_rejects_stale_approval_when_newer_version_offered() -> None:
     """Principio 1: la aprobación de la v1 invalidada por la oferta de la v2 no se consume."""
     ledger = ApprovalLedger()
@@ -648,14 +601,6 @@ def test_find_returns_none_when_same_instance_consumed_before() -> None:
     assert ledger.find(artifact, TARGET) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-174): el ledger carga el almacén una sola vez (_loaded) y nunca lo "
-        "relee; otra instancia sobre el mismo almacén sigue viendo vigente una aprobación ya "
-        "consumida (core/approvals.py:172-195)"
-    ),
-)
 def test_find_returns_none_in_second_instance_when_first_consumed() -> None:
     """Concurrencia: dos procesos sobre el mismo `artifact_state` no publican dos veces."""
     store = InMemoryArtifactStateStore()
@@ -668,14 +613,6 @@ def test_find_returns_none_in_second_instance_when_first_consumed() -> None:
     assert second.find(artifact, TARGET) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-174): _persist escribe la caché local completa; una instancia con "
-        "caché antigua borra la marca de publicación guardada por otra (pérdida de "
-        "actualización, core/approvals.py:197-210)"
-    ),
-)
 def test_consumed_mark_survives_when_stale_instance_persists_later() -> None:
     """Concurrencia: la publicación registrada no se pierde por otra instancia desfasada."""
     store = InMemoryArtifactStateStore()
@@ -701,14 +638,6 @@ def test_rejected_offer_is_not_persisted_when_origin_mismatch() -> None:
     assert store.load(str(artifact.id)) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-175): offer() fija el destino con setdefault antes de validar; una "
-        "oferta rechazada deja fijado el destino erróneo y bloquea la oferta correcta "
-        "(core/approvals.py:102-104)"
-    ),
-)
 def test_valid_offer_succeeds_when_previous_offer_was_rejected() -> None:
     """Anexo §11: el destino queda fijado en la primera oferta *aceptada*, no en una rechazada."""
     ledger = ApprovalLedger()
@@ -744,14 +673,6 @@ def test_transition_error_message_is_spanish_when_rejected() -> None:
     assert (info.value.current, info.value.target) == ("published", "draft")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-176): con estados que no son ArtifactStatus (cadena, None) la máquina "
-        "lanza KeyError/AttributeError en vez de InvalidTransitionError "
-        "(core/state_machine.py:30-36)"
-    ),
-)
 @pytest.mark.parametrize(
     ("current", "target"),
     [("bogus", S.DRAFT), ("draft", "published"), (S.DRAFT, "bogus"), (S.DRAFT, None)],
@@ -764,13 +685,6 @@ def test_ensure_transition_raises_invalid_transition_when_types_unexpected(
         ensure_transition(current, target)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-176): transition() copia el destino sin validarlo; con una cadena "
-        "el artefacto queda con status str en vez de ArtifactStatus (core/state_machine.py:39-42)"
-    ),
-)
 def test_transition_keeps_enum_status_when_target_given_as_string() -> None:
     """RF-34: el estado resultante es siempre un `ArtifactStatus`."""
     result = transition(_artifact(status=S.IN_REVIEW), "approved")  # type: ignore[arg-type]
@@ -878,14 +792,17 @@ def test_in_memory_store_is_not_changed_when_saved_dict_is_mutated_later() -> No
 
 
 def test_sql_store_builds_upsert_when_saving() -> None:
-    """Persistencia: `save` es un upsert por `artifact_id` con el estado completo."""
+    """Persistencia: `save` es un upsert por `artifact_id` con el estado completo, que no
+    retrocede la revisión del registro (PA-140)."""
     engine = SpyEngine()
     artifact_id = str(uuid4())
     SqlArtifactStateStore(engine).save(artifact_id, {"ledger": None})  # type: ignore[arg-type]
     (statement,) = engine.statements
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "ON CONFLICT (artifact_id) DO UPDATE" in sql
-    assert _params(statement)["artifact_id"] == UUID(artifact_id)
+    assert "revision" in sql
+    (parameters,) = engine.parameters
+    assert parameters is not None and parameters["artifact_id"] == UUID(artifact_id)
 
 
 def test_sql_store_rejects_non_uuid_id_when_loading() -> None:
@@ -918,13 +835,6 @@ def pg_engine() -> Iterator[Engine]:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-171): un JSONB escalar en artifact_state.state hace que el ledger "
-        "lance AttributeError en vez de ApprovalError (core/approvals.py:176)"
-    ),
-)
 def test_sql_ledger_fails_closed_when_jsonb_state_is_scalar(pg_engine: Engine) -> None:
     """Anexo §11 (BD real): estado corrupto en PostgreSQL → `ApprovalError`."""
     artifact = _artifact()
@@ -935,3 +845,31 @@ def test_sql_ledger_fails_closed_when_jsonb_state_is_scalar(pg_engine: Engine) -
     ledger = ApprovalLedger(store=SqlArtifactStateStore(pg_engine))
     with pytest.raises(ApprovalError):
         ledger.find(artifact, TARGET)
+
+
+def test_concurrent_consume_from_threads_publishes_once() -> None:
+    """Revisión de seguridad (bloque 1): con el registro compartido entre hilos, solo un
+    `consume` de la misma aprobación tiene éxito; los demás fallan cerrado."""
+    store = InMemoryArtifactStateStore()
+    ledger = ApprovalLedger(store=store)
+    artifact = _artifact()
+    approval = _approved(ledger, artifact)
+    results: list[str] = []
+    barrier = threading.Barrier(8)
+
+    def worker() -> None:
+        barrier.wait()
+        try:
+            ledger.consume(approval, artifact)
+        except ApprovalError:
+            results.append("rechazado")
+        else:
+            results.append("consumido")
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert sorted(results) == ["consumido"] + ["rechazado"] * 7
+    assert ApprovalLedger(store=store).was_published(artifact)

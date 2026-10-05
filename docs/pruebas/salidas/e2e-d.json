@@ -1,0 +1,242 @@
+{
+  "user": "af-demo",
+  "mode": "functional",
+  "origin": {
+    "kind": "need",
+    "text": "Como persona socia de la Biblioteca Municipal de Villaficticia quiero reservar un ejemplar desde la web para recogerlo en el mostrador (necesidad ficticia).",
+    "project": "AFQP"
+  },
+  "steps": [
+    {
+      "node": "load_origin",
+      "seconds": 0.0,
+      "llm": []
+    },
+    {
+      "node": "retrieve_context",
+      "seconds": 20.8,
+      "llm": []
+    },
+    {
+      "node": "generate",
+      "seconds": 733.1,
+      "llm": [
+        {
+          "task": "generate_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 3856,
+          "output_tokens": 1576,
+          "seconds": 322.9
+        },
+        {
+          "task": "generate_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 5488,
+          "output_tokens": 1540,
+          "seconds": 364.0
+        },
+        {
+          "task": "analyze_impact",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 989,
+          "output_tokens": 431,
+          "seconds": 45.9
+        }
+      ]
+    },
+    {
+      "node": "human_review",
+      "seconds": 0.0,
+      "llm": []
+    },
+    {
+      "node": "generate",
+      "seconds": 655.9,
+      "llm": [
+        {
+          "task": "evolve_story",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 6371,
+          "output_tokens": 2061,
+          "seconds": 613.7
+        },
+        {
+          "task": "analyze_impact",
+          "model": "local/qwen3:1.7b",
+          "input_tokens": 989,
+          "output_tokens": 382,
+          "seconds": 42.0
+        }
+      ]
+    },
+    {
+      "node": "human_review",
+      "seconds": 0.1,
+      "llm": []
+    },
+    {
+      "node": "publish",
+      "seconds": 0.0,
+      "llm": []
+    },
+    {
+      "node": "memorize",
+      "seconds": 0.3,
+      "llm": []
+    }
+  ],
+  "thread_id": "5c07c814-e96c-4fa0-a8cb-58d462ef456a",
+  "review": [
+    {
+      "version": 1,
+      "status": "in_review",
+      "model_used": "local/qwen3:1.7b",
+      "prompt_version": "2",
+      "target": {
+        "operation": "crear HU",
+        "project": "AFQP",
+        "jira_key": null,
+        "epic_key": null
+      },
+      "plan": [
+        {
+          "op": "create_story",
+          "project": "AFQP",
+          "epic": ""
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-12",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-2",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-25",
+          "type": "relates to"
+        }
+      ],
+      "error": null,
+      "fingerprint": "5454008192ea5611…",
+      "title": "Historia de Usuario (HU) para reservar un ejemplar en la Biblioteca Municipal de Villaficticia",
+      "acceptance_criteria": 3,
+      "business_rules": 3,
+      "sources": [
+        "jira:AFQP-12",
+        "jira:AFQP-2",
+        "jira:AFQP-25",
+        "rag:DOC-02",
+        "rag:DOC-10",
+        "rag:DOC-19",
+        "rag:DOC-20",
+        "rag:DOC-03",
+        "rag:DOC-11",
+        "rag:DOC-01",
+        "rag:DOC-04",
+        "rag:DOC-23"
+      ],
+      "open_questions": 3,
+      "impact": {
+        "diffs": 0,
+        "affected": [
+          "AFQP-12",
+          "AFQP-2",
+          "AFQP-25"
+        ],
+        "regression_notes": 2
+      }
+    },
+    {
+      "version": 2,
+      "status": "in_review",
+      "model_used": "local/qwen3:1.7b",
+      "prompt_version": "3",
+      "target": {
+        "operation": "crear HU",
+        "project": "AFQP",
+        "jira_key": null,
+        "epic_key": null
+      },
+      "plan": [
+        {
+          "op": "create_story",
+          "project": "AFQP",
+          "epic": ""
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-12",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-2",
+          "type": "relates to"
+        },
+        {
+          "op": "link",
+          "from": "(HU nueva)",
+          "to": "AFQP-25",
+          "type": "relates to"
+        }
+      ],
+      "error": null,
+      "fingerprint": "f0161620f235eeac…",
+      "title": "Historia de Usuario (HU) para reservar un ejemplar en la Biblioteca Municipal de Villaficticia",
+      "acceptance_criteria": 3,
+      "business_rules": 3,
+      "sources": [
+        "jira:AFQP-12",
+        "jira:AFQP-2",
+        "jira:AFQP-25",
+        "rag:DOC-02",
+        "rag:DOC-10",
+        "rag:DOC-19",
+        "rag:DOC-20",
+        "rag:DOC-03",
+        "rag:DOC-11",
+        "rag:DOC-01",
+        "rag:DOC-04",
+        "rag:DOC-23"
+      ],
+      "open_questions": 0,
+      "impact": {
+        "diffs": 0,
+        "affected": [
+          "AFQP-12",
+          "AFQP-2",
+          "AFQP-25"
+        ],
+        "regression_notes": 2
+      }
+    }
+  ],
+  "total_seconds": 1410.8,
+  "after_approve": {
+    "artifact_status": "approved",
+    "audit_actions": [
+      "create",
+      "iterate",
+      "approve",
+      "publish"
+    ],
+    "audit_publish": [
+      {
+        "action": "publish",
+        "detail_simulated": true
+      }
+    ],
+    "conversation_status": "simulated",
+    "errors": []
+  },
+  "scenario_seconds": 1410.8
+}

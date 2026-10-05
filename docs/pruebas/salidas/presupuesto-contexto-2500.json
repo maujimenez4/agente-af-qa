@@ -1,0 +1,41 @@
+[
+  {
+    "presupuesto": 2500,
+    "escenario": "b evolucionar",
+    "task": "evolve_story",
+    "prompt_tokens": 5153,
+    "lectura_s": 100.0,
+    "tok_s": 51.5,
+    "tope_salida": 2500,
+    "total_max": 7653,
+    "cabe_en_8192": true,
+    "margen": 539,
+    "segundos_sonda": 171.0
+  },
+  {
+    "presupuesto": 2500,
+    "escenario": "c suite",
+    "task": "generate_tests",
+    "prompt_tokens": 5323,
+    "lectura_s": 103.8,
+    "tok_s": 51.3,
+    "tope_salida": 2500,
+    "total_max": 7823,
+    "cabe_en_8192": true,
+    "margen": 369,
+    "segundos_sonda": 109.3
+  },
+  {
+    "presupuesto": 2500,
+    "escenario": "e calidad",
+    "task": "review_story",
+    "prompt_tokens": 5264,
+    "lectura_s": 102.0,
+    "tok_s": 51.6,
+    "tope_salida": 2000,
+    "total_max": 7264,
+    "cabe_en_8192": true,
+    "margen": 928,
+    "segundos_sonda": 109.6
+  }
+]

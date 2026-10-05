@@ -895,10 +895,12 @@ def _completion_body(**overrides: Any) -> dict[str, Any]:
     [
         _completion_body(choices=[{"index": 0}]),
         _completion_body(choices="no-es-una-lista"),
-        _completion_body(usage={"prompt_tokens": None, "completion_tokens": 1}),
+        # PA-192: `usage` incompleto ya no es una respuesta mal formada (se estiman los
+        # tokens); un recuento negativo sí lo es (PA-193).
+        _completion_body(usage={"prompt_tokens": -1, "completion_tokens": 1}),
         {"respuesta": BODY_MARKER},
     ],
-    ids=["choice-sin-message", "choices-no-lista", "usage-sin-tokens", "sin-choices"],
+    ids=["choice-sin-message", "choices-no-lista", "usage-negativo", "sin-choices"],
 )
 def test_generate_wraps_error_when_200_is_malformed_completion(body: dict[str, Any]) -> None:
     """CA-9 · RNF-12: un 200 con JSON que no es una respuesta de chat válida se traduce a

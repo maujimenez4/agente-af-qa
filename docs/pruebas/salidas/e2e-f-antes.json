@@ -1,0 +1,21 @@
+{
+  "text": "quiero evolucionar la afqp-3 para que se pueda renovar desde el móvil",
+  "project": "AFQP",
+  "project_changed": false,
+  "recognized": [
+    "AFQP-3"
+  ],
+  "options": [
+    {
+      "kind": "evolve",
+      "label": "Evolucionar AFQP-3",
+      "origin": {
+        "kind": "story",
+        "key": "AFQP-3",
+        "project": "AFQP"
+      }
+    }
+  ],
+  "seconds": 0.66,
+  "scenario_seconds": 0.7
+}

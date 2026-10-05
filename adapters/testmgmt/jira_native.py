@@ -49,7 +49,14 @@ from adapters.jira.adf import (
 from adapters.jira.http import SERVICE, JiraHttp
 from adapters.jira.jql import CASE_LABEL, cases_jql
 from adapters.jira.story_template import prefixed_summary
-from adapters.jira.tracker import JIRA_KEY_RE, SEARCH_FIELDS, to_issue_summary
+from adapters.jira.tracker import (
+    JIRA_KEY_RE,
+    MAPPING_ERRORS,
+    SEARCH_FIELDS,
+    list_field,
+    to_issue_summary,
+    unexpected_format,
+)
 
 # PA-206: el resultado y el límite de la evidencia son del dominio (`schemas/`); se
 # reexportan aquí para quien los importaba de este módulo.
@@ -140,6 +147,7 @@ class JiraNativeTests:
         jql = cases_jql(story_key)
         cases: list[IssueSummary] = []
         token: str | None = None
+        seen_tokens: set[str] = set()  # como en el tracker (PA-184): un token repetido para
         while len(cases) < MAX_CASES:
             params = {
                 "jql": jql,
@@ -149,12 +157,21 @@ class JiraNativeTests:
             if token:
                 params["nextPageToken"] = token
             page = self._http.get("/rest/api/3/search/jql", params=params, invalid="La consulta")
-            issues = page.get("issues") or []
-            cases += [to_issue_summary(issue) for issue in issues]
+            issues = list_field(page, "issues")  # PA-189
+            try:
+                cases += [to_issue_summary(issue) for issue in issues]
+            except MAPPING_ERRORS:
+                raise unexpected_format() from None
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
                 break
-        return cases[:MAX_CASES]
+            if not isinstance(token, str) or token in seen_tokens:
+                break
+            seen_tokens.add(token)
+        unique: dict[str, IssueSummary] = {}  # sin repetidas; la primera gana
+        for case in cases:
+            unique.setdefault(case.key, case)
+        return list(unique.values())[:MAX_CASES]
 
     # --- ESCRITURA: solo desde el nodo publish -----------------------------------------------
 
@@ -165,7 +182,11 @@ class JiraNativeTests:
         existing = self._existing_cases(story)  # PA-05; si falla, no se escribe nada
         result = PublishResult()
         stopped = False
+        handled: set[str] = set()  # PA-190: un CP repetido en la suite se trata una sola vez
         for case in suite.cases:
+            if case.internal_id in handled:
+                continue
+            handled.add(case.internal_id)
             if case.internal_id in existing:
                 result.created.append(existing[case.internal_id])
             elif stopped:
@@ -274,12 +295,12 @@ class JiraNativeTests:
         if len(evidence) > MAX_EVIDENCE_CHARS:
             raise PublishError(f"La evidencia supera los {MAX_EVIDENCE_CHARS} caracteres.")
 
-        fields = (
+        fields = _fields(
             self._http.get(
                 f"/rest/api/3/issue/{key}", params={"fields": "labels,status,issuetype"}, key=key
             )
-        ).get("fields") or {}
-        labels = [str(label) for label in fields.get("labels") or []]
+        )
+        labels = [str(label) for label in list_field(fields, "labels")]
         issue_type = fields.get("issuetype")
         # Nunca se escribe en una incidencia que no sea una subtarea CP.
         if not isinstance(issue_type, dict) or issue_type.get("subtask") is not True:
@@ -354,7 +375,15 @@ class JiraNativeTests:
                     continue
                 body = {"transition": {"id": transition_id}}
                 self._http.send(
-                    "POST", f"/rest/api/3/issue/{key}/transitions", body, PublishError, key
+                    "POST",
+                    f"/rest/api/3/issue/{key}/transitions",
+                    body,
+                    PublishError,
+                    key,
+                    bad_request=(  # PA-195: mensaje propio, no el de creación
+                        f"Jira ha rechazado la transición de {key} (HTTP 400): puede que pida "
+                        "campos obligatorios o que el flujo de trabajo no la permita."
+                    ),
                 )
                 return True
         # Sin transición en el flujo (p. ej. no hay estado «Falló»): manda la etiqueta.
@@ -370,7 +399,9 @@ class JiraNativeTests:
         data = self._http.get(
             f"/rest/api/3/issue/{story}", params={"fields": "attachment"}, key=story
         )
-        attachments = (data.get("fields") or {}).get("attachment") or []
+        attachments = list_field(
+            _fields(data), "attachment"
+        )  # PA-188: forma inesperada → AgentError
         return {str(a.get("filename")) for a in attachments if isinstance(a, dict)}
 
 
@@ -477,6 +508,14 @@ def _transition_names(
             raise ValueError(f"Las transiciones de «{STATUS_TEXT[status]}» no son válidas.")
         names[status] = frozenset(cleaned)
     return names
+
+
+def _fields(issue: dict[str, Any]) -> dict[str, Any]:
+    """`fields` de una incidencia leída; otra forma es un error de Jira (PA-188, PA-189)."""
+    fields = issue.get("fields") or {}
+    if not isinstance(fields, dict):
+        raise unexpected_format()
+    return fields
 
 
 def _checked_key(key: str) -> str:

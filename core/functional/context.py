@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from adapters.base import IssueDetail, RetrievedChunk
+from core.text import escape_data as escape_data  # PA-227: reexportada (core/impact, core/qa)
 from schemas.user_story import UserStory
 
 SourceKind = Literal["jira", "rag", "memory"]
@@ -104,21 +105,16 @@ def _render_source(source: CitableSource) -> str:
     return f"<fuente {rendered}>\n{escape_data(source.content)}\n</fuente>"
 
 
-def escape_data(text: str) -> str:
-    # Neutraliza los delimitadores dentro de los datos (inyección de prompt).
-    return (
-        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-    )
-
-
 def _jira_source(issue: IssueDetail) -> CitableSource:
-    lines = [f"{issue.issue_type} · {issue.status}"]
-    if issue.parent_key:
-        lines.append(f"Épica/padre: {issue.parent_key}")
+    # PA-281: la primera clave que lee el modelo es la que debe citar (la de la fuente); la épica
+    # o el padre va al final, como relación. Si iba al principio, citaba la del padre.
+    lines = [f"Clave: {issue.key} · {issue.issue_type} · {issue.status}"]
     if issue.description_text:
         lines.append(issue.description_text)
     lines += [f"Vínculo: {link.link_type} {link.key}" for link in issue.links]
     lines += [f"Comentario: {comment}" for comment in issue.comments]
+    if issue.parent_key:
+        lines.append(f"Pertenece a la épica o padre {issue.parent_key}")
     return CitableSource(
         kind="jira",
         ref=issue.key,

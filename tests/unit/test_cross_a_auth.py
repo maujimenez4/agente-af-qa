@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 from argon2 import PasswordHasher, Type, extract_parameters
+from argon2.exceptions import HashingError
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import StaticPool
 from structlog.testing import capture_logs
@@ -355,14 +356,6 @@ def test_login_succeeds_when_rehash_update_hits_database_error(engine: Engine) -
     assert _stored_hash(engine) == old
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-164): `_connection` solo envuelve `DBAPIError`; un `sa.exc.TimeoutError` "
-        "del pool durante el UPDATE del rehash se escapa y tumba un login correcto "
-        "(adapters/auth/local.py:67-75, 117-125)"
-    ),
-)
 def test_login_succeeds_when_rehash_update_hits_pool_timeout(engine: Engine) -> None:
     """Registro T-22 (rehash tolerante a fallos): el pool agotado al guardar el nuevo hash no
     debe impedir el acceso válido."""
@@ -372,14 +365,6 @@ def test_login_succeeds_when_rehash_update_hits_pool_timeout(engine: Engine) -> 
     assert _provider(proxy, PasswordHasher(**NEWER)).authenticate(USERNAME, password) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-164): `_connection` solo envuelve `DBAPIError`; un `sa.exc.TimeoutError` "
-        "del pool sale crudo de `authenticate`/`save_user` en vez de `ExternalServiceError` en "
-        "español (adapters/auth/local.py:117-125)"
-    ),
-)
 @pytest.mark.parametrize("operation", ["authenticate", "save_user"])
 def test_pool_timeout_is_wrapped_in_external_service_error(engine: Engine, operation: str) -> None:
     """CLAUDE.md (errores externos envueltos) / RF-45: con el pool agotado, el proveedor lanza
@@ -410,14 +395,6 @@ def test_authenticated_role_drives_permissions(engine: Engine, role: str) -> Non
         require(failed, Permission.VIEW_CONTEXT)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-196): un rol desconocido en la BD (p. ej. tras cambiar ROLES sin migrar "
-        "la CHECK) hace que `authenticate` lance un `pydantic.ValidationError` crudo al construir "
-        "`User` en vez de fallar cerrado (adapters/auth/local.py:76)"
-    ),
-)
 @pytest.mark.parametrize("role", ["superuser", "Admin", ""])
 def test_authenticate_fails_closed_when_stored_role_unknown(engine: Engine, role: str) -> None:
     """RF-46 / RNF-05 (error): con un rol fuera de functional/qa/admin y la contraseña correcta,
@@ -533,3 +510,37 @@ def test_password_and_hash_never_appear_in_errors_or_repr(engine: Engine) -> Non
 # --- Integración (PostgreSQL real) -------------------------------------------------------
 # Lo que necesita PostgreSQL (CHECK de roles, upsert real) ya está en `test_auth_local.py`
 # marcado como `integration`; aquí no se duplica.
+
+
+class _FailingRehashHasher(PasswordHasher):
+    """Hasher que falla al recalcular el hash (después de crear el proveedor)."""
+
+    fail = False
+
+    def hash(self, password: str | bytes, *, salt: bytes | None = None) -> str:
+        if self.fail:
+            raise HashingError("fallo ficticio de argon2")
+        return super().hash(password, salt=salt)
+
+
+def test_login_succeeds_when_rehash_raises_hashing_error(engine: Engine) -> None:
+    """PA-164 (rehash tolerante a fallos): un `HashingError` de argon2 al recalcular el hash no
+    impide un acceso válido."""
+    password = _password()
+    _insert(engine, PasswordHasher(**FAST).hash(password))
+    hasher = _FailingRehashHasher(**NEWER)
+    provider = _provider(engine, hasher)
+    hasher.fail = True
+    assert provider.authenticate(USERNAME, password) is not None
+
+
+def test_unknown_role_warning_has_no_username_nor_role(engine: Engine) -> None:
+    """PA-196 · RNF-02: el aviso del rol desconocido no lleva el usuario ni el rol."""
+    hasher = PasswordHasher(**FAST)
+    password = _password()
+    _insert(engine, hasher.hash(password), role="rol-ficticio-raro")
+    with capture_logs() as logs:
+        assert _provider(engine, hasher).authenticate(USERNAME, password) is None
+    dumped = repr(logs)
+    assert any(entry.get("event") == "auth_unknown_role" for entry in logs)
+    assert USERNAME not in dumped and "rol-ficticio-raro" not in dumped

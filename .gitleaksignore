@@ -6,3 +6,11 @@
 193aded869cb681ee11d2264ef1e664bb3c533fc:tests/unit/test_api_errors.py:generic-api-key:22
 193aded869cb681ee11d2264ef1e664bb3c533fc:tests/unit/test_api_app.py:generic-api-key:46
 7885809bc46fa49f980de4a92d7ebe979419e121:tests/unit/test_api_composition.py:generic-api-key:31
+# Descripción de PA-226 en el Kanban que citaba la cabecera PEM de una clave privada (no es una
+# clave); el texto actual ya no la cita.
+1842087062a4cfa509dc124c2a195ca8adc1dd57:docs/KANBAN.md:private-key:397
+ea14bb9a90f2e807eb76c966ef9a3761305f8eee:docs/KANBAN.md:private-key:397
+# Mismo valor ficticio en pruebas de PA-113 y PA-272 (variable renombrada después a
+# `internal_detail` para que la regla no vuelva a saltar).
+ceed50021ce20031cd7dc80f077fec329431853d:tests/unit/test_api_handoff_release.py:generic-api-key:219
+ceed50021ce20031cd7dc80f077fec329431853d:tests/unit/test_api_quality_reviews.py:generic-api-key:223

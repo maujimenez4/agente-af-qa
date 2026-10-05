@@ -386,14 +386,6 @@ def test_read_other_4xx_is_not_retried_and_wrapped_when_client_error(status: int
 REDIRECT = httpx.Response(302, headers={"Location": "https://otro-sitio.example/login"})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-183): una lectura con respuesta 3xx se trata como éxito con cuerpo "
-        "vacío: test_connection pasa, search devuelve [] y get_issue una HU sin clave "
-        "(adapters/jira/http.py:104-106)"
-    ),
-)
 @pytest.mark.parametrize("operation", ["test_connection", "search", "get_issue", "list_projects"])
 def test_read_fails_with_external_error_when_jira_answers_redirect(operation: str) -> None:
     """RF-01/RF-02 y §8: un 3xx (URL del sitio mal puesta) no puede parecer un éxito vacío."""
@@ -408,14 +400,6 @@ def test_read_fails_with_external_error_when_jira_answers_redirect(operation: st
         calls[operation]()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-183): las lecturas no fijan follow_redirects=False (las escrituras sí) "
-        "y, con un cliente inyectado que sigue redirecciones, leen datos de otro sitio "
-        "(adapters/jira/http.py:86-92)"
-    ),
-)
 def test_read_does_not_follow_redirect_when_injected_client_follows_redirects() -> None:
     """§8: como en las escrituras, una lectura no se reenvía a otro sitio."""
     script = Script(REDIRECT, _page(["OTRO-1"], is_last=True))
@@ -484,14 +468,6 @@ def test_search_is_bounded_by_max_results_when_token_repeats_forever() -> None:
     assert len(results) <= MAX_RESULTS
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-184): un nextPageToken repetido no detiene la paginación: hasta "
-        "MAX_RESULTS peticiones (1000 con páginas de 1) con la misma página duplicada "
-        "(adapters/jira/tracker.py:102-116)"
-    ),
-)
 def test_search_stops_without_duplicates_when_next_page_token_repeats() -> None:
     """RF-02: si Jira (o un proxy) repite el token, se para y no se duplican incidencias."""
     script = Script(_page(["DEMO-2"], token="tk-repetido", is_last=False))
@@ -621,14 +597,6 @@ MALFORMED_ISSUES = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-185): una respuesta 2xx con forma inesperada lanza AttributeError/"
-        "KeyError sin envolver en ExternalServiceError (adapters/jira/http.py:108, "
-        "adapters/jira/tracker.py:237-264)"
-    ),
-)
 @pytest.mark.parametrize("body", MALFORMED_ISSUES.values(), ids=MALFORMED_ISSUES.keys())
 def test_get_issue_wraps_unexpected_payload_in_external_error(body: Any) -> None:
     """§8: todo fallo de Jira llega a la UI como `ExternalServiceError` en español."""
@@ -636,14 +604,6 @@ def test_get_issue_wraps_unexpected_payload_in_external_error(body: Any) -> None
         _tracker(Script(httpx.Response(200, json=body))).get_issue("DEMO-3")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-185): una página de búsqueda con forma inesperada (JSON no objeto o "
-        "`issues` no lista) lanza AttributeError/KeyError sin envolver "
-        "(adapters/jira/tracker.py:110-113)"
-    ),
-)
 @pytest.mark.parametrize("body", [[], {"issues": {"DEMO-2": {}}}], ids=["lista", "issues-objeto"])
 def test_search_wraps_unexpected_page_in_external_error(body: Any) -> None:
     """§8: la búsqueda tampoco deja escapar excepciones de Python a la UI."""
@@ -700,14 +660,6 @@ def test_markdown_to_adf_removes_control_and_bidi_override_chars(char: str) -> N
     assert all(char not in h for h in _hrefs(adf))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-186): las marcas bidi LRM (U+200E), RLM (U+200F) y ALM (U+061C), "
-        "también Bidi_Control de Unicode, no se eliminan ni del ADF ni del título "
-        "(adapters/jira/adf.py:152)"
-    ),
-)
 @pytest.mark.parametrize("char", BIDI_MARKS, ids=[hex(ord(c)) for c in BIDI_MARKS])
 def test_bidi_marks_are_removed_from_adf_and_summary(char: str) -> None:
     """PA-49: ningún carácter Bidi_Control altera el orden visual de lo publicado."""
@@ -739,14 +691,6 @@ def test_markdown_to_adf_caps_published_text_when_input_exceeds_max() -> None:
     assert sum(len(t) for t in _texts(adf)) == MAX_MARKDOWN_CHARS
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-187): `_TABLE_SEPARATOR` tiene backtracking cuadrático (`\\s*` "
-        "adyacentes); una segunda fila de tabla «| -» + espacios + «x» de 20 000 caracteres "
-        "tarda >1 s y una de 100 000 (el tope) decenas de segundos (adapters/jira/adf.py:230, 354)"
-    ),
-)
 def test_markdown_to_adf_runs_in_linear_time_when_table_separator_is_pathological() -> None:
     """§8: el comentario del diff (texto no fiable) no puede bloquear la publicación."""
     md = "| a |\n| -" + " " * 20_000 + "x"
@@ -887,3 +831,25 @@ def test_link_rejects_link_type_without_request_when_not_allowed(link_type: str)
     """D-09: solo «relates to» (el nombre interno, no el de la API)."""
     with pytest.raises(PublishError):
         _tracker(Script(_no_http)).link("DEMO-3", "DEMO-2", link_type)
+
+
+def test_markdown_to_adf_table_separator_at_max_length_runs_in_milliseconds() -> None:
+    """PA-187 · §8: el texto más largo permitido (`MAX_MARKDOWN_CHARS`) con una segunda fila
+    patológica se procesa en milisegundos (sin backtracking cuadrático)."""
+    from adapters.jira.adf import MAX_MARKDOWN_CHARS
+
+    head = "| a |\n| -"
+    md = head + " " * (MAX_MARKDOWN_CHARS - len(head) - 1) + "x"
+    assert len(md) == MAX_MARKDOWN_CHARS
+    start = time.perf_counter()
+    markdown_to_adf(md)
+    assert time.perf_counter() - start < 0.5  # ~0,1 s medido; margen para una máquina cargada
+
+
+def test_markdown_to_adf_keeps_table_header_with_valid_separators() -> None:
+    """PA-187 (regresión): los separadores válidos siguen marcando la cabecera de la tabla."""
+    for separator in ("|---|---|", "| :-- | --: |", "|:-:|-|"):
+        adf = markdown_to_adf(f"| a | b |\n{separator}\n| 1 | 2 |")
+        cells = [n["type"] for n in _walk(adf) if n["type"] in ("tableHeader", "tableCell")]
+        assert cells[:2] == ["tableHeader", "tableHeader"], separator
+        assert cells[2:] == ["tableCell", "tableCell"], separator

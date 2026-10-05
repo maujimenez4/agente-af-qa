@@ -12,8 +12,10 @@ from pydantic import BaseModel, Field, model_validator
 from adapters.base import IssueSummary, ProjectSummary
 from core.conversations import ConversationSummary
 from core.guided_start import SourcePreview, StartProposal
+from core.memory.reader import MemorySummary
 from schemas.artifact import Artifact
 from schemas.impact import ImpactAnalysis
+from schemas.memory import Memory
 from schemas.quality import QualityReport
 from schemas.test_case import MAX_EVIDENCE_CHARS, TestSuite
 from schemas.user_story import UserStory
@@ -49,6 +51,9 @@ ErrorCode = Literal[
     "http_error",
     # estado de la conversación
     "not_in_review",
+    "not_in_error",  # PA-276: reintentar una conversación que no está en error
+    "not_cancellable",  # PA-314: no está generando, o lo que hace es aprobar o publicar
+    "cancelled",  # PA-314: la persona detuvo la generación (se puede reintentar)
     "approval_rejected",
     "handoff_unavailable",
     "operation_failed",
@@ -134,6 +139,16 @@ class IssueCard(BaseModel):
     epic_key: str | None = None
     criteria_count: int = Field(ge=0, description="CA contados en la descripción, sin IA.")
     rules_count: int = Field(ge=0, description="RN contadas en la descripción, sin IA.")
+    test_cases: int | None = Field(
+        default=None,
+        ge=0,
+        description="Subtareas CP («caso-prueba») de la HU en Jira (PA-104); `null` si no se "
+        "pudo consultar.",
+    )
+    published_by_agent: bool | None = Field(
+        default=None,
+        description="El agente publicó esta HU en Jira (PA-104); `null` si no se sabe.",
+    )
 
 
 # --- Arranque guiado -----------------------------------------------------------------------------
@@ -150,6 +165,22 @@ class ProposeIn(BaseModel):
     text: str = Field(max_length=4000)
     project: str = Field(pattern=PROJECT_PATTERN, max_length=50)
     mode: Mode = "functional"
+
+
+class ContextBudgetOut(BaseModel):
+    """Presupuesto de tokens del contexto que se enviará al LLM (PA-102)."""
+
+    used: int = Field(ge=0, description="Tokens estimados de las fuentes seleccionadas.")
+    limit: int = Field(ge=0, description="Tokens disponibles para las fuentes.")
+    dropped_sources: int = Field(
+        ge=0, description="Fuentes que no caben y no se enviarán (incidencias y fragmentos)."
+    )
+    truncated_sources: int = Field(ge=0, description="Incidencias recortadas para que quepan.")
+
+
+class SourcesOut(BaseModel):
+    sources: list[SourcePreview]
+    budget: ContextBudgetOut
 
 
 class SourcesIn(BaseModel):
@@ -246,6 +277,18 @@ class ConversationOut(BaseModel):
     result: PublishOutcome | None = None
     error: ErrorBody | None = None
     updated_at: datetime
+    cancel_requested: bool = Field(
+        default=False,
+        description="PA-314: se pidió detener la generación y aún está terminando el paso en "
+        "curso («Deteniendo…»). Vuelve a `false` al terminar.",
+    )
+    jira_baseline: UserStory | None = Field(
+        default=None,
+        description="PA-316: la HU tal como está en Jira, estructurada (la versión de partida que "
+        "el agente ya calculó; nunca se llama al LLM para esto). Solo al evolucionar una HU "
+        "existente y mientras se puede iterar; `null` en una HU nueva, en QA, antes de la primera "
+        "versión y cuando la conversación termina (aprobada, simulada, publicada o descartada).",
+    )
 
 
 class IterateIn(BaseModel):
@@ -284,6 +327,20 @@ class QualityReviewOut(BaseModel):
         default=None, description="Informe escapado, **solo para descargar** (no pintarlo)."
     )
     error: ErrorBody | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class QualityReviewSummary(BaseModel):
+    """Una revisión en la lista de la persona (PA-103): «Informe listo» si `state=done`."""
+
+    id: str
+    issue_key: str
+    project: str
+    title: str = Field(description="Solo el flujo y la clave («Revisar la calidad de DEMO-3»).")
+    state: Literal["running", "done", "error"]
+    created_at: datetime
+    updated_at: datetime
 
 
 # --- Registrar la ejecución (QA 6, T-47) ---------------------------------------------------------
@@ -415,9 +472,55 @@ class ModelOverrideIn(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+# --- Memoria (T-33) ------------------------------------------------------------------------------
+
+
+class MemoryOut(MemorySummary):
+    """Una memoria completa: el resumen de la lista, su contenido estructurado y su `.md`."""
+
+    memory: Memory = Field(description="Se pinta campo a campo como texto (lo escribió el LLM).")
+    markdown: str = Field(description="El `.md` de la memoria, solo para descargarlo.")
+
+
+# --- Administración (T-29 mínima) ---------------------------------------------------------------
+
+
+class ConnectionCheckOut(BaseModel):
+    """Resultado de comprobar un servicio; `detail` en español y sin secretos."""
+
+    service: str = Field(description="«Jira», «PostgreSQL», «Modelos · <proveedor>», «Embeddings».")
+    ok: bool
+    detail: str
+    duration_ms: int = Field(ge=0)
+
+
+class ConnectionsTestOut(BaseModel):
+    checks: list[ConnectionCheckOut]
+
+
+class AdminModelOut(BaseModel):
+    provider: str
+    model: str
+    host: str = Field(description="Solo el host (y el puerto) del proveedor; nunca la URL entera.")
+
+
+class AdminTaskModelsOut(BaseModel):
+    task: str
+    chain: list[AdminModelOut]
+    override: ModelChoiceOut | None = Field(
+        default=None, description="Modelo elegido en la sesión de quien consulta, si lo hay."
+    )
+
+
+class AdminModelsOut(BaseModel):
+    tasks: list[AdminTaskModelsOut]
+    embeddings: AdminModelOut
+
+
 __all__ = [
     "ConversationSummary",
     "IssueSummary",
+    "MemorySummary",
     "SourcePreview",
     "StartProposal",
 ]

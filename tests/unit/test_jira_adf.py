@@ -981,3 +981,203 @@ def test_table_builds_header_row_and_literal_cells() -> None:
     assert action == [{"type": "text", "text": "**pulsa** <b>Renovar</b>"}]
     assert second["content"][1]["content"] == [{"type": "paragraph"}]  # sin texto vacío
     assert adf_to_text({"type": "doc", "content": [node]}).splitlines()[0] == "| # | Acción |"
+
+
+# --- PA-143: _HEADING sin backtracking ------------------------------------------------------
+
+
+def test_markdown_to_adf_heading_is_linear_with_many_spaces() -> None:
+    """PA-143 (ReDoS): «# a» + 20 000 espacios + «b» tardaba ~4,5 s; ahora es lineal."""
+    import time
+
+    started = time.perf_counter()
+    adf = markdown_to_adf("# a" + " " * 20_000 + "b")
+    assert time.perf_counter() - started < 0.5
+    assert adf["content"][0]["type"] == "heading"
+
+
+@pytest.mark.parametrize(
+    ("md", "level", "title"),
+    [
+        ("# Título   ", 1, "Título"),
+        ("###   Varios   espacios  ", 3, "Varios   espacios"),
+        ("## ", 2, ""),
+    ],
+)
+def test_markdown_to_adf_heading_keeps_title_without_surrounding_spaces(
+    md: str, level: int, title: str
+) -> None:
+    """PA-143: el título sale igual que antes, sin los espacios de los extremos."""
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "heading" and node["attrs"]["level"] == level
+    assert "".join(c.get("text", "") for c in node.get("content", [])) == title
+
+
+def test_markdown_to_adf_hashes_without_space_are_not_a_heading() -> None:
+    """PA-143 (límite): «##» sin espacio sigue sin ser un título."""
+    assert markdown_to_adf("##titulo")["content"][0]["type"] == "paragraph"
+
+
+# --- PA-230: _FENCE y _LINK sin coste no lineal -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "md",
+    [
+        "```" + " " * 100_000 + "!",
+        "```" + "\t" * 20_000 + "!",  # los tabuladores se expanden a 4 espacios
+        "[" * 100_000,
+        "[a](" * 25_000,
+    ],
+    ids=["valla-espacios", "valla-tabs", "corchetes", "enlaces-abiertos"],
+)
+def test_markdown_to_adf_is_linear_on_adversarial_lines(md: str) -> None:
+    """PA-230 (ReDoS): «```» + 100 000 espacios + «!» tardaba ~54 s (y 20 000 tabuladores, ~60 s
+    en el conversor completo); ahora todo se convierte en tiempo lineal."""
+    import time
+
+    started = time.perf_counter()
+    markdown_to_adf(md)
+    assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    ("md", "language"),
+    [
+        ("```python\nprint(1)\n```", "python"),
+        ("   ```  sql  \nselect 1\n  ```  ", "sql"),
+        ("```\nx\n```", ""),
+    ],
+    ids=["normal", "espacios-alrededor", "sin-lenguaje"],
+)
+def test_markdown_to_adf_fence_still_recognized(md: str, language: str) -> None:
+    """PA-230: las vallas con espacios alrededor y con o sin lenguaje se siguen reconociendo."""
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node.get("attrs", {}).get("language", "") == language
+
+
+def test_markdown_to_adf_link_label_stops_at_an_inner_bracket() -> None:
+    """PA-230 (comportamiento fijado): la etiqueta no admite «[» (así el patrón es lineal). En
+    «[uno [dos](url)» antes se enlazaba «uno [dos»; ahora «[uno » queda como texto literal y el
+    enlace es solo «dos». El texto completo se conserva."""
+    url = "https://ejemplo.invalid"
+    [paragraph] = markdown_to_adf(f"[uno [dos]({url})")["content"]
+    nodes = paragraph["content"]
+    linked = [n["text"] for n in nodes if any(m["type"] == "link" for m in n.get("marks", []))]
+    assert linked == ["dos"]
+    assert "".join(n.get("text", "") for n in nodes) == "[uno dos"
+    assert all(
+        m["attrs"]["href"] == url for n in nodes for m in n.get("marks", []) if m["type"] == "link"
+    )
+
+
+# --- PA-230: tablas acotadas (ancho × filas) --------------------------------------------------
+
+
+def test_markdown_to_adf_wide_table_with_many_rows_is_linear() -> None:
+    """PA-230 (DoS, security-reviewer): una fila de 50 000 «|» y 25 000 filas creaba ancho × filas
+    celdas (290 s y 7 GB con 12 000 caracteres). Ahora se publica como texto literal, en tiempo
+    lineal y sin perder contenido."""
+    import time
+
+    md = "|" * 50_000 + "\n" + "|\n" * 25_000
+    started = time.perf_counter()
+    [node] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"].count("|") == md.count("|")
+
+
+def test_markdown_to_adf_caps_columns_and_keeps_extra_cells_in_the_last_one() -> None:
+    """PA-230: como mucho MAX_TABLE_COLUMNS columnas; las que sobran se unen a la última celda."""
+    from adapters.jira.adf import MAX_TABLE_COLUMNS
+
+    cells = [f"c{i}" for i in range(MAX_TABLE_COLUMNS + 5)]
+    [table] = markdown_to_adf("| " + " | ".join(cells) + " |")["content"]
+    [row] = table["content"]
+    assert len(row["content"]) == MAX_TABLE_COLUMNS
+    last = row["content"][-1]["content"][0]["content"][0]["text"]
+    assert last == " | ".join(cells[MAX_TABLE_COLUMNS - 1 :])
+
+
+def test_markdown_to_adf_table_over_the_cell_limit_becomes_literal_text() -> None:
+    """PA-230: una tabla con más de MAX_TABLE_CELLS celdas va como bloque de código literal."""
+    from adapters.jira.adf import MAX_TABLE_CELLS
+
+    rows = MAX_TABLE_CELLS // 2 + 1
+    md = "\n".join("| a | b |" for _ in range(rows))
+    [node] = markdown_to_adf(md)["content"]
+    assert node["type"] == "codeBlock"
+    assert node["content"][0]["text"] == md
+
+
+def test_markdown_to_adf_normal_table_is_still_a_table() -> None:
+    """PA-230 (no regresión): una tabla corriente, como la del diff, sigue siendo una tabla."""
+    [node] = markdown_to_adf("| Campo | Antes | Después |\n|---|---|---|\n| title | a | b |")[
+        "content"
+    ]
+    assert node["type"] == "table"
+    assert [c["type"] for c in node["content"][0]["content"]] == ["tableHeader"] * 3
+
+
+def test_markdown_to_adf_list_continuation_lines_are_linear() -> None:
+    """PA-230: miles de líneas de continuación de un elemento de lista se unen en tiempo lineal
+    y conservan su contenido."""
+    import time
+
+    md = "- a\n" + "  b\n" * 24_000  # por debajo del tope de 100 000 caracteres
+    started = time.perf_counter()
+    [lst] = markdown_to_adf(md)["content"]
+    assert time.perf_counter() - started < 1.0
+    [item] = lst["content"]
+    texts = [n.get("text") for n in item["content"][0]["content"] if n["type"] == "text"]
+    assert texts.count("b") == 24_000
+
+
+# --- PA-233: profundidad de las listas anidadas acotada ---------------------------------------
+
+
+def _deep_list_markdown(levels: int) -> str:
+    """Lista con `levels` niveles: cada línea, un espacio más de sangría (tabuladores de 4)."""
+    return "".join("\t" * (k // 4) + " " * (k % 4) + f"- e{k}\n" for k in range(levels))
+
+
+def _list_depth(node: object) -> int:
+    if not isinstance(node, dict):
+        return 0
+    own = 1 if node.get("type") in ("bulletList", "orderedList") else 0
+    return own + max((_list_depth(child) for child in node.get("content", [])), default=0)
+
+
+def test_markdown_to_adf_caps_nested_list_depth_and_keeps_every_item() -> None:
+    """PA-233: ~850 niveles de sangría ya no dan `RecursionError`: como mucho MAX_LIST_DEPTH
+    niveles, lo más profundo se aplana en el último y no se pierde ningún elemento."""
+    import json
+
+    from adapters.jira.adf import MAX_LIST_DEPTH
+
+    levels = 850  # bajo el tope de 100 000 caracteres
+    doc = markdown_to_adf(_deep_list_markdown(levels))
+    assert _list_depth(doc) == MAX_LIST_DEPTH
+    assert json.dumps(doc).count('"text": "e') == levels
+
+
+def test_markdown_to_adf_deep_list_works_with_low_recursion_limit() -> None:
+    """PA-233: también con muchas llamadas previas en la pila (límite de recursión bajo), la
+    conversión y el `json.dumps` del ADF terminan sin `RecursionError`."""
+    import json
+    import sys
+
+    previous = sys.getrecursionlimit()
+    sys.setrecursionlimit(250)
+    try:
+        json.dumps(markdown_to_adf(_deep_list_markdown(850)))
+    finally:
+        sys.setrecursionlimit(previous)
+
+
+def test_markdown_to_adf_shallow_nesting_is_unchanged() -> None:
+    """PA-233 (no regresión): con pocos niveles, el anidamiento es el de siempre."""
+    doc = markdown_to_adf("- a\n  - b\n    - c\n- d")
+    assert _list_depth(doc) == 3

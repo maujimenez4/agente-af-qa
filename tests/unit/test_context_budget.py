@@ -60,11 +60,12 @@ def total_tokens(issues: list[IssueDetail], chunks: list[RetrievedChunk]) -> int
 
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [("", 0), ("a", 1), ("abcd", 1), ("abcde", 2), ("x" * 400, 100), ("x" * 401, 101)],
+    [("", 0), ("a", 1), ("abc", 1), ("abcd", 2), ("x" * 300, 100), ("x" * 301, 101)],
 )
-def test_estimate_tokens_rounds_up_four_chars_per_token(text: str, expected: int) -> None:
-    """PA-07: estimación conservadora ≈ 4 caracteres por token, redondeando hacia arriba."""
-    assert CHARS_PER_TOKEN == 4
+def test_estimate_tokens_rounds_up_three_chars_per_token(text: str, expected: int) -> None:
+    """PA-07 · PA-114: estimación ≈ 3 caracteres por token (qwen3 mide ~3,2 en español),
+    redondeando hacia arriba."""
+    assert CHARS_PER_TOKEN == 3
     assert estimate_tokens(text) == expected
 
 
@@ -222,8 +223,10 @@ def test_apply_budget_truncates_secondary_issue_when_room_is_useful() -> None:
 
 def test_apply_budget_drops_chunks_that_do_not_fit_and_counts_them() -> None:
     """PA-07: los fragmentos que no caben se descartan (sin recortar) y se cuentan."""
-    chunks = [make_chunk("c1", 400), make_chunk("c2", 400), make_chunk("c3", 400)]  # 120 c/u
-    _, sel_chunks, report = apply_budget([make_issue("DEMO-1", 20)], chunks, 290)
+    chunks = [make_chunk("c1", 400), make_chunk("c2", 400), make_chunk("c3", 400)]
+    issue = make_issue("DEMO-1", 20)
+    budget = issue_tokens(issue) + 2 * chunk_tokens(chunks[0])  # caben justo dos fragmentos
+    _, sel_chunks, report = apply_budget([issue], chunks, budget)
     assert [c.chunk.id for c in sel_chunks] == ["c1", "c2"]
     assert report.dropped_chunks == 1
     assert all(len(c.chunk.content) == 400 for c in sel_chunks)

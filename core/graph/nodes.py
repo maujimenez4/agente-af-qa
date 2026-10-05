@@ -18,6 +18,7 @@ from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
+from core.context.budget import PromptLimits, default_prompt_limits
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.context import StoryContext
@@ -248,12 +249,19 @@ class GraphNodes:
                 artifact_id=str(artifact.id) if artifact else None,
             )
 
+    def _limits(self) -> PromptLimits:
+        """Ventana y topes de salida de la configuración del contenedor (PA-114, PA-228); sin
+        configuración (contenedores de prueba), los de la aplicación."""
+        if self.c.config is not None:
+            return PromptLimits.from_config(self.c.config)
+        return default_prompt_limits()
+
     def _write_story(
         self, state: AgentState, artifact_id: str
     ) -> tuple[StoryDraft, ImpactAnalysis | None]:
         """HU con los prompts de T-20; en una evolución, diff frente a la versión de Jira."""
         origin, previous = state["origin"], state["artifact"]
-        writer = StoryWriter(self.c.llm)
+        writer = StoryWriter(self.c.llm, limits=self._limits())
         ctx = StoryContext(
             origin_kind=origin["kind"],
             origin_key=origin.get("key"),
@@ -263,7 +271,7 @@ class GraphNodes:
             feedback=list(state["feedback"]),
         )
         current = previous.content if previous and isinstance(previous.content, UserStory) else None
-        analyzer = ImpactAnalyzer(self.c.llm)
+        analyzer = ImpactAnalyzer(self.c.llm, limits=self._limits())
         jira = list(state["jira_context"])
         if origin["kind"] != "story":
             # HU nueva; al iterar, se evoluciona el borrador anterior con el feedback (RF-20).
@@ -328,9 +336,10 @@ class GraphNodes:
             unpublished = not origin.get("key")
             if unpublished:
                 chained = chained.model_copy(update={"jira_key": None})
-            return TestWriter(self.c.llm).generate(chained, ctx, unpublished=unpublished)
-        story = self._baseline(StoryWriter(self.c.llm), ctx, artifact_id)
-        return TestWriter(self.c.llm).generate(story, ctx)
+            tests_writer = TestWriter(self.c.llm, limits=self._limits())
+            return tests_writer.generate(chained, ctx, unpublished=unpublished)
+        story = self._baseline(StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id)
+        return TestWriter(self.c.llm, limits=self._limits()).generate(story, ctx)
 
     def _handoff_trace(self, handoff_id: str) -> dict[str, Any]:
         """Referencias de la HU de origen para la auditoría (solo ids, nunca contenido)."""
@@ -553,12 +562,19 @@ class GraphNodes:
         if state["mode"] == "qa" and not state["origin"].get("key"):
             raise PublishError(UNPUBLISHED_STORY)  # T-54: sin clave, nada se escribe
         # El estado del grafo puede alterarse: la aprobación y la operación salen del registro.
-        approval = self.c.approvals.find(artifact, _target(state, config, self.c.require_actor))
-        if approval is None:
-            raise PublishError(
-                "No consta una aprobación humana vigente para esta versión exacta del artefacto."
-            )
+        # PA-141: una sola publicación a la vez por artefacto; dentro se relee la aprobación.
+        target = _target(state, config, self.c.require_actor)
+        with self.c.approvals.publishing(artifact, target) as approval:
+            if approval is None:
+                raise PublishError(
+                    "No consta una aprobación humana vigente para esta versión exacta "
+                    "del artefacto."
+                )
+            return self._publish_approved(state, artifact, approval)
 
+    def _publish_approved(
+        self, state: AgentState, artifact: Artifact, approval: Approval
+    ) -> dict[str, Any]:
         epic_key = _parent_of(state, approval.target.origin_key)
         plan = self._plan(approval.target, artifact, epic_key)
         if self.c.publish_mode != "live":
@@ -581,21 +597,40 @@ class GraphNodes:
             self._track(approval.target, "simulated", artifact)
             return {}
 
-        if isinstance(artifact.content, TestSuite):
-            result = self.c.test_management.publish_suite(artifact.content)
-            errors = [f"No se pudo publicar {case_id}." for case_id in result.failed]
-            failed_ids = list(result.failed)
-            published = transition(artifact, ArtifactStatus.PUBLISHED) if not errors else artifact
-            keys = result.created
-        else:
-            story, keys, errors = self._publish_story(approval, artifact, epic_key)
-            failed_ids = []
-            artifact = artifact.model_copy(update={"content": story})
-            published = transition(artifact, ArtifactStatus.PUBLISHED)
-        if published.status is ArtifactStatus.PUBLISHED:
-            self.c.approvals.consume(approval, published)  # un solo uso
-            self._forget_baseline(str(artifact.id))
-        # Primero la auditoría de lo que ya se escribió en Jira (RF-35, RNF-13).
+        # PA-141: la aprobación queda gastada antes de la primera escritura; si después falla la
+        # auditoría o el consumo, no se vuelve a escribir con ella en este proceso.
+        self.c.approvals.spend(approval)
+        try:
+            if isinstance(artifact.content, TestSuite):
+                result = self.c.test_management.publish_suite(artifact.content)
+                errors = [f"No se pudo publicar {case_id}." for case_id in result.failed]
+                failed_ids = list(result.failed)
+                published = (
+                    transition(artifact, ArtifactStatus.PUBLISHED) if not errors else artifact
+                )
+                keys = result.created
+            else:
+                story, keys, errors = self._publish_story(approval, artifact, epic_key)
+                failed_ids = []
+                artifact = artifact.model_copy(update={"content": story})
+                published = transition(artifact, ArtifactStatus.PUBLISHED)
+        except Exception as exc:
+            # RNF-13: una escritura interrumpida a mitad también queda en la auditoría.
+            self._record(
+                "publish",
+                state,
+                artifact,
+                detail={
+                    "simulated": False,
+                    "plan": plan,
+                    "interrupted": True,
+                    "error_type": type(exc).__name__,
+                },
+                save_version=False,
+            )
+            raise
+        # Primero la auditoría de lo que ya se escribió en Jira (RF-35, RNF-13), y después el
+        # consumo de la aprobación: si este fallara, lo escrito ya consta.
         self._record(
             "publish",
             state,
@@ -609,6 +644,11 @@ class GraphNodes:
             },
             save_version=False,
         )
+        if published.status is ArtifactStatus.PUBLISHED:
+            self.c.approvals.consume(approval, published)  # un solo uso
+            self._forget_baseline(str(artifact.id))
+        else:
+            self.c.approvals.unspend(approval)  # parcial: se puede reintentar lo fallido
         # La versión aprobada ya está guardada; aquí solo cambia el estado (y la clave de Jira).
         if self.c.versions is not None:
             jira_key = getattr(published.content, "jira_key", None)

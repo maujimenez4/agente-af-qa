@@ -395,6 +395,18 @@ def test_delete_by_document_is_noop_when_missing(engine: Engine, store: PgVector
 
 
 @pytest.mark.integration
+def test_has_document_reflects_upsert_and_delete(
+    store: PgVectorStore, embedder: FakeEmbeddingProvider
+) -> None:
+    """T-33: has_document consulta `documents` por el id de texto, sin embeddings."""
+    assert not store.has_document("doc-padron")
+    _load_corpus(store, embedder)
+    assert store.has_document("doc-padron")
+    store.delete_by_document("doc-padron")
+    assert not store.has_document("doc-padron")
+
+
+@pytest.mark.integration
 def test_reindex_leaves_no_stale_chunks(
     engine: Engine, store: PgVectorStore, embedder: FakeEmbeddingProvider
 ) -> None:

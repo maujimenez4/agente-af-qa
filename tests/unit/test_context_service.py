@@ -570,15 +570,15 @@ def test_retrieve_context_node_respects_config_budget(
         -(-len(c.chunk.content) // 4) for c in update["rag_context"]
     )
     assert used <= 60
-    assert len(jira) < 4  # con el presupuesto por defecto (6000) entrarían las 4
+    assert len(jira) < 4  # con el presupuesto por defecto (3300) entrarían las 4
 
 
 def test_retrieve_context_node_default_config_keeps_full_context(
     tmp_path: Path, clean_env: pytest.MonkeyPatch, restore_logging: None
 ) -> None:
-    """PA-07: con el presupuesto de config/models.yaml (6000) entra todo el contexto del fake."""
+    """PA-07 · PA-114: con el presupuesto de config/models.yaml (3300) entran las HU del fake."""
     config = _app_config()
-    assert config.models.limits.context_token_budget == 6000
+    assert config.models.limits.context_token_budget == 3300
     nodes = GraphNodes(fake_container(tmp_path, config=config))
     state = initial_state("af-demo", "functional", STORY_ORIGIN)  # type: ignore[arg-type]
     state.update(nodes.load_origin(state))  # type: ignore[typeddict-item]

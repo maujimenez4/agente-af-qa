@@ -20,7 +20,6 @@ import yaml
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import ExternalServiceError
-from core.functional.context import escape_data
 from core.rag.documents import (
     CATEGORIES,
     MEMORY_CATEGORY,
@@ -30,6 +29,7 @@ from core.rag.documents import (
     SourceClassification,
 )
 from core.rag.prompts import Prompt, load_prompt
+from core.text import escape_data
 
 INDEX_FILENAMES = frozenset({"README.md"})
 DEFAULT_MAX_BYTES = 20 * 1024 * 1024  # evita agotar memoria o CPU con archivos enormes

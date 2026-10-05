@@ -18,12 +18,13 @@ from dataclasses import dataclass
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import AgentError
-from core.functional.context import escape_data
+from core.context.budget import PromptLimits, check_messages, default_prompt_limits
 from core.functional.writer import fill_placeholders
 from core.logging import get_logger
 from core.projects import ISSUE_KEY
 from core.qa.validation import _personal_data_kind  # PA-250: hacerlo público en core/qa
 from core.rag.prompts import Prompt, load_prompt
+from core.text import escape_data
 from schemas.artifact import Artifact
 from schemas.memory import Memory
 from schemas.test_case import TestSuite
@@ -39,15 +40,29 @@ _RULE_LINE = re.compile(r"[-=*_~\s]+")
 # Formas habituales de secretos: no deben llegar a la memoria, que se reindexa en el RAG.
 _SECRET = re.compile(
     r"(?i)\bbearer\s+[\w.~+/-]{12,}"
+    r"|\bauthorization\s*:\s*basic\s+[A-Za-z0-9+/]{12,}={0,2}"  # PA-226
     r"|\beyJ[\w-]{8,}\.[\w-]{8,}\."
-    r"|\b(?:sk|gsk|ghp|xox[bp])[-_][\w-]{16,}"
+    r"|\b(?:sk|gsk|gh[pousr]|glpat|xox[abprs])[-_][\w-]{16,}"  # PA-226: GitHub, Slack…
+    r"|\bgithub_pat_\w{22,}|\bAIza[\w-]{30,}"  # PA-226: GitHub y Google
     r"|\bAKIA[0-9A-Z]{16}\b"
+    r"|-----BEGIN [A-Z ]{0,40}PRIVATE KEY(?: BLOCK)?-----"  # PA-226 (también PGP)
     r"|\b[a-z][\w+.-]*://[^\s:/@]+:[^\s@]+@"  # cadena de conexión con credenciales
+    r"|(?<![a-z0-9])pin\s*[:=]?\s*\d{4,12}\b"  # PA-226: «PIN: 1234», «PIN 4821»
     # PA-218: tras «contraseña:» solo cuenta un valor que lo parezca: con dígitos o símbolos,
     # con una mayúscula en medio (frase de paso, «CorrectoCaballo») o de 16 letras o más.
     # «La contraseña: mínimo ocho caracteres» es una regla de negocio, no un secreto.
-    r"|\b(?:api[_ -]?key|clave(?:[_ ]api)?|password|contraseña|secret)\s*[:=]\s*"
-    r"(?:(?=\S*[\d_\-+/=@#$%&*!~])\S{6,}|(?-i:(?=\S*[a-zà-ÿ][A-Z]))\S{6,}|\w{16,})"
+    # PA-226: más palabras clave, también tras «_» («client_secret»). Lookahead y valor acotados
+    # a 64 caracteres: sin el tope, una entrada adversaria era cuadrática (ReDoS).
+    # Palabras de credencial fuerte: el guion también delata un secreto («correcto-caballo»).
+    r"|(?<![a-z0-9])(?:api[_ -]?key|(?:client|api)[_ -]?secret|clave[_ ]api|password|passwd"
+    r"|pwd|pass|contraseña|secreto|secret)\s*[:=]\s*"
+    r"(?:(?=\S{0,64}[\d_\-+/=@#$%&*!~])\S{6,64}|(?-i:(?=\S{0,64}[a-zà-ÿ][A-Z]))\S{6,64}"
+    r"|\w{16,64})"
+    # Palabras ambiguas en español («clave», «token», «credencial»): el guion no cuenta
+    # («Clave: identificador-del-carné» es texto de negocio).
+    r"|(?<![a-z0-9])(?:clave|token|credencial(?:es)?)\s*[:=]\s*"
+    r"(?:(?=\S{0,64}[\d_+/=@#$%&*!~])\S{6,64}|(?-i:(?=\S{0,64}[a-zà-ÿ][A-Z]))\S{6,64}"
+    r"|\w{16,64})"
 )
 MAX_SHOWN = 80
 _LIST_FIELDS = (
@@ -169,9 +184,22 @@ def _has_sensitive_data(memory: Memory) -> bool:
 class LLMMemoryGenerator:
     """`MemoryGenerator` con el LLM de la tarea `synthesize_memory` (SPEC-00 §4)."""
 
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def generate(self, artifact: Artifact) -> Memory:
         started = time.perf_counter()
@@ -181,6 +209,10 @@ class LLMMemoryGenerator:
             Message(role="system", content=prompt.text),
             Message(role="user", content=render_artifact(artifact)),
         ]
+        # PA-114: la memoria no tiene fuentes que recortar; si no cabe, error claro.
+        check_messages(
+            messages, self.limits, TaskType.SYNTHESIZE_MEMORY, action="synthesize_memory"
+        )
         result = self._llm.generate_structured(messages, Memory, TaskType.SYNTHESIZE_MEMORY)
         memory = sanitize(result.content, artifact, facts)
         errors = memory_errors(memory, facts)
@@ -196,6 +228,9 @@ class LLMMemoryGenerator:
                 *previous,
                 Message(role="user", content=self._retry_text(errors, facts)),
             ]
+            check_messages(
+                retry_messages, self.limits, TaskType.SYNTHESIZE_MEMORY, action="memory_retry"
+            )
             result = self._llm.generate_structured(
                 retry_messages, Memory, TaskType.SYNTHESIZE_MEMORY
             )

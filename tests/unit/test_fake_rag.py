@@ -120,6 +120,14 @@ def test_delete_by_document_removes_only_that_document(store: FakeVectorStore) -
     assert set(store.chunks) == {"glo-0"}
 
 
+def test_has_document_reflects_upsert_and_delete(store: FakeVectorStore) -> None:
+    """T-33: has_document dice si un documento está indexado, sin buscar."""
+    assert store.has_document("doc-reglamento")
+    assert not store.has_document("memoria-DEMO-9001")
+    store.delete_by_document("doc-reglamento")
+    assert not store.has_document("doc-reglamento")
+
+
 def test_search_returns_most_similar_first(store: FakeVectorStore) -> None:
     """CA-00-03: la búsqueda ordena por puntuación e informa la fuente RAG."""
     query = "renovaciones del préstamo"

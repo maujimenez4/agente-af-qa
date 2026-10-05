@@ -1,76 +1,71 @@
-# SESIÓN JIRA · Ronda 4: corregir los defectos de la prueba cruzada T-34
+# SESIÓN JIRA · Ronda 10: Administración mínima (T-29) con la prueba de conexiones
 
-Tu T-34 ya está fusionada en `PreProduccion` (240 pruebas, 50 `xfail` estrictos, PA-211…PA-224). Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu ronda 9 ya está fusionada. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-a switch -C ses-jira origin/PreProduccion
+git -C .claude/worktrees/area-a switch -C ses-admin origin/PreProduccion
 cd .claude/worktrees/area-a
 uv sync
-uv run pytest -m "not integration"          # en verde, con 50 xfailed
+uv run python -m pytest -m "not integration"   # en verde, sin xfail
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", en la rama **`ses-jira`**, recién puesta al día desde `PreProduccion`. Tu T-34 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-admin`**, creada desde `PreProduccion`. Tu ronda 9 ya está fusionada.
 
-**En esta ronda corriges los defectos que encontraste.** El área B ya no tiene responsable de backend: su responsable hace el frontend en React. La principal te autoriza a tocar el código de esas PA.
+**Objetivo: T-29 mínima.** Es una página de **Administración**, solo para el rol `admin` (`MANAGE_CONNECTIONS` y `MANAGE_MODELS` en `core/permissions.py`; usuario de ejemplo `admin-demo`).
+- **Entra:** probar las conexiones y ver los modelos por tarea, **solo lectura**.
+- **No entra:** la carga y la gestión de documentos (T-43) ni la gestión de usuarios.
 
-Hay **otras sesiones trabajando a la vez**:
-- **Principal:** `PreProduccion`; contratos, API y composición.
-- **Modelos:** `ses-flujo`, con T-54, en `core/graph/`, `core/conversations.py`, `core/qa/` y una migración nueva.
-- **UI:** `ses-ui`, con T-28 en `app/` (Streamlit).
-- **Ollama:** medición y configuración de modelos (`config/models.yaml`).
+Lee la fila de T-29 en `docs/KANBAN.md`, RF-01, RF-07, RF-40 y RF-41, `docs/specs/UI.md` (Administración y los mensajes que remiten a «Revisa las conexiones en Administración») y cómo está hecha una ruta en `api/`.
 
-## Orden de trabajo (de más a menos impacto en la demo)
-**Bloque 1 · datos y flujo de la demo:**
-1. **PA-214:** ids de documento duplicados (un documento borra a otro al indexar). Rechaza o desambigua el id, con un error claro.
-2. **PA-216:** indexación no atómica y `zip(strict=True)` sin envolver. Que un fallo no deje el documento fuera del índice.
-3. **PA-218:** falso positivo de secreto en la memoria, que acaba en error tras publicar una HU.
-4. **PA-222:** revisar la calidad.
-   - Comprueba el tipo de la incidencia.
-   - Valida los IDs que se mencionan en el texto, no solo `target_id`.
-5. **PA-223:**
-   - la vista previa de fuentes aplica `normalize_excluded_sources`, como el grafo;
-   - el tipo «Épica» se reconoce también en NFD.
-6. **PA-211:** solapamiento nulo en prosa al trocear. Afecta a la calidad del RAG.
-   - Si cambia el troceado, avisa: habrá que reindexar el corpus.
-
-**Bloque 2 · robustez:**
-- PA-212 (encabezados y vallas);
-- PA-213 (BOM en la ingesta);
-- PA-215 (delimitadores en el prompt de clasificación);
-- PA-217 (CLI de indexación);
-- PA-220 (embeddings: `retry-after` e índices);
-- PA-221 (pgvector: vector de consulta y categorías mezcladas);
-- PA-224 (prompts: BOM, cuerpo vacío y nombre).
-
-**Fuera de esta ronda:**
-- La parte de **PA-219** que pide `min_length` en `schemas/memory.py` (congelado): propónla y la hace la principal. La parte del `CP-99` en `TRACE_ID` sí es tuya.
-- No toques `core/qa/` (T-54).
-
-## Cómo
-- Por cada PA, quita el `xfail` de sus pruebas (o invierte las de comportamiento fijado, como indicaste en cada PA) y corrige el código hasta que pasen.
-- Un commit por PA o por grupo pequeño: `T-34: corrige PA-2XX … [RF-YY]`.
-- Cierra cada PA en el Kanban con la fecha.
-- Si una corrección necesita cambiar un contrato (`schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py`), **para y escríbelo como propuesta**.
+## Tareas
+1. **Prueba de conexiones** (un servicio en `core/`, por ejemplo `core/health.py`), con un resultado por servicio:
+   - **Jira:** una lectura barata, como `list_projects` o `myself`; nunca una escritura.
+   - **PostgreSQL:** `SELECT 1` y la revisión de Alembic aplicada frente a `head`.
+   - **Ollama** (o el proveedor de cada cadena): que responde y que los modelos de `config/models.yaml` **están descargados** (listar modelos). **Sin generar texto:** la prueba no gasta tokens ni carga un modelo en memoria.
+   - **Embeddings:** que el modelo de embeddings está disponible, por el mismo camino, sin embeddear.
+   - Cada comprobación lleva su **tiempo límite** (unos pocos segundos) y se ejecutan en paralelo; un fallo no impide las demás.
+   - Resultado: `{service, ok, detail, duration_ms}`. `detail` va en español y sin secretos: nada de tokens, cabeceras, cadenas de conexión con contraseña ni trazas. Basta con el host, sin usuario. Los errores, envueltos como siempre (`adapters/errors.py`).
+2. **API**, en un módulo propio `api/admin.py` con su `APIRouter` (prefijo `/admin`, solo `admin`; los demás roles reciben 403 con el código existente). En `api/app.py` solo se añade el router a la lista que se incluye: la sesión Modelos está tocando el mismo archivo en paralelo.
+   - `POST /admin/connections/test` → la lista de resultados, con un límite de frecuencia por persona (por ejemplo, una cada 10 s; 429 con `retry_after`). Es POST porque hace llamadas externas, y lleva CSRF.
+   - `GET /admin/models` → cadena de modelos por tarea (proveedor y modelo; las URL, solo con el host) y el proveedor activo por tarea si el router lo sabe. Sin claves.
+   - Ejemplos en las respuestas y apartado en «Novedades para el frontend» de `docs/api/README.md`.
+3. **Streamlit (plan B):** página **Administración** en `app/` (vista nueva en `app/views/`), visible solo para `admin`. Tiene el botón «Probar conexiones», con una fila por servicio (✅/❌, detalle y tiempo), y la tabla de modelos por tarea.
+4. **Servidor MCP:** no se toca.
 
 ## Reglas
+- **Solo añade:** rutas nuevas y campos opcionales; nada existente cambia.
+- **Contrato:** regenéralo con `uv run python -m api.export_openapi`. Si al fusionar choca con el de la sesión Modelos, lo regenera la principal.
 - **Puedes tocar:**
-  - `core/rag/`, `core/memory/`, `core/quality.py`, `core/guided_start.py` y `core/context/service.py` (solo para `NOT_STORIES`, PA-223);
-  - `adapters/embeddings/` y `adapters/vectorstore/`;
-  - `prompts/` (solo PA-215, si hace falta);
-  - sus pruebas y `tests/unit/test_cross_b_*.py`.
+  - `core/health.py` (nuevo);
+  - `api/admin.py`, la línea del router en `api/app.py` y `api/models.py` (solo añadir);
+  - `app/` (vista y navegación);
+  - `docs/api/`;
+  - y sus pruebas.
 
-  No toques `core/graph/`, `core/conversations.py`, `core/qa/`, `api/`, `app/`, `web/`, `config/`, `schemas/` ni los contratos.
-- **Kanban:** cambia solo las PA que cierres y añade tu fila al registro. No toques el tablero. **Propuestas en PA-225…PA-249.**
-- **Seguridad:** no leas el `.env`; datos ficticios; los logs no llevan contenido.
-- **LLM:** solo fakes.
-- **Antes de cada commit:**
-  - `uv run pytest -m "not integration"`, `uv run ruff check .` y `uv run ruff format --check .` en verde;
-  - `spec-checker` CONFORME y `security-reviewer` APTO al terminar cada bloque.
+  Si necesitas un método nuevo en un `Protocol` de `adapters/base.py` (congelado), como `ping` o `list_models`, **para y propónmelo** en el plan. No toques `core/graph/`, `schemas/`, `config/` ni `web/`.
+- **Pruebas** con fakes:
+  - todo bien;
+  - un servicio caído y otro que agota el tiempo (los demás siguen);
+  - modelo no descargado;
+  - `detail` sin secretos (con un fake que lanza un error que contiene una cadena ficticia tipo clave);
+  - 403 para `functional` y `qa`;
+  - 429 por frecuencia;
+  - ninguna llamada de generación al LLM.
+- Las pruebas reales llevan `@pytest.mark.integration` y se saltan sin `.env`; **no las ejecutes**, las lanza la principal.
+- **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
+- **gitleaks:** sin `secret`, `password` ni `token` como nombre de variables con literales, ni textos que imiten una clave privada.
+- **Kanban:**
+  - T-29 → ✅ con la fecha, anotando que es la versión mínima;
+  - tu fila en el registro;
+  - propuestas en **PA-235…PA-249**.
+- **Antes del commit:**
+  - pytest, `ruff check` y `ruff format --check` en verde;
+  - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push origin ses-jira` al terminar cada bloque y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-admin` y avísame.
 
-Empieza por el bloque 1 y preséntame el plan breve antes de tocar código.
+Empieza presentándome el plan (sobre todo cómo compruebas Ollama y los embeddings sin generar, y si necesitas tocar algún `Protocol`) antes de escribir código.

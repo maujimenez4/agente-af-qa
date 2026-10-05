@@ -23,7 +23,11 @@ from pydantic import BaseModel
 
 from adapters.base import LLMProvider, LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import ExternalServiceError, RateLimitError
-from adapters.llm.openai_compatible import ProviderTimeoutError, StructuredOutputError
+from adapters.llm.openai_compatible import (
+    ProviderTimeoutError,
+    StructuredOutputError,
+    spent_tokens,
+)
 from adapters.llm.usage import UsageRecord, UsageRecorder, current_artifact_id
 
 log = structlog.get_logger(__name__)
@@ -127,9 +131,11 @@ class FallbackLLMProvider:
             start = time.monotonic()
             try:
                 result = call(provider)
-            except StructuredOutputError:
+            except StructuredOutputError as exc:
+                self._record_spent(task, name, model, exc, start)
                 raise
             except ExternalServiceError as exc:
+                self._record_spent(task, name, model, exc, start)
                 reason = fallback_reason(exc)
                 log.warning(
                     "llm_provider_failed",
@@ -139,6 +145,7 @@ class FallbackLLMProvider:
                     model=model,
                     error=type(exc).__name__,
                     reason=reason,
+                    artifact_id=current_artifact_id(),
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )
                 if (events := _EVENTS.get()) is not None:
@@ -149,6 +156,42 @@ class FallbackLLMProvider:
             return result
         raise _chain_error(task, failures)
 
+    def _record_spent(
+        self,
+        task: TaskType,
+        provider: str,
+        model: str | None,
+        exc: BaseException,
+        start: float,
+    ) -> None:
+        """PA-191: registra los tokens que un proveedor consumió antes de fallar (RF-43)."""
+        input_tokens, output_tokens = spent_tokens(exc)
+        if self._recorder is None or input_tokens + output_tokens == 0:
+            return
+        try:
+            self._recorder.record(
+                UsageRecord(
+                    task=task,
+                    provider=provider,
+                    model=model or "",
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    latency_ms=int((time.monotonic() - start) * 1000),
+                    artifact_id=current_artifact_id(),
+                )
+            )
+        except Exception as error:  # el registro no puede tapar el error del proveedor
+            log.warning(
+                "llm_usage_not_recorded",
+                action="llm_call",
+                task=task.value,
+                model=model,
+                artifact_id=current_artifact_id(),
+                error=type(error).__name__,
+            )
+            return
+        self._check_daily_budget(task, model)  # PA-145: también tras registrar un fallo
+
     def _record(self, task: TaskType, result: LLMResult | StructuredResult) -> None:
         log.info(
             "llm_call",
@@ -158,6 +201,7 @@ class FallbackLLMProvider:
             model=result.model,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            artifact_id=current_artifact_id(),  # PA-194: campos de log de CLAUDE.md
             duration_ms=result.latency_ms,
         )
         if self._recorder is None:
@@ -175,14 +219,19 @@ class FallbackLLMProvider:
                 )
             )
         except Exception as exc:  # el registro no puede tumbar la respuesta (RNF-12)
-            self._warn_usage("llm_usage_not_recorded", task, result, exc)
+            self._warn_usage("llm_usage_not_recorded", task, result.model, exc)
             return
+        self._check_daily_budget(task, result.model)
+
+    def _check_daily_budget(self, task: TaskType, model: str | None) -> None:
+        """Aviso de consumo diario (RNF-27) tras registrar tokens, sean de una llamada correcta
+        o de una que falló (PA-145). Nunca tumba la llamada (RNF-12)."""
         if self._daily_token_warning is None:
             return
         try:
             used = self.tokens_today()
         except Exception as exc:  # el aviso diario tampoco (RNF-12)
-            self._warn_usage("llm_usage_not_read", task, result, exc)
+            self._warn_usage("llm_usage_not_read", task, model, exc)
             return
         if used >= self._daily_token_warning:
             log.warning(
@@ -193,11 +242,9 @@ class FallbackLLMProvider:
             )
 
     @staticmethod
-    def _warn_usage(
-        event: str, task: TaskType, result: LLMResult | StructuredResult, exc: Exception
-    ) -> None:
+    def _warn_usage(event: str, task: TaskType, model: str | None, exc: Exception) -> None:
         log.warning(
-            event, action="llm_call", task=task.value, model=result.model, error=type(exc).__name__
+            event, action="llm_call", task=task.value, model=model, error=type(exc).__name__
         )
 
 

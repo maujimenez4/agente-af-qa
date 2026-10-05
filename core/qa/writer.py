@@ -10,17 +10,20 @@ import json
 from dataclasses import dataclass, field
 
 from adapters.base import LLMProvider, Message, TaskType
+from core.context.budget import PromptLimits, default_prompt_limits
 from core.functional.citations import (
     CitationError,
     allowed_refs_text,
     citation_errors,
+    repair_citations,
     with_real_excerpts,
     without_forced_citations,
 )
-from core.functional.context import StoryContext, escape_data, render_context
-from core.functional.writer import PromptLoader, fill_placeholders
+from core.functional.context import CitableSource, StoryContext, render_context
+from core.functional.writer import PromptLoader, fill_placeholders, fit_context
 from core.qa.validation import CoverageError, suite_errors
 from core.rag.prompts import load_prompt
+from core.text import escape_data  # PA-227
 from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 
@@ -46,9 +49,22 @@ UNPUBLISHED_STORY_KEY = "SIN-CLAVE"
 class TestWriter:
     __test__ = False  # evita que pytest la tome por una clase de pruebas
 
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def generate(
         self, story: UserStory, ctx: StoryContext | None = None, *, unpublished: bool = False
@@ -74,37 +90,58 @@ class TestWriter:
             feedback=base.feedback,
         )
         prompt = self._load("generate_tests")
+        ctx, messages = fit_context(  # PA-114: nunca se desborda la ventana en silencio
+            ctx,
+            lambda c: [
+                Message(role="system", content=prompt.text),
+                Message(role="user", content=render_context(c)),
+            ],
+            self.limits,
+            TaskType.GENERATE_TESTS,
+            action="generate_tests",
+        )
         sources = ctx.sources()
-        messages = [
-            Message(role="system", content=prompt.text),
-            Message(role="user", content=render_context(ctx)),
-        ]
         result = self._llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
-        suite = without_forced_citations(_with_key(result.content, story_key), sources)
+        suite = _cited(_with_key(result.content, story_key), sources)
         input_tokens, output_tokens = result.input_tokens, result.output_tokens
 
         errors = suite_errors(suite, story, sources)
         if errors:
-            feedback = fill_placeholders(
-                self._load("tests_retry").text,
-                {
-                    # Ya son seguros: las citas llegan escapadas, los IDs siguen un patrón y
-                    # las claves sospechosas no se muestran.
-                    "errors": "\n".join(f"- {e}" for e in errors),
-                    "ids": _ids_text(story),
-                    "allowed": allowed_refs_text(sources),
-                },
-            )
+            retry_text = self._load("tests_retry").text
             suite_json = json.dumps(suite.model_dump(mode="json"), ensure_ascii=False)
-            retry_messages = [
-                *messages,
-                Message(role="assistant", content=suite_json),
-                Message(role="user", content=feedback),
-            ]
-            result = self._llm.generate_structured(
-                retry_messages, TestSuite, TaskType.GENERATE_TESTS
+            first = suite
+
+            def retry_messages(c: StoryContext) -> list[Message]:
+                # Las fuentes permitidas y los errores, del contexto que de verdad se envía.
+                allowed = c.sources()
+                feedback = fill_placeholders(
+                    retry_text,
+                    {
+                        # Ya son seguros: las citas llegan escapadas, los IDs siguen un patrón
+                        # y las claves sospechosas no se muestran.
+                        "errors": "\n".join(f"- {e}" for e in suite_errors(first, story, allowed)),
+                        "ids": _ids_text(story),
+                        "allowed": allowed_refs_text(allowed),
+                    },
+                )
+                return [
+                    Message(role="system", content=prompt.text),
+                    Message(role="user", content=render_context(c)),
+                    Message(role="assistant", content=suite_json),
+                    Message(role="user", content=feedback),
+                ]
+
+            # PA-114: el reintento de cobertura es el mensaje más largo; pasa por la guarda.
+            ctx, retry = fit_context(
+                ctx,
+                retry_messages,
+                self.limits,
+                TaskType.GENERATE_TESTS,
+                action="generate_tests_retry",
             )
-            suite = without_forced_citations(_with_key(result.content, story_key), sources)
+            sources = ctx.sources()
+            result = self._llm.generate_structured(retry, TestSuite, TaskType.GENERATE_TESTS)
+            suite = _cited(_with_key(result.content, story_key), sources)
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(suite, sources):
@@ -132,6 +169,11 @@ class TestWriter:
             output_tokens=output_tokens,
             coverage_md=suite.coverage_md(),
         )
+
+
+def _cited(suite: TestSuite, sources: list[CitableSource]) -> TestSuite:
+    """Citas sin inventar (sin fuentes, ninguna) y reparadas sin LLM si es inequívoco (PA-281)."""
+    return repair_citations(without_forced_citations(suite, sources), sources)[0]
 
 
 def _with_key(suite: TestSuite, story_key: str) -> TestSuite:

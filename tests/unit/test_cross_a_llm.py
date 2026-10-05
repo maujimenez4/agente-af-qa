@@ -708,16 +708,6 @@ def test_chain_records_only_answering_provider_when_first_rate_limited() -> None
     assert [(r.provider, r.total_tokens) for r in recorder.records] == [("p2", 10)]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-191): una salida estructurada que falla tras el reintento consume "
-        "dos peticiones con tokens, pero `StructuredOutputError` no los lleva y "
-        "`FallbackLLMProvider` solo registra las llamadas correctas: el consumo diario queda "
-        "por debajo del real (adapters/llm/openai_compatible.py:156-162, "
-        "adapters/llm/fallback.py:130-131)"
-    ),
-)
 def test_chain_records_consumed_tokens_when_structured_output_fails() -> None:
     """RF-43 · RNF-27: las peticiones que acaban en `StructuredOutputError` se registran."""
     recorder = InMemoryUsageRecorder()
@@ -730,15 +720,6 @@ def test_chain_records_consumed_tokens_when_structured_output_fails() -> None:
     assert sum(r.total_tokens for r in recorder.records) == 100
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-191): si el primer proveedor responde (con tokens) y su reintento "
-        "agota el tiempo, la cadena pasa al siguiente y solo registra los tokens de este; los "
-        "del primero se pierden (adapters/llm/openai_compatible.py:150-155, "
-        "adapters/llm/fallback.py:132-147)"
-    ),
-)
 def test_chain_records_tokens_of_failed_provider_when_its_retry_times_out() -> None:
     """RF-43 · RNF-27: los tokens ya consumidos por un proveedor que luego falla se registran."""
     recorder = InMemoryUsageRecorder()
@@ -762,15 +743,6 @@ def test_generate_estimates_tokens_when_usage_is_null() -> None:
     assert result.output_tokens >= 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-192): un 200 con contenido válido y `usage` incompleto (solo "
-        "`total_tokens`, o recuentos `null`) se descarta como «respuesta inesperada» y la "
-        "cadena pasa al siguiente proveedor; debería estimar los tokens como con `usage: null` "
-        "(adapters/llm/openai_compatible.py:349-353)"
-    ),
-)
 @pytest.mark.parametrize(
     "usage",
     [
@@ -790,16 +762,6 @@ def test_generate_keeps_answer_and_estimates_tokens_when_usage_incomplete(
     assert result.input_tokens >= 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-193): con recuentos negativos en `usage`, `LLMResult`/"
-        "`StructuredResult` lanzan un `ValidationError` de pydantic sin envolver (con "
-        "`input_value` y la URL de pydantic) que no es `ExternalServiceError`: llega tal cual "
-        "al llamante y la cadena no pasa al siguiente (adapters/llm/openai_compatible.py:"
-        "124-131, 163-170 y 349-354)"
-    ),
-)
 def test_chain_uses_next_provider_with_safe_error_when_usage_is_negative() -> None:
     """RNF-02 · RF-44: un `usage` incoherente es fallo del proveedor, con error seguro."""
     first = build("p1", completion("hola ficticio", tokens=(-4, 2)))
@@ -813,14 +775,6 @@ def test_chain_uses_next_provider_with_safe_error_when_usage_is_negative() -> No
     assert [e.reason for e in events] == ["error"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-194): el log `llm_call` no incluye `artifact_id` aunque la llamada "
-        "esté dentro de `usage_scope` y se registre con él en `llm_usage` (CLAUDE.md: campos "
-        "user, action, artifact_id, model, duration_ms) (adapters/llm/fallback.py:153-162)"
-    ),
-)
 def test_llm_call_log_includes_artifact_id_when_inside_usage_scope() -> None:
     """CLAUDE.md (logs) · RF-43: el log de cada llamada lleva el `artifact_id` del ámbito."""
     built = build("p1", completion("hola ficticio"))
@@ -935,3 +889,34 @@ def test_override_reuses_cached_provider_so_json_mode_memory_survives() -> None:
 
     assert router.chain(TaskType.GENERATE_STORY)[0] is first
     assert first is built["modelo-elegido"]
+
+
+def test_provider_failed_log_includes_artifact_id_when_inside_usage_scope() -> None:
+    """PA-194 · CLAUDE.md (logs): también `llm_provider_failed` lleva el `artifact_id`."""
+    first = build("p1", timeout_error())
+    second = build("p2", completion("hola ficticio"))
+    llm = FallbackLLMProvider(chain_of(first.provider, second.provider), InMemoryUsageRecorder())
+    artifact = uuid4()
+
+    with capture_logs() as logs, usage_scope(artifact_id=artifact):
+        llm.generate(MESSAGES, TaskType.GENERATE_STORY)
+
+    [failed] = [e for e in logs if e["event"] == "llm_provider_failed"]
+    assert failed["artifact_id"] in (artifact, str(artifact))
+
+
+@pytest.mark.parametrize("bad", [1.5, "3", True], ids=["decimal", "texto", "bool"])
+def test_chain_uses_next_provider_when_usage_count_is_not_an_integer(bad: Any) -> None:
+    """PA-193: un recuento de `usage` que no es un entero es fallo del proveedor."""
+    first = build(
+        "p1",
+        completion("hola ficticio", usage={"prompt_tokens": bad, "completion_tokens": 2}),
+    )
+    second = build("p2", completion("hola ficticio", tokens=(3, 1)))
+    llm = FallbackLLMProvider(chain_of(first.provider, second.provider))
+
+    with capture_fallbacks() as events:
+        result = llm.generate(MESSAGES, TaskType.GENERATE_STORY)
+
+    assert result.provider == "p2"
+    assert [e.reason for e in events] == ["error"]

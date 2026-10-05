@@ -57,8 +57,9 @@ class TestCase(BaseModel):
 
     @model_validator(mode="after")
     def _valid_references(self) -> Self:
-        bad = [i for i in self.criterion_ids if not re.match(CRITERION_ID, i)]
-        bad += [i for i in self.rule_ids if not re.match(RULE_ID, i)]
+        # PA-205: `fullmatch`; con `match`, el `$` del patrón aceptaba un salto final.
+        bad = [i for i in self.criterion_ids if not re.fullmatch(CRITERION_ID, i)]
+        bad += [i for i in self.rule_ids if not re.fullmatch(RULE_ID, i)]
         if bad:
             raise ValueError(
                 f"{self.internal_id}: referencias no válidas a CA/RN: {', '.join(bad)}"

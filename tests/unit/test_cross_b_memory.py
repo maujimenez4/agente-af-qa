@@ -500,3 +500,76 @@ def test_policy_word_followed_by_period_is_not_a_secret() -> None:
     """PA-218 (límite): una palabra con punto final («obligatoria.») no es un secreto."""
     artifact = _artifact(_password_story(), origin_key="DEMO-8")
     assert _errors(_password_memory("RN-01: La contraseña: obligatoria."), artifact) == []
+
+
+# --- PA-226: palabras clave y formatos de secreto que faltaban -------------------------------
+
+# Los tokens se componen por partes para que el escáner de secretos de CI no los tome por reales.
+_FAKE_SECRETS = [
+    "token: " + "ghF1ct1c10" + "Tok3n",
+    "pwd: Cl4veFicticia",
+    "pass=Sup3rSecreta!",
+    "PIN: 4821",
+    "secreto: Fict1cio_99",
+    "credencial: abc123xyz",
+    "client_secret: s3cr3t-f1ct1c10",
+    "Authorization: " + "Basic " + "dXN1YXJpbzpmaWN0aWNpbw==",
+    "AI" + "za" + "SyFICTICIO0123456789abcdefghijklm",
+    "gl" + "pat-" + "FICTICIO1234567890abcd",
+    "github" + "_pat_" + "11FICTICIO0123456789abcdef",
+    "-----BEGIN RSA " + "PRIVATE KEY-----",
+    "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----",
+    "PIN 4821",  # sin separador
+    "PIN: 123456789",
+    "gh" + "s_" + "FICTICIO0123456789abcd",
+    "xo" + "xs-" + "1234567890-ficticio",
+    # Frases de paso con guiones tras una palabra de credencial fuerte (security-reviewer).
+    "password: correcto-caballo-bateria",
+    "contraseña: Caballo-Correcto-Grapa",
+    "secret: abcdef-ghijkl",
+    "api_key: kjhqwe-poiuyt-zxcvbn",
+    "password: ABCDEF-GHIJKL",
+]
+
+
+@pytest.mark.parametrize("secret", _FAKE_SECRETS)
+def test_more_secret_formats_are_rejected(secret: str) -> None:
+    """PA-226: el detector reconoce más palabras clave y formatos de credencial."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(f"RN-01: {secret}"), artifact) == [
+        "«business_rules» parece contener un secreto"
+    ]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "RN-01: El token: caduca a los 30 minutos.",
+        "RN-01: PIN: 4 dígitos numéricos.",
+        "RN-01: El pase: válido un año.",
+        "RN-01: Plan basic con soporte ficticio.",
+        "RN-01: bypass: obligatorio en la revisión.",
+        "RN-01: Clave: identificador-del-carné.",  # palabra ambigua: el guion no cuenta
+        "RN-01: El token: identificador-del-carné se muestra en la web.",
+    ],
+)
+def test_business_text_with_new_keywords_is_not_a_secret(rule: str) -> None:
+    """PA-226 (falsos positivos): las palabras nuevas con texto de negocio no saltan."""
+    artifact = _artifact(_password_story(), origin_key="DEMO-8")
+    assert _errors(_password_memory(rule), artifact) == []
+
+
+@pytest.mark.parametrize(
+    "adversarial",
+    ["token:" * 10_000, "password:" * 10_000, "secret: " + "a" * 60_000, "-----BEGIN " * 5_000],
+    ids=["token-repetido", "password-repetido", "valor-enorme", "begin-repetido"],
+)
+def test_secret_detector_is_linear_on_adversarial_input(adversarial: str) -> None:
+    """PA-226 (ReDoS): lookahead y valor acotados; antes, «token:»×10 000 tardaba unos 25 s."""
+    import time
+
+    from core.memory.generator import _SECRET
+
+    started = time.perf_counter()
+    _SECRET.search(adversarial)
+    assert time.perf_counter() - started < 1.0

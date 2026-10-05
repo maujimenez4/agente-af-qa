@@ -98,6 +98,20 @@ class StoryVersionStore:
             where=ARTIFACTS.c.version <= upsert.excluded.version,
         )
         with self._transaction() as conn:
+            # PA-146: la fila del artefacto queda bloqueada hasta el final de la transacción, así
+            # las comprobaciones de tipo, contenido y última versión (PA-199) no se cruzan con
+            # otro `save` del mismo artefacto. La primera versión la protege la clave primaria
+            # de `artifact_versions`.
+            stored_type = conn.execute(
+                sa.select(ARTIFACTS.c.type).where(ARTIFACTS.c.id == artifact.id).with_for_update()
+            ).scalar_one_or_none()
+            if stored_type is not None and stored_type != artifact.type.value:
+                # PA-34: las versiones anteriores se leerían con otro modelo.
+                raise VersionConflictError(
+                    "Este artefacto ya existe con otro tipo; un artefacto no cambia de "
+                    "tipo entre versiones.",
+                    service=SERVICE,
+                )
             existing = conn.execute(
                 sa.select(ARTIFACT_VERSIONS.c.content).where(
                     ARTIFACT_VERSIONS.c.artifact_id == artifact.id,
@@ -110,6 +124,19 @@ class StoryVersionStore:
                     "contenido; las versiones no se pueden modificar.",
                     service=SERVICE,
                 )
+            if existing is None:
+                # PA-199: el historial es cronológico; no se añade una versión anterior a la última.
+                latest = conn.execute(
+                    sa.select(sa.func.max(ARTIFACT_VERSIONS.c.version)).where(
+                        ARTIFACT_VERSIONS.c.artifact_id == artifact.id
+                    )
+                ).scalar_one_or_none()
+                if latest is not None and artifact.version < latest:
+                    raise VersionConflictError(
+                        f"No se puede añadir la versión {artifact.version}: ya existe la "
+                        f"versión {latest}, posterior.",
+                        service=SERVICE,
+                    )
             conn.execute(upsert)
             if existing is None:
                 conn.execute(
@@ -125,6 +152,18 @@ class StoryVersionStore:
             values["jira_key"] = jira_key
         with self._transaction() as conn:
             conn.execute(ARTIFACTS.update().where(ARTIFACTS.c.id == artifact_id).values(**values))
+
+    def published_by_agent(self, jira_key: str) -> bool:
+        """El agente publicó en Jira una HU con esta clave (PA-104, tarjeta de QA 1)."""
+        query = sa.select(
+            sa.exists().where(
+                ARTIFACTS.c.jira_key == jira_key,
+                ARTIFACTS.c.type == "user_story",
+                ARTIFACTS.c.status == "published",
+            )
+        )
+        with self._transaction() as conn:
+            return bool(conn.execute(query).scalar())
 
     def versions(self, artifact_id: UUID) -> list[int]:
         query = (

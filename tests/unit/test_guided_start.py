@@ -356,12 +356,12 @@ def test_propose_invalid_project_raises(container: Container, project: str) -> N
 
 
 def test_propose_epic_offers_new_story_in_epic(container: Container) -> None:
-    """RF-19 (T-53): épica en modo funcional → «Nueva HU en DEMO-1» con origen epic."""
+    """RF-19 (T-53, PA-285): épica en modo funcional → «HU nueva en la épica DEMO-1»."""
     proposal = GuidedStart(container).propose("algo para DEMO-1", "DEMO")
 
     (option,) = proposal.options
     assert option.kind == "new_story_in_epic"
-    assert option.label == "Nueva HU en DEMO-1"
+    assert option.label == "HU nueva en la épica DEMO-1"  # PA-285
     assert option.origin == {"kind": "epic", "key": "DEMO-1", "project": "DEMO"}
     _assert_origin_valid(option, "functional")
 
@@ -810,7 +810,7 @@ def test_build_context_service_matches_graph_context_service(container: Containe
 
     assert vars(from_graph) == vars(built)
     assert built._project_key == "DEMO"
-    assert built._token_budget == 6000  # sin AppConfig: DEFAULT_TOKEN_BUDGET
+    assert built._token_budget == 3300  # sin AppConfig: DEFAULT_TOKEN_BUDGET (PA-114)
     assert built._top_k == container.top_k
     assert built._memory_boost == container.memory_boost
 

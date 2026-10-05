@@ -99,6 +99,9 @@ class EmbeddingsConfig(_StrictModel):
 class LimitsConfig(_StrictModel):
     max_retries_on_429: NonNegativeInt
     context_token_budget: PositiveInt
+    # PA-114: ventana de contexto del modelo, en tokens: prompt + contexto + tope de salida de la
+    # tarea no pueden superarla (Ollama trunca en silencio el principio si se desborda).
+    context_window: PositiveInt = 8192
     daily_token_warning: PositiveInt
     # Segundos por llamada al LLM: un modelo local en CPU tarda más que uno en la nube.
     request_timeout_s: PositiveFloat = 60.0
@@ -205,6 +208,11 @@ class Settings(BaseSettings):
     postgres_user: str = "agente"
     postgres_password: SecretStr | None = None
     postgres_db: str = "agente"
+    # PA-278: host y puerto para componer la URL sin pasar la contraseña por una URL escrita a
+    # mano (en Compose, `POSTGRES_HOST=db`). 127.0.0.1 y no localhost: con el puerto publicado
+    # solo en IPv4, Windows prueba antes ::1 y tarda ~20 s en pasar a IPv4 (e2e del 2026-10-04).
+    postgres_host: str = "127.0.0.1"
+    postgres_port: PositiveInt = 5432
     database_url: SecretStr | None = None
 
     # Aplicación
@@ -226,6 +234,13 @@ class Settings(BaseSettings):
     api_max_streams_per_user: PositiveInt = 3
     # Hilos de las operaciones largas (no son workers de uvicorn: la API va en un solo proceso).
     api_workers: PositiveInt = 4
+    # PA-279 (RGPD): días que se conservan las revisiones de calidad guardadas.
+    quality_retention_days: PositiveInt = 90
+
+    # Servidor MCP de solo lectura (T-59): actúa como este usuario y con los permisos de su rol.
+    # Sin usuario, `python -m mcp_server` no arranca. Solo roles que trabajan con HU (no admin).
+    mcp_user: str | None = None
+    mcp_role: Literal["functional", "qa"] = "functional"
 
     @field_validator("api_allowed_origins")
     @classmethod
@@ -267,7 +282,10 @@ class Settings(BaseSettings):
         return value
 
     def sqlalchemy_url(self) -> URL:
-        """URL de la base de datos: `DATABASE_URL` o, si falta, las variables `POSTGRES_*`."""
+        """URL de la base de datos: `DATABASE_URL` o, si falta (o está vacía), las `POSTGRES_*`.
+
+        `URL.create` codifica la contraseña: un `@`, `/`, `:`, `#` o `?` no rompe la URL (PA-278).
+        """
         if self.database_url and self.database_url.get_secret_value():
             return make_url(self.database_url.get_secret_value())
         password = self.postgres_password.get_secret_value() if self.postgres_password else None
@@ -275,8 +293,8 @@ class Settings(BaseSettings):
             "postgresql+psycopg",
             username=self.postgres_user,
             password=password,
-            host="localhost",
-            port=5432,
+            host=self.postgres_host,
+            port=self.postgres_port,
             database=self.postgres_db,
         )
 

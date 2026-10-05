@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from core.container import Container
 
 MEMORY_CATEGORY = "memoria"
-DEFAULT_TOKEN_BUDGET = 6000  # igual que `limits.context_token_budget` de models.yaml
+DEFAULT_TOKEN_BUDGET = 3300  # igual que `limits.context_token_budget` de models.yaml (PA-114)
 # Tipos de incidencia que no son HU: no se proponen como «HU parecida» (T-53).
 NOT_STORIES = frozenset({"epic", "épica", "subtarea", "sub-task", "subtask", "task", "tarea"})
 EPIC_TYPES = frozenset({"epic", "épica"})
@@ -36,6 +36,7 @@ MAX_LINKED = 5
 MAX_NEED_MATCHES = 3
 MAX_NEED_CANDIDATES = 20
 MAX_RELATED_DOCS = 4
+MAX_RAG_SEARCH = 200  # tope de fragmentos pedidos al rellenar `top_k` (PA-197)
 
 
 def type_key(issue_type: str) -> str:
@@ -112,7 +113,9 @@ class ContextService:
         # El texto de la necesidad también viaja al LLM: se reserva su espacio.
         reserved = estimate_tokens(origin.get("text") or "")
         budget = max(self._token_budget - reserved, 0)
-        jira, rag, report = apply_budget(issues, chunks, budget)
+        jira, rag, report = apply_budget(
+            issues, chunks, budget, has_origin=origin_issue is not None
+        )
         return GatheredContext(jira=jira, rag=rag, budget=report)
 
     # --- Jira -------------------------------------------------------------------------------
@@ -154,7 +157,9 @@ class ContextService:
         return stories[:MAX_NEED_MATCHES]  # se filtra antes de cortar
 
     def _related_to_need(self, text: str) -> list[IssueSummary]:
-        return self._ranked_candidates(text)[:MAX_NEED_MATCHES]
+        """HU que podría modificar una necesidad: ni épicas ni subtareas (PA-166, D-09)."""
+        stories = [issue for issue in self._ranked_candidates(text) if is_story(issue.issue_type)]
+        return stories[:MAX_NEED_MATCHES]  # se filtra antes de cortar
 
     def _ranked_candidates(self, text: str, project: str | None = None) -> list[IssueSummary]:
         """Candidatas con alguna palabra clave, reordenadas por coincidencias en el título."""
@@ -185,10 +190,15 @@ class ContextService:
     def _rag_context(self, query: str, excluded: set[str]) -> list[RetrievedChunk]:
         """Las fuentes excluidas se quitan antes del par norma ↔ acta y su hueco se rellena."""
         (vector,) = self._embeddings.embed([query])
-        results = self._store.search(
-            vector, query, k=self._top_k + len(excluded), memory_boost=self._memory_boost
-        )
-        results = [r for r in results if not _is_excluded(r, excluded)][: self._top_k]
+        # PA-197: un documento excluido puede tener varios fragmentos; se amplía la búsqueda
+        # hasta rellenar `top_k` o agotar los resultados (con un tope).
+        k = max(self._top_k, min(self._top_k + len(excluded), MAX_RAG_SEARCH))
+        while True:
+            found = self._store.search(vector, query, k=k, memory_boost=self._memory_boost)
+            results = [r for r in found if not _is_excluded(r, excluded)][: self._top_k]
+            if len(results) >= self._top_k or len(found) < k or k >= MAX_RAG_SEARCH:
+                break
+            k = min(k * 2, MAX_RAG_SEARCH)
         results += self._related_documents(vector, query, results, excluded)
         # Memorias primero (RF-51); después, el resto por puntuación.
         return sorted(

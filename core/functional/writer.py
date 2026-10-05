@@ -11,10 +11,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from adapters.base import LLMProvider, Message, TaskType
+from core.context.budget import PromptLimits, default_prompt_limits, fit_messages
 from core.functional.citations import (
     CitationError,
     allowed_refs_text,
     citation_errors,
+    repair_citations,
     with_real_excerpts,
     without_forced_citations,
 )
@@ -37,10 +39,61 @@ class StoryDraft:
     output_tokens: int
 
 
+def trim_context(ctx: StoryContext, rag: int, related: int) -> StoryContext:
+    """El contexto con los `rag` primeros fragmentos y las `related` primeras HU relacionadas.
+
+    La HU de origen (la primera de Jira si el origen es una HU o una épica), la HU previa y el
+    feedback se conservan siempre (PA-114).
+    """
+    keep = _origin_count(ctx)
+    return replace(ctx, rag=list(ctx.rag[:rag]), jira=list(ctx.jira[: keep + related]))
+
+
+def fit_context(
+    ctx: StoryContext,
+    build: Callable[[StoryContext], list[Message]],
+    limits: PromptLimits,
+    task: TaskType,
+    *,
+    action: str,
+) -> tuple[StoryContext, list[Message]]:
+    """Contexto recortado y sus mensajes, que caben en la ventana del modelo (PA-114).
+
+    Quita primero los últimos fragmentos del RAG y después las últimas HU relacionadas; si ni
+    así cabe, `ContextOverflowError`. Lo comparten la HU, la suite (`core/qa`) y la calidad.
+    """
+    fitted = [ctx]  # solo el último contexto construido, el de los mensajes devueltos
+
+    def build_trimmed(rag: int, related: int) -> list[Message]:
+        fitted[0] = trim_context(ctx, rag, related)
+        return build(fitted[0])
+
+    related = len(ctx.jira) - _origin_count(ctx)
+    messages, _ = fit_messages(build_trimmed, len(ctx.rag), related, limits, task, action=action)
+    return fitted[0], messages
+
+
+def _origin_count(ctx: StoryContext) -> int:
+    return 1 if ctx.origin_kind in ("story", "epic") and ctx.jira else 0
+
+
 class StoryWriter:
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def generate(self, ctx: StoryContext) -> StoryDraft:
         """HU nueva a partir de una necesidad o una épica (RF-15, RF-16, RF-17)."""
@@ -77,14 +130,20 @@ class StoryWriter:
 
     def _run(self, ctx: StoryContext, prompt_name: str, task: TaskType) -> StoryDraft:
         prompt = self._load(prompt_name)
+        ctx, messages = fit_context(  # PA-114: nunca se desborda la ventana en silencio
+            ctx,
+            lambda c: [
+                Message(role="system", content=prompt.text),
+                Message(role="user", content=render_context(c)),
+            ],
+            self.limits,
+            task,
+            action=prompt_name,
+        )
         sources = ctx.sources()
-        messages = [
-            Message(role="system", content=prompt.text),
-            Message(role="user", content=render_context(ctx)),
-        ]
         result = self._llm.generate_structured(messages, UserStory, task)
         story, input_tokens, output_tokens = (
-            without_forced_citations(result.content, sources),
+            repair_citations(without_forced_citations(result.content, sources), sources)[0],
             result.input_tokens,
             result.output_tokens,
         )
@@ -92,21 +151,33 @@ class StoryWriter:
         errors = citation_errors(story, sources)
         if errors:
             retry = self._load("citation_retry").text
-            feedback = fill_placeholders(
-                retry,
-                {
-                    "errors": "\n".join(f"- {e}" for e in errors),
-                    "allowed": allowed_refs_text(sources),
-                },
-            )
             story_json = json.dumps(story.model_dump(mode="json"), ensure_ascii=False)
-            retry_messages = [
-                *messages,
-                Message(role="assistant", content=story_json),
-                Message(role="user", content=feedback),
-            ]
-            result = self._llm.generate_structured(retry_messages, UserStory, task)
-            story = without_forced_citations(result.content, sources)
+            first = story
+
+            def retry_messages(c: StoryContext) -> list[Message]:
+                # Las fuentes permitidas y los errores, del contexto que de verdad se envía.
+                allowed = c.sources()
+                feedback = fill_placeholders(
+                    retry,
+                    {
+                        "errors": "\n".join(f"- {e}" for e in citation_errors(first, allowed)),
+                        "allowed": allowed_refs_text(allowed),
+                    },
+                )
+                return [
+                    Message(role="system", content=prompt.text),
+                    Message(role="user", content=render_context(c)),
+                    Message(role="assistant", content=story_json),
+                    Message(role="user", content=feedback),
+                ]
+
+            # PA-114: el reintento es el mensaje más largo; también pasa por la guarda.
+            ctx, messages = fit_context(
+                ctx, retry_messages, self.limits, task, action=f"{prompt_name}_retry"
+            )
+            sources = ctx.sources()
+            result = self._llm.generate_structured(messages, UserStory, task)
+            story = repair_citations(without_forced_citations(result.content, sources), sources)[0]
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(story, sources):

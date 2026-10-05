@@ -5,9 +5,12 @@ escribe el usuario siempre pasa por aquí antes de llegar a `IssueTracker.search
 """
 
 import re
+import unicodedata
 
 _PROJECT_KEY = re.compile(r"^[A-Z][A-Z0-9_]+$")
-_ISSUE_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
+_ISSUE_KEY = re.compile(r"^[A-Z][A-Z0-9_]+-[0-9]+$")  # PA-181: solo dígitos ASCII
+# PA-168: operadores booleanos de la búsqueda de texto; en el texto libre son palabras.
+_TEXT_OPERATORS = re.compile(r"\b(AND|OR|NOT)\b")
 # Caracteres especiales de la búsqueda de texto de Jira (sintaxis de Lucene).
 _LUCENE_SPECIAL = re.compile(r'([+\-&|!(){}\[\]^~*?:\\/"])')
 MAX_TEXT_CHARS = 200
@@ -81,9 +84,15 @@ def _quote_text(text: str) -> str:
 
 
 def text_search_jql(project: str, text: str) -> str:
-    """Búsqueda simple por texto libre en un proyecto (§6.1): `text ~ "…"`."""
+    """Búsqueda simple por texto libre en un proyecto (§6.1): `text ~ "…"`.
+
+    «AND», «OR» y «NOT» escritos por la persona son palabras, no operadores (PA-168): en
+    minúsculas, la búsqueda de texto de Jira no los interpreta.
+    """
     _validated(_PROJECT_KEY, project, "Clave de proyecto")
-    cleaned = " ".join(text.split())[:MAX_TEXT_CHARS]
+    normalized = unicodedata.normalize("NFC", text)
+    cleaned = _TEXT_OPERATORS.sub(lambda m: m.group(1).lower(), " ".join(normalized.split()))
+    cleaned = cleaned[:MAX_TEXT_CHARS]
     if not cleaned:
         raise ValueError("La búsqueda necesita un texto.")
     return f'project = "{project}" AND text ~ {_quote_text(cleaned)} ORDER BY updated DESC'
@@ -92,9 +101,11 @@ def text_search_jql(project: str, text: str) -> str:
 def keywords(text: str, limit: int = MAX_KEYWORDS) -> list[str]:
     """Palabras significativas (≥ 4 letras, sin palabras vacías), sin repetir y en orden."""
     seen: list[str] = []
-    for word in re.findall(r"\w+", text.lower()):
+    # PA-180: NFC para que un texto pegado en NFD («pre» + «́» + «stamo») dé las mismas palabras.
+    for word in re.findall(r"\w+", unicodedata.normalize("NFC", text).lower()):
+        word = word[:MAX_KEYWORD_CHARS]  # PA-170: se recorta antes de comprobar los repetidos
         if len(word) >= 4 and not word.isdigit() and word not in _STOPWORDS and word not in seen:
-            seen.append(word[:MAX_KEYWORD_CHARS])
+            seen.append(word)
     return seen[:limit]
 
 
@@ -104,8 +115,14 @@ def any_keyword_jql(project: str, words: list[str]) -> str:
     cleaned = [w for w in (" ".join(word.split()) for word in words) if w]
     if not cleaned:
         raise ValueError("La búsqueda necesita al menos una palabra.")
-    # Cada palabra se escapa como literal; «OR» es el operador de la búsqueda de texto.
-    terms = " OR ".join(w[:MAX_KEYWORD_CHARS] for w in cleaned)[:MAX_TEXT_CHARS]
+    # Cada palabra se escapa como literal; «OR» es el operador de la búsqueda de texto. PA-169:
+    # se añaden términos completos mientras quepan (ni «OR» colgando ni palabras partidas).
+    terms = ""
+    for word in (w[:MAX_KEYWORD_CHARS] for w in cleaned):
+        candidate = f"{terms} OR {word}" if terms else word
+        if len(candidate) > MAX_TEXT_CHARS:
+            break
+        terms = candidate
     return f'project = "{project}" AND text ~ {_quote_text(terms)}'
 
 

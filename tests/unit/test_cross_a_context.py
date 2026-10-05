@@ -18,6 +18,7 @@ ficticios. Los defectos confirmados van como `xfail(strict=True)` con su PA; el 
 comportamiento.
 """
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
@@ -25,7 +26,7 @@ from typing import Any
 import pytest
 
 from adapters.base import Chunk, IssueDetail, IssueLink, IssueSummary, RetrievedChunk
-from core.context.budget import TRUNCATION_MARK, issue_tokens
+from core.context.budget import TRUNCATION_MARK, estimate_tokens, issue_tokens
 from core.context.jql import (
     MAX_KEYWORD_CHARS,
     MAX_TEXT_CHARS,
@@ -258,12 +259,14 @@ def norm_minutes_corpus() -> tuple[FakeEmbeddingProvider, SpyStore]:
     ],
 )
 def test_text_search_jql_keeps_order_by_and_operators_inside_literal(text: str) -> None:
-    """RF-14 (seguridad): `ORDER BY`, `AND`, `OR` y comillas del texto no salen del literal."""
+    """RF-14 (seguridad): `ORDER BY`, `AND`, `OR` y comillas del texto no salen del literal;
+    dentro, `AND`/`OR`/`NOT` quedan en minúsculas como palabras (PA-168)."""
     jql = text_search_jql("DEMO", text)
 
     outside = jql_outside_literal(jql)
     assert outside == 'project = "DEMO" AND text ~  ORDER BY updated DESC'
-    assert lucene_unescape(jql_literal(jql)) == text
+    expected = re.sub(r"\b(AND|OR|NOT)\b", lambda m: m.group(1).lower(), text)
+    assert lucene_unescape(jql_literal(jql)) == expected
 
 
 @pytest.mark.parametrize(
@@ -319,14 +322,6 @@ def test_text_search_jql_rejects_injected_project_key(project: str) -> None:
         text_search_jql(project, "renovar")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-168): los operadores de Lucene AND/OR/NOT del texto no se neutralizan; "
-        "«préstamo AND» o «NOT» dan una consulta de texto no válida en Jira "
-        "(core/context/jql.py:77-89)"
-    ),
-)
 @pytest.mark.parametrize("text", ["préstamo AND", "NOT", "OR renovar", "renovar AND NOT"])
 def test_text_search_jql_neutralizes_lucene_boolean_operators(text: str) -> None:
     """RF-14: la búsqueda por texto libre trata «AND», «OR» y «NOT» como palabras, no como
@@ -375,14 +370,6 @@ def test_any_keyword_jql_long_terms_stay_within_max_text_chars() -> None:
     assert len(lucene) <= MAX_TEXT_CHARS
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-169): any_keyword_jql recorta a 200 después de unir con « OR » y puede "
-        "dejar un «OR» colgando al final (consulta de texto no válida en Jira) o una palabra "
-        "partida (core/context/jql.py:108)"
-    ),
-)
 def test_any_keyword_jql_truncation_does_not_leave_dangling_or() -> None:
     """RF-14 (límite): seis palabras de 36 letras (alcanzable desde `keywords`) no acaban en
     «OR»; el recorte debe quitar términos completos."""
@@ -395,14 +382,6 @@ def test_any_keyword_jql_truncation_does_not_leave_dangling_or() -> None:
     assert all(t == "OR" or t in words for t in tokens)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-170): keywords comprueba los repetidos con la palabra completa pero "
-        "guarda la recortada a 40; dos palabras largas con el mismo prefijo salen repetidas "
-        "(core/context/jql.py:96-97)"
-    ),
-)
 def test_keywords_deduplicates_after_truncating_long_words() -> None:
     """RF-14 (límite): «sin repetir» también tras recortar a MAX_KEYWORD_CHARS."""
     prefix = "reglamentointerbibliotecarioficticio" + "x" * 4  # 40 caracteres
@@ -411,14 +390,6 @@ def test_keywords_deduplicates_after_truncating_long_words() -> None:
     assert len(words) == len(set(words))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-180): keywords no normaliza Unicode; en NFD (texto pegado desde macOS) "
-        "«préstamo» se parte en «pre» + «stamo» y la búsqueda en Jira usa «stamo» "
-        "(core/context/jql.py:95)"
-    ),
-)
 def test_keywords_same_result_for_nfd_and_nfc_text() -> None:
     """RF-14: el mismo texto en NFD y en NFC da las mismas palabras clave."""
     text = "renovación del préstamo vencido"
@@ -444,13 +415,6 @@ def test_linked_issues_jql_rejects_injected_keys(key: str) -> None:
         linked_issues_jql(key)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-181): `_ISSUE_KEY` usa `\\d`, que acepta dígitos Unicode no ASCII "
-        "(«DEMO-١٢», «DEMO-３»); Jira no los admite (core/context/jql.py:10)"
-    ),
-)
 @pytest.mark.parametrize("key", ["DEMO-\u0661\u0662", "DEMO-\uff13"])
 def test_linked_issues_jql_rejects_non_ascii_digits(key: str) -> None:
     """RF-14, §11: solo dígitos ASCII en el número de la clave."""
@@ -465,7 +429,7 @@ def test_gather_reserves_need_text_tokens_from_budget() -> None:
     """PA-07: el presupuesto informado es 6000 menos los tokens del texto de la necesidad."""
     context = make_service().gather({"kind": "need", "text": "r" * 400}, None)
 
-    assert context.budget.budget == 6000 - 100
+    assert context.budget.budget == 6000 - estimate_tokens("r" * 400)  # /3 desde PA-114
 
 
 def test_gather_with_zero_sources_reports_empty_context() -> None:
@@ -481,7 +445,7 @@ def test_gather_need_text_larger_than_budget_leaves_no_rag() -> None:
     """PA-07 (límite): si la reserva supera el presupuesto, queda 0 y no entra ningún fragmento."""
     embeddings, store = FakeEmbeddingProvider(), SpyStore()
     add_chunk(store, embeddings, "GLO-1#0", "GLO-1", "glosarios", "reservas bloqueadas ficticio")
-    text = "reservas bloqueadas " * 1500  # ≈ 7500 tokens > 6000
+    text = "reservas bloqueadas " * 1500  # ≈ 10 000 tokens > 6000
 
     context = make_service(store=store, embeddings=embeddings).gather(
         {"kind": "need", "text": text}, None
@@ -540,14 +504,6 @@ def test_gather_excluded_issue_space_is_reused_by_next_issue() -> None:
     assert after.budget.truncated_issues == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-165): truncate_issue solo recorta descripción y comentarios; una "
-        "incidencia vinculada con muchas subtareas (casos de prueba, D-09) entra «recortada» y "
-        "el contexto supera el presupuesto (core/context/budget.py:39-47 y 81-84)"
-    ),
-)
 def test_gather_linked_issue_with_many_subtasks_respects_budget() -> None:
     """PA-07: con 200 subtareas en una HU vinculada, el total sigue sin pasar de 1000 tokens."""
     tracker = SpyTracker()
@@ -568,14 +524,6 @@ def test_gather_linked_issue_with_many_subtasks_respects_budget() -> None:
     assert context.budget.used <= 1000
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-167): con una necesidad no hay incidencia de origen, pero apply_budget "
-        "trata la primera HU relacionada como origen (entra siempre y sin cuota de Jira) y el "
-        "contexto supera el presupuesto (core/context/service.py:101-103)"
-    ),
-)
 def test_gather_need_first_match_is_not_forced_beyond_budget() -> None:
     """PA-07: con una necesidad, las HU relacionadas son secundarias y respetan el presupuesto."""
     tracker = SpyTracker()
@@ -590,14 +538,6 @@ def test_gather_need_first_match_is_not_forced_beyond_budget() -> None:
 # === Fuentes excluidas en el RAG (RF-21, T-51) ===============================================
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-197): el hueco de `top_k` se pide como `top_k + len(excluded)` "
-        "fragmentos, pero un documento excluido puede tener varios; sus fragmentos ocupan la "
-        "búsqueda y el hueco no se rellena (core/context/service.py:179-181)"
-    ),
-)
 def test_gather_excluded_document_with_several_chunks_still_fills_top_k() -> None:
     """RF-21 (§11 «Fuentes excluidas»): excluir un documento de 4 fragmentos deja 3 de otros."""
     embeddings, store = FakeEmbeddingProvider(), SpyStore()
@@ -765,14 +705,6 @@ def test_gather_need_asks_jira_for_at_most_twenty_candidates() -> None:
     assert tracker.searches[0][1] == MAX_NEED_CANDIDATES
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DEFECTO T-35 (PA-166): con una necesidad, gather propone como «HU que podría modificar» "
-        "épicas y subtareas (casos de prueba, D-09) porque no filtra NOT_STORIES como "
-        "similar_stories (core/context/service.py:131-134 y 146-147)"
-    ),
-)
 def test_gather_need_related_issues_exclude_epics_and_subtasks() -> None:
     """RF-14, §6.1: las HU relacionadas con una necesidad son HU, no épicas ni subtareas."""
     tracker = SpyTracker(
@@ -853,3 +785,21 @@ def test_not_stories_are_normalized_lowercase_without_spaces() -> None:
 def test_related_pairs_are_symmetric_norm_and_minutes_only() -> None:
     """PA-69: el par es exactamente politicas ↔ documentacion, en los dos sentidos."""
     assert RELATED_PAIRS == {"politicas": "documentacion", "documentacion": "politicas"}
+
+
+def test_truncate_issue_with_thousands_of_relations_is_fast_and_within_budget() -> None:
+    """PA-165 · revisión de seguridad: miles de etiquetas y subtareas se recortan en tiempo
+    lineal y el resultado nunca supera el máximo (sin la marca de recorte si no cabe)."""
+    import time
+
+    from core.context.budget import truncate_issue
+
+    subtasks = [summary(f"DEMO-{n}", "Caso ficticio", "Subtarea") for n in range(1000, 6000)]
+    issue = story("DEMO-70", "HU ficticia", subtasks=subtasks).model_copy(
+        update={"labels": ["x"] * 50_000, "description_text": "d" * 50_000}
+    )
+    for budget in (1000, 6000, 24_000):
+        start = time.perf_counter()
+        trimmed = truncate_issue(issue, budget)
+        assert time.perf_counter() - start < 1.0
+        assert issue_tokens(trimmed) <= budget

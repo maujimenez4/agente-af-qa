@@ -22,6 +22,7 @@ from schemas.common import Priority, SourceRef
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import AcceptanceCriterion, BusinessRule, UserStory
 from tests.fakes import dataset
+from tests.fakes.citations import AFQP_ISSUES, HU_TEXTS
 from tests.fakes.llm import FakeLLMProvider, renewal_test_suite
 
 
@@ -750,3 +751,79 @@ def test_generate_unpublished_is_keyword_only() -> None:
 
     with pytest.raises(TypeError):
         TestWriter(llm).generate(dataset.renewal_story(jira_key=None), None, True)  # type: ignore[misc]
+
+
+# --- PA-281: citas de Jira reparadas sin reintento ------------------------------------------
+
+
+def afqp_story_ctx() -> StoryContext:
+    """Contexto de la HU AFQP-12 del e2e (§5.3): las HU de AFQP sin sus épicas."""
+    return StoryContext(origin_kind="story", origin_key="AFQP-12", jira=AFQP_ISSUES)
+
+
+def suite_citing_excerpt(ref: str, excerpt: str, **update: object) -> TestSuite:
+    sources = [SourceRef(kind="jira", ref=ref, excerpt=excerpt)]
+    return renewal_test_suite("AFQP-12").model_copy(update={"sources": sources, **update})
+
+
+EPIC_SUITE = suite_citing_excerpt("AFQP-10", HU_TEXTS["AFQP-12"])
+
+
+def test_generate_repairs_suite_epic_citation_without_retry() -> None:
+    """PA-281 · criterio 8: la suite que cita la épica con el texto de la HU se repara sin
+    reintento y lleva el extracto real."""
+    llm, _ = fake_llm(EPIC_SUITE)
+    ctx = afqp_story_ctx()
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key="AFQP-12"), ctx)
+
+    assert len(llm.calls) == 1
+    [real] = [s for s in ctx.sources() if s.ref == "AFQP-12"]
+    assert draft.suite.sources == [SourceRef(kind="jira", ref="AFQP-12", excerpt=real.excerpt)]
+
+
+def test_generate_repaired_suite_still_retries_on_coverage_errors() -> None:
+    """PA-281 · criterio 8: la reparación no salta la validación de cobertura (reintento)."""
+    uncovered = EPIC_SUITE.model_copy(update={"cases": EPIC_SUITE.cases[:1]})
+    llm, _ = fake_llm(uncovered, EPIC_SUITE)
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key="AFQP-12"), afqp_story_ctx())
+
+    assert len(llm.calls) == 2
+    retry = llm.calls[1]["messages"][-1].content
+    assert "AFQP-10" not in retry  # no se queja de la cita reparada
+    assert [s.ref for s in draft.suite.sources] == ["AFQP-12"]
+
+
+def test_generate_repaired_suite_raises_coverage_error_when_uncovered_persists() -> None:
+    """PA-281 · criterio 8: con la cita reparada y la cobertura incompleta, `CoverageError`."""
+    uncovered = EPIC_SUITE.model_copy(update={"cases": EPIC_SUITE.cases[:1]})
+    llm, _ = fake_llm(uncovered)
+
+    with pytest.raises(CoverageError):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key="AFQP-12"), afqp_story_ctx())
+
+    assert len(llm.calls) == 2
+
+
+def test_generate_repairs_suite_citation_returned_by_the_retry() -> None:
+    """PA-281: la suite del reintento también se repara antes de validarla."""
+    invented = suite_citing_excerpt("AFQP-99", "Texto inventado que no está en ninguna fuente.")
+    llm, _ = fake_llm(invented, EPIC_SUITE)
+
+    draft = TestWriter(llm).generate(dataset.renewal_story(jira_key="AFQP-12"), afqp_story_ctx())
+
+    assert len(llm.calls) == 2
+    assert [s.ref for s in draft.suite.sources] == ["AFQP-12"]
+
+
+def test_generate_suite_ambiguous_excerpt_is_not_repaired() -> None:
+    """PA-281 · criterio 4: si el extracto está en dos HU, la suite no se repara → CitationError."""
+    twin = AFQP_ISSUES[0].model_copy(update={"key": "AFQP-13"})
+    ctx = StoryContext(origin_kind="story", origin_key="AFQP-12", jira=[*AFQP_ISSUES, twin])
+    llm, _ = fake_llm(EPIC_SUITE)
+
+    with pytest.raises(CitationError):
+        TestWriter(llm).generate(dataset.renewal_story(jira_key="AFQP-12"), ctx)
+
+    assert len(llm.calls) == 2

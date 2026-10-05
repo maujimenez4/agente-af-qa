@@ -10,6 +10,7 @@ from uuid import UUID
 
 from adapters.base import IssueSummary, ProjectSummary
 from api.models import (
+    ContextBudgetOut,
     ConversationOut,
     ErrorBody,
     ErrorResponse,
@@ -24,9 +25,11 @@ from api.models import (
     ProjectsOut,
     PublishOutcome,
     QualityReviewOut,
+    QualityReviewSummary,
     ReviewPayload,
     SessionOut,
     SettingsOut,
+    SourcesOut,
     TaskModelsOut,
     UserOut,
     VersionOut,
@@ -147,6 +150,8 @@ CARD = IssueCard(
     epic_key="DEMO-1",
     criteria_count=2,
     rules_count=2,
+    test_cases=0,
+    published_by_agent=False,
 )
 PROPOSAL = StartProposal(
     project="DEMO",
@@ -211,12 +216,15 @@ CONVERSATION = ConversationOut(
     versions=[VersionOut(version=2, artifact=ARTIFACT, created_at=NOW)],
     feedback=["Mismas reglas que en la web."],
     updated_at=NOW,
+    # PA-316: la HU tal como está en Jira (versión de partida), para el selector de versiones.
+    jira_baseline=STORY.model_copy(update={"changes_from_previous": []}),
 )
 CONVERSATION_GENERATING = CONVERSATION.model_copy(
     update={
         "state": "generating",
         "review": None,
         "versions": [],
+        "jira_baseline": None,  # PA-316: antes de la primera versión aún no hay
         "progress": [
             ProgressStep(node="load_origin", label="Cargar el origen", state="done"),
             ProgressStep(node="retrieve_context", label="Recuperar contexto", state="running"),
@@ -224,14 +232,19 @@ CONVERSATION_GENERATING = CONVERSATION.model_copy(
         ],
     }
 )
+# PA-314: pedida la detención; termina el paso en curso («Deteniendo…»).
+CONVERSATION_CANCELLING = CONVERSATION_GENERATING.model_copy(update={"cancel_requested": True})
 CONVERSATION_SIMULATED = CONVERSATION.model_copy(
     update={
         "state": "simulated",
         "review": None,
+        "jira_baseline": None,  # PA-316: terminada, ya no se itera
         "result": PublishOutcome(simulated=True, plan=PLAN, approved_by="af-demo", approved_at=NOW),
     }
 )
-CONVERSATION_DISCARDED = CONVERSATION.model_copy(update={"state": "discarded", "review": None})
+CONVERSATION_DISCARDED = CONVERSATION.model_copy(
+    update={"state": "discarded", "review": None, "jira_baseline": None}
+)
 CONVERSATION_QA = CONVERSATION_GENERATING.model_copy(
     update={
         "id": "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e",
@@ -290,7 +303,20 @@ QUALITY = QualityReviewOut(
     report=QUALITY_REPORT,
     evolve_feedback=["CA-02: Avisar en menos de 15 minutos.", "Añadir un criterio de error."],
     report_markdown=QUALITY_REPORT.to_markdown("DEMO-3"),
+    created_at=NOW,
+    updated_at=NOW,
 )
+QUALITY_LIST = [
+    QualityReviewSummary(
+        id=QUALITY.id,
+        issue_key="DEMO-3",
+        project="DEMO",
+        title="Revisar la calidad de DEMO-3",
+        state="done",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+]
 EXECUTION_ID = "5d7f9b1c-3e5a-4c7e-9a1b-2c3d4e5f6a7b"
 EXECUTION_CASES = [
     ExecutionCaseOut(
@@ -339,6 +365,10 @@ EXECUTION_RECORDED = EXECUTION.model_copy(
             recorded=["DEMO-501", "DEMO-502"], approved_by="qa-demo", approved_at=NOW
         ),
     }
+)
+SOURCES_OUT = SourcesOut(
+    sources=SOURCES,
+    budget=ContextBudgetOut(used=2350, limit=6000, dropped_sources=0, truncated_sources=1),
 )
 HANDOFFS = [
     HandoffOut(

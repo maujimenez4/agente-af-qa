@@ -28,6 +28,9 @@ class FakeVectorStore:
     def delete_by_document(self, document_id: str) -> None:
         self.chunks = {k: c for k, c in self.chunks.items() if c.document_id != document_id}
 
+    def has_document(self, document_id: str) -> bool:
+        return any(c.document_id == document_id for c in self.chunks.values())
+
     def replace_document(self, document_id: str, chunks: list[Chunk]) -> None:
         """Como `PgVectorStore.replace_document` (PA-216): todo o nada."""
         for chunk in chunks:

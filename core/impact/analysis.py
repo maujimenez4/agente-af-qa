@@ -9,18 +9,22 @@
 """
 
 import json
+import unicodedata
 from collections.abc import Callable
 
 from adapters.base import IssueDetail, LLMProvider, Message, TaskType
-from core.functional.context import escape_data
+from core.context.budget import PromptLimits, check_messages, default_prompt_limits
 from core.impact.diff import diff_stories
 from core.rag.prompts import Prompt, load_prompt
+from core.text import escape_data  # PA-227
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.user_story import UserStory
 
 PromptLoader = Callable[[str], Prompt]
 MAX_CANDIDATES = 12
 SUMMARY_CHARS = 300
+# PA-39: el motivo se publica como comentario del vínculo; se acota.
+MAX_REASON_CHARS = 1000
 
 
 def _relation(issue: IssueDetail, parent_key: str | None) -> str:
@@ -79,9 +83,22 @@ def render_request(
 
 
 class ImpactAnalyzer:
-    def __init__(self, llm: LLMProvider, *, prompt_loader: PromptLoader = load_prompt) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        prompt_loader: PromptLoader = load_prompt,
+        limits: PromptLimits | None = None,
+    ) -> None:
         self._llm = llm
         self._load = prompt_loader
+        self._limits = limits  # PA-114; sin valor, los de la configuración de la aplicación
+
+    @property
+    def limits(self) -> PromptLimits:
+        if self._limits is None:
+            self._limits = default_prompt_limits()
+        return self._limits
 
     def analyze(
         self,
@@ -107,6 +124,8 @@ class ImpactAnalyzer:
             Message(role="system", content=prompt.text),
             Message(role="user", content=render_request(story, diffs, pool, origin, parent_key)),
         ]
+        # PA-114: las candidatas ya están acotadas; si aun así no cabe, error claro.
+        check_messages(messages, self.limits, TaskType.ANALYZE_IMPACT, action="analyze_impact")
         proposal = self._llm.generate_structured(
             messages, ImpactAnalysis, TaskType.ANALYZE_IMPACT
         ).content
@@ -126,16 +145,24 @@ class ImpactAnalyzer:
                 update={"affected": [i for i in proposal.affected if i.jira_key in allowed]}
             )
             answer = Message(role="assistant", content=valid_only.model_dump_json())
+            retry_messages = check_messages(
+                [*messages, answer, retry],
+                self.limits,
+                TaskType.ANALYZE_IMPACT,
+                action="analyze_impact_retry",
+            )
             proposal = self._llm.generate_structured(
-                [*messages, answer, retry], ImpactAnalysis, TaskType.ANALYZE_IMPACT
+                retry_messages, ImpactAnalysis, TaskType.ANALYZE_IMPACT
             ).content
 
-        valid, dropped = _keep_valid(proposal.affected, allowed)
+        valid, dropped, blank = _keep_valid(proposal.affected, allowed)
         notes = [note.strip() for note in proposal.regression_notes if note.strip()]
         if dropped:
             notes.append(
                 f"Se descartaron {dropped} referencias a HU que no estaban en el contexto."
             )
+        if blank:  # PA-182: una HU afectada sin motivo no llega al comentario del vínculo
+            notes.append(f"Se descartaron {blank} HU afectadas sin motivo.")
         return ImpactAnalysis(diffs=diffs, affected=valid, regression_notes=notes)
 
 
@@ -143,17 +170,25 @@ def _invalid(items: list[ImpactItem], allowed: set[str]) -> list[str]:
     return sorted({item.jira_key for item in items if item.jira_key not in allowed})
 
 
-def _keep_valid(items: list[ImpactItem], allowed: set[str]) -> tuple[list[ImpactItem], int]:
-    """HU afectadas válidas, sin repetir (clave, tipo), y cuántas se descartaron."""
+def _keep_valid(items: list[ImpactItem], allowed: set[str]) -> tuple[list[ImpactItem], int, int]:
+    """HU afectadas válidas, sin repetir (clave, tipo) y con el motivo limpio; cuántas se
+    descartaron por no ser candidatas y cuántas por no tener motivo (PA-182)."""
     valid: list[ImpactItem] = []
     seen: set[tuple[str, str]] = set()
-    dropped = 0
+    dropped = blank = 0
     for item in items:
         if item.jira_key not in allowed:
             dropped += 1
             continue
+        reason = item.reason.strip()
+        # Un motivo hecho solo de caracteres invisibles (U+200B, U+FEFF…) también está vacío.
+        if not "".join(ch for ch in reason if unicodedata.category(ch) != "Cf").strip():
+            blank += 1
+            continue
         key = (item.jira_key, item.kind)
         if key not in seen:
             seen.add(key)
-            valid.append(item)
-    return valid, dropped
+            if len(reason) > MAX_REASON_CHARS:
+                reason = reason[: MAX_REASON_CHARS - 1].rstrip() + "…"
+            valid.append(item.model_copy(update={"reason": reason}))
+    return valid, dropped, blank

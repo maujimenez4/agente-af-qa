@@ -32,3 +32,6 @@ export function modelLabel(modelUsed: string | null | undefined): string | undef
 
 /** Sugerencias de cambio que rellenan el compositor (lienzo MixtoIterar, salvo «Aclara el alcance»: DESIGN-DECISIONS.md §4 bis). */
 export const SUGGESTIONS = ['Añade un criterio de error', 'Aclara el alcance', 'Revisa INVEST'] as const
+
+/** Sugerencias de cambio de la suite (QA 3; los mismos textos que Streamlit, `app/qa.py`). */
+export const QA_SUGGESTIONS = ['Añade un caso negativo con datos no válidos', 'Cubre también las reglas de negocio', 'Añade un caso de excepción'] as const

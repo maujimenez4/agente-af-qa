@@ -8,6 +8,7 @@ import examples from '../../api/examples.json'
 import type { ConversationOut } from '../../api/types.ts'
 import { App } from '../../App.tsx'
 import { mockDb, mockServer } from '../../mocks/node.ts'
+import { mockSuiteConversation } from '../../mocks/qaSuite.ts'
 
 const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
 const SLOW_STEP_MS = 150
@@ -50,17 +51,17 @@ describe('Iterar · versión «Jira» (bloque A)', () => {
     expect(within(panel()).getByRole('tablist')).toBeInTheDocument()
   })
 
-  it('una conversación de QA en revisión no se abre en Iterar (la suite tiene su propia pantalla)', async () => {
-    /** Flujo de QA (T-56): mientras llega la revisión de la suite, aviso «disponible pronto», nunca la HU. */
-    mockServer.use(
-      http.get('/api/v1/conversations/:id', () => HttpResponse.json({ ...EXAMPLE, flow: 'tests', mode: 'qa', jira_baseline: null })),
-    )
+  it('con la suite de QA (mode qa, jira_baseline null) no hay versión «Jira» y se abre el panel de la suite', async () => {
+    /** README «Novedades» PA-316: jira_baseline es null en QA; §4 bis: «solo al evolucionar». */
+    mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json(mockSuiteConversation(EXAMPLE, 'DEMO-3'))))
     mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
     render(<App />)
     const list = await screen.findByRole('complementary', { name: 'Conversaciones' })
     await userEvent.click(await within(list).findByRole('button', { name: /Evolucionar DEMO-3/ }))
-    expect(await screen.findByRole('heading', { name: 'Revisar la suite: disponible pronto' })).toBeInTheDocument()
+    expect(await screen.findByRole('complementary', { name: 'Suite de pruebas' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Versión de Jira' })).toBeNull()
+    const suiteVersions = within(screen.getByRole('complementary', { name: 'Suite de pruebas' })).getByRole('group', { name: 'Versiones' })
+    expect(within(suiteVersions).getAllByRole('button').map((button) => button.textContent)).toEqual(['v1'])
   })
 
   it('la versión «Jira» se puede elegir mientras se itera y no tiene pestañas', async () => {

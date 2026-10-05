@@ -68,8 +68,9 @@ describe('QA 2 · Generando', () => {
     const panel = screen.getByRole('complementary', { name: 'Suite de pruebas' })
     expect(within(panel).getByText('La suite está lista. Ábrela para revisarla.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Ver la suite' }))
-    // Iterar la suite llega en el bloque siguiente: hasta entonces, nunca se pinta como una HU.
-    expect(await screen.findByRole('heading', { name: 'Revisar la suite: disponible pronto' })).toBeInTheDocument()
+    // QA 3 · Iterar la suite.
+    const suitePanel = await screen.findByRole('complementary', { name: 'Suite de pruebas' })
+    expect(within(suitePanel).getByRole('tab', { name: 'Casos (4)' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('el MSW deja la conversación de QA en revisión con la suite y `publish_suite` en el plan', async () => {

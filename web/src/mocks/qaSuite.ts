@@ -94,3 +94,39 @@ export function mockSuiteConversation(base: ConversationOut, storyKey: string): 
   next.jira_baseline = null
   return next
 }
+
+/** Tipo del caso que pide el cambio («negativo», «excepción», «alterno»); si no dice ninguno, positivo. */
+function requestedType(feedback: string): TestSuite['cases'][number]['type'] {
+  const text = feedback.toLowerCase()
+  if (text.includes('negativ')) return 'negativo'
+  if (text.includes('excepci')) return 'excepcion'
+  if (text.includes('altern')) return 'alterno'
+  return 'positivo'
+}
+
+/** Versión siguiente de la suite simulada: añade un caso con lo pedido (la API real lo genera con el LLM). */
+export function nextSuiteVersion(previous: ConversationOut, feedback: string): ConversationOut {
+  const next = structuredClone(previous)
+  const review = next.review
+  if (!review) return next
+  const version = review.version + 1
+  const suite = review.artifact.content as TestSuite
+  const id = `CP-${String(suite.cases.length + 1).padStart(2, '0')}`
+  suite.cases.push({
+    internal_id: id,
+    title: feedback.trim().slice(0, 80) || 'Caso nuevo',
+    type: requestedType(feedback),
+    priority: 'Should',
+    criterion_ids: ['CA-02'],
+    rule_ids: ['RN-02'],
+    preconditions: ['Datos ficticios de la suite'],
+    steps: [{ action: 'Repetir la renovación con los datos del caso', expected: 'El resultado coincide con lo pedido' }],
+    gherkin: null,
+  })
+  review.version = version
+  review.fingerprint = `huella-suite-ficticia-${crypto.randomUUID()}`
+  review.artifact = { ...review.artifact, version, content: suite }
+  review.plan = review.plan.map((item) => (item.op === 'publish_suite' ? { ...item, cases: String(suite.cases.length) } : item))
+  next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]
+  return next
+}

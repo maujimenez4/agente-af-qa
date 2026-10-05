@@ -31,15 +31,18 @@ from api.models import (
     SettingsOut,
     SourcesOut,
     TaskModelsOut,
+    UncoveredRefs,
     UserOut,
     VersionOut,
 )
+from api.service import QA_STEP_LABELS
 from core.conversations import ConversationSummary
 from core.guided_start import SourcePreview, StartOption, StartProposal
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType, Priority, SourceRef
 from schemas.impact import ImpactAnalysis, ImpactItem, StoryDiff
 from schemas.quality import InvestCheck, QualityFinding, QualityReport
+from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
 from schemas.user_story import AcceptanceCriterion, BusinessRule, UserStory
 
 NOW = datetime(2026, 10, 2, 10, 30, tzinfo=UTC)
@@ -218,7 +221,10 @@ CONVERSATION = ConversationOut(
     feedback=["Mismas reglas que en la web."],
     updated_at=NOW,
     # PA-316: la HU tal como está en Jira (versión de partida), para el selector de versiones.
-    jira_baseline=STORY.model_copy(update={"changes_from_previous": []}),
+    # Sin el CA-02, que `IMPACT.diffs` da por nuevo en esta versión.
+    jira_baseline=STORY.model_copy(
+        update={"changes_from_previous": [], "acceptance_criteria": STORY.acceptance_criteria[:1]}
+    ),
 )
 CONVERSATION_GENERATING = CONVERSATION.model_copy(
     update={
@@ -246,14 +252,180 @@ CONVERSATION_SIMULATED = CONVERSATION.model_copy(
 CONVERSATION_DISCARDED = CONVERSATION.model_copy(
     update={"state": "discarded", "review": None, "jira_baseline": None}
 )
+
+
+def qa_steps(*done: str, running: str | None = None) -> list[ProgressStep]:
+    """PA-327: los pasos de QA (4: en QA no se guarda memoria) con sus etiquetas reales."""
+    return [
+        ProgressStep(
+            node=node,  # type: ignore[arg-type]
+            label=label,
+            state="done" if node in done else "running" if node == running else "pending",
+        )
+        for node, label in QA_STEP_LABELS.items()
+    ]
+
+
+QA_THREAD_ID = "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e"
 CONVERSATION_QA = CONVERSATION_GENERATING.model_copy(
     update={
-        "id": "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e",
+        "id": QA_THREAD_ID,
         "title": "Preparar pruebas de DEMO-3",
         "flow": "tests",
         "mode": "qa",
         "feedback": [],
+        "progress": qa_steps("load_origin", running="retrieve_context"),
     }
+)
+
+
+def _case(
+    internal_id: str,
+    title: str,
+    criteria: list[str],
+    rules: list[str],
+    kind: TestCaseType,
+    steps: list[TestStep],
+    gherkin: str,
+) -> TestCase:
+    return TestCase(
+        internal_id=internal_id,
+        title=title,
+        criterion_ids=criteria,
+        rule_ids=rules,
+        type=kind,
+        preconditions=["La persona socia ficticia SOC-0001 ha iniciado sesión."],
+        steps=steps,
+        gherkin=gherkin,
+        priority=Priority.MUST,
+    )
+
+
+# PA-326: suite sintética de DEMO-3 (la HU de `STORY`): 4 casos sobre CA-01/CA-02 y RN-01/RN-02.
+SUITE = TestSuite(
+    story_jira_key="DEMO-3",
+    cases=[
+        _case(
+            "CP-01",
+            "Renovar un préstamo sin reservas ni renovaciones previas",
+            ["CA-01"],
+            ["RN-01"],
+            TestCaseType.POSITIVE,
+            [
+                TestStep(
+                    action="Abrir la ficha del préstamo PR-0001",
+                    data="PR-0001",
+                    expected="Se muestra el botón «Renovar»",
+                ),
+                TestStep(action="Pulsar «Renovar»", expected="El vencimiento se amplía 21 días"),
+            ],
+            "Dado un préstamo activo sin renovaciones ni reservas\n"
+            "Cuando la persona socia pulsa «Renovar»\nEntonces el vencimiento se amplía 21 días",
+        ),
+        _case(
+            "CP-02",
+            "Rechazar la renovación de un préstamo con reservas pendientes",
+            ["CA-02"],
+            ["RN-02"],
+            TestCaseType.NEGATIVE,
+            [
+                TestStep(
+                    action="Abrir la ficha del préstamo PR-0002 (con 1 reserva)",
+                    data="PR-0002",
+                    expected="Se muestra el botón «Renovar»",
+                ),
+                TestStep(
+                    action="Pulsar «Renovar»",
+                    expected="Aviso «El ejemplar tiene reservas pendientes»",
+                ),
+            ],
+            "Dado un préstamo activo con reservas pendientes\n"
+            "Cuando la persona socia pulsa «Renovar»\n"
+            "Entonces se muestra el aviso «El ejemplar tiene reservas pendientes»",
+        ),
+        _case(
+            "CP-03",
+            "Rechazar una tercera renovación",
+            ["CA-01"],
+            ["RN-01"],
+            TestCaseType.EXCEPTION,
+            [
+                TestStep(
+                    action="Abrir la ficha del préstamo PR-0003 (2 renovaciones)",
+                    data="PR-0003",
+                    expected="El botón «Renovar» no está disponible",
+                ),
+            ],
+            "Dado un préstamo activo con 2 renovaciones\n"
+            "Cuando la persona socia abre su ficha\nEntonces no puede renovarlo",
+        ),
+        _case(
+            "CP-04",
+            "Renovar desde el correo de aviso de vencimiento",
+            ["CA-01"],
+            [],
+            TestCaseType.ALTERNATE,
+            [
+                TestStep(
+                    action="Abrir el enlace «Renovar» del correo de aviso ficticio",
+                    expected="El vencimiento se amplía 21 días",
+                ),
+            ],
+            "Dado un aviso de vencimiento de un préstamo renovable\n"
+            "Cuando la persona socia usa el enlace «Renovar»\n"
+            "Entonces el vencimiento se amplía 21 días",
+        ),
+    ],
+    strategy_md="# Estrategia de pruebas · DEMO-3\n\n- Alcance: renovación de préstamos.\n"
+    "- Niveles: funcional y de integración con el catálogo.\n- Entorno: preproducción.\n",
+    synthetic_data=[
+        {"prestamo": "PR-0001", "renovaciones": "0", "reservas": "0"},
+        {"prestamo": "PR-0002", "renovaciones": "0", "reservas": "1"},
+        {"prestamo": "PR-0003", "renovaciones": "2", "reservas": "0"},
+    ],
+    risks=["El catálogo puede no responder al renovar."],
+    dependencies=["DEMO-2"],
+    impact_areas=["Reservas"],
+    sources=[SourceRef(kind="jira", ref="DEMO-3", excerpt="Renovar un préstamo")],
+)
+SUITE_ARTIFACT = Artifact(
+    id=UUID("9a3c5e7f-1b2d-4e6f-8a0b-1c2d3e4f5a6b"),
+    type=ArtifactType.TEST_SUITE,
+    status=ArtifactStatus.IN_REVIEW,
+    version=1,
+    origin_key="DEMO-3",
+    content=SUITE,
+    created_by="qa-demo",
+    model_used="local/qwen3:4b-instruct",
+    prompt_version="3",
+)
+# PA-326: conversación de QA en revisión → `components.examples.ConversationQaInReview`.
+CONVERSATION_QA_REVIEW = ConversationOut(
+    id=QA_THREAD_ID,
+    title="Preparar pruebas de DEMO-3",
+    project="DEMO",
+    flow="tests",
+    mode="qa",
+    state="in_review",
+    progress=qa_steps("load_origin", "retrieve_context", "generate"),
+    review=ReviewPayload(
+        artifact=SUITE_ARTIFACT,
+        version=1,
+        target={
+            "operation": "publicar casos de prueba",
+            "project": "DEMO",
+            "jira_key": "DEMO-3",
+            "epic_key": None,
+        },
+        fingerprint="7c" * 32,
+        plan=[{"op": "publish_suite", "project": "DEMO", "story": "DEMO-3", "cases": "4"}],
+        decisions=["iterate", "edit", "approve", "discard"],
+        coverage_md=SUITE.coverage_md(),
+        uncovered=UncoveredRefs(criteria=[], rules=[]),  # listas vacías: todo cubierto
+    ),
+    versions=[VersionOut(version=1, artifact=SUITE_ARTIFACT, created_at=NOW)],
+    feedback=[],
+    updated_at=NOW,
 )
 CONVERSATIONS = [
     ConversationSummary(

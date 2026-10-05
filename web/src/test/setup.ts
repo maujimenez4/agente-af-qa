@@ -3,6 +3,7 @@ import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { setCsrfToken } from '../api/client.ts'
 import { mockServer, resetMockApi } from '../mocks/node.ts'
+import { closeOpenEventStreams } from './sse.ts'
 
 // Con toda la suite en paralelo, 1 s de espera por defecto se queda corto en equipos lentos.
 configure({ asyncUtilTimeout: 3000 })
@@ -19,6 +20,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  closeOpenEventStreams()
 })
 
 afterAll(() => {

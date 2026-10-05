@@ -40,7 +40,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     expect(within(log()).getByRole('button', { name: /Propuesta de HU, versión 2/ })).toHaveAttribute('aria-pressed', 'true')
     const suggestions = within(log()).getByRole('list', { name: 'Cambios sugeridos' })
     await userEvent.click(within(suggestions).getByRole('button', { name: 'Añade un criterio de error' }))
-    expect(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' })).toHaveValue('Añade un criterio de error')
+    expect(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' })).toHaveValue('Añade un criterio de error')
   })
 
   it('el feedback anterior de la conversación sale en la conversación', async () => {
@@ -64,7 +64,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
       if (new URL(request.url).pathname.endsWith('/iterate')) bodies.push((await request.clone().json()) as IterateIn)
     })
     await openFromList()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), 'El CA-01 debe hablar de la app')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'El CA-01 debe hablar de la app')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     expect(within(log()).getByText('El CA-01 debe hablar de la app')).toBeInTheDocument()
     expect(bodies).toEqual([{ feedback: 'El CA-01 debe hablar de la app' }])
@@ -86,7 +86,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
       ),
     )
     await openFromList()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), 'Aclara el alcance')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Aclara el alcance')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Escribiendo la respuesta')
     expect(screen.getByRole('textbox', { name: 'Espera a la propuesta para pedir cambios' })).toBeDisabled()
@@ -95,7 +95,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
 
   it('volver a una versión anterior la abre en el panel', async () => {
     await openFromList()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), 'Cambio ficticio')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Cambio ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await within(panel()).findByRole('button', { name: 'Versión 3' })
     await userEvent.click(within(panel()).getByRole('button', { name: 'Versión 2' }))
@@ -113,7 +113,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
       ),
     )
     await openFromList()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), 'Cambio ficticio')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Cambio ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     const alert = await screen.findByRole('alert')
     expect(within(alert).getByRole('heading', { name: 'La revisión ya no está abierta' })).toBeInTheDocument()

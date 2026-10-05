@@ -21,7 +21,8 @@ async function evolveDemo3() {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
   render(<App />)
   await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
-  await userEvent.type(screen.getByRole('textbox'), 'Renovar un préstamo desde la app')
+  await userEvent.click(screen.getByRole('textbox'))
+  await userEvent.paste('Renovar un préstamo desde la app')
   await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Evolucionar DEMO-3' }))
   await within(panel()).findByRole('checkbox', { name: /HU de origen/ })

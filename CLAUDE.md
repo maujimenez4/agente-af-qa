@@ -36,6 +36,7 @@ uv run pytest -m integration              # contra Jira/LLM reales (requiere .en
 uv run ruff check . && uv run ruff format .
 uv run streamlit run app/main.py
 ```
+Auditoría del repositorio completo: `/auditoria` (o `/auditoria rapida`, solo la capa automática: `uv run python .claude/skills/auditoria/checks.py`); deja un informe en `docs/auditorias/` y no corrige código.
 
 ## Áreas y propiedad de directorios
 | Directorio | Propietario | Nota |

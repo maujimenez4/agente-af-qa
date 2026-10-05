@@ -1,12 +1,17 @@
+/* El marco mide lo que la ventana: cada columna se desplaza por dentro y el carril nunca se estira. */
 .shell {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--color-surface);
 }
 
 .main {
   flex-grow: 1;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }

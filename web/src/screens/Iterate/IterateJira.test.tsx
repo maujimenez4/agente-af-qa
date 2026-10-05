@@ -63,7 +63,7 @@ describe('Iterar · versión «Jira» (PA-316)', () => {
 
   it('tras pedir un cambio, la versión «Jira» sigue siendo la de partida', async () => {
     await openFromList()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' }), 'Cambio ficticio')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Cambio ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await within(panel()).findByRole('button', { name: 'Versión 3' })
     expect(within(versions()).getAllByRole('button').map((button) => button.textContent)).toEqual(['Jira', 'v2', 'v3'])

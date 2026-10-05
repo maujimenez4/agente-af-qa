@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { ConversationCreateIn } from '../../api/types.ts'
 import { App } from '../../App.tsx'
 import { mockDb, mockServer } from '../../mocks/node.ts'
+import { openEventStream } from '../../test/sse.ts'
 
 function signIn() {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
@@ -16,7 +17,8 @@ async function startWithText(text: string) {
   signIn()
   render(<App />)
   await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
-  await userEvent.type(screen.getByRole('textbox'), text)
+  await userEvent.click(screen.getByRole('textbox'))
+  await userEvent.paste(text)
   await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 }
 
@@ -27,7 +29,6 @@ async function evolveDemo3() {
 }
 
 const panel = () => screen.getByRole('complementary', { name: 'Antes de generar' })
-const sse = (text: string) => new HttpResponse(text, { headers: { 'Content-Type': 'text/event-stream' } })
 
 function createBodies(): ConversationCreateIn[] {
   const bodies: ConversationCreateIn[] = []
@@ -51,9 +52,10 @@ afterEach(() => {
 describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', () => {
   it('plegar y volver a mostrar el panel conserva las restricciones y las casillas, y se envían al generar', async () => {
     const bodies = createBodies()
-    mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')))
+    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await evolveDemo3()
-    await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Sin cambios en la web.')
+    await userEvent.click(within(panel()).getByLabelText('Restricciones (opcional)'))
+    await userEvent.paste('Sin cambios en la web.')
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /Acta de la comisión de abril/ }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Ocultar el panel' }))
@@ -69,7 +71,7 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
 
   it('volver a marcar una fuente la saca de excluded_sources y ya no dice «No influirá»', async () => {
     const bodies = createBodies()
-    mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')))
+    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await evolveDemo3()
     const acta = within(panel()).getByRole('checkbox', { name: /Acta de la comisión de abril/ })
     await userEvent.click(acta)
@@ -83,7 +85,7 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
 
   it('la fuente de origen obligatoria no se puede excluir aunque se pulse', async () => {
     const bodies = createBodies()
-    mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')))
+    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await evolveDemo3()
     const origin = within(panel()).getByRole('checkbox', { name: /HU de origen/ })
     await userEvent.click(origin)
@@ -94,14 +96,15 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
 
   it('desde una épica (flujo need), las restricciones van al texto del origen y no como feedback', async () => {
     const bodies = createBodies()
-    mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')))
+    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     signIn()
     render(<App />)
     const recents = await screen.findByRole('region', { name: 'Recientes en DEMO' })
     await userEvent.click(within(recents).getByRole('button', { name: 'DEMO-1 Épica · Préstamo digital' }))
     await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     await within(panel()).findByRole('checkbox', { name: /Épica de origen/ })
-    await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Solo socios con carné')
+    await userEvent.click(within(panel()).getByLabelText('Restricciones (opcional)'))
+    await userEvent.paste('Solo socios con carné')
     await generate()
     expect(bodies[0]).toMatchObject({
       flow: 'need',
@@ -112,11 +115,12 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
 
   it('en una necesidad nueva, los detalles del compositor van al texto junto a las restricciones', async () => {
     const bodies = createBodies()
-    mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')))
+    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await startWithText('Renovar un préstamo desde la app')
     await userEvent.click(await screen.findByRole('button', { name: 'Crear HU nueva' }))
-    await userEvent.type(within(panel()).getByLabelText('Restricciones (opcional)'), 'Solo socios con carné')
-    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional)' }), 'También desde el aviso ficticio')
+    await userEvent.click(within(panel()).getByLabelText('Restricciones (opcional)'))
+    await userEvent.paste('Solo socios con carné')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Añade detalles a la necesidad (opcional) (Intro para enviar, Mayús+Intro para nueva línea)' }), 'También desde el aviso ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await generate()
     expect(bodies[0]?.feedback).toEqual([])

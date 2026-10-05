@@ -20,7 +20,7 @@ async function openFromList() {
 
 const panel = () => screen.getByRole('complementary', { name: 'Propuesta de HU' })
 const log = () => screen.getByRole('log', { name: 'Conversación' })
-const composer = () => screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' })
+const composer = () => screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' })
 
 async function askFor(change: string, version: number) {
   await userEvent.type(composer(), change)

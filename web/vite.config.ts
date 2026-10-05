@@ -26,6 +26,9 @@ export default defineConfig(({ command, mode }) => {
       // Pruebas de pantalla con MSW y SSE simulado: con todos los núcleos ocupados se acercan a los 5 s
       // por defecto. 15 s evita falsos fallos por carga sin ocultar un bloqueo real.
       testTimeout: 15_000,
+      // La mitad de los núcleos (Vitest usa todos menos uno): con jsdom y MSW, más hilos no acaban antes y
+      // saturan el equipo; el primer arranque de la app en cada archivo es lo que más lo nota (DESIGN-DECISIONS.md §7).
+      maxWorkers: '50%',
     },
   }
 })

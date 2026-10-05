@@ -121,6 +121,36 @@ export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
 }
 
+/** `?simular=muchas-conversaciones`: la lista con muchas conversaciones (solo en el navegador). */
+export function manyConversationsFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'muchas-conversaciones'
+}
+
+const MANY_STATUSES: readonly ConversationSummary['status'][] = ['in_review', 'simulated', 'started', 'published', 'approved', 'discarded']
+
+/**
+ * `count` conversaciones sintéticas (DEMO-1…DEMO-40), cuatro por día hacia atrás desde `now`, para revisar la lista larga:
+ * scroll dentro de su columna, sin «Ver más» ni paginación.
+ */
+export function manyConversations(base: ConversationSummary, count = 120, now = new Date()): ConversationSummary[] {
+  return Array.from({ length: count }, (_, index) => {
+    const key = `DEMO-${(index % 40) + 1}`
+    const updated = new Date(now.getTime() - Math.floor(index / 4) * 86_400_000 - (index % 4) * 3_600_000).toISOString()
+    const kind = index % 3
+    return {
+      ...base,
+      thread_id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      origin_kind: kind === 1 ? 'epic' : 'story',
+      origin_key: kind === 1 ? 'DEMO-1' : key,
+      title: kind === 1 ? 'HU nueva en la épica DEMO-1' : `Evolucionar ${key}`,
+      status: MANY_STATUSES[index % MANY_STATUSES.length] ?? 'in_review',
+      version: (index % 3) + 1,
+      created_at: updated,
+      updated_at: updated,
+    }
+  })
+}
+
 export interface MockDb {
   session: { username: string; role: Role; csrf: string } | null
   projects: ProjectsOut

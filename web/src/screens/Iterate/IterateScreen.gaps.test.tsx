@@ -18,7 +18,7 @@ async function openFromList(name: RegExp = /Evolucionar DEMO-3/) {
 }
 
 const panel = () => screen.getByRole('complementary', { name: 'Propuesta de HU' })
-const composer = () => screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta' })
+const composer = () => screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' })
 const sse = (text: string) => new HttpResponse(text, { headers: { 'Content-Type': 'text/event-stream' } })
 
 async function askChange(text: string) {

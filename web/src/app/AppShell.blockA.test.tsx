@@ -8,6 +8,7 @@ import examples from '../api/examples.json'
 import type { ConversationOut } from '../api/types.ts'
 import { App } from '../App.tsx'
 import { mockDb, mockServer } from '../mocks/node.ts'
+import { openEventStream } from '../test/sse.ts'
 
 const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
 const FAILED: ConversationOut = {
@@ -18,7 +19,8 @@ const FAILED: ConversationOut = {
 }
 const GENERATING: ConversationOut = { ...EXAMPLE, state: 'generating', review: null, error: null }
 
-const heartbeat = () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })
+// Generando sigue en pantalla hasta que la prueba termina: el flujo SSE no se cierra solo.
+const heartbeat = openEventStream
 
 async function resume(conversation: ConversationOut) {
   mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json(conversation)))

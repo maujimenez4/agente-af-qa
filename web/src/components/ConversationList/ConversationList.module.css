@@ -10,6 +10,13 @@
   gap: 6px;
 }
 
+/* «Nueva conversación», el buscador y la nota del pie no encogen: con una lista larga solo se desplaza .groups. */
+.newButton,
+.search,
+.note {
+  flex-shrink: 0;
+}
+
 .newButton {
   height: var(--control-lg);
   margin-bottom: var(--space-1);
@@ -40,7 +47,15 @@
   font-size: var(--text-xs);
 }
 
+/* A 1024 px la lista cede 24 px a la conversación para que su cabecera quepa con el panel abierto. */
+@media (max-width: 1199px) {
+  .list {
+    width: calc(var(--conversations-width) - 24px);
+  }
+}
+
 .groups {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;

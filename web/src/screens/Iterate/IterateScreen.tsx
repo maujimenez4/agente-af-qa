@@ -11,7 +11,7 @@ import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
-import { useGeneration } from '../Generating/useGeneration.ts'
+import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
 import { modelLabel, proposalVersions, SUGGESTIONS } from './iterateText.ts'
 
@@ -47,21 +47,25 @@ function SoonButton({ label, primary = false }: { label: string; primary?: boole
 // Seguir una iteración en curso: cuando llega review_ready, la propuesta nueva sustituye a la anterior.
 function Iterating({
   conversation,
+  stopping,
   onReady,
   onError,
 }: {
   conversation: ConversationOut
+  /** Se pidió detener: «Deteniendo…» hasta que termine el paso en curso. */
+  stopping: boolean
   onReady: (conversation: ConversationOut) => void
-  onError: (error: ApiError) => void
+  /** `retryable`: quedó en `state=error` y se repite con POST /retry. */
+  onError: (error: ApiError, retryable: boolean) => void
 }) {
-  const state = useGeneration(conversation)
+  const { state } = useGeneration(conversation)
   useEffect(() => {
     if (state.status === 'ready') onReady(state.conversation)
-    if (state.status === 'error') onError(state.error)
+    if (state.status === 'error') onError(state.error, state.retryable)
     // Solo al cambiar de estado: los manejadores cambian en cada render del padre.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
-  return <TypingIndicator />
+  return <TypingIndicator label={stopping ? 'Deteniendo la generación…' : undefined} />
 }
 
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
@@ -90,6 +94,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
   const [error, setError] = useState<ApiError | undefined>()
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [stopping, setStopping] = useState(false)
 
   const shown = versions.find((item) => item.version === selected) ?? latest
   const previous = shown ? versions[versions.indexOf(shown) - 1] : undefined
@@ -105,6 +110,25 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
       setIterating(await api.iterate(conversation.id, text))
     } catch (cause) {
       fail(toApiError(cause), () => void send(text, { repeat: true }))
+    }
+  }
+
+  // Detener la iteración en curso (PA-314): termina como `cancelled`, que se reintenta con /retry.
+  const stop = async () => {
+    if (!iterating) return
+    setStopping(true)
+    const { stopping: still, error: failure } = await requestStop(iterating.id)
+    setStopping(still)
+    if (failure) fail(failure, () => void stop())
+  }
+
+  // Repite el paso que falló (POST /retry, PA-276): la iteración vuelve a generar con el mismo cambio.
+  const retryIteration = async () => {
+    setError(undefined)
+    try {
+      setIterating(await api.retry(conversation.id))
+    } catch (cause) {
+      fail(toApiError(cause), () => void retryIteration())
     }
   }
 
@@ -218,6 +242,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
           canSubmit={draft.trim().length > 0}
           disabled={Boolean(iterating)}
           submitLabel="Enviar"
+          onStop={iterating ? () => void stop() : undefined}
+          stopping={stopping}
           onSubmit={() => void send(draft)}
           tools={<ModelTag label="Modelo automático" />}
         />
@@ -275,7 +301,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
             <Iterating
               key={iterating.id + iterating.feedback.length}
               conversation={iterating}
+              stopping={stopping}
               onReady={(next) => {
+                setStopping(false)
                 const version = proposalVersions(next).at(-1)?.version ?? selected
                 setConversation(next)
                 setIterating(undefined)
@@ -283,14 +311,11 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart }:
                 setTab('proposal')
                 setEntries((current) => [...current, { kind: 'assistant', version, animate: true }])
               }}
-              onError={(failure) => {
-                const feedback = iterating.feedback.at(-1)
+              onError={(failure, retryable) => {
                 setIterating(undefined)
-                if (feedback) fail(failure, () => void send(feedback, { repeat: true }))
-                else {
-                  setError(failure)
-                  setRetry(undefined)
-                }
+                setStopping(false)
+                // En error (también `cancelled`) se repite con /retry; si no, se vuelve a leer el estado.
+                fail(failure, retryable ? () => void retryIteration() : () => void refresh())
               }}
             />
           </AssistantMessage>

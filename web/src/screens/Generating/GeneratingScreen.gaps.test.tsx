@@ -74,13 +74,14 @@ describe('Generando: huecos (UI.md §4.4, DESIGN-DECISIONS.md §4 bis)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('no pinta el botón «Detener»: el contrato no permite cancelar una generación (PA-314)', async () => {
+  it('mientras genera, el compositor ofrece «Detener la generación» en lugar de enviar (PA-314)', async () => {
     mockServer.use(
       http.get('/api/v1/conversations/:id/events', () => sse(': latido\n\n')),
       http.get('/api/v1/conversations/:id', ({ params }) => HttpResponse.json(runOf(String(params.id)))),
     )
     await generateFromHome()
-    expect(screen.queryByRole('button', { name: /Detener/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Detener la generación' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Enviar' })).toBeNull()
   })
 
   it('«Volver a generar» vuelve a Origen y fuentes con la misma petición (la necesidad escrita sigue en la conversación)', async () => {

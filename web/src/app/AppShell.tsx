@@ -189,6 +189,10 @@ function WorkZone({ user }: { user: UserOut }) {
               setCurrentId(undefined)
               setView({ name: 'home' })
             }}
+            onRetried={(conversation) => {
+              setView({ name: 'generating', conversation })
+              reload()
+            }}
           />
         )}
       </main>
@@ -207,14 +211,43 @@ function WorkZone({ user }: { user: UserOut }) {
 }
 
 // Conversación terminada: su aviso o, si acabó en error, la tarjeta con el mensaje de la API tal cual.
-function ClosedConversation({ conversation, onRestart }: { conversation: ConversationOut; onRestart: () => void }) {
+// En error se puede repetir el paso que falló con POST /retry (PA-276); un 409 not_in_error se muestra.
+function ClosedConversation({
+  conversation,
+  onRestart,
+  onRetried,
+}: {
+  conversation: ConversationOut
+  onRestart: () => void
+  onRetried: (conversation: ConversationOut) => void
+}) {
+  const [retryError, setRetryError] = useState<ApiError | undefined>()
+  const [retrying, setRetrying] = useState(false)
   const title = conversationTitle(conversation.title)
   if (conversation.state === 'error' && conversation.error) {
+    const retry = async () => {
+      setRetrying(true)
+      setRetryError(undefined)
+      try {
+        onRetried(await api.retry(conversation.id))
+      } catch (cause) {
+        setRetryError(toApiError(cause))
+      } finally {
+        setRetrying(false)
+      }
+    }
     return (
       <SoonScreen title={title} text="Nada se ha escrito en Jira.">
-        {/* Sin acción en la tarjeta: una conversación terminada no se puede regenerar ni actualizar. */}
-        <ErrorCard error={conversation.error} />
-        <Button onClick={onRestart}>Empezar una conversación nueva</Button>
+        {/* El mensaje de la API tal cual; las acciones van fuera de la tarjeta. */}
+        <ErrorCard error={retryError ?? conversation.error} />
+        <span className={styles.closedActions}>
+          {!retryError && (
+            <Button variant="primary" disabled={retrying} onClick={() => void retry()}>
+              Reintentar
+            </Button>
+          )}
+          <Button onClick={onRestart}>Empezar una conversación nueva</Button>
+        </span>
       </SoonScreen>
     )
   }

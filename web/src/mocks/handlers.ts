@@ -114,6 +114,21 @@ function nextVersion(previous: ConversationOut, feedback: string): ConversationO
   return next
 }
 
+/** Mensaje de api/cancel.py (CANCELLED_MESSAGE). */
+export const CANCELLED_MESSAGE = 'Generación detenida a petición tuya. Puedes reintentarla o descartar la conversación.'
+
+/** La generación se detuvo (POST /cancel): queda en error `cancelled`, que se puede reintentar. */
+function stopRun(run: MockRun) {
+  run.cancel = false
+  run.script = []
+  run.conversation = {
+    ...run.conversation,
+    state: 'error',
+    cancel_requested: false,
+    error: { code: 'cancelled', message: CANCELLED_MESSAGE, retry_after: null },
+  }
+}
+
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }
@@ -383,6 +398,13 @@ export function createHandlers(db: MockDb) {
           async start(controller) {
             while (run.script.length > 0) {
               await delay(db.stepDelayMs)
+              // Como api/cancel.py: se para entre pasos, nunca a mitad de uno.
+              if (run.cancel) {
+                stopRun(run)
+                controller.enqueue(encoder.encode(sse('error', run.conversation)))
+                controller.close()
+                return
+              }
               const step = run.script.shift()
               if (!step) break
               run.conversation.progress = run.conversation.progress.map((item) =>
@@ -415,6 +437,42 @@ export function createHandlers(db: MockDb) {
           },
         })
         return new HttpResponse(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+      }),
+    ),
+
+    http.post<{ id: string }>(
+      `${API}/conversations/:id/cancel`,
+      mutation(({ params }) => {
+        const run = runFor(params.id)
+        if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
+        if (run.conversation.state !== 'generating') {
+          return error(409, 'not_cancellable', 'No hay ninguna generación en curso que detener.')
+        }
+        run.cancel = true
+        run.conversation = { ...run.conversation, cancel_requested: true }
+        return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
+      }),
+    ),
+    http.post<{ id: string }>(
+      `${API}/conversations/:id/retry`,
+      mutation(({ params }) => {
+        const run = runFor(params.id)
+        if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
+        if (run.conversation.state !== 'error') {
+          return error(409, 'not_in_error', 'La conversación no está en error: no hay nada que reintentar.')
+        }
+        // Repite el paso que falló: al iterar, run.previous sigue guardado y sale la versión siguiente.
+        run.cancel = false
+        run.conversation = {
+          ...run.conversation,
+          state: 'generating',
+          error: null,
+          cancel_requested: false,
+          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+        }
+        run.script = generationScript()
+        setSummary(params.id, { status: 'started' })
+        return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
       }),
     ),
 

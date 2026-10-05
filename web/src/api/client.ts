@@ -125,6 +125,8 @@ export const api = {
   iterate: (id: string, feedback: string) =>
     request<ConversationOut>('POST', `/conversations/${enc(id)}/iterate`, { feedback } satisfies IterateIn),
   discard: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/discard`),
+  cancel: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/cancel`),
+  retry: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/retry`),
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),

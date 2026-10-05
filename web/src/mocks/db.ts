@@ -98,6 +98,8 @@ export interface MockRun {
   /** Al iterar: la conversación en revisión de la que parte la versión nueva y el cambio pedido. */
   previous?: ConversationOut
   pendingFeedback?: string
+  /** POST /cancel: el SSE se detiene antes del siguiente paso (PA-314). */
+  cancel?: boolean
 }
 
 export interface MockDb {

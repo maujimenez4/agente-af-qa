@@ -173,26 +173,31 @@ describe('Iterar · Reintentar repite la operación que falló (R-1) e Iniciar s
     expect(calls).toEqual(['iterate', 'read', 'read'])
   })
 
-  it('tras un `event: error` del SSE de la iteración, «Volver a generar» reenvía el mismo cambio', async () => {
+  it('tras un `event: error` del SSE de la iteración, «Volver a generar» repite con /retry y sale la versión siguiente', async () => {
     await openFromList()
-    const sent: string[] = []
-    mockServer.events.on('request:start', async ({ request }) => {
-      if (new URL(request.url).pathname.endsWith('/iterate')) sent.push(((await request.clone().json()) as { feedback: string }).feedback)
+    const calls: string[] = []
+    mockServer.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST') calls.push(new URL(request.url).pathname.split('/').at(-1) ?? '')
     })
-    const failure = { ...EXAMPLE, state: 'error', error: { code: 'citation_failed', message: 'Citas no válidas (ficticio).' } }
+    const error = { code: 'citation_failed' as const, message: 'Citas no válidas (ficticio).', retry_after: null }
     mockServer.use(
       http.get(
         '/api/v1/conversations/:id/events',
-        () => new HttpResponse(`event: error\ndata: ${JSON.stringify(failure)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } }),
+        ({ params }) => {
+          // Como la API real: la conversación queda en error y el evento la trae completa.
+          const run = mockDb.runs.get(String(params.id))
+          if (run) run.conversation = { ...run.conversation, state: 'error', error }
+          return new HttpResponse(`event: error\ndata: ${JSON.stringify(run?.conversation)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } })
+        },
         { once: true },
       ),
     )
     await userEvent.type(composer(), 'Cambio ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Volver a generar' }))
-    expect(sent[0]).toBe('Cambio ficticio')
-    expect(sent.at(-1)).toBe('Cambio ficticio')
-    expect(sent.length).toBe(2)
+    expect(await within(panel()).findByRole('button', { name: 'Versión 3' })).toBeInTheDocument()
+    expect(calls).toEqual(['iterate', 'retry'])
+    expect(within(log()).getAllByText('Cambio ficticio')).toHaveLength(1)
   })
 
   it('«Iniciar sesión» (unauthenticated) cierra la sesión y lleva al inicio de sesión', async () => {

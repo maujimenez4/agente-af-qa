@@ -18,6 +18,10 @@ export interface ComposerProps {
   /** Herramientas a la izquierda del botón de enviar. */
   tools?: ReactNode
   submitLabel?: string
+  /** Mientras se genera: el botón de enviar pasa a «Detener la generación» (lienzo Mixta 2b, PA-314). */
+  onStop?: () => void
+  /** Ya se pidió detener: el botón queda desactivado («Deteniendo…»). */
+  stopping?: boolean
 }
 
 // Compositor del chat (UI.md §2): cuadro de texto, herramientas y enviar. Ctrl/Cmd + Intro envía.
@@ -31,6 +35,8 @@ export function Composer({
   attachment,
   tools,
   submitLabel = 'Continuar',
+  onStop,
+  stopping = false,
 }: ComposerProps) {
   const id = useId()
   const ready = canSubmit && !disabled
@@ -66,7 +72,18 @@ export function Composer({
       <div className={styles.toolbar}>
         {tools}
         <span className={styles.spacer} />
-        <IconButton type="submit" icon="send" label={submitLabel} variant="primary" size="lg" disabled={!ready} />
+        {onStop ? (
+          <IconButton
+            icon="stop"
+            label={stopping ? 'Deteniendo la generación…' : 'Detener la generación'}
+            variant="secondary"
+            size="lg"
+            disabled={stopping}
+            onClick={onStop}
+          />
+        ) : (
+          <IconButton type="submit" icon="send" label={submitLabel} variant="primary" size="lg" disabled={!ready} />
+        )}
       </div>
     </form>
   )

@@ -121,7 +121,7 @@ describe('Rail: anillo con el consumo de hoy de la instalación (decisión 17, P
 
   it('acota a 0–100 % y no pinta números negativos', () => {
     expect(usageView(usage(-5))?.percent).toBe(0)
-    expect(usageView(usage(-5))?.label).toContain(': 0 de 1000')
+    expect(usageView(usage(-5))?.label).toContain(': 0 de 1.000')
     expect(usageView(usage(5000))?.percent).toBe(100)
   })
 

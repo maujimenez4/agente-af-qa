@@ -1,3 +1,4 @@
+import { formatNumber } from '../../text/numbers.ts'
 import type { Role, UsageTodayOut } from '../../api/types.ts'
 import type { IconName } from '../Icon/index.ts'
 
@@ -44,7 +45,6 @@ export interface UsageView {
   label: string
 }
 
-const NUMBER = new Intl.NumberFormat('es-ES')
 
 /**
  * Lo que pinta el anillo con el consumo de hoy de toda la instalación (decisión 17, PA-305).
@@ -58,7 +58,7 @@ export function usageView(usage: UsageToday | undefined): UsageView | undefined 
   return {
     percent,
     warning: tokens >= threshold,
-    label: `Consumo de tokens de hoy de toda la instalación: ${NUMBER.format(Math.max(tokens, 0))} de ${NUMBER.format(threshold)}, ${percent} % del umbral de aviso`,
+    label: `Consumo de tokens de hoy de toda la instalación: ${formatNumber(Math.max(tokens, 0))} de ${formatNumber(threshold)}, ${percent} % del umbral de aviso`,
   }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiRequestError, toApiError } from '../../api/client.ts'
-import type { ApiError, ConversationOut, IssueCard, IssueSummary, SourcePreview } from '../../api/types.ts'
+import type { ApiError, ContextBudget, ConversationOut, IssueCard, IssueSummary, SourcePreview } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
 import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, FixedOperation, FoundIssue, UserMessage } from '../../components/Chat/index.ts'
@@ -9,6 +9,7 @@ import { ErrorCard } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 import styles from './Origin.module.css'
+import { BUDGET_DEBOUNCE_MS, budgetView } from './budget.ts'
 import { createBody, fixedTitle, operationFromIssue, operationFromOption, sourceDetail, type Operation } from './operation.ts'
 
 export interface OriginScreenProps {
@@ -36,6 +37,9 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   )
   const [card, setCard] = useState<IssueCard | undefined>()
   const [sources, setSources] = useState<SourcePreview[]>([])
+  const [budget, setBudget] = useState<ContextBudget | undefined>()
+  // Fuentes excluidas con las que se calculó `budget` (clave estable de la lista).
+  const budgetFor = useRef('')
   const [excluded, setExcluded] = useState<string[]>([])
   const [restrictions, setRestrictions] = useState('')
   const [details, setDetails] = useState<string[]>([])
@@ -73,7 +77,13 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     let cancelled = false
     api
       .sources(operation.origin)
-      .then((value) => !cancelled && setSources(value.sources))
+      .then((value) => {
+        if (cancelled) return
+        // La lista sale de la consulta sin exclusiones: con ellas, el backend ya no devuelve las desmarcadas.
+        setSources(value.sources)
+        setBudget(value.budget)
+        budgetFor.current = ''
+      })
       .catch((cause: unknown) => {
         if (!cancelled && cause instanceof ApiRequestError) setError(cause.error)
       })
@@ -81,6 +91,30 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       cancelled = true
     }
   }, [operation])
+
+  // Al cambiar las casillas, solo se vuelve a pedir el presupuesto (PA-102), con una espera entre clics.
+  useEffect(() => {
+    if (!operation) return
+    const key = excluded.join('\n')
+    if (key === budgetFor.current) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      api
+        .sources(operation.origin, excluded)
+        .then((value) => {
+          if (cancelled) return
+          budgetFor.current = key
+          setBudget(value.budget)
+        })
+        .catch(() => !cancelled && setBudget(undefined))
+    }, BUDGET_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [operation, excluded])
+
+  const budgetInfo = budgetView(budget)
 
   const toggle = (ref: string) =>
     setExcluded((current) => (current.includes(ref) ? current.filter((item) => item !== ref) : [...current, ref]))
@@ -170,6 +204,20 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
               )
             })}
           </fieldset>
+
+          {budgetInfo && (
+            <div className={styles.budget} data-warning={budgetInfo.warning ? '' : undefined} aria-live="polite">
+              <span className={styles.budgetLabel}>{budgetInfo.label}</span>
+              <span className={styles.budgetTrack} aria-hidden="true">
+                <span className={styles.budgetValue} style={{ width: `${budgetInfo.percent}%` }} />
+              </span>
+              {budgetInfo.notes.map((note) => (
+                <span key={note} className={styles.budgetNote}>
+                  {note}
+                </span>
+              ))}
+            </div>
+          )}
         </>
       )}
     </SidePanel>

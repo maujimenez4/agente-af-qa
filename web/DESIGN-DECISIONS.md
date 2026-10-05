@@ -123,7 +123,10 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
     - la de origen es obligatoria (casilla desactivada);
     - la memoria sale como «prioritaria»;
     - una fuente desmarcada indica que no influirá en la propuesta y va en `excluded_sources`.
-  - **Presupuesto de tokens** del panel: no está en el contrato (PA-102) y no se pinta.
+  - **Presupuesto de tokens** (PA-102): «Contexto · 2.350 de 6.000 tokens» con una barra, debajo de las fuentes, a partir de `budget` de `POST /start/sources`. Aviso (borde y barra ámbar) desde el 90 % o si hay fuentes que no caben, con «N fuentes no caben y no se enviarán al modelo» y «N incidencias se recortan para que quepan».
+    - La **lista** sale de la consulta sin exclusiones: con `excluded_sources`, el backend ya no devuelve las desmarcadas y no se podrían volver a marcar.
+    - Al cambiar las casillas solo se vuelve a pedir el **presupuesto**, 300 ms después del último clic; si esa consulta falla, el presupuesto deja de pintarse (nunca uno viejo).
+    - Los números llevan separador de miles también con cuatro cifras («2.350»), como en el anillo del carril.
 - **Generando** (Mixta 2b):
   - **Pasos:** la Q de carga y la lista de pasos siguen los eventos `progress`.
   - **Fin:** con `review_ready`, el titular pasa a «Propuesta lista · Versión N · M cambios frente a Jira» (los cambios son `impact.diffs`, solo al evolucionar) y aparece *Ver la propuesta*.

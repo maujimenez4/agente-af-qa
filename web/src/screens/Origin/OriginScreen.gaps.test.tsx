@@ -128,12 +128,6 @@ describe('Origen y fuentes: huecos (UI.md §4.3, DESIGN-DECISIONS.md §4 bis)', 
     expect(within(screen.getByRole('log')).getByRole('button', { name: 'Crear HU nueva' })).toBeDisabled()
   })
 
-  it('el presupuesto de tokens no se pinta en el panel (no está en el contrato, PA-102)', async () => {
-    await evolveDemo3()
-    expect(within(panel()).queryByText(/tokens/i)).toBeNull()
-    expect(within(panel()).queryByRole('progressbar')).toBeNull()
-  })
-
   it('con project_changed, el proyecto se fija una sola vez con POST /projects/choose', async () => {
     let chooses = 0
     mockServer.events.on('request:start', ({ request }) => {

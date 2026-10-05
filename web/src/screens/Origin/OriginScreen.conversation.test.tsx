@@ -16,6 +16,10 @@ const CAPABILITIES = 'Puedo crear una HU nueva, evolucionar una existente o prep
 const CAPABILITIES_QA = 'Puedo preparar las pruebas de una HU existente. No gestiono proyectos de Jira.'
 const NOTED = 'Anotado: lo tendré en cuenta al generar.'
 
+// El nombre accesible del composer añade la ayuda de teclado cuando está activo («… (Intro para enviar…)»).
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const byStart = (text: string) => new RegExp(`^${escapeRegExp(text)}`)
+
 async function startWithText(text: string) {
   mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
   render(<App />)
@@ -26,7 +30,7 @@ async function startWithText(text: string) {
 }
 
 async function send(text: string, placeholder = NEED) {
-  await userEvent.type(screen.getByRole('textbox', { name: placeholder }), text)
+  await userEvent.type(screen.getByRole('textbox', { name: byStart(placeholder) }), text)
   await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 }
 
@@ -103,13 +107,13 @@ describe('Origen y fuentes · conversación antes de elegir la operación (ronda
     const held = heldProposal()
     await startWithText('Renovar un préstamo desde la app')
     await send('Evoluciona DEMO-3')
-    const composer = screen.getByRole('textbox', { name: NEED })
+    const composer = screen.getByRole('textbox', { name: byStart(NEED) })
     await waitFor(() => expect(composer).toBeDisabled())
     expect(within(log()).getByRole('button', { name: 'Evolucionar DEMO-3' })).toBeDisabled() // la primera, mientras espera
 
     held.release()
     expect(await within(log()).findByText('He reconocido DEMO-3 en el proyecto DEMO.')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('textbox', { name: NEED })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('textbox', { name: byStart(NEED) })).toBeEnabled())
     const options = within(log()).getAllByRole('button', { name: 'Evolucionar DEMO-3' })
     expect(options.at(-1)).toBeEnabled()
   })
@@ -131,7 +135,7 @@ describe('Origen y fuentes · conversación antes de elegir la operación (ronda
     const alert = await screen.findByRole('alert')
     expect(within(alert).getByRole('heading', { name: 'Servicio no disponible' })).toBeInTheDocument()
     expect(within(log()).getByText('Evoluciona DEMO-3')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('textbox', { name: NEED })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('textbox', { name: byStart(NEED) })).toBeEnabled())
     expect(within(log()).getByRole('button', { name: 'Evolucionar DEMO-3' })).toBeEnabled() // la propuesta anterior sigue valiendo
   })
 
@@ -185,10 +189,10 @@ describe('Origen y fuentes · línea de capacidades (ronda 8)', () => {
 describe('Origen y fuentes · con la operación elegida (ronda 8)', () => {
   it('el placeholder describe lo que hará el siguiente mensaje', async () => {
     await startWithText('Renovar un préstamo desde la app')
-    expect(screen.getByRole('textbox', { name: NEED })).toHaveAttribute('placeholder', NEED)
+    expect(screen.getByRole('textbox', { name: byStart(NEED) })).toHaveAttribute('placeholder', NEED)
     await userEvent.click(await within(log()).findByRole('button', { name: 'Evolucionar DEMO-3' }))
-    expect(screen.getByRole('textbox', { name: DETAILS })).toHaveAttribute('placeholder', DETAILS)
-    expect(screen.queryByRole('textbox', { name: NEED })).toBeNull()
+    expect(screen.getByRole('textbox', { name: byStart(DETAILS) })).toHaveAttribute('placeholder', DETAILS)
+    expect(screen.queryByRole('textbox', { name: byStart(NEED) })).toBeNull()
   })
 
   it('un detalle se confirma con «Anotado», no vuelve a proponer y va con las restricciones', async () => {

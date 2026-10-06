@@ -4,18 +4,20 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 (T-25) y la memoria real (T-33) se completan en sus tareas.
 """
 
+import hashlib
+import json
 import time
 from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
-from adapters.base import Chunk
+from adapters.base import Chunk, IssueDetail
 from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
@@ -163,18 +165,21 @@ class GraphNodes:
         origin = state["origin"]
         previous = state["artifact"]
         artifact_id = previous.id if previous is not None else uuid4()
+        # PA-339: la primera versión estrena id en cada intento; la versión de partida ya
+        # estructurada se guarda también por conversación para que un reintento la reutilice.
+        pending = _pending_baseline_key(config) if previous is None else None
         impact: ImpactAnalysis | None = None
         prompt_version: str | None = None
 
         content: UserStory | TestSuite
         try:
             if state["mode"] == "qa":
-                suite_draft = self._write_suite(state, str(artifact_id), config)
+                suite_draft = self._write_suite(state, str(artifact_id), config, pending)
                 content, artifact_type = suite_draft.suite, ArtifactType.TEST_SUITE
                 model_used = f"{suite_draft.provider}/{suite_draft.model}"
                 prompt_version = suite_draft.prompt_version
             else:
-                draft, impact = self._write_story(state, str(artifact_id))
+                draft, impact = self._write_story(state, str(artifact_id), pending)
                 content, artifact_type = draft.story, ArtifactType.USER_STORY
                 model_used = f"{draft.provider}/{draft.model}"
                 prompt_version = draft.prompt_version
@@ -193,6 +198,7 @@ class GraphNodes:
             raise
 
         if previous is None:
+            self._forget_pending_baseline(pending)  # PA-339: ya está en el artefacto
             artifact = Artifact(
                 id=artifact_id,
                 type=artifact_type,
@@ -270,7 +276,7 @@ class GraphNodes:
         return default_prompt_limits()
 
     def _write_story(
-        self, state: AgentState, artifact_id: str
+        self, state: AgentState, artifact_id: str, pending: str | None = None
     ) -> tuple[StoryDraft, ImpactAnalysis | None]:
         """HU con los prompts de T-20; en una evolución, diff frente a la versión de Jira."""
         origin, previous = state["origin"], state["artifact"]
@@ -297,7 +303,7 @@ class GraphNodes:
             epic = origin.get("key") if origin["kind"] == "epic" else None
             return draft, analyzer.analyze(draft.story, jira, parent_key=epic)
 
-        baseline = self._baseline(writer, ctx, artifact_id)
+        baseline = self._baseline(writer, ctx, artifact_id, pending)
         draft = writer.evolve(replace(ctx, previous=current or baseline))
         # T-21: diff determinista frente a Jira + HU afectadas y regresión validadas.
         impact = analyzer.analyze(
@@ -327,7 +333,11 @@ class GraphNodes:
         return handoff.story
 
     def _write_suite(
-        self, state: AgentState, artifact_id: str, config: RunnableConfig | None = None
+        self,
+        state: AgentState,
+        artifact_id: str,
+        config: RunnableConfig | None = None,
+        pending: str | None = None,
     ) -> SuiteDraft:
         """Suite de QA con los prompts de T-26 sobre la HU de Jira estructurada (PA-61).
 
@@ -353,7 +363,9 @@ class GraphNodes:
             return tests_writer.generate(
                 chained, ctx, unpublished=unpublished, previous_suite=_previous_suite(state)
             )
-        story = self._baseline(StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id)
+        story = self._baseline(
+            StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id, pending
+        )
         return TestWriter(self.c.llm, limits=self._limits()).generate(
             story, ctx, previous_suite=_previous_suite(state)
         )
@@ -370,17 +382,57 @@ class GraphNodes:
             "source_story_key": handoff.story_key,
         }
 
-    def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
-        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37)."""
+    def _baseline(
+        self,
+        writer: StoryWriter,
+        ctx: StoryContext,
+        artifact_id: str,
+        pending: str | None = None,
+    ) -> UserStory:
+        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37).
+
+        PA-339: con `pending` (primera versión), también se guarda por conversación con la
+        huella de la incidencia de origen; un reintento la reutiliza si la incidencia no cambió.
+        """
         state = self.c.state_store.load(artifact_id) or {}
         if saved := state.get("baseline"):
             return UserStory.model_validate(saved)
         origin_issue = [i for i in ctx.jira if i.key == ctx.origin_key][:1]
-        origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
-        baseline = writer.structure(origin_only).story
+        source = _issue_fingerprint(origin_issue)
+        baseline = self._pending_baseline(pending, source)
+        if baseline is None:
+            origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
+            baseline = writer.structure(origin_only).story
+            if pending is not None:
+                self.c.state_store.save(
+                    pending, {"baseline": baseline.model_dump(mode="json"), "source": source}
+                )
         state["baseline"] = baseline.model_dump(mode="json")
         self.c.state_store.save(artifact_id, state)
         return baseline
+
+    def _pending_baseline(self, pending: str | None, source: str) -> UserStory | None:
+        """La versión de partida de un intento anterior de esta conversación, si la incidencia
+        de origen es la misma; si no, `None` (se vuelve a estructurar)."""
+        if pending is None:
+            return None
+        saved = self.c.state_store.load(pending) or {}
+        if saved.get("source") != source or not saved.get("baseline"):
+            return None
+        try:
+            return UserStory.model_validate(saved["baseline"])
+        except ValidationError:
+            log.warning("versión de partida guardada no válida", action="structure_story")
+            return None
+
+    def _forget_pending_baseline(self, pending: str | None) -> None:
+        if pending is None:
+            return
+        saved = self.c.state_store.load(pending)
+        if saved and ("baseline" in saved or "source" in saved):
+            saved.pop("baseline", None)
+            saved.pop("source", None)
+            self.c.state_store.save(pending, saved)
 
     def _forget_baseline(self, artifact_id: str) -> None:
         state = self.c.state_store.load(artifact_id)
@@ -999,3 +1051,26 @@ def spent_in_simulation(
         if approval.at < simulated_at or approval.at == used_at:
             return "spent"
     return None
+
+
+# PA-339: espacio propio para las claves de la versión de partida por conversación.
+_PENDING_BASELINE_NS = UUID("6f1d8f4e-3a52-4c1b-9d7e-2b8a51c0e339")
+
+
+def _pending_baseline_key(config: RunnableConfig | None) -> str | None:
+    """Clave estable entre reintentos de la primera versión de una conversación (PA-339)."""
+    thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
+    if not thread_id or not THREAD_ID.fullmatch(str(thread_id)):
+        return None
+    return str(uuid5(_PENDING_BASELINE_NS, f"baseline:{thread_id}"))
+
+
+def _issue_fingerprint(issues: list[IssueDetail]) -> str:
+    """Huella de la incidencia de origen tal como se leyó de Jira (PA-339)."""
+    payload = json.dumps(
+        [issue.model_dump(mode="json") for issue in issues],
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

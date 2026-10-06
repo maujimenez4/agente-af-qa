@@ -184,7 +184,14 @@ def _timed(plan: _Plan) -> ServiceCheck:
         ok, detail = False, f"{NOT_CONFIGURED}."
     except (AgentError, MissingModelsError, MissingMigrationsError) as exc:
         ok, detail = False, str(exc)  # mensajes saneados (adapters/errors.py) o propios
-    except Exception:  # nunca el texto: podría llevar una cadena de conexión
+    except Exception as exc:  # nunca el texto: podría llevar una cadena de conexión
+        # PA-244: el administrador ve un mensaje fijo; en el log queda el tipo, sin el mensaje.
+        log.warning(
+            "comprobación fallida",
+            action="test_connections",
+            service=plan.service,
+            error_type=type(exc).__name__,
+        )
         ok, detail = False, "Error inesperado al comprobar el servicio."
     elapsed = round((time.perf_counter() - started) * 1000)
     return ServiceCheck(plan.service, ok, detail[:MAX_DETAIL_CHARS], elapsed)

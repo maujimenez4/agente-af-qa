@@ -32,7 +32,8 @@ describe('Resultado · en parte solo con `failed_ids` (RNF-13)', () => {
     const marks = within(approved).getAllByRole('listitem').map((item) => item.querySelector('[aria-hidden="true"]')?.textContent)
     expect(marks.length).toBeGreaterThan(1)
     expect(marks).toEqual(marks.map((_, index) => String(index + 1)))
-    expect(within(region).getByText('Claves en Jira: DEMO-3')).toBeInTheDocument()
+    // PA-325: cada clave puede ser un enlace a Jira (con texto oculto); se comparan solo las claves.
+    expect(within(region).getByText(/^Claves en Jira:/, { selector: 'p' }).textContent?.match(/[A-Z][A-Z0-9_]*-\d+/g)).toEqual(['DEMO-3'])
   })
 
   it('con `errors` y `failed_ids` se ven los dos, cada mensaje tal cual', () => {

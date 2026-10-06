@@ -24,6 +24,7 @@ from core.container import Container
 from core.functional.citations import CitationError
 from core.functional.context import StoryContext
 from core.graph import Origin, build_graph, initial_state
+from core.graph.nodes import _pending_baseline_key
 from core.qa.validation import CoverageError
 from core.rag.prompts import load_prompt
 from schemas.artifact import Artifact
@@ -674,7 +675,10 @@ def test_failed_first_generation_leaves_no_orphan_baseline(tmp_path: Path) -> No
 
     store = container.state_store
     assert isinstance(store, InMemoryArtifactStateStore)
-    assert not any("baseline" in s for s in store.states.values())
+    # Ningún intento deja su versión de partida; solo queda la de la conversación (PA-339),
+    # una sola, para que el siguiente reintento no vuelva a estructurar.
+    keys = {key for key, s in store.states.items() if "baseline" in s}
+    assert keys == {_pending_baseline_key(config)}
 
 
 def test_initial_feedback_reaches_first_generate_tests(tmp_path: Path) -> None:
@@ -703,7 +707,8 @@ def test_initial_feedback_reaches_first_evolution(tmp_path: Path) -> None:
 
 
 def test_failed_first_evolution_leaves_no_orphan_baseline(tmp_path: Path) -> None:
-    """La limpieza de la versión de partida vale también para evolucionar una HU."""
+    """La limpieza de la versión de partida vale también para evolucionar una HU; solo queda la
+    de la conversación (PA-339)."""
     llm = FakeLLMProvider()
     container = fake_container(tmp_path, llm=llm)
     graph = build_graph(container)
@@ -723,4 +728,5 @@ def test_failed_first_evolution_leaves_no_orphan_baseline(tmp_path: Path) -> Non
 
     store = container.state_store
     assert isinstance(store, InMemoryArtifactStateStore)
-    assert not any("baseline" in s for s in store.states.values())
+    keys = {key for key, s in store.states.items() if "baseline" in s}
+    assert keys == {_pending_baseline_key(config)}

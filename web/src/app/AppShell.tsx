@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
@@ -97,8 +97,13 @@ const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
 
 function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: string) => void }) {
   const { conversations, error: conversationsError, reload } = useConversations(user.permissions.includes('generate_story'))
-  const [currentId, setCurrentId] = useState<string | undefined>()
-  const [view, setView] = useState<WorkView>({ name: 'home' })
+  const { state: session, remember } = useSession()
+  // PA-332: tras volver a entrar por una sesión caducada, lo que tenía abierto la persona. Una revisión de
+  // calidad se reabre como revisión (su id no es una conversación: GET /conversations daría 404).
+  const resume = session.status === 'authenticated' ? session.resume : undefined
+  const resumeId = resume?.kind === 'conversation' ? resume.id : undefined
+  const [currentId, setCurrentId] = useState<string | undefined>(resume?.id)
+  const [view, setView] = useState<WorkView>(resume?.kind === 'quality' ? { name: 'quality', reviewId: resume.id } : { name: 'home' })
   // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
   const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
   const [picked, setPicked] = useState<JiraPick | undefined>()
@@ -107,25 +112,48 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
   const [opened, setOpened] = useState(0)
 
   // Retomar una conversación de la lista (T-52): según su estado, Generando, Iterar o un aviso.
+  const showConversation = (conversation: ConversationOut) => {
+    // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
+    setOpened((count) => count + 1)
+    if (conversation.state === 'generating') {
+      setView({ name: 'generating', conversation })
+    } else if (conversation.state === 'in_review') {
+      setView({ name: 'ready', conversation })
+    } else if (hasResult(conversation)) {
+      setView({ name: 'result', conversation })
+    } else {
+      setView({ name: 'closed', conversation })
+    }
+  }
   const openConversation = async (threadId: string) => {
     setOpenError(undefined)
     try {
-      const conversation = await api.conversation(threadId)
-      // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
-      setOpened((count) => count + 1)
-      if (conversation.state === 'generating') {
-        setView({ name: 'generating', conversation })
-      } else if (conversation.state === 'in_review') {
-        setView({ name: 'ready', conversation })
-      } else if (hasResult(conversation)) {
-        setView({ name: 'result', conversation })
-      } else {
-        setView({ name: 'closed', conversation })
-      }
+      showConversation(await api.conversation(threadId))
     } catch (cause) {
       setOpenError(toApiError(cause))
     }
   }
+
+  // PA-332: la sesión sabe qué está abierto (conversación o revisión); tras volver a entrar, se reabre.
+  // El tipo va con el id, no con la vista: al elegir una conversación desde una revisión, la vista sigue en
+  // `quality` hasta que responde la API, y ese id es de una conversación.
+  const openKind =
+    (view.name === 'quality' && view.reviewId === currentId) ||
+    conversations.some((item) => item.thread_id === currentId && item.review_state)
+      ? 'quality'
+      : 'conversation'
+  useEffect(() => remember(currentId, openKind), [currentId, openKind, remember])
+  useEffect(() => {
+    if (!resumeId) return
+    let cancelled = false
+    api
+      .conversation(resumeId)
+      .then((conversation) => !cancelled && showConversation(conversation))
+      .catch((cause: unknown) => !cancelled && setOpenError(toApiError(cause)))
+    return () => {
+      cancelled = true
+    }
+  }, [resumeId])
 
   return (
     <>
@@ -141,7 +169,10 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         }}
         onSelect={(threadId) => {
           setCurrentId(threadId)
-          if (conversations.some((item) => item.thread_id === threadId && item.review_state)) {
+          const isReview = conversations.some((item) => item.thread_id === threadId && item.review_state)
+          // PA-407: la sesión lo sabe antes de pedirlo; si esa petición da 401, se recuerda lo elegido con su tipo.
+          remember(threadId, isReview ? 'quality' : 'conversation')
+          if (isReview) {
             setOpenError(undefined)
             setOpened((count) => count + 1)
             setView({ name: 'quality', reviewId: threadId })
@@ -159,7 +190,11 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         {view.name === 'home' && (
           <HomeScreen
             user={user}
-            onStart={(request) => setView(request.flow === 'review' ? { name: 'quality', request } : { name: 'origin', request })}
+            onStart={(request) => {
+              // Una revisión nueva aún no tiene id (PA-130): no se recuerda la conversación anterior como revisión.
+              if (request.flow === 'review') setCurrentId(undefined)
+              setView(request.flow === 'review' ? { name: 'quality', request } : { name: 'origin', request })
+            }}
             onTaken={!QA_HANDOFF_ENABLED ? undefined : (conversation) => {
               setCurrentId(conversation.id)
               setView({ name: 'generating', conversation })

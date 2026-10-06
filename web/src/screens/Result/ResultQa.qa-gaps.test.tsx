@@ -119,7 +119,8 @@ describe('QA 5 · parcial', () => {
     expect(QA_OUTCOME_TEXTS.partial.note).toMatch(/^Lo creado se mantiene./)
     // En parte, lo que toca es reintentar los fallidos (PA-05), no registrar la ejecución.
     expect(within(region).queryByRole('button', { name: 'Registrar la ejecución' })).toBeNull()
-    expect(within(region).getByText('Claves en Jira: DEMO-21')).toBeInTheDocument()
+    // PA-325: cada clave puede ser un enlace a Jira (con texto oculto); se comparan solo las claves.
+    expect(within(region).getByText(/^Claves en Jira:/, { selector: 'p' }).textContent?.match(/[A-Z][A-Z0-9_]*-\d+/g)).toEqual(['DEMO-21'])
   })
 
   it('test_partial_errors_with_html_render_as_text', () => {

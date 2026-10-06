@@ -134,12 +134,29 @@ export function dataColumns(rows: readonly Record<string, string>[]): string[] {
 
 export type StrategyBlock = { kind: 'heading' | 'paragraph' | 'item'; text: string }
 
-/** La estrategia (Markdown del LLM) en bloques de texto: «## » es un título y «- » un punto; el resto, párrafos. */
+/**
+ * La estrategia (Markdown del LLM) en bloques de texto: «## » es un título y «- » un punto; el resto, párrafos.
+ * PA-334: una fila de tabla sale como texto con « · » entre celdas; las líneas separadoras de tabla y las
+ * reglas horizontales se omiten, y «> » se quita. Las marcas en línea las pinta `InlineMarkdown`.
+ */
 export function strategyBlocks(markdown: string): StrategyBlock[] {
   const blocks: StrategyBlock[] = []
   for (const raw of markdown.split('\n')) {
-    const line = raw.trim()
-    if (!line) continue
+    let line = raw.trim()
+    const rule = /^([-*_])(\s*\1){2,}$/.test(line)
+    const tableSeparator = line.includes('|') && line.includes('-') && /^[|\s:-]+$/.test(line)
+    if (!line || rule || tableSeparator) continue
+    if (line.startsWith('>')) line = line.replace(/^>\s*/, '')
+    if (!line) continue // una cita vacía («>» sola)
+    if (/^\|.*\|$/.test(line)) {
+      const cells = line
+        .slice(1, -1)
+        .split('|')
+        .map((cell) => cell.trim())
+        .filter(Boolean)
+      if (cells.length > 0) blocks.push({ kind: 'paragraph', text: cells.join(' · ') })
+      continue
+    }
     const heading = /^#{1,6}\s+(.*)$/.exec(line)
     const item = /^[-*]\s+(.*)$/.exec(line)
     if (heading?.[1]) blocks.push({ kind: 'heading', text: heading[1] })

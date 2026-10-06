@@ -142,6 +142,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Iterar** (Mixta 3):
   - **Mensaje del asistente:** cada versión lleva un resumen compuesto en el frontend con `changes_from_previous` y el impacto («Versión 3 lista. CA-01: … Afecta también a DEMO-2 (…)»), porque el contrato no trae un mensaje. La versión nueva se escribe letra a letra.
   - **Peticiones de cambio** (`POST /iterate`): vuelven a seguir el SSE con «Escribiendo la respuesta». La versión nueva se abre en el panel (y lo vuelve a mostrar si estaba plegado).
+  - **Nombre de los diffs de CA y RN** (PA-341): la API real envía `acceptance_criteria[CA-02]` y el ejemplo del contrato `acceptance_criteria.CA-02`; la web acepta los dos (`itemId` en `proposalText.ts`) para la pestaña *Cambios*, las marcas y el recibo.
   - **Marcas «Cambiado en vN» y «Nueva»:** `impact.diffs` es el diff **acumulado frente a Jira** (`core/impact/analysis.py`), así que no dice qué cambió en cada versión. Desde la v2 las marcas comparan cada CA y RN con los de la versión anterior (`ConversationOut.versions`); en la v1, con los diffs. La pestaña *Cambios* y el recuento «N cambios frente a Jira» sí usan `impact.diffs`. La API simulada también acumula.
   - **HU nueva** (flujo `need`): no hay HU en Jira, así que no se habla de «cambios frente a Jira». La pestaña *Cambios* va sin recuento y lo explica.
   - **Historial:** los cambios pedidos antes de retomar (`ConversationOut.feedback`) se pintan siempre al principio del chat.

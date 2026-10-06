@@ -15,6 +15,7 @@
   - **Editar a mano**: la parte A (`t56-editar`), la parte B y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA), y `/edit` en §9;
   - **PA-330** (presupuesto rápido en Origen, §4.3).
 - Con la v2.0, alinear también las frases que aún dicen que algo «no está en UI.md» o citan la v1.0: `web/DESIGN-DECISIONS.md` (aviso de modo de prueba del Resultado, «Si no fuera así…» de Cobertura y Memoria) y el comentario de `web/src/screens/Memory/memoryText.ts`.
+- Otros textos desfasados por lo ya fusionado: el comentario de `itemId` en `web/src/components/Proposal/proposalText.ts` (el ejemplo del contrato ya usa `acceptance_criteria[CA-02]`) y `web/PRUEBA-API-REAL.md`, que aún da Revisar la calidad y Administración como «disponible pronto».
 - **Administración** (Ajustes, solo admin) está completa en `PreProduccion` y es ahora del responsable de `web/`: revisarla en el pulido final (textos, tamaños y las PA abiertas).
 
 ## Reparto (2026-10-06)

@@ -29,7 +29,7 @@ export function reviewStartedAt(createdAt: string | undefined, openedAt: number)
 /** Tarjeta al pasar el tope (PA-406): el título de `provider_timeout`, con este mensaje. */
 export const STALE_REVIEW: ApiError = {
   code: 'provider_timeout',
-  message: 'La revisión lleva más de 30 minutos en curso; puede que el servidor se haya reiniciado. Nada se ha escrito en Jira.',
+  message: 'La revisión lleva más de 30 minutos en curso; puede que el modelo esté atascado o muy lento. Nada se ha escrito en Jira.',
 }
 export const RECHECK = 'Volver a consultar'
 export const REVIEW_AGAIN = 'Revisar de nuevo'

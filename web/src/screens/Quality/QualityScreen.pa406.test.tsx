@@ -13,7 +13,7 @@ import { QUALITY_POLL_MS, QUALITY_SLOW_POLL_MS, qualityPollDelay, reviewStartedA
 
 const T0 = Date.parse('2026-10-06T10:00:00Z')
 const MINUTE = 60_000
-const STALE_TEXT = 'La revisión lleva más de 30 minutos en curso; puede que el servidor se haya reiniciado. Nada se ha escrito en Jira.'
+const STALE_TEXT = 'La revisión lleva más de 30 minutos en curso; puede que el modelo esté atascado o muy lento. Nada se ha escrito en Jira.'
 
 // El ejemplo del contrato trae el informe; la prueba fija el estado y las fechas.
 const base = (examples as unknown as Record<string, QualityReviewOut>)['POST /api/v1/quality-reviews 202']

@@ -175,7 +175,9 @@ describe('UI.md §4.8 · Revisar la calidad y §4.5 · PA-341, lo que no tenía 
 
   it('test_running_review_header_note_and_no_phase_q_when_in_progress', async () => {
     /** §4.8 Cabecera y En curso: «Calidad de DEMO-4», «… · solo lectura», sin Q de fases, la nota de las dos llamadas y sin pasos. */
-    openReview({ state: 'running', report: null })
+    // `created_at` de ahora: el del ejemplo del contrato (2026-10-02) pasaría el tope de 30 min de PA-406 en la primera
+    // consulta y saldría la tarjeta del tope; esta prueba mira la vista «en curso».
+    openReview({ state: 'running', report: null, created_at: new Date().toISOString() })
     expect(await screen.findByRole('heading', { level: 1, name: 'Calidad de DEMO-4' })).toBeInTheDocument()
     expect(screen.getByText('Revisar la calidad · solo lectura')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Avance: fase/ })).toBeNull()

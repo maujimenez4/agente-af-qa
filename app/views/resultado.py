@@ -1,6 +1,6 @@
 """Mixta 4 · QA 5 · Resultado de la publicación (`docs/specs/UI.md` §4.7 y §6.5; RF-31).
 
-Simulado (la aprobación sigue vigente, T-25), publicado (operaciones hechas y claves), en parte
+Simulado (la aprobación queda gastada, PA-41), publicado (operaciones hechas y claves), en parte
 (errores de RNF-13) o publicado sin memoria (PA-251). *Reintentar solo los fallidos* queda
 desactivado: el hilo termina tras `publish` y el grafo no ofrece volver a publicar con la misma
 aprobación (PA-153).
@@ -46,8 +46,8 @@ def _simulated(outcome: Outcome) -> None:
     )
     st.markdown(md_lines(outcome.operations))
     st.caption(
-        "La aprobación sigue vigente: cuando se active la publicación real se podrá publicar "
-        "sin repetir la revisión."
+        "La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo "
+        "real y vuelve a revisar y aprobar."
         + (" La memoria se genera al publicar de verdad." if outcome.story else "")
     )
 

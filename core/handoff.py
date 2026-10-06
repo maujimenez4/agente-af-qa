@@ -261,9 +261,11 @@ def _confirmed_by_ledger(
         user=user,
         thread_id=thread_id,
     )
-    if (
-        artifact.status is ArtifactStatus.APPROVED
-        and container.approvals.find(artifact, target) is not None
+    # PA-41: la aprobación de una HU publicada en simulación queda gastada, pero acredita igual
+    # que una persona la aprobó (no sirve para publicar).
+    if artifact.status is ArtifactStatus.APPROVED and (
+        container.approvals.find(artifact, target) is not None
+        or container.approvals.simulated_approval(artifact, target) is not None
     ):
         return False
     raise HandoffError("No consta la aprobación de esta versión de la HU.")

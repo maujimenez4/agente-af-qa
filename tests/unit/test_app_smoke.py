@@ -464,6 +464,8 @@ def test_smoke_receipt_approve_enabled_only_when_all_checked(composed: Container
     session = _session(at)
     assert session.screen == "iterar", _texts(at)
     assert any("Aprobada · simulada" in str(s.value) for s in at.success)
+    # PA-41: la aprobación se gasta al simular; para publicar de verdad hay que volver a aprobar.
+    assert any("La aprobación se ha usado en esta simulación" in str(c.value) for c in at.caption)
     assert "Simulado" in _sidebar_texts(at)
     conv = next(c for c in session.workspace.conversations if c.thread_id == session.current)  # type: ignore[union-attr]
     assert conv.outcome is not None and conv.outcome.kind == "simulated"

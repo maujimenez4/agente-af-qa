@@ -304,7 +304,7 @@ def outcome_from_state(
 ) -> Outcome | None:
     """Resultado de la publicación a partir del estado del grafo; None si no se aprobó.
 
-    Simulado: el artefacto sigue `APPROVED` sin claves (la aprobación sigue vigente, T-25).
+    Simulado: el artefacto sigue `APPROVED` sin claves y la aprobación queda gastada (PA-41).
     Real: `PUBLISHED` con `published_keys`. Parcial: hay `errors` (RNF-13); una suite con
     fallos no pasa a publicada (T-30). Si algo falla después de publicar (la memoria, PA-251),
     se informa sin decir que no se escribió nada.

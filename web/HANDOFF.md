@@ -13,8 +13,10 @@
 - **UI.md v2.0** (`docs/specs/UI.md`, PA-300, 2026-10-06) describe la web en React tal como está fusionada. Hay que **actualizarla** cuando se fusionen:
   - **Revisar la calidad** (sesión MCP): §4.8 deja de estar «en desarrollo»;
   - **`ses-web-fixes`** (PA-332 a PA-336): 401 común (§7), «Aprobando y publicando…», Estrategia con formato (§6.3), alto de la app y `/start/sources` durante la generación;
-  - **la parte B de Editar a mano** y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA);
+  - **Editar a mano**: la parte A (`t56-editar`), la parte B y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA), y `/edit` en §9;
+  - **PA-341** (PR #7, `t56-diffs`): los dos nombres de los diffs (§4.5);
   - **PA-330** (presupuesto rápido en Origen, §4.3).
+- Con la v2.0, alinear también las frases que aún dicen que algo «no está en UI.md» o citan la v1.0: `web/DESIGN-DECISIONS.md` (aviso de modo de prueba del Resultado, «Si no fuera así…» de Cobertura y Memoria) y el comentario de `web/src/screens/Memory/memoryText.ts`.
 
 ## Hecho
 - **Flujo de la HU contra MSW:** login, Inicio, Elegir en Jira, Origen (presupuesto de tokens y conversación de la ronda 8), Generando e Iterar (versión «Jira», *Detener* y *Reintentar*), Recibo con la huella exacta y Resultado simulado, publicado o en parte; *Abrir <clave> en Jira* (PA-318).
@@ -98,7 +100,6 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 ## PA abiertas
 - **Adoptadas en `t56-qa-cobertura`:** PA-326, PA-327 (en la API simulada), PA-118 y PA-328.
 - **Del área B:**
-  - PA-300 (UI.md: *Volver a la propuesta* en el recibo, el aviso de modo de prueba solo en simulación, el flujo unido fuera de la entrega y el texto de Cobertura sin «Si no fuera así…»);
   - PA-304 (lienzo: foco, Q con reducir movimiento y la fase de la suite en parte);
   - PA-310, PA-312 y PA-325.
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).

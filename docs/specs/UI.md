@@ -6,7 +6,7 @@
 
 Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de qué depende**. La implementación es el frontend en **React** de `web/` (T-56), que habla con el backend **solo a través de la API HTTP** de T-55 (`docs/api/openapi.yaml`, `docs/api/README.md`). Las decisiones de detalle (medidas, textos, accesibilidad, casos límite) están en `web/DESIGN-DECISIONS.md`; cuando el lienzo y este documento no coinciden, manda este documento. Lo que aún no existe se marca con su tarea o su propuesta (PA-XX).
 
-**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Memoria y Administración. **Pendientes:** Revisar la calidad (§4.8, en desarrollo), *Editar a mano* (§4.5 bis, diseño pendiente de validar), los arreglos de la prueba contra la API (PA-332 a PA-336, en desarrollo) y lo que §11 deja fuera de la entrega.
+**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Memoria y Administración. **Pendientes:** Revisar la calidad (§4.8, en desarrollo), *Editar a mano* (§4.5 bis, diseño pendiente de validar), los arreglos de la prueba contra la API (PA-332 a PA-336, en desarrollo), los dos nombres de los diffs (PA-341, PR #7) y lo que §11 deja fuera de la entrega.
 
 ---
 
@@ -30,7 +30,7 @@ Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de 
 | Lista de conversaciones (248 px) | «Nueva conversación», buscador local (sin mayúsculas ni tildes), conversaciones agrupadas por día («Hoy», «Ayer», fecha) con clave de proyecto, título y «flujo · estado» («Versión 2», «Simulado», «Publicado», «En curso», «Aprobada», «Descartada»); se desplaza dentro de su columna | Retomar una conversación | `GET /conversations` (T-52) |
 | Cabecera (64 px) | Título de la conversación, **Q de fase** («Fase N de 4 · Contexto / Generar / Revisión / Publicado») y *Ocultar el panel* / *Mostrar el panel* | Plegar el panel derecho | Estado de la conversación (`ConversationOut.state`) |
 | Compositor | Cuadro de texto con ayuda según el flujo, «Elegir en Jira», selector de modelo **en solo lectura** («Modelo automático») y enviar. **Intro envía**, Mayús+Intro hace un salto de línea; mientras genera, el botón de enviar pasa a *Detener* | Enviar | Elegir modelo por petición (RF-42) queda fuera de la entrega |
-| Aviso de modo de prueba | «Modo de prueba: al aprobar verás lo que se haría en Jira, pero no se escribirá nada.» En Inicio y, en el Resultado, solo tras una simulación | — | `publish_mode = simulation` |
+| Aviso de modo de prueba | En Inicio: «Modo de prueba: al aprobar verás lo que se haría en Jira, pero no se escribirá nada.» En el Resultado (HU y QA), solo tras una simulación: «Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.» | — | `publish_mode = simulation` |
 | Panel derecho | «Antes de generar» (420 px), propuesta o informe (480 px), suite de QA (540 px). Plegado, se oculta sin perder su estado | — | — |
 
 Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar** (generar e iterar) · **3 Revisión** (recibo, aprobada) · **4 Publicado**.
@@ -130,7 +130,7 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 | Aviso de modelo usado | «Generado con local · qwen3:4b-instruct · 2 fuentes» | — | `Artifact.model_used`. El motivo de un cambio de proveedor no lo expone el backend (PA-67) |
 | Sugerencias | Chips: «Añade un criterio de error», «Aclara el alcance», «Revisa INVEST» | Rellenar el compositor | — |
 | Panel · Versiones | *Jira* (solo al evolucionar) · *v1* · *v2* … | Ver una versión | `ConversationOut.versions`, `jira_baseline` (PA-316) |
-| Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira; los dos nombres de campo, PA-341), `impact.affected` |
+| Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira). La API real nombra los diffs de CA y RN `acceptance_criteria[CA-02]` y la web aún solo reconoce `acceptance_criteria.CA-02`, el del ejemplo del contrato: aceptar los dos es PA-341 (PR #7, pendiente), `impact.affected` |
 | Propuesta | «Como / quiero / para», CA y RN; marcas «Cambiado en vN» / «Nueva» frente a la versión anterior (en la v1, frente a Jira) | — | — |
 | Pie del panel | *Editar a mano* (§4.5 bis) · *Descartar* (con confirmación) · *Revisar y aprobar* | Editar / descartar / abrir el recibo | `POST /discard` · §4.6 |
 
@@ -164,9 +164,9 @@ Aprobar responde 202; la publicación sigue por el SSE («Aprobando y publicando
 
 | Modo | Fase | Contenido | Acción | Dependencia |
 |---|---|---|---|---|
-| Simulación | 3 de 4 · Aprobada (la Q no se llena: no se ha escrito nada en Jira) | Distintivo «Aprobada · simulada»; «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:» + operaciones numeradas; nota «La aprobación sigue vigente…» y aviso de modo de prueba | *Ver el registro de auditoría* e *Ir al historial* («disponible pronto») | `result.simulated` (T-25); caducidad de la aprobación PA-41 |
-| Real | 4 de 4 · Publicado | «Publicado en Jira · Estas operaciones ya están en Jira:» + operaciones con ✓ y las claves publicadas; «La memoria de DEMO-3 se ha generado e indexado; tendrá prioridad en las próximas propuestas.» | *Abrir DEMO-3 en Jira* · **Ver la memoria** (abre Memoria con esa clave, §4.9) · *Pedir sus pruebas a QA* («disponible pronto», §11) | `result.published_keys`, `jira_browse_url` (PA-318) |
-| En parte | 4 de 4 · Publicada en parte | Las operaciones aprobadas, numeradas y sin ✓, y «Lo que no se pudo publicar» con los mensajes de la API. No es un error HTTP (RNF-13) | *Abrir DEMO-3 en Jira* · *Ver la memoria* | `result.errors` (estado `published`, PA-324) |
+| Simulación | 3 de 4 · Aprobada (la Q no se llena: no se ha escrito nada en Jira) | Distintivo «Aprobada · simulada»; «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:» + operaciones numeradas; nota «La aprobación sigue vigente…» y aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* e *Ir al historial* («disponible pronto») | `result.simulated` (T-25); caducidad de la aprobación PA-41 |
+| Real | 4 de 4 · Publicado | «Publicado en Jira · Estas operaciones ya están en Jira:» + operaciones con ✓ y las claves publicadas; «La memoria de la HU se ha generado e indexado; tendrá prioridad en las próximas propuestas.» | *Abrir DEMO-3 en Jira* · **Ver la memoria** (abre Memoria con esa clave, §4.9) · *Pedir sus pruebas a QA* («disponible pronto», §11) | `result.published_keys`, `jira_browse_url` (PA-318) |
+| En parte | 4 de 4 · Publicada en parte | Las operaciones aprobadas, numeradas y sin ✓, y «Lo que no se pudo publicar» con los mensajes de la API. No es un error HTTP (RNF-13) | *Abrir DEMO-3 en Jira* · *Ver la memoria* · *Pedir sus pruebas a QA* («disponible pronto») | `result.errors` (estado `published`, PA-324) |
 | Todos | — | «Versión 2 aprobada por af-demo a las 15:47» | — | — |
 
 *Reintentar solo los fallidos* es PA-05 (fuera de alcance). La memoria puede quedar sin indexar (`MemoryOut.indexed = false`) aunque el texto diga «indexado»: nota para la principal en PA-329.
@@ -185,7 +185,7 @@ Flujo propio, **solo lectura: no publica** (decisión del día 6). En la web, la
 | Lista de conversaciones | La revisión aparece junto a las conversaciones, por `updated_at`, con «Informe listo» al terminar | Retomar | `GET /quality-reviews` (PA-103, PA-272) |
 
 ### 4.9 Memoria (PA-329)
-Zona propia del carril para los tres roles. Solo lectura: no llama al LLM ni escribe nada.
+Zona propia del carril para los tres roles (diseño validado por la principal el 2026-10-06). Solo lectura: no llama al LLM ni escribe nada.
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
@@ -273,7 +273,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 
 | Modo | Fase | Contenido | Acción | Dependencia |
 |---|---|---|---|---|
-| Simulación | 3 de 4 · Aprobada | «Publicación simulada · No se ha escrito nada; esto es lo que se habría hecho.»; «La aprobación sigue vigente para publicar cuando se active el modo real.» | *Ver el registro de auditoría* («disponible pronto») | T-25 |
+| Simulación | 3 de 4 · Aprobada | «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:»; «La aprobación sigue vigente para publicar cuando se active el modo real.» y el aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* («disponible pronto») | T-25 |
 | Real | 4 de 4 · Publicado | «Suite publicada en Jira» con las subtareas en «Claves en Jira» | *Abrir DEMO-3 en Jira* · *Registrar la ejecución* (§6.6) | `result.published_keys` |
 | En parte | **4 de 4 · Publicada en parte** (igual que la HU; el lienzo dice fase 3, PA-304) | Las operaciones aprobadas y «Lo que no se pudo publicar» con los mensajes de la API y los casos que fallaron | *Abrir DEMO-3 en Jira* | Estado `approved` con `result.errors` y `failed_ids` (PA-324) |
 
@@ -330,7 +330,7 @@ Todas responden a una acción o a un proceso real, duran ≤ 0,42 s salvo la car
 | 4 | **Escritura de la respuesta** | La respuesta (completa, sin streaming) se escribe letra a letra, como mucho 1,5 s | Solo visual (`aria-hidden`); el texto completo se anuncia una vez | Texto completo de inmediato |
 | 5 | **Entrada escalonada de la versión nueva** | Los CA entran con un pequeño retardo y el cambiado se resalta | CSS con `animation-delay` | Marcas «Cambiado en vN» / «Nueva» sin animación |
 | 6 | **Recibo con casillas** | Cada casilla confirma su operación; el botón se activa al completar | Casillas nativas y transición de color | Igual, sin transición |
-| 7 | **Q que se completa al publicar** | En el resultado real, la Q llega a 4/4 | SVG + CSS | Q completa |
+| 7 | **Q que se completa al publicar** | Publicada entera, la Q del Resultado llega a 4/4; publicada en parte, se queda sin llenarse (la fase de la cabecera sí marca 4 de 4) | SVG + CSS | Q en su estado final, sin movimiento |
 
 ## 9. Dependencias del backend
 
@@ -341,15 +341,15 @@ La web solo depende de la API (`docs/api/openapi.yaml`); los tipos y los ejemplo
 | Sesión y permisos | Todas | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
 | Proyectos y búsqueda en Jira | Inicio, Elegir en Jira | `GET /projects`, `POST /projects/choose`, `GET /projects/{project}/epics`, `GET /projects/{project}/search`, `GET /epics/{key}/stories`, `GET /issues/{key}` |
 | Arranque guiado y fuentes | Inicio, Origen, QA 1 | `POST /start/propose`, `POST /start/sources` |
-| Conversaciones | Lista, Generando, Iterar, recibo, Resultado | `GET /conversations`, `POST /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/events` (SSE), `POST /iterate`, `/approve`, `/discard`, `/cancel`, `/retry`, `/edit` |
+| Conversaciones | Lista, Generando, Iterar, recibo, Resultado | `GET /conversations`, `POST /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/events` (SSE), `POST /iterate`, `/approve`, `/discard`, `/cancel`, `/retry`; `/edit` (pendiente: Editar a mano, PA-340) |
 | Memoria | Memoria, Resultado | `GET /memories`, `GET /memories/{key}` |
 | Ajustes y consumo | Carril, Resultado, Administración | `GET /settings`, `GET /settings/usage`, `POST /admin/connections/test`, `GET /admin/models` |
-| Revisar la calidad | Mixta 5 | `POST /quality-reviews`, `GET /quality-reviews`, `GET /quality-reviews/{id}` |
+| Revisar la calidad (en desarrollo) | Mixta 5 | `POST /quality-reviews`, `GET /quality-reviews`, `GET /quality-reviews/{id}` |
 | Registrar la ejecución (fuera de la entrega) | QA 6 | `POST /executions`, `PUT /executions/{id}/results`, `POST /executions/{id}/approve` |
 | QA encadenada (fuera de la entrega) | Resultado, Inicio de QA | `POST /conversations/{id}/handoff`, `GET /qa/handoffs`, `POST /qa/handoffs/{id}/take` |
 
 ## 10. Administración (Ajustes, solo admin · T-29 mínima)
-El diseño es el de Ajustes de la página «Propuesta v2» del lienzo, con las piezas de la «Propuesta mixta». Página «Administración»: «Comprueba los servicios y consulta la configuración. Desde aquí no se genera ni se publica nada.»
+El diseño es el de Ajustes de la página «Propuesta v2» del lienzo, con las piezas de la «Propuesta mixta». Página «Ajustes»: «Comprueba los servicios y consulta la configuración. Desde aquí no se genera ni se publica nada.»
 
 | Tarjeta | Contenido | Acción | Dependencia |
 |---|---|---|---|

@@ -41,4 +41,5 @@ export type ClientContractChecks = [
   Expect<Equal<Returns<'startQualityReview'>, ResponseOf<`${V}/quality-reviews`, 'post'>>>,
   Expect<Equal<Returns<'qualityReviews'>, ResponseOf<`${V}/quality-reviews`, 'get'>>>,
   Expect<Equal<Returns<'qualityReview'>, ResponseOf<`${V}/quality-reviews/{review_id}`, 'get'>>>,
+  Expect<Equal<Returns<'edit'>, ResponseOf<`${V}/conversations/{conversation_id}/edit`, 'post'>>>,
 ]

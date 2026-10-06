@@ -68,3 +68,5 @@ export type QualityReport = Schemas['QualityReport']
 export type QualityFinding = Schemas['QualityFinding']
 export type InvestCheck = Schemas['InvestCheck']
 export type SourceRef = Schemas['SourceRef']
+// Editar a mano (RF-32): el contenido completo editado (HU o suite), la huella mostrada y una nota opcional.
+export type EditIn = Schemas['EditIn']

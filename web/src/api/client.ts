@@ -15,6 +15,7 @@ import type {
   MemoryOut,
   MemorySummary,
   ApproveIn,
+  EditIn,
   OriginIn,
   ProjectsOut,
   ProposeIn,
@@ -203,4 +204,13 @@ export const api = {
   qualityReviews: () => request<QualityReviewSummary[]>('GET', '/quality-reviews'),
   qualityReview: (id: string, signal?: AbortSignal) =>
     request<QualityReviewOut>('GET', `/quality-reviews/${enc(id)}`, undefined, signal),
+
+  // Editar a mano (RF-32): versión nueva sin llamar al modelo, con la huella del payload mostrado; 200 síncrono. Una edición
+  // que la API rechaza no es un error HTTP: llega en `review.error` con la misma revisión. La nota solo va si no está vacía.
+  edit: (id: string, fingerprint: string, content: EditIn['content'], feedback?: string | null) =>
+    request<ConversationOut>('POST', `/conversations/${enc(id)}/edit`, {
+      fingerprint,
+      content,
+      ...(feedback?.trim() ? { feedback } : {}),
+    } satisfies EditIn),
 }

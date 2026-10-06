@@ -1,5 +1,6 @@
 // Textos derivados de una propuesta de HU (UserStory, StoryDiff e ImpactAnalysis del contrato).
 import type { components } from '../../api/schema'
+import { countLabel } from '../../text/plural.ts'
 
 export type UserStory = components['schemas']['UserStory']
 export type StoryDiff = components['schemas']['StoryDiff']
@@ -89,7 +90,7 @@ function sentence(text: string): string {
 
 /** «1 cambio», «3 cambios» frente a Jira. */
 export function changesLabel(count: number): string {
-  return `${count} ${count === 1 ? 'cambio' : 'cambios'} frente a Jira`
+  return `${countLabel(count, 'cambio', 'cambios')} frente a Jira`
 }
 
 /** Resumen del asistente para una versión, sin LLM: lo que cambió y a qué afecta (UI.md §4.5). */

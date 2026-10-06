@@ -39,6 +39,7 @@ import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
 import { modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { countLabel } from '../../text/plural.ts'
 
 export interface IterateScreenProps {
   conversation: ConversationOut
@@ -358,7 +359,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               </button>
               {model && (
                 <span className={styles.meta}>
-                  Generado con {model} · {sourceCount} fuentes{coverage && ` · ${coverage}`}
+                  Generado con {model} · {countLabel(sourceCount, 'fuente', 'fuentes')}{coverage && ` · ${coverage}`}
                 </span>
               )}
               {index === lastAssistant && !iterating && (

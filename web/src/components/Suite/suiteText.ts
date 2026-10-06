@@ -2,6 +2,7 @@
 // inserta como HTML, tampoco la estrategia, que llega en Markdown.
 import type { ReviewPayload, TestCase, TestSuite } from '../../api/types.ts'
 import type { CaseKind } from '../Badge/index.ts'
+import { countLabel } from '../../text/plural.ts'
 
 export const CASE_KIND: Record<TestCase['type'], CaseKind> = {
   positivo: 'Positivo',
@@ -17,7 +18,7 @@ export function verifiesLabel(item: TestCase): string | undefined {
 }
 
 export function casesLabel(count: number): string {
-  return `${count} ${count === 1 ? 'caso' : 'casos'}`
+  return countLabel(count, 'caso', 'casos')
 }
 
 /** Casos que no estaban en la versión anterior (por su id). */

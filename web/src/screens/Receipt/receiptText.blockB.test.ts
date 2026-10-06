@@ -114,7 +114,7 @@ describe('reviewedCounter y aiNotice en el límite', () => {
   it.each([
     [0, 0, '0 de 0 revisadas'],
     [1, 1, 'Todo revisado'],
-    [0, 1, '0 de 1 revisadas'],
+    [0, 1, '0 de 1 revisada'],
     [3, 2, 'Todo revisado'],
   ])('%i de %i → «%s»', (checked, total, text) => {
     expect(reviewedCounter(checked, total)).toBe(text)

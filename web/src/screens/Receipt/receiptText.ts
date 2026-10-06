@@ -3,6 +3,7 @@
 // El recibo muestra solo lo que trae el plan: el comentario con los cambios llega como `{"op": "comment"}` (PA-319).
 import type { ImpactAnalysis } from '../../components/Proposal/index.ts'
 import { fieldLabel } from '../../components/Proposal/index.ts'
+import { countLabel, pluralWord } from '../../text/plural.ts'
 
 export type PlanItem = Record<string, string>
 
@@ -56,7 +57,7 @@ function operationOf(item: PlanItem, index: number, version: number, title: stri
       // `Number('')` es 0: un `cases` vacío no es «0 casos».
       const cases = item.cases?.trim() ? Number(item.cases) : Number.NaN
       const story = item.story || 'la HU'
-      const count = Number.isFinite(cases) ? `${cases} ${cases === 1 ? 'subtarea' : 'subtareas'}` : 'las subtareas'
+      const count = Number.isFinite(cases) ? countLabel(cases, 'subtarea', 'subtareas') : 'las subtareas'
       const files = item.story ? `estrategia-${item.story}.md y matriz-${item.story}.md` : 'la estrategia y la matriz de cobertura'
       return {
         id,
@@ -75,14 +76,14 @@ function operationOf(item: PlanItem, index: number, version: number, title: stri
   }
 }
 
-/** «1 de 3 revisadas» → «Todo revisado». */
+/** «1 de 3 revisadas» (con una sola, «0 de 1 revisada») → «Todo revisado». */
 export function reviewedCounter(checked: number, total: number): string {
-  return total > 0 && checked >= total ? 'Todo revisado' : `${checked} de ${total} revisadas`
+  return total > 0 && checked >= total ? 'Todo revisado' : `${checked} de ${total} ${pluralWord(total, 'revisada', 'revisadas')}`
 }
 
 /** «Generado con IA a partir de N fuentes…» (UI.md §4.6). */
 export function aiNotice(sources: number, qa = false): string {
-  const from = `${sources} ${sources === 1 ? 'fuente' : 'fuentes'}`
+  const from = countLabel(sources, 'fuente', 'fuentes')
   // QA (§6.4): sin «podrás reintentar solo esa», que depende de PA-05.
   return qa
     ? `Generado con IA a partir de la HU y ${from}. Revisa cada operación antes de aprobar. Si una subtarea falla, las demás se mantienen.`

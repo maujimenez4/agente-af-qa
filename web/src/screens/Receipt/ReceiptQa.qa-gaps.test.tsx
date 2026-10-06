@@ -53,7 +53,7 @@ describe('QA 4 · review.error en el recibo de una suite (contrato §5.3)', () =
     expect(rejected).toHaveTextContent('No se aprobó')
     expect(rejected).toHaveTextContent(FINGERPRINT_MISMATCH)
     expect(within(operations()).getByRole('checkbox')).not.toBeChecked()
-    expect(operations()).toHaveTextContent('0 de 1 revisadas')
+    expect(operations()).toHaveTextContent('0 de 1 revisada')
     expect(approveButton()).toBeDisabled()
     // Sigue siendo el recibo de la suite.
     expect(screen.getByRole('heading', { level: 1, name: 'Pruebas de DEMO-3' })).toBeInTheDocument()
@@ -125,14 +125,14 @@ describe('QA 4 · versión, contador e historial', () => {
   it('test_counter_and_approve_follow_the_single_checkbox', async () => {
     // UI.md §6.4 y §5.5: contador «N de M revisadas» y *Aprobar y publicar* solo con todas las casillas.
     renderReceipt(QA_REVIEW)
-    expect(operations()).toHaveTextContent('0 de 1 revisadas')
+    expect(operations()).toHaveTextContent('0 de 1 revisada')
     expect(approveButton()).toBeDisabled()
     const box = within(operations()).getByRole('checkbox')
     await userEvent.click(box)
     expect(operations()).toHaveTextContent('Todo revisado')
     expect(approveButton()).toBeEnabled()
     await userEvent.click(box)
-    expect(operations()).toHaveTextContent('0 de 1 revisadas')
+    expect(operations()).toHaveTextContent('0 de 1 revisada')
     expect(approveButton()).toBeDisabled()
   })
 

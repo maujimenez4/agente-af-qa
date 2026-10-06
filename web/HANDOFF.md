@@ -108,7 +108,8 @@
 ## Siguiente
 1. **Editar a mano** (`t56-editar`), en dos partes:
    - **A, ya:** solo archivos nuevos (editor, validación, textos, handler del MSW y pruebas);
-   - **B, cuando se fusione `ses-web-fixes`:** conectarlo a `IterateScreen` y al cliente.
+   - **B, cuando se fusione `ses-web-fixes`:** conectarlo a `IterateScreen` y al cliente (`api.edit`, `EditIn`, `client.contract.ts`), registrar `editHandlers` en `createHandlers` con `runFor`, y «Editada a mano» en el historial del recibo.
+   - **Parte A hecha** (archivos nuevos): `src/screens/Edit/` (borrador, validación, hook y editor), `src/mocks/editHandler.ts` y `/?catalogo&editor`. PA-340 (diseño y pregunta de la suite) y PA-341 (formato de los diffs) para la principal.
 2. Revisar `ses-web-fixes` cuando la sesión UI lo pida; la parte web de PA-330 cuando llegue la de la API; PA-300.
 
 Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. No empezar ningún bloque sin la confirmación del responsable.

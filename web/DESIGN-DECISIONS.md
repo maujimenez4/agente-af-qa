@@ -213,6 +213,26 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Trabajo sigue montado** (oculto) mientras se mira la memoria: al volver, la conversación está donde se dejó.
   - **Ver la memoria** (Resultado de la HU publicado o en parte, no en simulación ni en QA) abre Memoria con la clave de la HU. La memoria se genera al publicar; si aún no está, se ve su 404 sin romper la pantalla.
   - En la API simulada, los ejemplos del contrato (DEMO-9001 con su detalle; el de DEMO-9002 se construye a partir de él). Como `memorize`, publicar una HU (entera o en parte, no en simulación ni en QA) deja su memoria con la forma de la de ejemplo y el contenido de la HU publicada, **indexada** (el Resultado dice «se ha generado e indexado»): *Ver la memoria* la encuentra. `?simular=memoria-no-encontrada` publica sin dejarla (404) y `?simular=sin-memorias` vacía la lista.
+- **Editar a mano** (RF-32, `POST /conversations/{id}/edit`; PA-340, pendiente de validar por la principal; el lienzo solo tiene el botón). **Parte A** hecha en archivos nuevos (`src/screens/Edit/`, `src/mocks/editHandler.ts`); la **parte B** (conectarlo a Iterar y al cliente, `api.edit`) espera a que se fusione `ses-web-fixes`. Solo la HU: la suite de QA queda para un bloque aparte (pregunta en PA-340).
+  - **Dónde:** en el panel derecho, en lugar de la pestaña Propuesta mientras se edita, con el ancho de la suite (540 px). Cuerpo con los grupos Historia (título, «Como / Quiero / Para», descripción, objetivo y prioridad), Criterios de aceptación (título y «Dado / Cuando / Entonces», una línea por paso; *Subir*, *Bajar*, *Quitar* y *Añadir un criterio* con el siguiente número libre) y Reglas de negocio; las 8 listas restantes, plegadas en «Más campos». La clave de Jira, el `internal_id`, las fuentes y los cambios frente a la anterior no se editan (se conservan tal cual). Pie con lo que falta, los avisos, la nota opcional (`EditIn.feedback`, contador «N de 1000»), *Cancelar* (con cambios, pide confirmación) y *Guardar la versión N+1*. Revisado a 1024, 1280 y 1440 sin scroll de página (`/?catalogo&editor`).
+  - **El backend decide.** *Guardar* solo se bloquea con lo que la API rechaza seguro; lo demás se avisa en ámbar («Revisa también (no impide guardar)») y no marca el campo como inválido:
+
+    | Regla | Bloquea | Procedencia |
+    |---|---|---|
+    | Título vacío (0 caracteres) | Sí | Contrato `UserStory.title` (`minLength: 1`) |
+    | Al menos un CA | Sí | Contrato `acceptance_criteria` (`minItems: 1`) |
+    | Identificadores `CA-n` y `RN-n` | Sí | Contrato (`pattern`) |
+    | CA con título y con al menos un «Dado», «Cuando» y «Entonces» | Sí | `schemas/user_story.py` (`min_length=1`) |
+    | RN con descripción | Sí | `schemas/user_story.py` (`min_length=1`) |
+    | Identificadores repetidos | Sí | `schemas/user_story.py` (`IDs repetidos en la HU`) |
+    | `jira_key` e `internal_id` sin cambiar | Sí | `core/graph/nodes.py`, `FIXED_ON_EDIT` |
+    | Sin cambios | Sí («Aún no has cambiado nada.») | `_edit`: «La edición no cambia nada…» |
+    | Nota de 1000 caracteres como máximo | Sí | Contrato `EditIn.feedback` (`maxLength: 1000`) |
+    | «Como», «Quiero», «Para» o descripción vacíos | No (aviso) | El contrato los admite vacíos |
+    | Título con espacios al principio o al final | No (aviso) | — |
+
+    Las líneas vacías de una lista no se envían. Una respuesta rechazada (`review.error`, también la huella antigua o «sin cambios») se pinta arriba del editor, en `role="alert"`, tal cual.
+  - **API simulada:** `editHandlers(db)` reproduce `_edit` (rechazos en `review.error`, 409 `restart` tras 20, versión nueva con `edited: true`, huella nueva y diffs frente a la versión «Jira»). Se registra en `createHandlers` en la parte B, buscando la conversación con `runFor` (hoy usa `db.runs` y da 404 a una de la lista que no se ha abierto). Sus diffs siguen a `diff_stories` (campos de texto, listas, CA enteros y RN por id, en orden), con el nombre de campo del ejemplo del contrato (PA-341).
 - **Lista al llegar `review_ready`** (HU y QA): Generando avisa al marco (`onReviewReady`) y la lista se vuelve a leer, así que la conversación deja de decir «En curso» sin esperar a *Ver la propuesta* o *Ver la suite*.
 - **Retomar una conversación** de la lista (T-52): se abre según su estado (generando → Generando; en revisión → Iterar; terminada → su aviso). Si terminó en `error`, se muestra `ConversationOut.error` tal cual (UI.md §7), sin acción en la tarjeta, con *Reintentar* (`POST /retry`, abre Generando) y un botón para empezar otra. Sin `error` en la respuesta, se muestra el texto de respaldo y también *Reintentar*; si `/retry` responde `not_in_error` (o `handoff_unavailable`), se muestra ese mensaje y solo queda empezar otra; con un fallo pasajero (429, 503…) se muestra y *Reintentar* sigue disponible. Si se retoma generando y falla sin conversación que reintentar, la acción lleva a Inicio: no hay una petición de Origen a la que volver.
 - **Flujos fuera de la demo de T-57:** «Revisar la calidad» y «Preparar pruebas» llevan a una pantalla «disponible pronto» después de Inicio.

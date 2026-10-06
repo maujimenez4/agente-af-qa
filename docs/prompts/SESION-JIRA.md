@@ -1,81 +1,57 @@
-# SESIÓN JIRA · Ronda 11: skill `/auditoria` (antipatrones y errores en todo el proyecto)
+# SESIÓN JIRA · Ronda 12: la aprobación de una publicación simulada no puede valer para el modo real (PA-41)
 
-Tu ronda 10 (T-29) ya está fusionada. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Tu ronda 11 (skill `/auditoria`) ya está fusionada. Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/area-a switch -C ses-auditoria origin/PreProduccion
+git -C .claude/worktrees/area-a switch -C ses-aprobacion origin/PreProduccion
 cd .claude/worktrees/area-a
 uv sync
+# Windows bloquea las extensiones compiladas de SQLAlchemy (PA-338): usa su versión en Python puro
+find .venv/Lib/site-packages/sqlalchemy -name "*.pyd" -exec sh -c 'mv "$1" "$1.bloqueado"' _ {} \;
 uv run python -m pytest -m "not integration"   # en verde
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-auditoria`**, creada desde `PreProduccion`. Tu ronda 10 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-aprobacion`**, creada desde `PreProduccion`. Tu ronda 11 ya está fusionada.
 
-**Objetivo:** crear la skill de proyecto **`/auditoria`**, que revisa el repositorio **completo** (no un diff) contra las reglas propias del proyecto y los antipatrones típicos del stack, y produce un informe. **No la lances completa en esta ronda:** se ejecutará cuando el sistema esté terminado. Aquí se construye y se prueba solo su capa automática.
+**Objetivo: PA-41 (principio 1, aprobación humana).** Hoy, al publicar en **simulación**, `_publish_approved` (`core/graph/nodes.py`) no gasta la aprobación: queda vigente «para publicar de verdad cuando se active `live`», sin caducidad. Si el modo real se activa días después, esa aprobación antigua bastaría para escribir en Jira sin que nadie vuelva a revisar la HU. Hay que resolverlo **antes de cualquier publicación real**: el usuario prepara un ensayo en el sandbox AFQP.
 
-Ya existen, y la skill **no los repite**, sino que los complementa:
-- `security-reviewer` y `spec-checker` (`.claude/agents/`), que revisan el cambio de una tarea;
-- `/code-review` y `/security-review` de Claude Code, que son genéricos;
-- ruff, gitleaks y pytest en la CI.
+Lee la fila **PA-41** de `docs/KANBAN.md`, T-25 y PA-140/141 (registro de aprobaciones), `core/approvals.py` (`ApprovalLedger`: `record`, `find`, `consume`, `spend`, `publishing`, `was_published`), `_publish_approved` en `core/graph/nodes.py`, y cómo lo cuentan las UI. «La aprobación sigue vigente…» aparece en el Resultado simulado de `docs/specs/UI.md` (§4.7, punto 6 de §5), en `app/` (Streamlit) y en `web/`.
 
-Lee `CLAUDE.md` (principios, convenciones, propiedad de directorios), `.claude/skills/tarea/SKILL.md` (el formato de skill del proyecto) y `.claude/agents/*.md`.
-
-## Cómo crearla
-Usa la skill **`anthropic-skills:skill-creator`** para redactarla y afinar su `description` (para que se active con «audita el proyecto», «busca antipatrones», «análisis completo», «/auditoria»). Va en **`.claude/skills/auditoria/`**: `SKILL.md` y, si hacen falta, scripts y referencias en la misma carpeta.
-
-## Diseño (decidido con el usuario)
-**Capa 1 · Comprobaciones automáticas**, sin IA, deterministas: un script, por ejemplo `.claude/skills/auditoria/checks.py`, ejecutable con `uv run python .claude/skills/auditoria/checks.py`, que imprime hallazgos con regla, archivo:línea y gravedad. Como mínimo:
-- escrituras en Jira (`create_story`, `update_story`, `link`, `publish_suite`, `record_execution`, POST/PUT a `/rest/api/3/…`) fuera de `publish` y `_publish_approved` de `core/graph/nodes.py`, del grafo de ejecución y de los adaptadores;
-- el núcleo (`core/`) importando implementaciones concretas de `adapters/` (solo `adapters/base.py` y `adapters/errors.py`), salvo los puntos de composición (`core/container.py`, `core/factories.py`);
-- prompts escritos en el código en lugar de `prompts/<tarea>.md`;
-- logs con `prompt`, `messages`, `Authorization`, `api_key`, `token` o `password` como campo;
-- `except Exception` / `except:` que no relanza ni registra;
-- expresiones regulares con riesgo de retroceso exponencial (cuantificadores anidados, alternancias solapadas con `*`/`+`);
-- lectura de `.env` fuera de `core/config.py`;
-- en `web/`: `dangerouslySetInnerHTML`, `href`/`src` dinámicos sin `safeHref`, `localStorage`/`sessionStorage` con tokens, `eval`/`new Function`.
-
-Cada regla con su motivo (qué principio o riesgo cubre) y una lista de excepciones justificadas, para no dar falsos positivos.
-
-**Capa 2 · Revisión con IA por dimensiones**, en paralelo con el tool `Agent`, un subagente por dimensión, y **una segunda pasada que intenta refutar cada hallazgo** (solo quedan los confirmados o plausibles):
-
-| Dimensión | Qué busca |
-|---|---|
-| Principios del proyecto | Aprobación humana, secretos, datos sintéticos, trazabilidad, salidas estructuradas, alcance |
-| Corrección | Carreras, estados imposibles, errores silenciosos, reintentos que escriben dos veces |
-| Seguridad | Inyección de órdenes al modelo, XSS, CSRF, permisos, fugas en logs y trazas de Langfuse |
-| LLM y RAG | Contexto sin presupuesto, citas sin validar, texto libre interpretado a mano, prompts sin versión |
-| Pruebas | Criterios sin prueba, pruebas que dependen del tiempo, mocks que esconden el comportamiento real |
-| Frontend | Estados de carga y error, accesibilidad, diferencias con el contrato `docs/api/openapi.yaml` |
-
-- Los subagentes son **de solo lectura** y **no matan procesos globales**.
-- La skill permite lanzar solo algunas dimensiones (`/auditoria seguridad pruebas`) o solo la capa 1 (`/auditoria rapida`).
-
-**Salida:**
-- **Informe** `docs/auditorias/AUDITORIA-<fecha>.md`: resumen con un recuento por gravedad, luego una tabla por dimensión con gravedad (alta/media/baja), archivo:línea, problema, por qué importa y corrección propuesta.
-- **Al final,** la skill propone pasar los hallazgos altos y medios al Kanban como propuestas, con el siguiente número libre del rango de quien la ejecute. **Nunca corrige código por su cuenta** (principio 6).
+## Qué decidir (propónlo en el plan)
+- **Opción A (la que yo prefiero, más simple y segura):** una publicación simulada **gasta** la aprobación, como una real. Queda marcada como «usada en simulación». Para publicar de verdad hace falta otra aprobación humana con el modo real activo. `was_published` sigue siendo falso para una simulada, así que no se genera memoria.
+- **Opción B:** la aprobación guarda el modo en que se dio (`simulation` o `live`), y `publishing`/`find` solo la aceptan si coincide con el modo actual. Más flexible, pero cambia el formato guardado del registro: hay que leer los registros antiguos sin modo como `simulation`.
+- En cualquier caso:
+  - **Nunca** se escribe en Jira con una aprobación dada en simulación.
+  - La auditoría dice qué pasó.
+  - Lo que ya está guardado se lee sin error.
+  - La conversación simulada no se puede «republicar» en real sin pasar otra vez por la revisión humana. Comprueba cómo sería ese camino en la API (`/approve` en una conversación ya `simulated`) y propónlo.
 
 ## Reglas
-- **Puedes tocar:**
-  - `.claude/skills/auditoria/**`;
-  - pruebas de la capa 1 en `tests/unit/test_auditoria_checks.py`, con archivos de ejemplo ficticios en `tmp_path`: cada regla detecta un caso malo y no marca uno bueno;
-  - una línea en `CLAUDE.md` que mencione la skill (sección de comandos o flujo).
-
-  Nada de código de producción.
-- **Prueba la capa 1 sobre el repositorio real** y adjunta en tu mensaje final el recuento por regla. Si una regla da muchos falsos positivos, afínala; si marca algo real, **no lo arregles**: anótalo como propuesta.
-- **No lances la capa 2 sobre todo el repositorio.** Como mucho, una dimensión sobre un directorio pequeño para comprobar que el formato del informe sale bien.
+- **Autorizado:** `core/approvals.py` y `_publish_approved` en `core/graph/nodes.py`, solo para PA-41. Sin tocar la lógica de escritura en Jira ni `spend`/`unspend` (PA-141).
+- **Textos:**
+  - corrige «La aprobación sigue vigente…» en `app/` (Streamlit) y en los mensajes de la API si los hay;
+  - **en `web/` y en `docs/specs/UI.md` no:** son del responsable de `web/`. Dime el texto nuevo en tu mensaje final y yo se lo paso.
+- **No toques** `schemas/` ni `adapters/`. Si cambia la forma de algo del contrato de la API, solo añade campos opcionales, y regenera el contrato con `uv run python -m api.export_openapi`.
+- **Pruebas (fakes):**
+  - simular y luego intentar publicar en real con la misma aprobación → rechazado, sin escritura en Jira;
+  - con una aprobación nueva en real → publica;
+  - los registros guardados antes del cambio se leen;
+  - la auditoría de cada caso;
+  - una prueba `integration` del registro en PostgreSQL si cambia lo que se guarda (como `tests/unit/test_ledger_concurrency.py`). **No la ejecutes:** la lanza la principal.
 - **Windows:** si `pytest` está bloqueado, usa `uv run python -m pytest`.
-- **gitleaks:** en las pruebas, sin literales que parezcan claves; para probar la regla de logs con secretos, usa nombres de campo, no valores.
+- **gitleaks:** sin `secret`, `password` ni `token` como nombre de variables con literales.
 - **Kanban:**
+  - cierra PA-41 con la fecha;
   - tu fila en el registro;
-  - propuestas en **PA-243…PA-249** (incluye llevar las reglas más valiosas de la capa 1 a la CI como prueba permanente).
+  - propuestas en **PA-243…PA-249** si quedan libres; si no, **PA-410…PA-419**.
 - **Antes del commit:**
   - pytest, `ruff check` y `ruff format --check` en verde;
   - `spec-checker` CONFORME y `security-reviewer` APTO.
   - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push -u origin ses-auditoria` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-aprobacion` y avísame.
 
-Empieza presentándome el plan (reglas de la capa 1 con sus excepciones, y cómo orquesta la capa 2) antes de escribir código.
+Empieza presentándome el plan (opción A o B, cómo se republica en real una conversación simulada y qué cambia en lo guardado) antes de escribir código.

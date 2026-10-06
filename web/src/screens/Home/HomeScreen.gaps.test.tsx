@@ -103,7 +103,8 @@ describe('Inicio: arranque guiado (POST /start/propose)', () => {
       await userEvent.click(flowCard(label))
       await userEvent.type(screen.getByRole('textbox'), 'Cambiar DEMO-3')
       await userEvent.click(continueButton())
-      await screen.findByRole('heading', { name: /Antes de generar|disponible pronto/ })
+      // «Revisar la calidad» tiene su propia pantalla (Mixta 5), sin el panel «Antes de generar».
+      await screen.findByRole('heading', { name: /Antes de generar|disponible pronto|^Revisar la calidad$/ })
       expect(bodies.map((body) => body.mode)).toEqual(['functional'])
     },
   )

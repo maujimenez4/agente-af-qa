@@ -19,6 +19,7 @@ import type {
 import type { ForcedCoverage } from './qaSuite.ts'
 import { mockMemoryDetails, mockMemorySummaries } from './memories.ts'
 import { example } from './examples.ts'
+import { seedQualityReviews, type MockQualityReview } from './quality.ts'
 
 // Permisos de core/permissions.py (ROLE_PERMISSIONS).
 const PERMISSIONS: Record<Role, string[]> = {
@@ -238,6 +239,10 @@ export interface MockDb {
   adminModels: AdminModelsOut
   /** Hora (ms) de la última prueba de conexiones: una cada 10 s por persona (429 con `retry_after`). */
   lastConnectionsTest?: number
+  /** Revisiones de calidad (T-48) de cada persona, guardadas. */
+  qualityReviews: MockQualityReview[]
+  /** `?simular=calidad-error`: la revisión acaba en `error` con `quality_failed`. */
+  forceQualityError?: boolean
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }
@@ -256,6 +261,7 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     memoryDetails: mockMemoryDetails(memories),
     connections: connectionsAllOk(),
     adminModels: mockAdminModels(),
+    qualityReviews: seedQualityReviews(),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

@@ -1,5 +1,8 @@
 /* Administración (T-29 mínima): Ajustes de la «Propuesta v2» del lienzo con las piezas de la Mixta. */
+/* `position: relative`: los textos ocultos para lectores (`.visually-hidden`, absolutos) se colocan dentro de la
+   columna con scroll; sin ella, alargaban el documento y la app entera se desplazaba (franja blanca bajo el carril). */
 .page {
+  position: relative;
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
@@ -30,17 +33,42 @@
   font-size: var(--text-2xs);
 }
 
-/* Dos columnas como el lienzo; la tarjeta de «disponible pronto» ocupa toda la fila. */
+/* Dos columnas como el lienzo: a la izquierda, Conexiones y Modo de publicación seguidas; a la derecha, Modelos
+   (larga) ocupando las dos filas, que crece en la segunda fila sin separar las de la izquierda. La tarjeta de
+   «disponible pronto» ocupa toda la fila de abajo. */
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    'connections models'
+    'publish models'
+    'soon soon';
   gap: var(--space-4);
   align-items: start;
+}
+
+.connections {
+  grid-area: connections;
+}
+
+.models {
+  grid-area: models;
+}
+
+.publish {
+  grid-area: publish;
 }
 
 @media (max-width: 1099px) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      'connections'
+      'models'
+      'publish'
+      'soon';
   }
 }
 
@@ -193,7 +221,7 @@
 
 /* Documentos y usuarios: tarjeta discontinua del lienzo, a todo lo ancho. */
 .soon {
-  grid-column: 1 / -1;
+  grid-area: soon;
   border-style: dashed;
   border-color: var(--color-border);
   background: var(--color-surface-2);

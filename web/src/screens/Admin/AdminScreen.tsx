@@ -104,7 +104,7 @@ function ConnectionsCard() {
   const canRetry = state.status === 'error' && state.error.code !== 'forbidden'
 
   return (
-    <section className={styles.card} aria-labelledby="admin-connections">
+    <section className={`${styles.card} ${styles.connections}`} aria-labelledby="admin-connections">
       <div className={styles.cardHead}>
         <h2 id="admin-connections" className={styles.cardTitle}>
           {CONNECTIONS_TITLE}
@@ -154,7 +154,7 @@ function ModelsCard() {
   const [attempt, setAttempt] = useState(0)
   const load = useLoad<AdminModelsOut>(loadModels, attempt)
   return (
-    <section className={styles.card} aria-labelledby="admin-models">
+    <section className={`${styles.card} ${styles.models}`} aria-labelledby="admin-models">
       <div className={styles.cardHead}>
         <h2 id="admin-models" className={styles.cardTitle}>
           {MODELS_TITLE}
@@ -242,7 +242,7 @@ function PublishModeCard() {
   const [attempt, setAttempt] = useState(0)
   const load = useLoad<SettingsOut>(loadSettings, attempt)
   return (
-    <section className={styles.card} aria-labelledby="admin-publish">
+    <section className={`${styles.card} ${styles.publish}`} aria-labelledby="admin-publish">
       <div className={styles.cardHead}>
         <h2 id="admin-publish" className={styles.cardTitle}>
           {PUBLISH_TITLE}

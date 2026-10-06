@@ -6,7 +6,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import examples from '../../api/examples.json'
-import type { ConversationOut, MemoryOut, PublishOutcome } from '../../api/types.ts'
+import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import { App } from '../../App.tsx'
 import { mockDb } from '../../mocks/node.ts'
 import { ResultScreen } from './ResultScreen.tsx'
@@ -112,9 +112,10 @@ const zones = () => screen.getByRole('navigation', { name: 'Zonas' })
 
 describe('Resultado en la app · Ver la memoria abre Memoria', () => {
   it('test_published_view_memory_opens_memory_with_404_card_and_rail_still_works', async () => {
-    /** Publicada DEMO-3 (sin memoria en el MSW): Memoria se abre con la tarjeta «No se encuentra»; el carril sigue
-     * funcionando y al volver a Trabajo sigue el resultado. */
+    /** `?simular=memoria-no-encontrada`: DEMO-3 se publica sin dejar memoria. Memoria se abre con la tarjeta
+     * «No se encuentra»; el carril sigue funcionando y al volver a Trabajo sigue el resultado. */
     mockDb.forceApprove = 'published'
+    mockDb.skipPublishedMemory = true
     mockDb.settings = { ...mockDb.settings, jira_browse_url: null }
     const region = await approveFromList()
     await userEvent.click(within(region).getByRole('button', { name: 'Ver la memoria' }))
@@ -136,18 +137,29 @@ describe('Resultado en la app · Ver la memoria abre Memoria', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('test_published_view_memory_opens_existing_memory', async () => {
-    /** Si DEMO-3 sí tiene memoria, *Ver la memoria* la abre directamente con su detalle. */
-    mockDb.forceApprove = 'partial'
-    const base = mockDb.memoryDetails.get('DEMO-9001') as MemoryOut
-    mockDb.memories = [...mockDb.memories, { key: 'DEMO-3', project: 'DEMO', title: 'Memoria ficticia de DEMO-3', version: 2, updated_at: '2026-10-04T08:00:00Z', indexed: true }]
-    mockDb.memoryDetails.set('DEMO-3', { ...base, key: 'DEMO-3', title: 'Memoria ficticia de DEMO-3', updated_at: '2026-10-04T08:00:00Z', memory: { ...base.memory, jira_key: 'DEMO-3' } })
+  it.each(['published', 'partial'] as const)('test_%s_hu_leaves_its_memory_and_view_memory_opens_it', async (forced) => {
+    /** Como `memorize`: publicar DEMO-3 (entera o con un vínculo fallido) deja su memoria, indexada y con el contenido de
+     * la HU publicada; *Ver la memoria* la abre con su detalle y la marca en la lista, la primera. */
+    mockDb.forceApprove = forced
     const region = await approveFromList()
+    expect(mockDb.memories[0]).toMatchObject({ key: 'DEMO-3', project: 'DEMO', version: 2, indexed: true })
     await userEvent.click(within(region).getByRole('button', { name: 'Ver la memoria' }))
     const article = await screen.findByRole('article', { name: 'DEMO-3 · Memoria v2' })
-    expect(within(article).getByText('Proyecto DEMO · Actualizada el 4 de octubre de 2026')).toBeInTheDocument()
+    expect(within(article).getByText('Indexada')).toBeInTheDocument()
+    expect(within(article).getByText(/^Renovar un préstamo./)).toBeInTheDocument()
+    expect(within(article).getByText(/^CA-02: Renovación rechazada por reservas$/)).toBeInTheDocument()
+    expect(within(article).getByRole('button', { name: 'Descargar la memoria' })).toBeInTheDocument()
     const list = screen.getByRole('complementary', { name: 'Memorias' })
-    expect(await within(list).findByRole('button', { name: /DEMO-3/ })).toHaveAttribute('aria-current', 'true')
+    const rows = await within(list).findAllByRole('button', { name: /DEMO-/ })
+    expect(rows[0]).toHaveTextContent('DEMO-3')
+    expect(rows[0]).toHaveAttribute('aria-current', 'true')
+    expect(within(list).getByRole('button', { name: /DEMO-9001/ })).toBeInTheDocument()
+  })
+
+  it('test_simulated_result_leaves_no_memory', async () => {
+    /** Una simulación no escribe en Jira ni genera memoria. */
+    await approveFromList()
+    expect(mockDb.memories.map((item) => item.key)).toEqual(['DEMO-9001', 'DEMO-9002'])
   })
 
   it('test_simulated_result_in_app_has_no_view_memory', async () => {

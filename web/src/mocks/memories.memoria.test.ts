@@ -201,3 +201,29 @@ describe('filterMemories y noMemoriesFrom', () => {
     expect(noMemoriesFrom(search)).toBe(expected)
   })
 })
+
+describe('memoria al publicar una HU (memorize simulado)', () => {
+  it('mockPublishedMemory: forma de la de ejemplo con la clave y el contenido de la HU, indexada', async () => {
+    const { mockPublishedMemory } = await import('./memories.ts')
+    const examples = (await import('../api/examples.json')).default
+    const story = (examples['GET /api/v1/conversations/{conversation_id} 200'] as { review: { artifact: { content: unknown } } }).review.artifact
+      .content as Parameters<typeof mockPublishedMemory>[0]
+    const memory = mockPublishedMemory(story, 'DEMO-3', 'DEMO', 2, new Date('2026-10-05T09:00:00Z'))
+    expect(memory).toMatchObject({ key: 'DEMO-3', project: 'DEMO', version: 2, indexed: true, updated_at: '2026-10-05T09:00:00.000Z' })
+    expect(memory.memory.jira_key).toBe('DEMO-3')
+    expect(memory.memory.objective.startsWith('Renovar un préstamo.')).toBe(true)
+    expect(memory.memory.acceptance_criteria).toContain('CA-02: Renovación rechazada por reservas')
+    expect(memory.memory.business_rules[0]).toBe('RN-01: Máximo 2 renovaciones por préstamo.')
+    expect(memory.memory.references).toEqual(['DEMO-3'])
+    expect(memory.markdown).toContain('# Memoria · DEMO-3 (v2)')
+    expect(memory.title.length).toBeLessThanOrEqual(120)
+  })
+
+  it('?simular=memoria-no-encontrada publica de verdad pero sin memoria; otros valores no', async () => {
+    const { forcedApprovalFrom, memoryMissingFrom } = await import('./db.ts')
+    expect(forcedApprovalFrom('?simular=memoria-no-encontrada')).toBe('published')
+    expect(memoryMissingFrom('?simular=memoria-no-encontrada')).toBe(true)
+    expect(memoryMissingFrom('?simular=publicado')).toBe(false)
+    expect(memoryMissingFrom('')).toBe(false)
+  })
+})

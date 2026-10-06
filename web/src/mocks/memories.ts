@@ -1,5 +1,6 @@
 // Memorias de la API simulada (PA-329): los ejemplos del contrato (DEMO-9001, con su detalle, y DEMO-9002, solo en
 // la lista). El detalle de DEMO-9002 se construye a partir del de DEMO-9001. Solo datos ficticios.
+import type { components } from '../api/schema'
 import type { MemoryOut, MemorySummary } from '../api/types.ts'
 import { example } from './examples.ts'
 
@@ -8,7 +9,7 @@ export function mockMemorySummaries(): MemorySummary[] {
 }
 
 /** `.md` de la memoria, con el mismo formato que el del ejemplo (core/memory). */
-function memoryMarkdown(memory: MemoryOut['memory']): string {
+export function memoryMarkdown(memory: MemoryOut['memory']): string {
   const list = (title: string, items: string[]) => [`## ${title}`, ...items.map((item) => `- ${item}`), '']
   return [
     '---',
@@ -71,4 +72,45 @@ export function filterMemories(
     .filter((item) => !needle || fold([item.key, item.title, details.get(item.key)?.markdown ?? ''].join(' ')).includes(needle))
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .slice(0, limit)
+}
+
+type UserStory = components['schemas']['UserStory']
+
+/** El título de la lista: el objetivo recortado a 120 caracteres, como la API. */
+function memoryTitle(objective: string): string {
+  return objective.length > 120 ? `${objective.slice(0, 119)}…` : objective
+}
+
+/**
+ * Memoria que deja una HU al publicarse (`memorize`, T-33), con la forma de la de ejemplo (DEMO-9001) y el
+ * contenido de la HU publicada. Indexada, como dice el Resultado («se ha generado e indexado»).
+ */
+export function mockPublishedMemory(story: UserStory, key: string, project: string, version: number, now = new Date()): MemoryOut {
+  const base = example<MemoryOut>('GET /api/v1/memories/{key} 200')
+  const objective = [story.title, story.business_goal].filter(Boolean).join('. ')
+  const includes = story.scope_includes.length > 0 ? `Incluye: ${story.scope_includes.join('; ')}.` : ''
+  const excludes = story.scope_excludes.length > 0 ? ` No incluye: ${story.scope_excludes.join('; ')}.` : ''
+  const memory: MemoryOut['memory'] = {
+    ...base.memory,
+    jira_key: key,
+    version,
+    objective,
+    scope: `${includes}${excludes}`.trim() || 'Sin alcance indicado.',
+    business_rules: story.business_rules.map((rule) => `${rule.id}: ${rule.description}`),
+    acceptance_criteria: story.acceptance_criteria.map((criterion) => `${criterion.id}: ${criterion.title}`),
+    decisions: [],
+    dependencies: [],
+    changes: story.changes_from_previous.map((change) => `v${version}: ${change}`),
+    references: [key],
+  }
+  return {
+    key,
+    project,
+    title: memoryTitle(objective),
+    version,
+    updated_at: now.toISOString(),
+    indexed: true,
+    memory,
+    markdown: memoryMarkdown(memory),
+  }
 }

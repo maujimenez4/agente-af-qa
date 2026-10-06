@@ -12,6 +12,7 @@ import type {
   HandoffOut,
   IssueSummary,
   IterateIn,
+  MemorySummary,
   LoginIn,
   ProgressStep,
   ProposeIn,
@@ -39,7 +40,7 @@ import type { components } from '../api/schema'
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
 import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublishOutcome } from './qaSuite.ts'
-import { filterMemories } from './memories.ts'
+import { filterMemories, mockPublishedMemory } from './memories.ts'
 
 const API = '/api/v1'
 
@@ -217,6 +218,17 @@ export function createHandlers(db: MockDb) {
     resolver: (args: { request: Request; params: P }) => Promise<Response> | Response,
   ): (args: { request: Request; params: P }) => Promise<Response> | Response {
     return (args) => (requireSession() ? resolver(args) : UNAUTHENTICATED())
+  }
+
+  /** Como `memorize` (T-33): publicar una HU deja su memoria (indexada), que *Ver la memoria* encuentra. */
+  function rememberPublished(reviewing: ConversationOut, done: ConversationOut) {
+    const review = reviewing.review
+    const key = done.result?.published_keys[0]
+    if (!review || review.artifact.type === 'test_suite' || !key) return
+    const memory = mockPublishedMemory(review.artifact.content as UserStory, key, done.project, review.version)
+    const summary: MemorySummary = { key, project: memory.project, title: memory.title, version: memory.version, updated_at: memory.updated_at, indexed: memory.indexed }
+    db.memories = [summary, ...db.memories.filter((item) => item.key !== key)]
+    db.memoryDetails.set(key, memory)
   }
 
   /** Conversación en curso; las de la lista sin estado se abren con el ejemplo del contrato. */
@@ -485,7 +497,9 @@ export function createHandlers(db: MockDb) {
               await delay(db.stepDelayMs)
               const forced = db.forceApprove
               const live = db.settings.publish_mode === 'live' || forced === 'published' || forced === 'partial'
+              const reviewing0 = run.approving?.reviewing
               const done = finishApproval(run, db.session?.username, live, forced === 'partial')
+              if (reviewing0 && done.state === 'published' && !db.skipPublishedMemory) rememberPublished(reviewing0, done)
               const reviewing = done.state === 'in_review'
               setSummary(done.id, { status: reviewing ? 'in_review' : (done.state as ConversationSummary['status']) })
               controller.enqueue(encoder.encode(sse(reviewing ? 'review_ready' : 'result', done)))

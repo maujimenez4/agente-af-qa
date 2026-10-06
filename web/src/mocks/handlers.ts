@@ -16,6 +16,7 @@ import type {
   LoginIn,
   ProgressStep,
   ProposeIn,
+  QualityReviewIn,
   SessionOut,
   SourcePreview,
   SourcesIn,
@@ -41,6 +42,7 @@ type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
 import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublishOutcome } from './qaSuite.ts'
 import { filterMemories, mockPublishedMemory } from './memories.ts'
+import { newQualityReview, qualitySummary, settleQualityReview } from './quality.ts'
 
 const API = '/api/v1'
 
@@ -735,6 +737,42 @@ export function createHandlers(db: MockDb) {
           ? HttpResponse.json(structuredClone(db.adminModels) as JsonBodyType)
           : error(403, 'forbidden', 'No tienes permiso para realizar esta acción.'),
       ),
+    ),
+
+    // Revisar la calidad (T-48): de quien tiene `generate_story`; 202 en `running` y el informe al consultarla.
+    http.post(
+      `${API}/quality-reviews`,
+      mutation(async ({ request }) => {
+        const session = db.session
+        if (!session || !permissionsOf(session.role).includes('generate_story')) {
+          return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
+        }
+        const body = (await request.json()) as QualityReviewIn
+        if (!body.issue_key?.trim()) return error(422, 'invalid_request', 'La petición no es válida: revisa issue_key.')
+        const item = newQualityReview(body.issue_key, session.username, Date.now(), db.stepDelayMs * 4)
+        db.qualityReviews.unshift(item)
+        return HttpResponse.json(structuredClone(item.review) as JsonBodyType, { status: 202 })
+      }),
+    ),
+    http.get(
+      `${API}/quality-reviews`,
+      query(() => {
+        if (!db.session || !permissionsOf(db.session.role).includes('generate_story')) {
+          return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
+        }
+        // La lista no avanza las revisiones: en la API simulada, el informe llega al consultar la revisión.
+        const mine = db.qualityReviews.filter((item) => item.owner === db.session?.username)
+        return HttpResponse.json(mine.map(qualitySummary) as JsonBodyType)
+      }),
+    ),
+    http.get<{ id: string }>(
+      `${API}/quality-reviews/:id`,
+      query(({ params }) => {
+        const item = db.qualityReviews.find((found) => found.review.id === params.id && found.owner === db.session?.username)
+        if (!item) return error(404, 'not_found', 'No existe esa revisión o no la puedes ver.')
+        settleQualityReview(item, Date.now(), db.forceQualityError ?? false, (key) => issueCard(key) !== undefined)
+        return HttpResponse.json(structuredClone(item.review) as JsonBodyType)
+      }),
     ),
 
     // Lo que la API simulada aún no cubre.

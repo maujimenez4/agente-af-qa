@@ -14,6 +14,7 @@ y su avance se sigue con eventos SSE o consultando el estado.
 import asyncio
 import json
 import math
+import threading
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any, get_args
@@ -68,6 +69,7 @@ from api.models import (
     QualityReviewSummary,
     SessionOut,
     SettingsOut,
+    SourcePreview,
     SourcesIn,
     SourcesOut,
     StartProposal,
@@ -93,7 +95,10 @@ from api.security import (
     session_for,
 )
 from core.config import Settings
+from core.context.budget import BudgetReport, estimate_tokens
 from core.context.jql import text_search_jql
+from core.context.service import GatheringCancelledError
+from core.graph import Origin
 from core.guided_start import GuidedStart
 from core.logging import get_logger
 from core.permissions import Permission, permissions_of, require
@@ -114,6 +119,8 @@ LOGIN_PATH = f"{API_PREFIX}/auth/login"
 VERSION = "0.2.0"
 MAX_QUALITY_JOBS = MAX_REVIEWS_PER_PERSON  # por persona (PA-272)
 SSE_POLL_S = 0.5
+DISCONNECT_POLL_S = 0.25  # PA-128: cada cuánto se mira si la web canceló la consulta de fuentes
+SOURCES_CANCELLED = "La consulta de fuentes se ha cancelado."
 SSE_HEARTBEAT_S = 15.0
 # Tipos que no se buscan como origen (las épicas sí).
 NOT_SEARCHABLE = frozenset({"subtarea", "sub-task", "subtask", "task", "tarea"})
@@ -457,12 +464,12 @@ def propose(body: ProposeIn, request: Request) -> StartProposal:
         ),
     },
 )
-def sources(body: SourcesIn, request: Request) -> SourcesOut:
+async def sources(body: SourcesIn, request: Request) -> SourcesOut:
     _rt, _s, ws, user = _ctx(request)
     require(user, Permission.VIEW_CONTEXT)
     origin = service.preview_origin(body.origin)
     excluded = service.excluded_for(body.excluded_sources, origin.get("key"))
-    rows, report = GuidedStart(ws.container).preview_sources_with_budget(origin, excluded)
+    rows, report = await _preview_until_disconnected(request, ws, user, origin, excluded)
     return SourcesOut(
         sources=rows,
         budget=ContextBudgetOut(
@@ -470,8 +477,47 @@ def sources(body: SourcesIn, request: Request) -> SourcesOut:
             limit=report.budget,
             dropped_sources=report.dropped_issues + report.dropped_chunks,
             truncated_sources=report.truncated_issues,
+            fixed=(fixed := estimate_tokens(origin.get("text") or "")),  # PA-330: como `gather`
+            total=report.budget + fixed,
         ),
     )
+
+
+def _discard_result(task: "asyncio.Future[Any]") -> None:
+    if not task.cancelled():
+        task.exception()
+
+
+async def _preview_until_disconnected(
+    request: Request, ws: Workspace, user: User, origin: Origin, excluded: list[str]
+) -> tuple[list[SourcePreview], BudgetReport]:
+    """PA-128: calcula las fuentes en un hilo y deja de hacerlo si la web cancela la petición.
+
+    Solo se corta cuando el cliente se ha ido (`is_disconnected`, cada `DISCONNECT_POLL_S`):
+    dos consultas de la misma persona que se solapan (la lista y el presupuesto de Origen, o
+    dos pestañas) terminan las dos. La llamada a Jira o a los embeddings que ya esté en curso
+    termina; lo siguiente ya no empieza. Nadie recibe la respuesta de una consulta cancelada:
+    503 (ya declarado) y un log `info`.
+    """
+    gone = threading.Event()
+    work = asyncio.ensure_future(
+        run_in_threadpool(
+            GuidedStart(ws.container).preview_sources_with_budget, origin, excluded, gone.is_set
+        )
+    )
+    try:
+        while not work.done():
+            await asyncio.wait({work}, timeout=DISCONNECT_POLL_S)
+            if not work.done() and await request.is_disconnected():
+                gone.set()
+        return work.result()
+    except GatheringCancelledError:
+        log.info("consulta de fuentes cancelada", user=user.username, action="preview_sources")
+        raise ApiError(503, "service_unavailable", SOURCES_CANCELLED) from None
+    finally:
+        gone.set()  # si la propia petición se cancela, el hilo no sigue calculando
+        if not work.done():  # su excepción se recoge aquí, no en el log de asyncio
+            work.add_done_callback(_discard_result)
 
 
 # --- Conversaciones ------------------------------------------------------------------------------

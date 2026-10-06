@@ -4,6 +4,7 @@ import type { ConnectionsTestOut } from '../api/types.ts'
 import { example } from './examples.ts'
 import { connectionDownFrom, createMockDb, forcedApprovalFrom, forcedCoverageFrom, manyConversations, manyConversationsFrom, memoryMissingFrom, noMemoriesFrom, takenFrom } from './db.ts'
 import { createHandlers } from './handlers.ts'
+import { qualityErrorFrom } from './quality.ts'
 
 export async function startMockApi(): Promise<void> {
   const db = createMockDb()
@@ -13,6 +14,7 @@ export async function startMockApi(): Promise<void> {
   db.forceCoverage = forcedCoverageFrom(window.location.search)
   if (noMemoriesFrom(window.location.search)) db.memories = []
   db.skipPublishedMemory = memoryMissingFrom(window.location.search)
+  db.forceQualityError = qualityErrorFrom(window.location.search)
   if (connectionDownFrom(window.location.search)) db.connections = example<ConnectionsTestOut>('POST /api/v1/admin/connections/test 200')
   const [first] = db.conversations
   if (first && manyConversationsFrom(window.location.search)) db.conversations = manyConversations(first)

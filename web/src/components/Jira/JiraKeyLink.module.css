@@ -1,0 +1,11 @@
+/* Clave de Jira enlazada (PA-325): el color de enlace del sistema, no el azul del navegador. */
+.link {
+  color: var(--color-primary-text);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:hover {
+  color: var(--color-primary);
+}

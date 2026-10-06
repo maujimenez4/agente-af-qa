@@ -9,7 +9,9 @@ con que el artefacto diga `APPROVED`. El ciclo es:
 2. `human_review` muestra versión y operación; la persona aprueba la huella de ambas
    (`review_fingerprint`) y se registra la aprobación (`record`).
 3. `publish` exige una aprobación vigente para esa versión y esa operación, toma la operación
-   del registro (nunca del estado) y la consume al publicar (un solo uso).
+   del registro (nunca del estado) y la consume al publicar (un solo uso). Una publicación
+   **simulada** también la consume (PA-41): queda marcada `simulated` y, para publicar de
+   verdad, una persona tiene que volver a aprobar con el modo real activo.
 4. `memorize` solo actúa sobre lo que `publish` registró como publicado.
 
 Desde T-25 persiste por artefacto en `artifact_state` (y cada acción se audita en `audit_log`).
@@ -22,7 +24,7 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core.artifact_state import ArtifactStateStore
@@ -94,6 +96,8 @@ class Approval:
     at: datetime
     consumed: bool = False
     published_fingerprint: str | None = None
+    # PA-41: consumida por una publicación simulada (nada se escribió en Jira).
+    simulated: bool = False
 
 
 def _locked[**P, R](method: Callable[P, R]) -> Callable[P, R]:
@@ -188,14 +192,19 @@ class ApprovalLedger:
         if not self.is_offered(artifact, target):
             raise ApprovalError(_MISMATCH)
         previous = self._approvals.get((str(artifact.id), artifact.version))
-        if previous is not None and previous.consumed:
+        if previous is not None and previous.consumed and not previous.simulated:
             raise ApprovalError("Esta versión ya se publicó; genera una versión nueva.")
+        at = datetime.now(UTC)
+        if previous is not None and at <= previous.at:
+            # PA-41: cada aprobación de una versión tiene su propio instante, posterior a la
+            # anterior (el reloj de Windows avanza a saltos de 15,6 ms).
+            at = previous.at + timedelta(microseconds=1)
         approval = Approval(
             artifact_id=str(artifact.id),
             version=artifact.version,
             fingerprint=content_fingerprint(artifact),
             target=target,
-            at=datetime.now(UTC),
+            at=at,
         )
         self._approvals[(approval.artifact_id, approval.version)] = approval
         del self._offers[approval.artifact_id]
@@ -219,11 +228,13 @@ class ApprovalLedger:
 
     @_retried
     @_locked
-    def consume(self, approval: Approval, published: Artifact) -> None:
+    def consume(self, approval: Approval, published: Artifact, *, simulated: bool = False) -> None:
         """Marca la aprobación como usada y guarda la huella de lo publicado.
 
         PA-173: solo se consume la aprobación vigente guardada (la misma, sin consumir); un
         segundo consumo o una aprobación descartada por una oferta posterior fallan cerrado.
+        PA-41: con `simulated`, queda gastada sin huella de publicación (`was_published` sigue
+        siendo falso y no se genera memoria).
         """
         key = (approval.artifact_id, approval.version)
         self._ensure(approval.artifact_id)
@@ -231,9 +242,34 @@ class ApprovalLedger:
         if current is None or current.consumed or current != approval:
             raise ApprovalError(_NOT_CURRENT)
         self._approvals[key] = replace(
-            approval, consumed=True, published_fingerprint=content_fingerprint(published)
+            approval,
+            consumed=True,
+            published_fingerprint=None if simulated else content_fingerprint(published),
+            simulated=simulated,
         )
         self._persist(approval.artifact_id)
+
+    @_locked
+    def simulated_approval(self, artifact: Artifact, target: PublishTarget) -> Approval | None:
+        """PA-41: la aprobación de esta versión exacta y esta operación que se gastó en una
+        publicación simulada. Acredita la aprobación humana (p. ej. para pasar la HU a QA,
+        T-54), pero nunca sirve para publicar: `find` no la devuelve."""
+        self._ensure(str(artifact.id))
+        approval = self._approvals.get((str(artifact.id), artifact.version))
+        if (
+            approval is None
+            or not (approval.consumed and approval.simulated)
+            or approval.fingerprint != content_fingerprint(artifact)
+            or approval.target != target
+        ):
+            return None
+        return approval
+
+    @_locked
+    def used_in_simulation(self, artifact: Artifact, target: PublishTarget) -> bool:
+        """PA-41: la aprobación de esta versión exacta y esta operación se gastó en una
+        publicación simulada (para explicar por qué `find` no la devuelve)."""
+        return self.simulated_approval(artifact, target) is not None
 
     @_locked
     def spend(self, approval: Approval) -> None:
@@ -407,12 +443,19 @@ def _approval_from(data: dict[str, Any]) -> Approval:
     published = data.get("published_fingerprint")
     if published is not None and not isinstance(published, str):
         raise TypeError("published_fingerprint")
+    simulated = data.get("simulated", False)  # PA-41: los registros anteriores no lo llevan
+    if not isinstance(simulated, bool):
+        raise TypeError("simulated")
+    at = datetime.fromisoformat(data["at"])
+    if at.tzinfo is None:  # PA-41: los instantes se comparan en UTC; sin zona, dañado
+        raise TypeError("at")
     return Approval(
         artifact_id=str(data["artifact_id"]),
         version=version,
         fingerprint=str(data["fingerprint"]),
         target=_target_from(data["target"]),
-        at=datetime.fromisoformat(data["at"]),
+        at=at,
         consumed=consumed,
         published_fingerprint=published,
+        simulated=simulated,
     )

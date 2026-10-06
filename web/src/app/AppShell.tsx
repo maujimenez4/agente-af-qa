@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
@@ -15,6 +15,7 @@ import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
 import { MemoryScreen } from '../screens/Memory/MemoryScreen.tsx'
 import { AdminScreen } from '../screens/Admin/AdminScreen.tsx'
+import { QualityScreen } from '../screens/Quality/QualityScreen.tsx'
 import { QA_HANDOFF_ENABLED } from './features.ts'
 import { hasResult } from '../screens/Result/resultText.ts'
 import { useSession } from '../session/sessionContext.ts'
@@ -80,6 +81,8 @@ type WorkView =
   | { name: 'receipt'; conversation: ConversationOut }
   | { name: 'result'; conversation: ConversationOut & { result: PublishOutcome } }
   | { name: 'closed'; conversation: ConversationOut }
+  // Revisar la calidad (Mixta 5): desde Inicio (`request`) o una revisión guardada de la lista (`reviewId`).
+  | { name: 'quality'; request?: StartRequest; reviewId?: string }
 
 // Conversaciones ya cerradas: aprobar y publicar llegan después de T-57 (recibo y resultado).
 const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
@@ -91,18 +94,16 @@ const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
   error: 'Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira.',
 }
 
-// Flujos fuera de la demo de T-57 (DESIGN-DECISIONS.md §4 bis).
-const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: string }>> = {
-  review: {
-    title: 'Revisar la calidad: disponible pronto',
-    text: 'El informe INVEST y los hallazgos de una HU llegan después del punto de control de la demo.',
-  },
-}
 
 function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: string) => void }) {
-  const { conversations, error: conversationsError, reload } = useConversations()
-  const [currentId, setCurrentId] = useState<string | undefined>()
-  const [view, setView] = useState<WorkView>({ name: 'home' })
+  const { conversations, error: conversationsError, reload } = useConversations(user.permissions.includes('generate_story'))
+  const { state: session, remember } = useSession()
+  // PA-332: tras volver a entrar por una sesión caducada, lo que tenía abierto la persona. Una revisión de
+  // calidad se reabre como revisión (su id no es una conversación: GET /conversations daría 404).
+  const resume = session.status === 'authenticated' ? session.resume : undefined
+  const resumeId = resume?.kind === 'conversation' ? resume.id : undefined
+  const [currentId, setCurrentId] = useState<string | undefined>(resume?.id)
+  const [view, setView] = useState<WorkView>(resume?.kind === 'quality' ? { name: 'quality', reviewId: resume.id } : { name: 'home' })
   // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
   const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
   const [picked, setPicked] = useState<JiraPick | undefined>()
@@ -111,25 +112,48 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
   const [opened, setOpened] = useState(0)
 
   // Retomar una conversación de la lista (T-52): según su estado, Generando, Iterar o un aviso.
+  const showConversation = (conversation: ConversationOut) => {
+    // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
+    setOpened((count) => count + 1)
+    if (conversation.state === 'generating') {
+      setView({ name: 'generating', conversation })
+    } else if (conversation.state === 'in_review') {
+      setView({ name: 'ready', conversation })
+    } else if (hasResult(conversation)) {
+      setView({ name: 'result', conversation })
+    } else {
+      setView({ name: 'closed', conversation })
+    }
+  }
   const openConversation = async (threadId: string) => {
     setOpenError(undefined)
     try {
-      const conversation = await api.conversation(threadId)
-      // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
-      setOpened((count) => count + 1)
-      if (conversation.state === 'generating') {
-        setView({ name: 'generating', conversation })
-      } else if (conversation.state === 'in_review') {
-        setView({ name: 'ready', conversation })
-      } else if (hasResult(conversation)) {
-        setView({ name: 'result', conversation })
-      } else {
-        setView({ name: 'closed', conversation })
-      }
+      showConversation(await api.conversation(threadId))
     } catch (cause) {
       setOpenError(toApiError(cause))
     }
   }
+
+  // PA-332: la sesión sabe qué está abierto (conversación o revisión); tras volver a entrar, se reabre.
+  // El tipo va con el id, no con la vista: al elegir una conversación desde una revisión, la vista sigue en
+  // `quality` hasta que responde la API, y ese id es de una conversación.
+  const openKind =
+    (view.name === 'quality' && view.reviewId === currentId) ||
+    conversations.some((item) => item.thread_id === currentId && item.review_state)
+      ? 'quality'
+      : 'conversation'
+  useEffect(() => remember(currentId, openKind), [currentId, openKind, remember])
+  useEffect(() => {
+    if (!resumeId) return
+    let cancelled = false
+    api
+      .conversation(resumeId)
+      .then((conversation) => !cancelled && showConversation(conversation))
+      .catch((cause: unknown) => !cancelled && setOpenError(toApiError(cause)))
+    return () => {
+      cancelled = true
+    }
+  }, [resumeId])
 
   return (
     <>
@@ -145,7 +169,16 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         }}
         onSelect={(threadId) => {
           setCurrentId(threadId)
-          void openConversation(threadId)
+          const isReview = conversations.some((item) => item.thread_id === threadId && item.review_state)
+          // PA-407: la sesión lo sabe antes de pedirlo; si esa petición da 401, se recuerda lo elegido con su tipo.
+          remember(threadId, isReview ? 'quality' : 'conversation')
+          if (isReview) {
+            setOpenError(undefined)
+            setOpened((count) => count + 1)
+            setView({ name: 'quality', reviewId: threadId })
+          } else {
+            void openConversation(threadId)
+          }
         }}
       />
       <main className={styles.main}>
@@ -157,7 +190,11 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         {view.name === 'home' && (
           <HomeScreen
             user={user}
-            onStart={(request) => setView({ name: 'origin', request })}
+            onStart={(request) => {
+              // Una revisión nueva aún no tiene id (PA-130): no se recuerda la conversación anterior como revisión.
+              if (request.flow === 'review') setCurrentId(undefined)
+              setView(request.flow === 'review' ? { name: 'quality', request } : { name: 'origin', request })
+            }}
             onTaken={!QA_HANDOFF_ENABLED ? undefined : (conversation) => {
               setCurrentId(conversation.id)
               setView({ name: 'generating', conversation })
@@ -169,11 +206,28 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
           />
         )}
         {view.name === 'origin' && (
-          <OriginOrSoon
+          <OriginScreen
             request={view.request}
             onBack={() => setView({ name: 'home' })}
             onGenerating={(conversation) => {
               setView({ name: 'generating', conversation, request: view.request })
+              reload()
+            }}
+          />
+        )}
+        {view.name === 'quality' && (
+          <QualityScreen
+            key={view.reviewId ? `${view.reviewId}-${opened}` : 'new'}
+            request={view.request}
+            reviewId={view.reviewId}
+            onBack={() => {
+              setCurrentId(undefined)
+              setView({ name: 'home' })
+            }}
+            onChanged={reload}
+            onEvolve={(conversation) => {
+              setCurrentId(conversation.id)
+              setView({ name: 'generating', conversation })
               reload()
             }}
           />
@@ -319,28 +373,4 @@ function ClosedConversation({
     )
   }
   return <SoonScreen title={title} text={CLOSED_TEXT[conversation.state] ?? 'Esta conversación ya terminó.'} />
-}
-
-function OriginOrSoon({
-  request,
-  onBack,
-  onGenerating,
-}: {
-  request: StartRequest
-  onBack: () => void
-  onGenerating: (conversation: ConversationOut) => void
-}) {
-  const soon = SOON_FLOWS[request.flow]
-  if (!soon) return <OriginScreen request={request} onBack={onBack} onGenerating={onGenerating} />
-  return (
-    <div className={styles.centered}>
-      <section className={styles.soon} aria-labelledby="flow-soon">
-        <h1 id="flow-soon" className={styles.soonTitle}>
-          {soon.title}
-        </h1>
-        <p className={styles.soonText}>{soon.text}</p>
-        <Button onClick={onBack}>Volver al inicio</Button>
-      </section>
-    </div>
-  )
 }

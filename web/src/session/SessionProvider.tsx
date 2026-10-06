@@ -1,15 +1,47 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, ApiRequestError, setCsrfToken } from '../api/client.ts'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { api, ApiRequestError, onUnauthenticated, setCsrfToken, startSession } from '../api/client.ts'
 import type { SessionOut } from '../api/types.ts'
-import { SessionContext, type SessionState } from './sessionContext.ts'
+import { SessionContext, type OpenKind, type SessionState } from './sessionContext.ts'
 
 // Sesión del frontend: la cookie la gestiona el navegador; aquí solo el usuario y el CSRF en memoria.
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: 'loading' })
+  // Lo abierto ahora (conversación o revisión): si la sesión caduca, se reabre al volver a entrar la misma persona.
+  const opened = useRef<{ id: string; kind: OpenKind } | undefined>(undefined)
 
   const accept = useCallback((session: SessionOut) => {
+    startSession()
     setCsrfToken(session.csrf_token)
-    setState({ status: 'authenticated', user: session.user })
+    setState((previous) => {
+      const resume = previous.status === 'anonymous' ? previous.resume : undefined
+      return {
+        status: 'authenticated',
+        user: session.user,
+        resume: resume?.username === session.user.username ? resume : undefined,
+      }
+    })
+  }, [])
+
+  // PA-332: un 401 en cualquier pantalla lleva al inicio de sesión con la tarjeta «Sesión caducada».
+  useEffect(
+    () =>
+      onUnauthenticated((error) => {
+        setCsrfToken(null)
+        setState((previous) => {
+          if (previous.status !== 'authenticated') return previous
+          const open = opened.current
+          return {
+            status: 'anonymous',
+            error,
+            resume: open ? { username: previous.user.username, ...open } : undefined,
+          }
+        })
+      }),
+    [],
+  )
+
+  const remember = useCallback((id: string | undefined, kind: OpenKind = 'conversation') => {
+    opened.current = id ? { id, kind } : undefined
   }, [])
 
   useEffect(() => {
@@ -33,7 +65,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         accept(await api.login(username, password))
       } catch (cause) {
         if (!(cause instanceof ApiRequestError)) throw cause
-        setState({ status: 'anonymous', error: cause.error })
+        // Un intento fallido no olvida dónde estaba la persona si su sesión había caducado.
+        setState((previous) => ({
+          status: 'anonymous',
+          error: cause.error,
+          resume: previous.status === 'anonymous' ? previous.resume : undefined,
+        }))
       }
     },
     [accept],
@@ -46,9 +83,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Aunque la API no responda, la sesión local se cierra.
     }
     setCsrfToken(null)
+    opened.current = undefined
     setState({ status: 'anonymous' })
   }, [])
 
-  const value = useMemo(() => ({ state, login, logout }), [state, login, logout])
+  const value = useMemo(() => ({ state, login, logout, remember }), [state, login, logout, remember])
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { api } from '../../api/client.ts'
 import { safeHref } from '../../security/safeHref.ts'
 import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
 import { Button, ButtonLink, SoonButton } from '../../components/Button/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
+import { JiraKeyLink } from '../../components/Jira/index.ts'
+import { useJiraBrowseUrl } from '../../hooks/useJiraBrowseUrl.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
 import { ResultQ } from '../../components/QMark/index.ts'
 import { Notice } from '../../components/States/index.ts'
@@ -54,7 +54,8 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
     result.plan.find((item) => item.op === 'update_story')?.key ||
     result.plan.find((item) => item.op === 'publish_suite')?.story ||
     result.published_keys[0]
-  const jiraUrl = jiraIssueUrl(useJiraBrowseUrl(outcome !== 'simulated'), key)
+  const browseUrl = useJiraBrowseUrl(outcome !== 'simulated')
+  const jiraUrl = jiraIssueUrl(browseUrl, key)
 
   return (
     <Workspace
@@ -89,7 +90,17 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
           ))}
         </ol>
 
-        {result.published_keys.length > 0 && <p className={styles.muted}>Claves en Jira: {result.published_keys.join(', ')}</p>}
+        {result.published_keys.length > 0 && (
+          <p className={styles.muted}>
+            Claves en Jira:{' '}
+            {result.published_keys.map((publishedKey, index) => (
+              <span key={publishedKey}>
+                {index > 0 && ', '}
+                <JiraKeyLink jiraKey={publishedKey} browseUrl={browseUrl} />
+              </span>
+            ))}
+          </p>
+        )}
 
         {outcome === 'partial' && (
           <div className={styles.failed} role="alert">
@@ -142,23 +153,4 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
       </section>
     </Workspace>
   )
-}
-
-/** `SettingsOut.jira_browse_url` (PA-318). Solo se pide si hay algo que abrir en Jira; si falla, no hay enlace. */
-function useJiraBrowseUrl(needed: boolean): string | null {
-  const [browseUrl, setBrowseUrl] = useState<string | null>(null)
-  useEffect(() => {
-    if (!needed) return
-    let cancelled = false
-    api
-      .settings()
-      .then((settings) => {
-        if (!cancelled) setBrowseUrl(settings.jira_browse_url ?? null)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [needed])
-  return browseUrl
 }

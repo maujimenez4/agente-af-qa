@@ -200,7 +200,7 @@ describe('Iterar · Reintentar repite la operación que falló (R-1) e Iniciar s
     expect(within(log()).getAllByText('Cambio ficticio')).toHaveLength(1)
   })
 
-  it('«Iniciar sesión» (unauthenticated) cierra la sesión y lleva al inicio de sesión', async () => {
+  it('un 401 (unauthenticated) lleva directamente al inicio de sesión con la tarjeta «Sesión caducada» (PA-332)', async () => {
     await openFromList()
     mockServer.use(
       http.post('/api/v1/conversations/:id/iterate', () =>
@@ -209,8 +209,9 @@ describe('Iterar · Reintentar repite la operación que falló (R-1) e Iniciar s
     )
     await userEvent.type(composer(), 'Cambio ficticio')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
-    await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Iniciar sesión' }))
     expect(await screen.findByLabelText(/usuario/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Sesión caducada' })).toBeInTheDocument()
+    expect(screen.getByText('La sesión ha caducado.')).toBeInTheDocument()
   })
 })
 

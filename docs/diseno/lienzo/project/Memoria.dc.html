@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Memoria</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.tab{height:48px;padding:0 16px;border:0;background:transparent;font:inherit;font-size:14px;color:#C9D2DB;border-bottom:3px solid transparent}
+.tab.on{color:#FFFFFF;font-weight:600;border-bottom-color:#FF7932}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Sidebar" role="functional" hint-size="260px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<nav aria-label="Pestañas" style="display: flex; gap: 4px; padding: 0 28px; background: #1E2D3D;">
+<button class="tab">Contexto</button>
+<button class="tab">Historia</button>
+<button class="tab">Revisión y publicación</button>
+<button class="tab on" aria-current="page">Memoria</button>
+</nav>
+<div style="flex-grow: 1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 20px; padding: 24px 28px; min-height: 0;">
+<section aria-label="Memorias" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+<label for="q" style="font-size: 14px; font-weight: 500;">Buscar en las memorias</label>
+<input id="q" placeholder="clave o texto" style="height: 44px; border: 1px solid #93A0AB; border-radius: 8px; padding: 0 12px; font: inherit; font-size: 14px;">
+<button style="text-align: left; min-height: 56px; border: 1px solid #FF7932; background: #FFF3EC; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px; display: flex; flex-direction: column;"><b style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">DEMO-2 · v2</b><span style="font-size: 13px; color: #5C6E7C;">Reservar un libro · publicada 2026-09-30</span></button>
+<button style="text-align: left; min-height: 56px; border: 1px solid #E6EAEE; background: #FFFFFF; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px; display: flex; flex-direction: column;"><b style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">DEMO-3 · v3</b><span style="font-size: 13px; color: #5C6E7C;">Renovar un préstamo · publicada 2026-09-30</span></button>
+<p style="margin: 0; font-size: 13px; color: #5C6E7C;">Las memorias se generan al publicar una HU y tienen prioridad en la recuperación (RF-51).</p>
+</section>
+<article aria-label="Memoria DEMO-2" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; overflow: hidden;">
+<h2 style="margin: 0; font-size: 18px; font-weight: 600;">Memoria · DEMO-2 (versión 2)</h2>
+<p style="margin: 0;"><b>Objetivo:</b> reservar un libro disponible para recogerlo en el mostrador.</p>
+<p style="margin: 0;"><b>Reglas:</b> RN-01 máximo 3 reservas activas · RN-02 bloqueo de 48 horas.</p>
+<p style="margin: 0;"><b>Decisiones:</b> el plazo de recogida pasa de 72 a 48 horas (DOC-19).</p>
+<p style="margin: 0;"><b>Referencias:</b> DOC-02, DOC-06, DEMO-3.</p>
+<span style="margin-top: auto; font-size: 12px; color: #5C6E7C; font-family: 'IBM Plex Mono', monospace;">data/memory/DEMO-2.md · indexada</span>
+</article>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

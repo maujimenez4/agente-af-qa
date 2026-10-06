@@ -287,11 +287,17 @@ def test_retry_after_cancel_is_not_born_cancelled(rt: Runtime, api: Api, llm: Bl
 
 
 def test_retry_after_cancel_can_be_cancelled_again(rt: Runtime, api: Api, llm: BlockingLLM) -> None:
-    """PA-314 A (límite): el reintento en segundo plano también se puede detener."""
+    """PA-314 A (límite): el reintento en segundo plano también se puede detener.
+
+    PA-339: el reintento reutiliza la HU ya estructurada, así que su primera llamada al LLM es
+    la evolución. Esa llamada termina y el paso siguiente es la revisión: la cancelación solo
+    pausa con la propuesta ya generada (`in_review`, como define PA-314).
+    """
     cid = _start_blocked(rt, api, EVOLVE, llm.gate)
     _cancel(api, cid)
     llm.gate.release()
     assert _finished(rt, cid)
+    structured = llm.started.count("UserStory")
 
     llm.gate.arm()
     response = api.post(f"/conversations/{cid}/retry")
@@ -302,7 +308,8 @@ def test_retry_after_cancel_can_be_cancelled_again(rt: Runtime, api: Api, llm: B
     assert _finished(rt, cid)
 
     conv = api.get(f"/conversations/{cid}").json()
-    assert conv["state"] == "error" and conv["error"]["code"] == "cancelled"
+    assert conv["state"] == "in_review" and conv["cancel_requested"] is False
+    assert llm.started.count("UserStory") == structured + 1  # solo la evolución, sin estructurar
 
 
 def test_cancel_one_conversation_does_not_affect_another_generating_at_once(

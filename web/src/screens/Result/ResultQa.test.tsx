@@ -70,7 +70,8 @@ describe('QA 5 · Resultado', () => {
     await userEvent.click(within(receipt).getByRole('button', { name: 'Aprobar y publicar' }))
     const region = await screen.findByRole('region', { name: 'Suite publicada en Jira' })
     expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicado' })).toBeInTheDocument()
-    expect(within(region).getByText('Claves en Jira: DEMO-21, DEMO-22, DEMO-23, DEMO-24')).toBeInTheDocument()
+    // PA-325: cada clave puede ser un enlace a Jira (con texto oculto); se comparan solo las claves.
+    expect(within(region).getByText(/^Claves en Jira:/, { selector: 'p' }).textContent?.match(/[A-Z][A-Z0-9_]*-\d+/g)).toEqual(['DEMO-21', 'DEMO-22', 'DEMO-23', 'DEMO-24'])
     expect(within(region).getByRole('list', { name: 'Operaciones hechas en Jira' })).toHaveTextContent('Crear 4 subtareas en DEMO-3')
     expect(within(region).getByRole('button', { name: 'Registrar la ejecución' })).toHaveAccessibleDescription('Registrar la ejecución de las pruebas llega más adelante.')
     // Con `jira_browse_url` en /settings pasa a ser un enlace: se espera a que llegue (sin carrera).
@@ -93,7 +94,8 @@ describe('QA 5 · Resultado', () => {
     const failed = within(region).getByRole('alert')
     expect(failed).toHaveTextContent('No se pudo crear CP-04: Jira no respondió (mensaje ficticio).')
     expect(failed).toHaveTextContent('Fallaron: CP-04')
-    expect(within(region).getByText('Claves en Jira: DEMO-21, DEMO-22, DEMO-23')).toBeInTheDocument()
+    // PA-325: cada clave puede ser un enlace a Jira (con texto oculto); se comparan solo las claves.
+    expect(within(region).getByText(/^Claves en Jira:/, { selector: 'p' }).textContent?.match(/[A-Z][A-Z0-9_]*-\d+/g)).toEqual(['DEMO-21', 'DEMO-22', 'DEMO-23'])
     expect(within(region).getByText(QA_OUTCOME_TEXTS.partial.note)).toBeInTheDocument()
     const run = [...mockDb.runs.values()].find((item) => item.conversation.mode === 'qa')
     expect(run?.conversation.state).toBe('approved')

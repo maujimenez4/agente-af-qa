@@ -18,6 +18,9 @@ import type {
   OriginIn,
   ProjectsOut,
   ProposeIn,
+  QualityReviewIn,
+  QualityReviewOut,
+  QualityReviewSummary,
   SessionOut,
   SettingsOut,
   SourcesIn,
@@ -79,6 +82,7 @@ export function apiUrl(path: string): string {
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 async function request<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const startedIn = sessionNumber
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -100,13 +104,34 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
   if (response.status === 204) return undefined as T
   const payload: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
-    const error = (payload as { error?: ApiError } | undefined)?.error
-    throw new ApiRequestError(response.status, error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE })
+    const error = (payload as { error?: ApiError } | undefined)?.error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE }
+    // Un 401 de una petición lanzada en una sesión anterior (antes de volver a entrar) no echa a nadie.
+    if (response.status === 401 && !SESSION_PATHS.has(path) && startedIn === sessionNumber) unauthenticatedHandler?.(error)
+    throw new ApiRequestError(response.status, error)
   }
   return payload as T
 }
 
 const enc = encodeURIComponent
+
+// PA-332: un 401 en cualquier pantalla avisa a la sesión (SessionProvider pasa a anónimo). No avisan las
+// rutas de la propia sesión: un 401 en /auth/me al arrancar o en /auth/login es lo esperado.
+const SESSION_PATHS = new Set(['/auth/me', '/auth/login', '/auth/logout'])
+let unauthenticatedHandler: ((error: ApiError) => void) | undefined
+let sessionNumber = 0
+
+/** Empieza una sesión nueva (cada inicio de sesión aceptado): los 401 de peticiones anteriores se ignoran. */
+export function startSession(): void {
+  sessionNumber += 1
+}
+
+/** Registra quién se entera de un 401 (la sesión). Devuelve la función para dejar de escucharlo. */
+export function onUnauthenticated(handler: (error: ApiError) => void): () => void {
+  unauthenticatedHandler = handler
+  return () => {
+    if (unauthenticatedHandler === handler) unauthenticatedHandler = undefined
+  }
+}
 
 /** Filtros de `GET /memories`: proyecto, texto que buscar (clave y contenido) y cuántas como mucho (1 a 200). */
 export interface MemoryFilters {
@@ -139,8 +164,8 @@ export const api = {
   issue: (key: string) => request<IssueCard>('GET', `/issues/${enc(key)}`),
 
   propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body),
-  sources: (origin: OriginIn, excluded: string[] = []) =>
-    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn),
+  sources: (origin: OriginIn, excluded: string[] = [], signal?: AbortSignal) =>
+    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn, signal),
 
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),
@@ -172,4 +197,10 @@ export const api = {
   // Administración mínima (T-29): solo admin. Probar conexiones lleva CSRF y admite una prueba cada 10 s.
   adminConnectionsTest: () => request<ConnectionsTestOut>('POST', '/admin/connections/test'),
   adminModels: (signal?: AbortSignal) => request<AdminModelsOut>('GET', '/admin/models', undefined, signal),
+
+  // Revisar la calidad (T-48, Mixta 5): solo lectura, no publica. Responde 202 en `running`; el avance, consultando la revisión.
+  startQualityReview: (body: QualityReviewIn) => request<QualityReviewOut>('POST', '/quality-reviews', body),
+  qualityReviews: () => request<QualityReviewSummary[]>('GET', '/quality-reviews'),
+  qualityReview: (id: string, signal?: AbortSignal) =>
+    request<QualityReviewOut>('GET', `/quality-reviews/${enc(id)}`, undefined, signal),
 }

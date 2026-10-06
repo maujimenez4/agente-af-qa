@@ -1,7 +1,6 @@
 // Textos de Mixta 4 · Resultado (UI.md §4.7, lienzo MixtoPublicado) a partir de `ConversationOut.result`.
 import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import type { PublishOutcomeKind } from '../../components/QMark/index.ts'
-import { safeHref } from '../../security/safeHref.ts'
 
 export type { PublishOutcomeKind }
 
@@ -81,22 +80,5 @@ export function approvedLine(version: number | undefined, result: PublishOutcome
   return `${what} aprobada por ${result.approved_by}${time}`
 }
 
-const ISSUE_KEY = /^[A-Z][A-Z0-9_]*-\d+$/
-
-/**
- * «Abrir DEMO-3 en Jira» (PA-318): `{jira_browse_url}{clave}`. Solo con un prefijo `https` y una clave de Jira
- * válida; si no, `undefined` y la acción sigue «disponible pronto». El prefijo tiene que acabar en «/», sin query
- * ni fragmento: si no, la clave se pegaría al host (otro sitio). El enlace pasa además por `safeHref`.
- */
-export function jiraIssueUrl(browseUrl: string | null | undefined, key: string | undefined): string | undefined {
-  if (!browseUrl || !key || !ISSUE_KEY.test(key)) return undefined
-  let base: URL
-  try {
-    base = new URL(browseUrl)
-  } catch {
-    return undefined
-  }
-  if (base.protocol !== 'https:' || !base.pathname.endsWith('/') || base.search || base.hash || !browseUrl.endsWith('/')) return undefined
-  const url = new URL(key, base)
-  return url.origin === base.origin ? safeHref(url.href) : undefined
-}
+// `jiraIssueUrl` vive en components/Jira (PA-325: también la usan la pestaña Impacto y las claves publicadas).
+export { jiraIssueUrl } from '../../components/Jira/index.ts'

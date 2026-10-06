@@ -1053,21 +1053,26 @@ paths:
                   title: Renovar un préstamo
                   category: Story
                   required: true
+                  tokens: 1200
                 - ref: DOC-01
                   kind: rag
                   title: Reglamento de préstamo
                   category: politicas
                   required: false
+                  tokens: 800
                 - ref: memoria-DEMO-2
                   kind: memory
                   title: Memoria de DEMO-2
                   category: memoria
                   required: false
+                  tokens: 350
                 budget:
                   used: 2350
                   limit: 6000
                   dropped_sources: 0
                   truncated_sources: 1
+                  fixed: 0
+                  total: 6000
         '401':
           description: Sin sesión o caducada.
           content:
@@ -1499,7 +1504,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -1518,7 +1523,7 @@ paths:
                   fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
                   impact:
                     diffs:
-                    - field: acceptance_criteria.CA-02
+                    - field: acceptance_criteria[CA-02]
                       after: Renovación rechazada por reservas
                     affected:
                     - jira_key: DEMO-2
@@ -1612,7 +1617,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2149,7 +2154,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2168,7 +2173,7 @@ paths:
                   fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
                   impact:
                     diffs:
-                    - field: acceptance_criteria.CA-02
+                    - field: acceptance_criteria[CA-02]
                       after: Renovación rechazada por reservas
                     affected:
                     - jira_key: DEMO-2
@@ -2262,7 +2267,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2545,7 +2550,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -3067,7 +3072,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -5887,6 +5892,24 @@ components:
           minimum: 0.0
           title: Truncated Sources
           description: Incidencias recortadas para que quepan.
+        fixed:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Fixed
+          description: 'PA-330: tokens reservados para lo que no se puede desmarcar aparte de las fuentes
+            (el texto de la necesidad). `total = fixed + limit`.'
+        total:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Total
+          description: 'PA-330: presupuesto total del contexto. Con `sources[].tokens`, la web puede **estimar**
+            al instante: usado ≈ suma de `tokens` de las fuentes marcadas, frente a `limit`. Es una estimación:
+            al excluir un documento, el RAG rellena su hueco con otro; la respuesta de `POST /start/sources`
+            es la que manda.'
       type: object
       required:
       - used
@@ -7310,6 +7333,14 @@ components:
           type: boolean
           title: Required
           default: false
+        tokens:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Tokens
+          description: 'PA-330: tokens estimados que ocupa en el presupuesto, para estimar en la web al
+            marcar o desmarcar; la respuesta de `POST /start/sources` es la que manda.'
       type: object
       required:
       - ref

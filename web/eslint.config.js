@@ -63,6 +63,17 @@ export default defineConfig([
         },
         { selector: "CallExpression[callee.computed=true][callee.property.value=/^setAttribute(NS)?$/]", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
         { selector: "CallExpression[callee.property.name='createObjectURL']", message: DOWNLOAD },
+        // PA-312: almacenamiento del navegador por desestructuración (`const { cookie } = document`).
+        {
+          selector:
+            "VariableDeclarator[init.name=/^(document|window|self|globalThis)$/] > ObjectPattern > Property[key.name=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
+          message: BROWSER_STORAGE,
+        },
+        {
+          selector:
+            "AssignmentExpression[right.name=/^(document|window|self|globalThis)$/] > ObjectPattern > Property[key.name=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
+          message: BROWSER_STORAGE,
+        },
         { selector: "CallExpression[callee.computed=true][callee.property.value='createObjectURL']", message: DOWNLOAD },
         { selector: "VariableDeclarator > ObjectPattern > Property[key.name='createObjectURL']", message: DOWNLOAD },
         {
@@ -71,11 +82,15 @@ export default defineConfig([
           message: `${UNSAFE_LINK} Sin spread de props en elementos con URL.`,
         },
       ],
+      // (PA-312) La desestructuración (`const { cookie } = document`, `const { localStorage } = window`) la cubre
+      // no-restricted-syntax, más arriba.
       'no-restricted-globals': [
         'error',
         { name: 'localStorage', message: BROWSER_STORAGE },
         { name: 'sessionStorage', message: BROWSER_STORAGE },
         { name: 'indexedDB', message: BROWSER_STORAGE },
+        // PA-312: la Cache API también guarda datos en el navegador.
+        { name: 'caches', message: BROWSER_STORAGE },
       ],
       'no-restricted-properties': [
         'error',
@@ -84,6 +99,14 @@ export default defineConfig([
         { object: 'window', property: 'indexedDB', message: BROWSER_STORAGE },
         { object: 'globalThis', property: 'localStorage', message: BROWSER_STORAGE },
         { object: 'globalThis', property: 'sessionStorage', message: BROWSER_STORAGE },
+        // PA-312: los mismos almacenes por `self`, `globalThis.indexedDB` y la Cache API.
+        { object: 'globalThis', property: 'indexedDB', message: BROWSER_STORAGE },
+        { object: 'self', property: 'localStorage', message: BROWSER_STORAGE },
+        { object: 'self', property: 'sessionStorage', message: BROWSER_STORAGE },
+        { object: 'self', property: 'indexedDB', message: BROWSER_STORAGE },
+        { object: 'window', property: 'caches', message: BROWSER_STORAGE },
+        { object: 'self', property: 'caches', message: BROWSER_STORAGE },
+        { object: 'globalThis', property: 'caches', message: BROWSER_STORAGE },
         { object: 'document', property: 'cookie', message: BROWSER_STORAGE },
         { object: 'document', property: 'write', message: HTML_INJECTION },
         { object: 'document', property: 'writeln', message: HTML_INJECTION },

@@ -846,10 +846,20 @@ export interface components {
              */
             dropped_sources: number;
             /**
+             * Fixed
+             * @description PA-330: tokens reservados para lo que no se puede desmarcar aparte de las fuentes (el texto de la necesidad). `total = fixed + limit`.
+             */
+            fixed?: number | null;
+            /**
              * Limit
              * @description Tokens disponibles para las fuentes.
              */
             limit: number;
+            /**
+             * Total
+             * @description PA-330: presupuesto total del contexto. Con `sources[].tokens`, la web puede **estimar** al instante: usado ≈ suma de `tokens` de las fuentes marcadas, frente a `limit`. Es una estimación: al excluir un documento, el RAG rellena su hueco con otro; la respuesta de `POST /start/sources` es la que manda.
+             */
+            total?: number | null;
             /**
              * Truncated Sources
              * @description Incidencias recortadas para que quepan.
@@ -1710,6 +1720,11 @@ export interface components {
             required: boolean;
             /** Title */
             title: string;
+            /**
+             * Tokens
+             * @description PA-330: tokens estimados que ocupa en el presupuesto, para estimar en la web al marcar o desmarcar; la respuesta de `POST /start/sources` es la que manda.
+             */
+            tokens?: number | null;
         };
         /**
          * SourceRef
@@ -3193,7 +3208,7 @@ export interface operations {
                      *           "impact": {
                      *             "diffs": [
                      *               {
-                     *                 "field": "acceptance_criteria.CA-02",
+                     *                 "field": "acceptance_criteria[CA-02]",
                      *                 "after": "Renovación rechazada por reservas"
                      *               }
                      *             ],
@@ -3222,7 +3237,7 @@ export interface operations {
                      *         "impact": {
                      *           "diffs": [
                      *             {
-                     *               "field": "acceptance_criteria.CA-02",
+                     *               "field": "acceptance_criteria[CA-02]",
                      *               "after": "Renovación rechazada por reservas"
                      *             }
                      *           ],
@@ -3365,7 +3380,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -3766,7 +3781,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -4339,7 +4354,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -4678,7 +4693,7 @@ export interface operations {
                      *           "impact": {
                      *             "diffs": [
                      *               {
-                     *                 "field": "acceptance_criteria.CA-02",
+                     *                 "field": "acceptance_criteria[CA-02]",
                      *                 "after": "Renovación rechazada por reservas"
                      *               }
                      *             ],
@@ -4707,7 +4722,7 @@ export interface operations {
                      *         "impact": {
                      *           "diffs": [
                      *             {
-                     *               "field": "acceptance_criteria.CA-02",
+                     *               "field": "acceptance_criteria[CA-02]",
                      *               "after": "Renovación rechazada por reservas"
                      *             }
                      *           ],
@@ -4850,7 +4865,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -10100,28 +10115,33 @@ export interface operations {
                      *           "kind": "jira",
                      *           "title": "Renovar un préstamo",
                      *           "category": "Story",
-                     *           "required": true
+                     *           "required": true,
+                     *           "tokens": 1200
                      *         },
                      *         {
                      *           "ref": "DOC-01",
                      *           "kind": "rag",
                      *           "title": "Reglamento de préstamo",
                      *           "category": "politicas",
-                     *           "required": false
+                     *           "required": false,
+                     *           "tokens": 800
                      *         },
                      *         {
                      *           "ref": "memoria-DEMO-2",
                      *           "kind": "memory",
                      *           "title": "Memoria de DEMO-2",
                      *           "category": "memoria",
-                     *           "required": false
+                     *           "required": false,
+                     *           "tokens": 350
                      *         }
                      *       ],
                      *       "budget": {
                      *         "used": 2350,
                      *         "limit": 6000,
                      *         "dropped_sources": 0,
-                     *         "truncated_sources": 1
+                     *         "truncated_sources": 1,
+                     *         "fixed": 0,
+                     *         "total": 6000
                      *       }
                      *     }
                      */

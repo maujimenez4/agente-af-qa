@@ -106,6 +106,8 @@
   /* Layout (decisión 10) */
   --rail-width: 88px;
   --conversations-width: 248px;
+  /* PA-335: franja de la lista plegada por debajo de 1024 px (botón de 36 px y 6 px a cada lado). */
+  --conversations-strip: 48px;
   --header-height: 64px;
   --panel-sm: 420px;
   --panel-md: 480px;

@@ -85,6 +85,7 @@ export const SPACES: readonly string[] = ['--space-1', '--space-2', '--space-3',
 export const LAYOUT: ReadonlyArray<{ token: string; value: string; use: string }> = [
   { token: '--rail-width', value: '88px', use: 'Carril' },
   { token: '--conversations-width', value: '248px', use: 'Lista de conversaciones' },
+  { token: '--conversations-strip', value: '48px', use: 'Lista plegada por debajo de 1024 px (PA-335)' },
   { token: '--header-height', value: '64px', use: 'Cabecera' },
   { token: '--panel-sm', value: '420px', use: 'Panel «Antes de generar»' },
   { token: '--panel-md', value: '480px', use: 'Panel de propuesta e informe' },

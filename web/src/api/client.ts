@@ -158,7 +158,11 @@ export const api = {
 
   // Memoria (T-33): las memorias de las HU publicadas que ve la conexión, y una con su contenido y su .md.
   memories: (filters: MemoryFilters = {}, signal?: AbortSignal) => request<MemorySummary[]>('GET', `/memories${memoryQuery(filters)}`, undefined, signal),
-  memory: (key: string, signal?: AbortSignal) => request<MemoryOut>('GET', `/memories/${enc(key)}`, undefined, signal),
+  // «.» y «..» se normalizarían como segmentos de ruta (saldrían de /memories): no son una clave válida.
+  memory: (key: string, signal?: AbortSignal) =>
+    key === '.' || key === '..'
+      ? Promise.reject(new ApiRequestError(400, { code: 'invalid_request', message: 'La clave de la memoria no es válida.' }))
+      : request<MemoryOut>('GET', `/memories/${enc(key)}`, undefined, signal),
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),

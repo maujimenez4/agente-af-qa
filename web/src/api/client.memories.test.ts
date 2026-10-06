@@ -49,3 +49,12 @@ describe('api.memories y api.memory', () => {
     expect(seen).toEqual(['/api/v1/memories/..%2Fx%3Fy%3D1'])
   })
 })
+
+describe('api.memory con «.» o «..»', () => {
+  it.each(['.', '..'])('«%s» no sale de /memories: se rechaza sin petición', async (key) => {
+    const seen: string[] = []
+    mockServer.events.on('request:start', ({ request }) => seen.push(new URL(request.url).pathname))
+    await expect(api.memory(key)).rejects.toMatchObject({ status: 400, error: { code: 'invalid_request' } })
+    expect(seen).toEqual([])
+  })
+})

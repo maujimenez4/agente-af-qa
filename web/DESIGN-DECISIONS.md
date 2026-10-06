@@ -112,7 +112,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 
 - **Navegación por estado**, sin router: los `thread_id` nunca salen de la URL (T-52). El catálogo del sistema de diseño solo existe en desarrollo (`?catalogo`, PA-309).
 - **Login mínimo** con las piezas del sistema (PA-311, pendiente de validar por la principal).
-- **Admin:** una pantalla simple «Disponible pronto». Ajustes queda para después de T-57.
+- **Admin:** entra en **Ajustes** (Administración mínima, T-29): probar conexiones (solo con el botón, nunca al entrar; una cada 10 s), modelos por tarea y modo de publicación de solo lectura; usuarios, documentos e historial siguen «disponible pronto». Diseño: Ajustes de la «Propuesta v2» con las piezas de la Mixta.
 - **Elegir en Jira:** además de *Usar la épica* y *Usar DEMO-3* (UI.md §4.2), si solo se cambia de proyecto aparece **«Usar el proyecto X»**: el selector de proyecto de Inicio abre este diálogo (UI.md §4.1) y hace falta poder cambiarlo sin fijar un origen. El buscador espera 300 ms entre pulsaciones.
 - **Lista de conversaciones con error:** si `GET /conversations` falla, la lista muestra la tarjeta de error con *Reintentar* (UI.md §7), no el estado vacío.
 - **Arranque guiado:** el aviso de `project_changed` e `ignored_projects` (T-53, PA-313) se hace en Origen y fuentes, donde se fija la operación. Con `project_changed`, el proyecto se fija una vez con `POST /projects/choose`.

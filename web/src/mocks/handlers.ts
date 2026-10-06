@@ -66,6 +66,9 @@ function error(status: number, code: ErrorCode, message: string, retryAfter?: nu
   return HttpResponse.json(body, { status })
 }
 
+/** Una prueba de conexiones cada 10 s por persona (api/admin.py, `TEST_INTERVAL_S`). */
+const CONNECTIONS_TEST_INTERVAL_MS = 10_000
+
 const UNAUTHENTICATED = () => error(401, 'unauthenticated', 'Inicia sesión para continuar.')
 
 /** Pasos de la generación de una HU (labels de `api/service.py`), en el orden en que llegan por SSE. */
@@ -707,6 +710,30 @@ export function createHandlers(db: MockDb) {
         db.usage === 'unavailable'
           ? error(503, 'service_unavailable', 'No se pudo leer el consumo de hoy.')
           : HttpResponse.json(db.usage as JsonBodyType),
+      ),
+    ),
+
+    // Administración mínima (T-29): solo admin; probar conexiones lleva CSRF y admite una cada 10 s.
+    http.post(
+      `${API}/admin/connections/test`,
+      mutation(() => {
+        if (db.session?.role !== 'admin') return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
+        const now = Date.now()
+        const waited = db.lastConnectionsTest === undefined ? Infinity : now - db.lastConnectionsTest
+        if (waited < CONNECTIONS_TEST_INTERVAL_MS) {
+          const retryAfter = Math.ceil((CONNECTIONS_TEST_INTERVAL_MS - waited) / 1000)
+          return error(429, 'rate_limited', 'Espera unos segundos antes de volver a probar las conexiones.', retryAfter)
+        }
+        db.lastConnectionsTest = now
+        return HttpResponse.json(structuredClone(db.connections) as JsonBodyType)
+      }),
+    ),
+    http.get(
+      `${API}/admin/models`,
+      query(() =>
+        db.session?.role === 'admin'
+          ? HttpResponse.json(structuredClone(db.adminModels) as JsonBodyType)
+          : error(403, 'forbidden', 'No tienes permiso para realizar esta acción.'),
       ),
     ),
 

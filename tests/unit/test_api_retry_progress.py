@@ -7,7 +7,13 @@ todos los pasos en `pending` hasta el final, sin ningún `running`, y la Q no se
 import pytest
 
 from api.runtime import Run, RunRegistry
-from api.service import GENERATION_NODES, PUBLISH_NODES, _progress, retry_nodes
+from api.service import (
+    GENERATION_NODES,
+    PUBLISH_NODES,
+    QA_STEP_LABELS,
+    _progress,
+    retry_nodes,
+)
 
 
 def _run(operation: str, rerun: tuple[str, ...] = (), nodes: list[str] | None = None) -> Run:
@@ -26,8 +32,10 @@ def _run(operation: str, rerun: tuple[str, ...] = (), nodes: list[str] | None = 
     return run
 
 
-def _states(run: Run, values: dict[str, object] | None = None) -> dict[str, str]:
-    return {step.node: step.state for step in _progress("generating", run, values or {})}
+def _states(
+    run: Run, values: dict[str, object] | None = None, mode: str = "functional"
+) -> dict[str, str]:
+    return {step.node: step.state for step in _progress("generating", run, values or {}, mode)}
 
 
 @pytest.mark.parametrize(
@@ -95,3 +103,12 @@ def test_start_without_rerun_is_unchanged() -> None:
 
     assert states["load_origin"] == "running"
     assert all(states[n] == "pending" for n in ("retrieve_context", "generate", *PUBLISH_NODES))
+
+
+def test_retry_in_qa_mode_marks_generate_running_with_qa_steps() -> None:
+    """PA-327: en QA los pasos tienen su propio texto; el reintento sigue marcando el que repite."""
+    states = _states(_run("retry", ("generate",)), mode="qa")
+
+    assert set(states) == set(QA_STEP_LABELS)
+    assert states["generate"] == "running"
+    assert all(states[n] == "done" for n in ("load_origin", "retrieve_context") if n in states)

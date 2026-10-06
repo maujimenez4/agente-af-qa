@@ -65,6 +65,7 @@
 - **`IterateScreen`:** no tocarlo hasta que se fusione `ses-web-fixes`, o avisar antes a la principal.
 
 ## Reglas de trabajo
+- **Responder siempre en español** (también los resúmenes, los informes y lo que se prepara para GitHub).
 - `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.
 - Commits `T-56: … [RNF-15]`. Parada para revisión visual en cada pantalla; revisiones al cerrar cada bloque. Kanban: solo mis filas y el registro diario. No tocar `app/`.
 - Cada PR, issue o comentario se enseña antes y se copia al portapapeles (UTF-8).

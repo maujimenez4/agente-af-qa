@@ -1,8 +1,33 @@
 /* Pantalla de trabajo: conversación a la izquierda y panel a la derecha (UI.md §2). */
 .workspace {
+  position: relative;
   flex-grow: 1;
   min-height: 0;
   display: flex;
+}
+
+/* PA-335: con menos de 680 px para el área (p. ej. 1024 al 150 %), el panel se abre como capa sobre la
+   conversación, desde la derecha y con un velo; la conversación ocupa todo el ancho. */
+.workspace[data-layer] .conversation {
+  min-width: 0;
+}
+
+.workspace[data-layer] .panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  width: min(var(--panel-md), calc(100% - var(--space-7)));
+  min-width: 0;
+  border-left-color: var(--color-border-strong);
+}
+
+.layerBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: var(--color-overlay);
 }
 
 /* En ventanas estrechas el panel encoge (hasta 320 px) antes que la conversación (360 px). */

@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-06
 
-**Estado:** T-56 🔄. **Todo lo del área B está fusionado en `PreProduccion`:** el flujo de la HU, el de QA por roles (PR #6, `area-b`, 2026-10-06), el contrato de QA en la web (Cobertura con PA-326, PA-118 y PA-328) y Memoria. Las dos últimas entraron con la fusión de `ses-web` (la sesión MCP fusionó `t56-memoria` para su prueba contra la API), sin PR propia. `t56-qa-cobertura` y `t56-memoria` están igual que `PreProduccion` (`074443d`). Lint, Vitest (1.846), build y `npm run api:check` en verde. **Ningún bloque en curso:** se espera la respuesta de la principal sobre el reparto (issue #5).
+**Estado:** T-56 🔄. **Todo lo del área B está fusionado en `PreProduccion`:** el flujo de la HU, el de QA por roles (PR #6, `area-b`, 2026-10-06), el contrato de QA en la web (Cobertura con PA-326, PA-118 y PA-328) y Memoria. Las dos últimas entraron con la fusión de `ses-web` (la sesión MCP fusionó `t56-memoria` para su prueba contra la API), sin PR propia. `t56-qa-cobertura` y `t56-memoria` están igual que `PreProduccion` (`074443d`). Lint, Vitest (1.846), build y `npm run api:check` en verde. **Bloque en curso: Editar a mano**, en `t56-editar` (desde `origin/PreProduccion`), con el reparto que confirmó la principal (abajo).
 **PR abiertas:** ninguna. Fusionadas: la #2, la #3, la #4 y la #6.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
@@ -24,7 +24,7 @@
 - **Seguridad:** `safeHref` y su regla de ESLint (PA-308).
 - **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página ni títulos cortados; lista de conversaciones larga con scroll interno.
 - **Pruebas:** no dependen del reloj (SSE de prueba abierto, sondeo disparado por la prueba) y Vitest usa la mitad de los núcleos.
-- **Disponible pronto:** admin, Revisar la calidad, *Editar a mano*, auditoría, historial, *Ver la memoria*, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
+- **Disponible pronto:** admin, Revisar la calidad, *Editar a mano*, auditoría, historial, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
 
 ## API real
 **Hecha** por la sesión MCP (rama `ses-web`) el 2026-10-05 y 06: la web funciona contra la API real de punta a punta (HU, QA y Memoria). Informe y hallazgos en `docs/pruebas/WEB-API-2026-10-05.md` (PA-330 a PA-339). La guía sigue en [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md). En este equipo no se monta el backend.
@@ -38,13 +38,17 @@
 - **Lo que no sea de una entrega va al issue #5:** fallos de la prueba con la API real, preguntas sobre PA y avisos de componentes compartidos.
 - **Al leer comentarios con la API de GitHub**, revisar el issue #5 y la última PR.
 
-## Ramas y reparto (2026-10-06)
-- **Ya no hay cadena de ramas.** `area-b`, `t56-qa-cobertura` y `t56-memoria` están fusionadas (las dos últimas, igual que `PreProduccion`, `074443d`). Cada bloque nuevo: `git switch -c <rama> origin/PreProduccion`.
-- **Reparto de la principal** (encargos en `docs/prompts/`, commit `074443d`), mientras daba por ausente al responsable de `web/`:
-  - **sesión UI** (`ses-web-fixes`): PA-332 a PA-336 (401 global, «Aprobando y publicando…», Estrategia en Markdown, alto de la app y `/start/sources` durante la generación);
-  - **sesión MCP** (`ses-web-admin`): **Administración mínima** y **Revisar la calidad** (Mixta 5);
-  - **sesión Modelos** (`ses-qa-iterar`): PA-331 (iterar en QA aplica el cambio pedido) y la parte de la API de PA-330.
-- **El responsable ha vuelto** (2026-10-06): Revisar la calidad se queda en la sesión MCP. Se ha ofrecido para **Editar a mano** (sin asignar) y para coordinar o revisar PA-332 a PA-336 con la sesión UI. **No se empieza ningún bloque** hasta que la principal responda en el issue #5.
+## Ramas y reparto (confirmado por la principal, 2026-10-06)
+- **Ya no hay cadena de ramas.** `area-b`, `t56-qa-cobertura` y `t56-memoria` están fusionadas. Cada bloque nuevo: `git switch -c <rama> origin/PreProduccion`.
+- **Mío (responsable del área B):**
+  - **Editar a mano** (`POST /conversations/{id}/edit`; «Reglas para el frontend» de `docs/api/README.md`), rama `t56-editar`;
+  - la **parte web de PA-330** (presupuesto de Origen) cuando llegue la de la API (sesión Modelos);
+  - **revisar `ses-web-fixes`** antes de que se fusione;
+  - **PA-300** (UI.md al día).
+- **Sesión UI** (`ses-web-fixes`): PA-332 a PA-336. **No tocar mientras tanto:** `useGeneration`, `SessionProvider`, `client.ts` (401 y `signal`), `suiteText`/`SuiteViews`, Origen y el CSS de Iterar.
+- **Sesión MCP** (`ses-web-admin`): Administración mínima y después Revisar la calidad. **No tocar mientras tanto:** el final de `client.ts`, `types.ts`, `client.contract.ts`, `AppShell`, `screens/Admin/`, `App.test.tsx`, `AppShell.memoria.test.tsx` y `Rail.gaps.test.tsx`.
+- **Sesión Modelos** (`ses-qa-iterar`): PA-331 (iterar en QA aplica el cambio pedido) y la parte de la API de PA-330.
+- **`IterateScreen`:** no tocarlo hasta que se fusione `ses-web-fixes`, o avisar antes a la principal.
 
 ## Reglas de trabajo
 - `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.
@@ -54,7 +58,7 @@
 
 ## Coordinación con otras sesiones (2026-10-05)
 - **Antes de tocar un componente compartido**, avisar a la persona responsable para que avise a la principal: `Composer`, `AppShell`, el panel y la cabecera (`Workspace`), los estados (`States`), la lista de conversaciones, los botones, y las pantallas que comparten la HU y QA (Inicio, Origen, Generando, Iterar, Recibo y Resultado).
-- **`client.ts` y `types.ts`** (y el resto de `web/src/api/`) los coordina **la sesión MCP**: ahora añade al final de `client.ts` los métodos de Administración y Calidad (`ses-web-admin`), y la sesión UI toca el 401 (`ses-web-fixes`). No tocarlos sin avisar antes.
+- **`client.ts` y `types.ts`** (y el resto de `web/src/api/`) los coordina **la sesión MCP**: ahora añade al final de `client.ts` los métodos de Administración y Calidad (`ses-web-admin`), y la sesión UI toca el 401 y `signal` (`ses-web-fixes`). No tocarlos sin avisar antes (ver «Ramas y reparto»).
 
 ## Bloque «contrato de QA en la web» (fusionado en `PreProduccion`)
 - **PA-326 en Cobertura:** `uncovered` con `null` (o sin el campo) = «no se sabe»: sin distintivo, sin «Todos los CA cubiertos» y sin «cobertura validada». Listas vacías = «Todos los CA cubiertos». Con elementos = «1 CA y 1 RN sin caso», el aviso «Sin ningún caso: …» y filas «· Sin caso». Solo para la versión en revisión. Detalle en `DESIGN-DECISIONS.md` (QA 3).
@@ -87,7 +91,7 @@
    - `publish_mode` de `GET /settings` en solo lectura, con el aviso «Simulación: no se escribe nada en Jira»;
    - usuarios, documentos e historial como «disponible pronto»;
    - diseño de la parte de Ajustes de «Propuesta v2» del lienzo, adaptada al estilo de la «Propuesta mixta».
-4. **Editar a mano:** sin asignar; el responsable se ha ofrecido (pendiente de la principal).
+4. **Editar a mano:** del responsable, en `t56-editar` (en curso).
 
 **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución) y el selector de modelo funcional.
 
@@ -102,7 +106,9 @@
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).
 
 ## Siguiente
-1. **Esperar la respuesta de la principal** en el issue #5 sobre el reparto: Editar a mano y la coordinación o revisión de PA-332 a PA-336 con la sesión UI.
-2. Con su respuesta, el bloque que toque sale de `origin/PreProduccion` en su propia rama.
+1. **Editar a mano** (`t56-editar`), en dos partes:
+   - **A, ya:** solo archivos nuevos (editor, validación, textos, handler del MSW y pruebas);
+   - **B, cuando se fusione `ses-web-fixes`:** conectarlo a `IterateScreen` y al cliente.
+2. Revisar `ses-web-fixes` cuando la sesión UI lo pida; la parte web de PA-330 cuando llegue la de la API; PA-300.
 
 Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. No empezar ningún bloque sin la confirmación del responsable.

@@ -113,6 +113,8 @@ describe('Rail en la app: zonas por rol', () => {
     const onNavigate = vi.fn()
     render(<Rail userRole="admin" username="admin-demo" active="settings" onNavigate={onNavigate} onLogout={vi.fn()} />)
     await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'Memoria' })).toHaveFocus()
+    await userEvent.tab()
     const history = screen.getByRole('button', { name: 'Historial' })
     expect(history).toHaveFocus()
     expect(history).not.toBeDisabled()

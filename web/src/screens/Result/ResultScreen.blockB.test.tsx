@@ -15,7 +15,7 @@ const RESULT = SIMULATED.result
 function renderResult(result: Partial<PublishOutcome>, extra: Partial<ConversationOut> = {}) {
   const conversation = { ...SIMULATED, ...extra, result: { ...RESULT, ...result } } as ConversationOut & { result: PublishOutcome }
   render(<ResultScreen conversation={conversation} />)
-  return screen.getByRole('region', { name: /Publicación simulada|Publicado en Jira|Publicada en parte/ })
+  return screen.getByRole('region', { name: /Publicación simulada|Publicado en Jira|Suite publicada en Jira|Publicada en parte/ })
 }
 
 describe('Resultado · en parte solo con `failed_ids` (RNF-13)', () => {
@@ -61,17 +61,17 @@ describe('Resultado · en parte solo con `failed_ids` (RNF-13)', () => {
 })
 
 describe('Resultado · suite de QA (`publish_suite`)', () => {
-  it('sin HU en las versiones, lista «Publicar 3 casos de prueba en DEMO-3» y abre DEMO-3 con la clave publicada', () => {
+  it('sin HU en las versiones, lista «Crear 3 subtareas en DEMO-3…» y abre DEMO-3, su HU', () => {
     const plan = [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '3' }]
     const versions = SIMULATED.versions.map((item) => ({ ...item, artifact: { ...item.artifact, type: 'test_suite', content: { story_jira_key: 'DEMO-3', cases: [], sources: [] } } }))
     const region = renderResult({ simulated: false, plan, published_keys: ['DEMO-3'] }, { state: 'published', flow: 'tests', versions } as unknown as Partial<ConversationOut>)
     const done = within(region).getByRole('list', { name: 'Operaciones hechas en Jira' })
-    expect(within(done).getByText('Publicar 3 casos de prueba en DEMO-3')).toBeInTheDocument()
+    expect(within(done).getByText('Crear 3 subtareas en DEMO-3 con la etiqueta «caso-prueba»')).toBeInTheDocument()
     expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('sin claves ni `update_story`, el botón dice «Abrir en Jira»', () => {
-    const region = renderResult({ simulated: false, plan: [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '1' }], published_keys: [] }, { state: 'published' })
+  it('sin claves ni HU en el plan, el botón dice «Abrir en Jira»', () => {
+    const region = renderResult({ simulated: false, plan: [{ op: 'publish_suite', project: 'DEMO', story: '', cases: '1' }], published_keys: [] }, { state: 'published' })
     expect(within(region).getByRole('button', { name: 'Abrir en Jira' })).toBeInTheDocument()
     expect(within(region).queryByText(/Claves en Jira/)).toBeNull()
   })
@@ -80,7 +80,7 @@ describe('Resultado · suite de QA (`publish_suite`)', () => {
 describe('Resultado · teclado en las acciones «disponible pronto»', () => {
   it('se llega a cada acción con Tab y ni Intro ni Espacio cambian la pantalla', async () => {
     const region = renderResult({ simulated: false, published_keys: ['DEMO-3'] }, { state: 'published' })
-    const names = ['Abrir DEMO-3 en Jira', 'Ver la memoria', 'Pedir sus pruebas a QA']
+    const names = ['Abrir DEMO-3 en Jira', 'Ver la memoria']
     const before = region.innerHTML
     for (const name of names) {
       const button = within(region).getByRole('button', { name })

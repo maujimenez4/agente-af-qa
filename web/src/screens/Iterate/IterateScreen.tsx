@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
-import type { ApiError, ConversationOut } from '../../api/types.ts'
+import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
+import { Badge } from '../../components/Badge/index.ts'
 import { Button, SoonButton } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, UserMessage } from '../../components/Chat/index.ts'
 import { Chip } from '../../components/Chip/index.ts'
@@ -17,13 +18,28 @@ import {
   versionSummary,
 } from '../../components/Proposal/index.ts'
 import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts'
+import {
+  casesLabel,
+  CasesView,
+  coverageBadge,
+  coverageNote,
+  CoverageView,
+  DataRisksView,
+  StrategyView,
+  suiteCoverage,
+  suiteSummary,
+  UNKNOWN_COVERAGE,
+  type SuiteCoverage,
+} from '../../components/Suite/index.ts'
 import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
+import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { modelLabel, proposalVersions, SUGGESTIONS } from './iterateText.ts'
+import { modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { countLabel } from '../../text/plural.ts'
 
 export interface IterateScreenProps {
   conversation: ConversationOut
@@ -35,7 +51,7 @@ export interface IterateScreenProps {
   onReview: (conversation: ConversationOut) => void
 }
 
-type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources'
+type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources' | 'cases' | 'coverage' | 'data' | 'strategy'
 
 type Entry = { kind: 'user'; text: string } | { kind: 'assistant'; version: number; animate: boolean }
 
@@ -63,7 +79,13 @@ function Iterating({
   return <TypingIndicator label={stopping ? 'Deteniendo la generación…' : undefined} />
 }
 
+/** La suite de una versión de QA, si el contenido lo es (trae `cases`); si no, `undefined` y se pinta como HU. */
+function suiteOf(content: unknown): TestSuite | undefined {
+  return typeof content === 'object' && content !== null && Array.isArray((content as Partial<TestSuite>).cases) ? (content as TestSuite) : undefined
+}
+
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
+// En QA es QA 3 · Iterar la suite (§6.3): la misma conversación y un panel con Casos, Cobertura, Datos y riesgos y Estrategia.
 export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview }: IterateScreenProps) {
   const [conversation, setConversation] = useState(initial)
   // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
@@ -79,10 +101,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   }
   // Solo al evolucionar hay una HU de Jira con la que comparar (DESIGN-DECISIONS.md §4 bis).
   const againstJira = conversation.flow === 'evolve'
+  const qa = conversation.mode === 'qa'
   const versions = proposalVersions(conversation)
   const latest = versions.at(-1)
   const [selected, setSelected] = useState(latest?.version ?? 1)
-  const [tab, setTab] = useState<PanelTab>('proposal')
+  const [tab, setTab] = useState<PanelTab>(initial.mode === 'qa' ? 'cases' : 'proposal')
+  const firstTab: PanelTab = qa ? 'cases' : 'proposal'
   const [entries, setEntries] = useState<Entry[]>(() => [{ kind: 'assistant', version: latest?.version ?? 1, animate: false }])
   const [draft, setDraft] = useState('')
   const [iterating, setIterating] = useState<ConversationOut | undefined>()
@@ -176,25 +200,40 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
     }
   }
 
-  const tabs = [
-    { id: 'proposal' as const, label: 'Propuesta' },
-    { id: 'changes' as const, label: againstJira ? `Cambios (${diffs.length})` : 'Cambios' },
-    { id: 'impact' as const, label: `Impacto (${shown?.impact?.affected.length ?? 0})` },
-    { id: 'sources' as const, label: `Fuentes (${shown?.story.sources.length ?? 0})` },
-  ]
+  const suite = qa && shown ? suiteOf(shown.artifact.content) : undefined
+  const previousSuite = qa && shown ? versions[versions.indexOf(shown) - 1] : undefined
+  // PA-326: `uncovered` y `coverage_md` son de la versión en revisión; las anteriores no los traen («no se sabe»).
+  const coverageOf = (version: number): SuiteCoverage =>
+    conversation.review && version === conversation.review.version ? suiteCoverage(conversation.review.uncovered) : UNKNOWN_COVERAGE
+  const shownCoverage = shown ? coverageOf(shown.version) : UNKNOWN_COVERAGE
+  const shownCoverageMd = conversation.review && shown?.version === conversation.review.version ? conversation.review.coverage_md : null
+  const badge = coverageBadge(shownCoverage)
+  const tabs: { id: PanelTab; label: string }[] = suite
+    ? [
+        { id: 'cases', label: `Casos (${suite.cases.length})` },
+        { id: 'coverage', label: 'Cobertura' },
+        { id: 'data', label: 'Datos y riesgos' },
+        { id: 'strategy', label: 'Estrategia' },
+      ]
+    : [
+        { id: 'proposal', label: 'Propuesta' },
+        { id: 'changes', label: againstJira ? `Cambios (${diffs.length})` : 'Cambios' },
+        { id: 'impact', label: `Impacto (${shown?.impact?.affected.length ?? 0})` },
+        { id: 'sources', label: `Fuentes (${shown?.story.sources.length ?? 0})` },
+      ]
 
   const panel = shown && (
     <SidePanel
-      title="Propuesta de HU"
+      title={qa ? 'Suite de pruebas' : 'Propuesta de HU'}
       subtitle={`${conversationTitle(conversation.title)} · ${iterating ? 'generando' : 'en revisión'}`}
-      size="md"
+      size={qa ? 'lg' : 'md'}
       headerActions={
         <VersionSelector versions={versions.map((item) => item.version)} selected={showingJira ? JIRA_VERSION : shown.version} jira={baseline !== undefined} onSelect={setSelected} />
       }
       footer={
         confirmDiscard ? (
           <div className={styles.confirm} role="group" aria-label="Confirmar el descarte">
-            <span>¿Descartar la propuesta? No se publicará nada en Jira y la conversación terminará.</span>
+            <span>¿Descartar {qa ? 'la suite' : 'la propuesta'}? No se publicará nada en Jira y la conversación terminará.</span>
             <span className={styles.confirmActions}>
               <Button variant="danger" size="md" disabled={busy} onClick={() => void discard()}>
                 Sí, descartar
@@ -225,10 +264,23 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         </div>
       ) : (
         <Tabs label="Contenido del panel" tabs={tabs} selected={tab} onSelect={setTab}>
-          {tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previousStory} diffs={diffs} />}
-          {tab === 'changes' && <ChangesView diffs={diffs} againstJira={againstJira} />}
-          {tab === 'impact' && <ImpactView impact={shown.impact} />}
-          {tab === 'sources' && <SourcesView sources={shown.story.sources} />}
+          {suite && badge && (
+            <p className={styles.covered}>
+              <Badge tone={badge.tone} icon={badge.tone === 'success' ? 'done' : 'warning'}>
+                {badge.text}
+              </Badge>
+            </p>
+          )}
+          {suite && tab === 'cases' && (
+            <CasesView key={shown.version} suite={suite} version={shown.version} previous={previousSuite && suiteOf(previousSuite.artifact.content)} />
+          )}
+          {suite && tab === 'coverage' && <CoverageView suite={suite} coverage={shownCoverage} coverageMd={shownCoverageMd} />}
+          {suite && tab === 'data' && <DataRisksView suite={suite} />}
+          {suite && tab === 'strategy' && <StrategyView suite={suite} />}
+          {!suite && tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previousStory} diffs={diffs} />}
+          {!suite && tab === 'changes' && <ChangesView diffs={diffs} againstJira={againstJira} />}
+          {!suite && tab === 'impact' && <ImpactView impact={shown.impact} />}
+          {!suite && tab === 'sources' && <SourcesView sources={shown.story.sources} />}
         </Tabs>
       )}
     </SidePanel>
@@ -238,14 +290,22 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
 
   return (
     <Workspace
-      title={conversationTitle(conversation.title)}
+      title={qa ? qaHeaderTitle(conversationTitle(conversation.title)) : conversationTitle(conversation.title)}
       phase={2}
       panel={panel}
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
       composer={
         <Composer
-          placeholder={iterating ? 'Espera a la propuesta para pedir cambios' : 'Pide un cambio a la propuesta'}
+          placeholder={
+            qa
+              ? iterating
+                ? 'Espera a la suite para pedir cambios'
+                : 'Pide un cambio a la suite'
+              : iterating
+                ? 'Espera a la propuesta para pedir cambios'
+                : 'Pide un cambio a la propuesta'
+          }
           value={draft}
           onChange={setDraft}
           canSubmit={draft.trim().length > 0}
@@ -266,8 +326,15 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           if (entry.kind === 'user') return <UserMessage key={`u-${index}`}>{entry.text}</UserMessage>
           const item = versions.find((candidate) => candidate.version === entry.version)
           if (!item) return null
-          const summary = versionSummary(item.story, item.version, item.impact)
+          const itemSuite = qa ? suiteOf(item.artifact.content) : undefined
+          const before = versions[versions.indexOf(item) - 1]
+          const summary = itemSuite
+            ? suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content), coverageOf(item.version))
+            : versionSummary(item.story, item.version, item.impact)
           const model = modelLabel(item.artifact.model_used)
+          const sourceCount = itemSuite ? itemSuite.sources.length : item.story.sources.length
+          // «cobertura validada» solo con `uncovered` vacío; con huecos, cuántos (PA-326).
+          const coverage = itemSuite ? coverageNote(coverageOf(item.version)) : undefined
           return (
             <AssistantMessage key={`a-${entry.version}`} animate={entry.animate}>
               <span>{entry.animate ? <TypewriterText text={summary} /> : summary}</span>
@@ -277,24 +344,27 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 aria-pressed={panelOpen && selected === item.version}
                 onClick={() => {
                   setSelected(item.version)
-                  setTab('proposal')
+                  setTab(firstTab)
                   setPanelOpen(true)
                 }}
               >
-                <span className={styles.artifactTitle}>Propuesta de HU, versión {item.version}</span>
+                <span className={styles.artifactTitle}>
+                  {itemSuite ? 'Suite de pruebas' : 'Propuesta de HU'}, versión {item.version}
+                </span>
                 <span className={styles.meta}>
                   {panelOpen && selected === item.version ? 'Abierta en el panel' : 'Abrir en el panel'}
+                  {itemSuite && ` · ${casesLabel(itemSuite.cases.length)}`}
                   {againstJira && ` · ${changesLabel(item.impact?.diffs.length ?? 0)}`}
                 </span>
               </button>
               {model && (
                 <span className={styles.meta}>
-                  Generado con {model} · {item.story.sources.length} fuentes
+                  Generado con {model} · {countLabel(sourceCount, 'fuente', 'fuentes')}{coverage && ` · ${coverage}`}
                 </span>
               )}
               {index === lastAssistant && !iterating && (
                 <ul className={styles.suggestions} aria-label="Cambios sugeridos">
-                  {SUGGESTIONS.map((suggestion) => (
+                  {(qa ? QA_SUGGESTIONS : SUGGESTIONS).map((suggestion) => (
                     <li key={suggestion}>
                       <Chip onClick={() => setDraft(suggestion)}>{suggestion}</Chip>
                     </li>
@@ -320,7 +390,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 setConversation(next)
                 setIterating(undefined)
                 setSelected(version)
-                setTab('proposal')
+                setTab(firstTab)
                 setEntries((current) => [...current, { kind: 'assistant', version, animate: true }])
               }}
               onError={(failure, retryable) => {

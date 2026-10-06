@@ -49,3 +49,8 @@ export type OriginIn = Schemas['OriginIn']
 
 export type SettingsOut = Schemas['SettingsOut']
 export type UsageTodayOut = Schemas['UsageTodayOut']
+export type HandoffOut = Schemas['HandoffOut']
+export type TestSuite = Schemas['TestSuite']
+export type TestCase = Schemas['TestCase']
+export type MemorySummary = Schemas['MemorySummary']
+export type MemoryOut = Schemas['MemoryOut']

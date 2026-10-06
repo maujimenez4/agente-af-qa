@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from api import examples as ex
 from api.app import create_app
 from core.config import ROOT_DIR
 
@@ -19,6 +20,15 @@ def openapi_document() -> dict[str, Any]:
         "csrfHeader": {"type": "apiKey", "in": "header", "name": "X-CSRF-Token"},
     }
     document["security"] = [{"sessionCookie": [], "csrfHeader": []}]
+    # PA-326: ejemplos con nombre, aparte de los `example` de cada respuesta (que no cambian).
+    document["components"]["examples"] = {
+        "ConversationQaInReview": {
+            "summary": "Conversación de QA en revisión (GET /conversations/{id})",
+            "description": "Suite sintética de DEMO-3 con `coverage_md` y `uncovered` (PA-326) "
+            "y los 4 pasos de QA (PA-327).",
+            "value": ex.dump(ex.CONVERSATION_QA_REVIEW),
+        }
+    }
     for path, item in document["paths"].items():
         for method, operation in item.items():
             if path.endswith("/auth/login"):

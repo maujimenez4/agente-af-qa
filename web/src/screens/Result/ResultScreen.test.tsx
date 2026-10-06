@@ -54,6 +54,8 @@ describe('Resultado tras aprobar', () => {
     const region = await approveFromList()
     expect(screen.getByRole('img', { name: 'Avance: fase 3 de 4, Aprobada' })).toBeInTheDocument()
     expect(within(region).getByRole('img', { name: 'Publicación simulada' })).toBeInTheDocument()
+    // Flujo unido fuera de la entrega: tras una simulación no se ofrece pasar la HU a QA, ni siquiera como «disponible pronto».
+    expect(within(region).queryByRole('button', { name: 'Pedir sus pruebas a QA' })).toBeNull()
     expect(within(region).getByText('Aprobada · simulada')).toBeInTheDocument()
     expect(within(region).getByText('Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.')).toBeInTheDocument()
     expect(within(region).getByText('No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:')).toBeInTheDocument()
@@ -69,6 +71,8 @@ describe('Resultado tras aprobar', () => {
 
   it('publicada: fase 4, «Publicado en Jira», operaciones hechas, claves y acciones «disponible pronto» con su motivo', async () => {
     mockDb.forceApprove = 'published'
+    // Sin dirección de Jira, *Abrir DEMO-3 en Jira* sigue «disponible pronto» pase lo que pase con /settings (sin carrera).
+    mockDb.settings = { ...mockDb.settings, jira_browse_url: null }
     const region = await approveFromList()
     expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicado' })).toBeInTheDocument()
     expect(within(region).getByRole('heading', { level: 2, name: 'Publicado en Jira' })).toBeInTheDocument()
@@ -76,8 +80,13 @@ describe('Resultado tras aprobar', () => {
     expect(within(region).getByText('Claves en Jira: DEMO-3')).toBeInTheDocument()
     expect(within(region).queryByText(/Modo de prueba activo/)).toBeNull()
     expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La dirección de Jira no está disponible.')
-    expect(within(region).getByRole('button', { name: 'Ver la memoria' })).toHaveAttribute('aria-disabled', 'true')
+    // PA-329: con la HU publicada y su clave, *Ver la memoria* ya abre Memoria (no es «disponible pronto»).
+    expect(within(region).getByRole('button', { name: 'Ver la memoria' })).not.toHaveAttribute('aria-disabled')
+    // Flujo unido HU → QA fuera de la entrega (QA_HANDOFF_ENABLED = false): «disponible pronto» con su motivo.
     expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAccessibleDescription(
+      'No entra en esta entrega: QA prepara las pruebas escribiendo la clave de la HU.',
+    )
   })
 
   it('en parte: «Publicada en parte» con el error de la API tal cual y sin ocultar lo publicado', async () => {

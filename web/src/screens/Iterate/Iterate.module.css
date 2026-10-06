@@ -78,3 +78,8 @@
   color: var(--color-info-text);
   font-size: var(--text-xs);
 }
+
+/* QA 3: distintivo de cobertura encima de las pestañas de la suite. */
+.covered {
+  margin: 0 0 var(--space-2);
+}

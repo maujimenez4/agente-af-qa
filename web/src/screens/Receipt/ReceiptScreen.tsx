@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { api, toApiError } from '../../api/client.ts'
-import type { ApiError, ConversationOut } from '../../api/types.ts'
+import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
+import { casesLabel, coverageNote, suiteCoverage, UNKNOWN_COVERAGE, type SuiteCoverage } from '../../components/Suite/index.ts'
+import { qaHeaderTitle } from '../Generating/headline.ts'
 import { ErrorCard, LoadingState, Notice, presentError } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useGeneration } from '../Generating/useGeneration.ts'
@@ -24,6 +26,17 @@ export interface ReceiptScreenProps {
 }
 
 const TIME = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' })
+
+/**
+ * «4 casos · cobertura validada» en el historial de la suite (sin `cases`, nada). La cobertura solo se conoce
+ * para la versión en revisión (`uncovered`, PA-326): con huecos, «1 RN sin caso»; si no se sabe, solo los casos.
+ */
+function casesOf(content: unknown, coverage: SuiteCoverage): string | undefined {
+  const cases = (content as Partial<TestSuite> | null)?.cases
+  if (!Array.isArray(cases)) return undefined
+  const note = coverageNote(coverage)
+  return note ? `${casesLabel(cases.length)} · ${note}` : casesLabel(cases.length)
+}
 
 function timeOf(value: string): string {
   const date = new Date(value)
@@ -64,10 +77,12 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   const [failed, setFailed] = useState(false)
 
   const review = conversation.review
-  const story = review?.artifact.content as UserStory | undefined
-  const operations = review && story ? receiptOperations(review.plan, review.version, story.title, review.impact) : []
+  // QA 4 (UI.md §6.4): el mismo recibo para una suite (`mode: qa` y un contenido con `cases`).
+  const suite = conversation.mode === 'qa' && review && Array.isArray((review.artifact.content as Partial<TestSuite>).cases) ? (review.artifact.content as TestSuite) : undefined
+  const story = suite ? undefined : (review?.artifact.content as UserStory | undefined)
+  const operations = review && (story || suite) ? receiptOperations(review.plan, review.version, story?.title ?? '', review.impact) : []
   const allChecked = operations.length > 0 && operations.every((operation) => checked.has(operation.id))
-  const title = conversationTitle(conversation.title)
+  const title = suite ? qaHeaderTitle(conversationTitle(conversation.title)) : conversationTitle(conversation.title)
 
   const toggle = (id: string) =>
     setChecked((current) => {
@@ -162,13 +177,20 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   // La hora de cada versión está en `VersionOut`; la que está en revisión puede no estar aún en la lista.
   const createdAt = new Map(conversation.versions.map((item) => [item.version, item.created_at]))
   const history = (
-    <SidePanel title="Historial de la HU" subtitle={`${title} · en revisión`}>
-      <ol className={styles.history} aria-label="Versiones de la propuesta">
+    <SidePanel title={suite ? 'Historial de la suite' : 'Historial de la HU'} subtitle={`${title} · en revisión`}>
+      <ol className={styles.history} aria-label={suite ? 'Versiones de la suite' : 'Versiones de la propuesta'}>
         {[...versions].reverse().map((item) => (
           <li key={item.version} className={styles.historyItem}>
             <b>Versión {item.version} generada</b>
             <span className={styles.muted}>
-              {[modelLabel(item.artifact.model_used), item.artifact.prompt_version ? `prompt v${item.artifact.prompt_version}` : undefined, timeOf(createdAt.get(item.version) ?? '')]
+              {[
+                suite
+                  ? casesOf(item.artifact.content, item.version === conversation.review?.version ? suiteCoverage(conversation.review.uncovered) : UNKNOWN_COVERAGE)
+                  : undefined,
+                modelLabel(item.artifact.model_used),
+                item.artifact.prompt_version ? `prompt v${item.artifact.prompt_version}` : undefined,
+                timeOf(createdAt.get(item.version) ?? ''),
+              ]
                 .filter(Boolean)
                 .join(', ')}
             </span>
@@ -188,7 +210,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
     <Workspace title={title} phase={3} panel={history}>
       <section className={styles.receipt} aria-labelledby="receipt-title">
         <h2 id="receipt-title" className={styles.heading}>
-          Versión {review?.version ?? '—'} lista para revisar
+          {suite ? 'Suite, versión' : 'Versión'} {review?.version ?? '—'} lista para revisar
         </h2>
 
         {review?.error && (
@@ -200,7 +222,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
         )}
 
         {operations.length === 0 ? (
-          <Notice>Esta propuesta no tiene operaciones de Jira que aprobar.</Notice>
+          <Notice>{suite ? 'Esta suite' : 'Esta propuesta'} no tiene operaciones de Jira que aprobar.</Notice>
         ) : (
           <fieldset className={styles.operations} disabled={Boolean(publishing)}>
             <legend className={styles.legend}>
@@ -221,14 +243,14 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
           </fieldset>
         )}
 
-        <p className={styles.notice}>{aiNotice(story?.sources.length ?? 0)}</p>
+        <p className={styles.notice}>{aiNotice((suite ?? story)?.sources.length ?? 0, Boolean(suite))}</p>
 
         {publishing && <Publishing key={publishing.id} conversation={publishing} onSettled={settle} onFailed={publishFailed} />}
         {error && <ErrorCard key={`${error.code}-${error.message}`} error={error} onAction={errorAction(error)} />}
 
         {confirmDiscard ? (
           <div className={styles.confirm} role="group" aria-label="Confirmar el descarte">
-            <span>¿Descartar la propuesta? No se publicará nada en Jira y la conversación terminará.</span>
+            <span>¿Descartar {suite ? 'la suite' : 'la propuesta'}? No se publicará nada en Jira y la conversación terminará.</span>
             <span className={styles.actions}>
               <Button variant="danger" size="md" disabled={busy} onClick={() => void discard()}>
                 Sí, descartar
@@ -244,7 +266,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
               Descartar
             </Button>
             <Button disabled={busy || Boolean(publishing)} onClick={() => onBack(conversation)}>
-              Volver a la propuesta
+              {suite ? 'Volver a la suite' : 'Volver a la propuesta'}
             </Button>
             <span className={styles.spacer} />
             <Button variant="primary" disabled={!allChecked || busy || failed || Boolean(publishing)} onClick={() => void approve()}>

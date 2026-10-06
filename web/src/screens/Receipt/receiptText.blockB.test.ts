@@ -79,18 +79,18 @@ describe('receiptOperations con datos raros', () => {
     expect(detailOf('Vincular DEMO-3 con DEMO-2')).toBe('Vínculo «relates to».')
   })
 
-  it('publish_suite sin `cases` habla de «los casos de prueba»', () => {
-    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3' }], 1, TITLE, null)[0]?.label).toBe('Publicar los casos de prueba en DEMO-3')
+  it('publish_suite sin `cases` habla de «las subtareas»', () => {
+    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3' }], 1, TITLE, null)[0]?.label).toBe('Crear las subtareas en DEMO-3 con la etiqueta «caso-prueba»')
   })
 
   it('publish_suite con 0 casos usa el plural', () => {
-    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '0' }], 1, TITLE, null)[0]?.label).toBe('Publicar 0 casos de prueba en DEMO-3')
+    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '0' }], 1, TITLE, null)[0]?.label).toBe('Crear 0 subtareas en DEMO-3 con la etiqueta «caso-prueba»')
   })
 
   // Fija un fallo ya corregido al cerrar el bloque B. Antes: src/screens/Receipt/receiptText.ts:60 — `Number('')` es 0 y `Number.isFinite(0)` es true,
   // así que `cases: ''` (o solo espacios) se pinta «Publicar 0 casos de prueba» en lugar del texto genérico.
-  it('publish_suite con `cases` vacío habla de «los casos de prueba», no de 0', () => {
-    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '' }], 1, TITLE, null)[0]?.label).toBe('Publicar los casos de prueba en DEMO-3')
+  it('publish_suite con `cases` vacío habla de «las subtareas», no de 0', () => {
+    expect(receiptOperations([{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '' }], 1, TITLE, null)[0]?.label).toBe('Crear las subtareas en DEMO-3 con la etiqueta «caso-prueba»')
   })
 
   // Fija un fallo ya corregido al cerrar el bloque B. Antes: src/screens/Receipt/receiptText.ts:50 y :40 — sin `key`, las plantillas interpolan `undefined`
@@ -114,7 +114,7 @@ describe('reviewedCounter y aiNotice en el límite', () => {
   it.each([
     [0, 0, '0 de 0 revisadas'],
     [1, 1, 'Todo revisado'],
-    [0, 1, '0 de 1 revisadas'],
+    [0, 1, '0 de 1 revisada'],
     [3, 2, 'Todo revisado'],
   ])('%i de %i → «%s»', (checked, total, text) => {
     expect(reviewedCounter(checked, total)).toBe(text)

@@ -72,9 +72,9 @@ describe('textos del recibo', () => {
   it.each([
     [{ op: 'create_story', project: 'DEMO', epic: 'DEMO-1' }, 'Crear la HU en la épica DEMO-1'],
     [{ op: 'create_story', project: 'DEMO', epic: '' }, 'Crear la HU en el proyecto DEMO'],
-    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '1' }, 'Publicar 1 caso de prueba en DEMO-3'],
-    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '4' }, 'Publicar 4 casos de prueba en DEMO-3'],
-    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: 'x' }, 'Publicar los casos de prueba en DEMO-3'],
+    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '1' }, 'Crear 1 subtarea en DEMO-3 con la etiqueta «caso-prueba»'],
+    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '4' }, 'Crear 4 subtareas en DEMO-3 con la etiqueta «caso-prueba»'],
+    [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: 'x' }, 'Crear las subtareas en DEMO-3 con la etiqueta «caso-prueba»'],
     [{ op: 'otra_cosa', key: 'DEMO-3' }, 'Operación «otra_cosa»'],
   ])('%j → «%s»', (item, label) => {
     expect(receiptOperations([item], 1, 'Título', null)[0]?.label).toBe(label)

@@ -56,3 +56,12 @@
   justify-content: center;
   gap: var(--space-2);
 }
+
+/* Trabajo se queda montado (oculto) mientras se mira Memoria. */
+.workZone {
+  display: contents;
+}
+
+.workZone[hidden] {
+  display: none;
+}

@@ -22,19 +22,20 @@ function zoneNames(): string[] {
 }
 
 describe('Rail', () => {
-  it('la analista funcional solo ve Trabajo', () => {
+  it('la analista funcional solo ve Trabajo y Memoria', () => {
     renderRail({ userRole: 'functional' })
-    expect(zoneNames()).toEqual(['Trabajo'])
+    expect(zoneNames()).toEqual(['Trabajo', 'Memoria'])
   })
 
-  it('QA solo ve Trabajo', () => {
+  it('QA solo ve Trabajo y Memoria', () => {
     renderRail({ userRole: 'qa', username: 'qa-demo' })
-    expect(zoneNames()).toEqual(['Trabajo'])
+    expect(zoneNames()).toEqual(['Trabajo', 'Memoria'])
   })
 
-  it('admin ve Historial y Ajustes, y no Trabajo (decisión 16)', () => {
+  it('admin ve Memoria, Historial y Ajustes, y no Trabajo (decisión 16, PA-329)', () => {
     renderRail({ userRole: 'admin', username: 'admin-demo', active: 'history' })
-    expect(zoneNames()).toEqual(['Historial', 'Ajustes'])
+    expect(zoneNames()).toEqual(['Memoria', 'Historial', 'Ajustes'])
+    expect(screen.queryByRole('button', { name: 'Trabajo' })).toBeNull()
   })
 
   it('marca la zona activa con aria-current="page"', () => {

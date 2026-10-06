@@ -1,6 +1,6 @@
 // Genera desde el contrato docs/api/openapi.yaml (T-55):
 //   - web/src/api/schema.d.ts: tipos (openapi-typescript);
-//   - web/src/api/examples.json: el ejemplo de cada respuesta, para la API simulada (MSW).
+//   - web/src/api/examples.json: el ejemplo de cada respuesta y los de components.examples (PA-118), para la API simulada (MSW).
 //   node tools/api-types/generate.mjs           → escribe los archivos
 //   node tools/api-types/generate.mjs --check   → falla si no coinciden con el contrato
 import { readFile, writeFile } from 'node:fs/promises'
@@ -30,6 +30,10 @@ for (const [path, operations] of Object.entries(document.paths)) {
       if (example !== undefined) examples[`${method.toUpperCase()} ${path} ${status}`] = example
     }
   }
+}
+// PA-118: los ejemplos con nombre (p. ej. «components.examples.ConversationQaInReview»), solo su `value`.
+for (const [name, entry] of Object.entries(document.components?.examples ?? {})) {
+  if (entry?.value !== undefined) examples[`components.examples.${name}`] = entry.value
 }
 const examplesJson = `${JSON.stringify(examples, null, 2)}\n`
 

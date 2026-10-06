@@ -1653,14 +1653,6 @@ paths:
                     - la persona socia pulsa «Renovar»
                     then:
                     - el vencimiento se amplía 21 días
-                  - id: CA-02
-                    title: Renovación rechazada por reservas
-                    given:
-                    - un préstamo activo con reservas pendientes
-                    when:
-                    - la persona socia pulsa «Renovar»
-                    then:
-                    - se muestra el aviso «El ejemplar tiene reservas pendientes»
                   business_rules:
                   - id: RN-01
                     description: Máximo 2 renovaciones por préstamo.
@@ -2311,14 +2303,6 @@ paths:
                     - la persona socia pulsa «Renovar»
                     then:
                     - el vencimiento se amplía 21 días
-                  - id: CA-02
-                    title: Renovación rechazada por reservas
-                    given:
-                    - un préstamo activo con reservas pendientes
-                    when:
-                    - la persona socia pulsa «Renovar»
-                    then:
-                    - se muestra el aviso «El ejemplar tiene reservas pendientes»
                   business_rules:
                   - id: RN-01
                     description: Máximo 2 renovaciones por préstamo.
@@ -4639,13 +4623,17 @@ paths:
                 state: generating
                 progress:
                 - node: load_origin
-                  label: Cargar el origen
+                  label: Recuperar la HU de origen
                   state: done
                 - node: retrieve_context
-                  label: Recuperar contexto
+                  label: Recuperar el contexto (Jira, documentos y memoria)
                   state: running
                 - node: generate
-                  label: Generar la propuesta
+                  label: Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y
+                    estrategia
+                  state: pending
+                - node: publish
+                  label: Publicar (o simular la publicación de) los casos de prueba en Jira
                   state: pending
                 versions: []
                 feedback: []
@@ -7234,6 +7222,21 @@ components:
           - type: 'null'
           title: Error
           description: Motivo de la última respuesta rechazada (la revisión sigue).
+        coverage_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Coverage Md
+          description: 'PA-326, solo en QA: la matriz de cobertura CA/RN × CP en Markdown, la misma que
+            se adjunta como `matriz-<CLAVE>.md` (sin IA). En una HU, `null`.'
+        uncovered:
+          anyOf:
+          - $ref: '#/components/schemas/UncoveredRefs'
+          - type: 'null'
+          description: 'PA-326, solo en QA: los CA y RN de la HU de origen que no tienen ningún caso.
+            **`null` significa «no se sabe»** (no se pudo leer la HU de origen sin llamar al LLM); **listas
+            vacías significan «todo cubierto»**. Sale de la HU que el grafo ya cargó: la versión de partida
+            estructurada o la HU aprobada de la entrega a QA. En una HU, siempre `null`.'
       type: object
       required:
       - artifact
@@ -7607,6 +7610,26 @@ components:
       - strategy_md
       title: TestSuite
       description: Artefactos de QA de una HU; se publica en Jira nativo (D-09).
+    UncoveredRefs:
+      properties:
+        criteria:
+          items:
+            type: string
+          type: array
+          title: Criteria
+          description: CA sin casos (p. ej. `CA-03`).
+        rules:
+          items:
+            type: string
+          type: array
+          title: Rules
+          description: RN sin casos (p. ej. `RN-02`).
+      type: object
+      required:
+      - criteria
+      - rules
+      title: UncoveredRefs
+      description: 'PA-326: CA y RN de la HU de origen sin ningún caso de prueba (pestaña Cobertura).'
     UsageTodayOut:
       properties:
         tokens_today:
@@ -7815,6 +7838,328 @@ components:
       type: apiKey
       in: header
       name: X-CSRF-Token
+  examples:
+    ConversationQaInReview:
+      summary: Conversación de QA en revisión (GET /conversations/{id})
+      description: Suite sintética de DEMO-3 con `coverage_md` y `uncovered` (PA-326) y los 4 pasos de
+        QA (PA-327).
+      value:
+        id: d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e
+        title: Preparar pruebas de DEMO-3
+        project: DEMO
+        flow: tests
+        mode: qa
+        state: in_review
+        progress:
+        - node: load_origin
+          label: Recuperar la HU de origen
+          state: done
+        - node: retrieve_context
+          label: Recuperar el contexto (Jira, documentos y memoria)
+          state: done
+        - node: generate
+          label: Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia
+          state: done
+        - node: publish
+          label: Publicar (o simular la publicación de) los casos de prueba en Jira
+          state: pending
+        review:
+          artifact:
+            id: 9a3c5e7f-1b2d-4e6f-8a0b-1c2d3e4f5a6b
+            type: test_suite
+            status: in_review
+            version: 1
+            origin_key: DEMO-3
+            content:
+              story_jira_key: DEMO-3
+              cases:
+              - internal_id: CP-01
+                title: Renovar un préstamo sin reservas ni renovaciones previas
+                criterion_ids:
+                - CA-01
+                rule_ids:
+                - RN-01
+                type: positivo
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0001
+                  data: PR-0001
+                  expected: Se muestra el botón «Renovar»
+                - action: Pulsar «Renovar»
+                  data: null
+                  expected: El vencimiento se amplía 21 días
+                gherkin: 'Dado un préstamo activo sin renovaciones ni reservas
+
+                  Cuando la persona socia pulsa «Renovar»
+
+                  Entonces el vencimiento se amplía 21 días'
+                priority: Must
+              - internal_id: CP-02
+                title: Rechazar la renovación de un préstamo con reservas pendientes
+                criterion_ids:
+                - CA-02
+                rule_ids:
+                - RN-02
+                type: negativo
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0002 (con 1 reserva)
+                  data: PR-0002
+                  expected: Se muestra el botón «Renovar»
+                - action: Pulsar «Renovar»
+                  data: null
+                  expected: Aviso «El ejemplar tiene reservas pendientes»
+                gherkin: 'Dado un préstamo activo con reservas pendientes
+
+                  Cuando la persona socia pulsa «Renovar»
+
+                  Entonces se muestra el aviso «El ejemplar tiene reservas pendientes»'
+                priority: Must
+              - internal_id: CP-03
+                title: Rechazar una tercera renovación
+                criterion_ids:
+                - CA-01
+                rule_ids:
+                - RN-01
+                type: excepcion
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0003 (2 renovaciones)
+                  data: PR-0003
+                  expected: El botón «Renovar» no está disponible
+                gherkin: 'Dado un préstamo activo con 2 renovaciones
+
+                  Cuando la persona socia abre su ficha
+
+                  Entonces no puede renovarlo'
+                priority: Must
+              - internal_id: CP-04
+                title: Renovar desde el correo de aviso de vencimiento
+                criterion_ids:
+                - CA-01
+                rule_ids: []
+                type: alterno
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir el enlace «Renovar» del correo de aviso ficticio
+                  data: null
+                  expected: El vencimiento se amplía 21 días
+                gherkin: 'Dado un aviso de vencimiento de un préstamo renovable
+
+                  Cuando la persona socia usa el enlace «Renovar»
+
+                  Entonces el vencimiento se amplía 21 días'
+                priority: Must
+              strategy_md: '# Estrategia de pruebas · DEMO-3
+
+
+                - Alcance: renovación de préstamos.
+
+                - Niveles: funcional y de integración con el catálogo.
+
+                - Entorno: preproducción.
+
+                '
+              synthetic_data:
+              - prestamo: PR-0001
+                renovaciones: '0'
+                reservas: '0'
+              - prestamo: PR-0002
+                renovaciones: '0'
+                reservas: '1'
+              - prestamo: PR-0003
+                renovaciones: '2'
+                reservas: '0'
+              risks:
+              - El catálogo puede no responder al renovar.
+              dependencies:
+              - DEMO-2
+              impact_areas:
+              - Reservas
+              sources:
+              - kind: jira
+                ref: DEMO-3
+                excerpt: Renovar un préstamo
+            impact: null
+            created_by: qa-demo
+            model_used: local/qwen3:4b-instruct
+            prompt_version: '3'
+          version: 1
+          target:
+            operation: publicar casos de prueba
+            project: DEMO
+            jira_key: DEMO-3
+            epic_key: null
+          fingerprint: 7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c
+          impact: null
+          plan:
+          - op: publish_suite
+            project: DEMO
+            story: DEMO-3
+            cases: '4'
+          decisions:
+          - iterate
+          - edit
+          - approve
+          - discard
+          error: null
+          coverage_md: '# Matriz de cobertura · DEMO-3
+
+
+            | CA/RN | Casos de prueba | Nº |
+
+            |---|---|---|
+
+            | CA-01 | CP-01, CP-03, CP-04 | 3 |
+
+            | CA-02 | CP-02 | 1 |
+
+            | RN-01 | CP-01, CP-03 | 2 |
+
+            | RN-02 | CP-02 | 1 |
+
+            '
+          uncovered:
+            criteria: []
+            rules: []
+        versions:
+        - version: 1
+          artifact:
+            id: 9a3c5e7f-1b2d-4e6f-8a0b-1c2d3e4f5a6b
+            type: test_suite
+            status: in_review
+            version: 1
+            origin_key: DEMO-3
+            content:
+              story_jira_key: DEMO-3
+              cases:
+              - internal_id: CP-01
+                title: Renovar un préstamo sin reservas ni renovaciones previas
+                criterion_ids:
+                - CA-01
+                rule_ids:
+                - RN-01
+                type: positivo
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0001
+                  data: PR-0001
+                  expected: Se muestra el botón «Renovar»
+                - action: Pulsar «Renovar»
+                  data: null
+                  expected: El vencimiento se amplía 21 días
+                gherkin: 'Dado un préstamo activo sin renovaciones ni reservas
+
+                  Cuando la persona socia pulsa «Renovar»
+
+                  Entonces el vencimiento se amplía 21 días'
+                priority: Must
+              - internal_id: CP-02
+                title: Rechazar la renovación de un préstamo con reservas pendientes
+                criterion_ids:
+                - CA-02
+                rule_ids:
+                - RN-02
+                type: negativo
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0002 (con 1 reserva)
+                  data: PR-0002
+                  expected: Se muestra el botón «Renovar»
+                - action: Pulsar «Renovar»
+                  data: null
+                  expected: Aviso «El ejemplar tiene reservas pendientes»
+                gherkin: 'Dado un préstamo activo con reservas pendientes
+
+                  Cuando la persona socia pulsa «Renovar»
+
+                  Entonces se muestra el aviso «El ejemplar tiene reservas pendientes»'
+                priority: Must
+              - internal_id: CP-03
+                title: Rechazar una tercera renovación
+                criterion_ids:
+                - CA-01
+                rule_ids:
+                - RN-01
+                type: excepcion
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir la ficha del préstamo PR-0003 (2 renovaciones)
+                  data: PR-0003
+                  expected: El botón «Renovar» no está disponible
+                gherkin: 'Dado un préstamo activo con 2 renovaciones
+
+                  Cuando la persona socia abre su ficha
+
+                  Entonces no puede renovarlo'
+                priority: Must
+              - internal_id: CP-04
+                title: Renovar desde el correo de aviso de vencimiento
+                criterion_ids:
+                - CA-01
+                rule_ids: []
+                type: alterno
+                preconditions:
+                - La persona socia ficticia SOC-0001 ha iniciado sesión.
+                steps:
+                - action: Abrir el enlace «Renovar» del correo de aviso ficticio
+                  data: null
+                  expected: El vencimiento se amplía 21 días
+                gherkin: 'Dado un aviso de vencimiento de un préstamo renovable
+
+                  Cuando la persona socia usa el enlace «Renovar»
+
+                  Entonces el vencimiento se amplía 21 días'
+                priority: Must
+              strategy_md: '# Estrategia de pruebas · DEMO-3
+
+
+                - Alcance: renovación de préstamos.
+
+                - Niveles: funcional y de integración con el catálogo.
+
+                - Entorno: preproducción.
+
+                '
+              synthetic_data:
+              - prestamo: PR-0001
+                renovaciones: '0'
+                reservas: '0'
+              - prestamo: PR-0002
+                renovaciones: '0'
+                reservas: '1'
+              - prestamo: PR-0003
+                renovaciones: '2'
+                reservas: '0'
+              risks:
+              - El catálogo puede no responder al renovar.
+              dependencies:
+              - DEMO-2
+              impact_areas:
+              - Reservas
+              sources:
+              - kind: jira
+                ref: DEMO-3
+                excerpt: Renovar un préstamo
+            impact: null
+            created_by: qa-demo
+            model_used: local/qwen3:4b-instruct
+            prompt_version: '3'
+          created_at: '2026-10-02T10:30:00Z'
+          edited: false
+        feedback: []
+        result: null
+        error: null
+        updated_at: '2026-10-02T10:30:00Z'
+        cancel_requested: false
+        jira_baseline: null
 security:
 - sessionCookie: []
   csrfHeader: []

@@ -4,6 +4,7 @@ import type { ApiError, ContextBudget, ConversationOut, SourcePreview, StartOpti
 import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, FixedOperation, UserMessage } from '../../components/Chat/index.ts'
 import { Composer } from '../../components/Composer/index.ts'
+import { Icon } from '../../components/Icon/index.ts'
 import { ErrorCard } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
@@ -12,6 +13,7 @@ import { ProposalMessage, type ProposalMessageProps } from './ProposalMessage.ts
 import { BUDGET_DEBOUNCE_MS, BUDGET_FAILED, budgetView } from './budget.ts'
 import { NOTED, composerPlaceholder, detailsOf, latestProposal, type Turn } from './conversation.ts'
 import { createBody, fixedTitle, operationFromIssue, operationFromOption, sourceDetail, type Operation } from './operation.ts'
+import { CASE_TYPES, EXTRAS, extrasSummary, qaFeedback, REQUIRED_TYPES, type CaseTypeId, type ExtraId } from './qaOptions.ts'
 
 export interface OriginScreenProps {
   request: StartRequest
@@ -22,6 +24,18 @@ export interface OriginScreenProps {
 }
 
 const FIXED_TEXT = 'No cambia durante la conversación; es lo único que se podrá aprobar y publicar.'
+
+/** QA 1 (UI.md §6.1): dónde acabará la suite en Jira (D-09). */
+function qaFixedText(key: string | null | undefined): string {
+  return `Los casos serán subtareas de ${key ?? 'la HU'} con la etiqueta «caso-prueba»; la estrategia y la matriz, adjuntos.`
+}
+
+function flip<T>(set: ReadonlySet<T>, id: T): ReadonlySet<T> {
+  const next = new Set(set)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return next
+}
 
 // Mixta 2 · Origen fijado (UI.md §4.3): HU parecida o reconocida sin IA, operación fijada y fuentes.
 export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProps) {
@@ -44,6 +58,12 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<ApiError | undefined>()
   const [generating, setGenerating] = useState(false)
+  // QA 1 (UI.md §6.1): tipos de caso e «Incluir además», todo marcado al empezar.
+  const [types, setTypes] = useState<ReadonlySet<CaseTypeId>>(() => new Set(CASE_TYPES.map((item) => item.id)))
+  const [extras, setExtras] = useState<ReadonlySet<ExtraId>>(() => new Set(EXTRAS.map((item) => item.id)))
+  const qa = (operation?.flow ?? request.flow) === 'tests'
+  // «Incluir además» plegado: con él abierto, a 1280×800 las fuentes y el presupuesto quedaban fuera de la vista.
+  const [extrasOpen, setExtrasOpen] = useState(false)
 
   const latest = latestProposal(turns)
   // Proyecto de la conversación: el de la última propuesta. Panel y fuentes solo cambian al elegir.
@@ -115,9 +135,11 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     if (!operation) return
     setGenerating(true)
     setError(undefined)
-    const allRestrictions = [restrictions, ...detailsOf(turns)].map((item) => item.trim()).filter(Boolean).join('\n')
+    // En QA no hay campo de restricciones: las indicaciones del compositor van detrás de los tipos de caso.
+    const allRestrictions = [qa ? '' : restrictions, ...detailsOf(turns)].map((item) => item.trim()).filter(Boolean).join('\n')
+    const options = qa ? qaFeedback(types, extras) : []
     try {
-      onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded)))
+      onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded, options)))
     } catch (cause) {
       setError(toApiError(cause))
     } finally {
@@ -150,7 +172,12 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     }
   }
 
-  const title = request.text ? request.text.split('\n')[0] ?? '' : (operation?.label ?? 'Nueva conversación')
+  const title =
+    qa && operation?.origin.key
+      ? `Pruebas de ${operation.origin.key}`
+      : request.text
+        ? (request.text.split('\n')[0] ?? '')
+        : (operation?.label ?? 'Nueva conversación')
 
   const panel = (
     <SidePanel
@@ -158,7 +185,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       footer={
         <>
           <Button variant="primary" className={styles.generate} disabled={!operation || generating} onClick={() => void generate()}>
-            {generating ? 'Generando…' : 'Generar propuesta'}
+            {generating ? 'Generando…' : qa ? 'Generar la suite' : 'Generar propuesta'}
           </Button>
           <p className={styles.note}>Una llamada al modelo. Después itera conversando.</p>
         </>
@@ -182,18 +209,79 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
             <span className={styles.hint}>Se puede cambiar solo antes de generar.</span>
           </div>
 
-          <div className={styles.field}>
-            <label htmlFor="restrictions" className={styles.label}>
-              Restricciones (opcional)
-            </label>
-            <textarea
-              id="restrictions"
-              className={styles.textarea}
-              rows={2}
-              value={restrictions}
-              onChange={(event) => setRestrictions(event.target.value)}
-            />
-          </div>
+          {qa ? (
+            <>
+              <fieldset className={styles.sources}>
+                <legend className={styles.legend}>Tipos de caso</legend>
+                <div className={styles.typeGrid}>
+                  {CASE_TYPES.map((item) => {
+                    const required = REQUIRED_TYPES.has(item.id)
+                    return (
+                      <label key={item.id} htmlFor={`type-${item.id}`} className={styles.source} data-required={required ? '' : undefined}>
+                        <input
+                          id={`type-${item.id}`}
+                          type="checkbox"
+                          checked={required || types.has(item.id)}
+                          disabled={required}
+                          aria-describedby={required ? 'qa-required' : undefined}
+                          onChange={() => setTypes((current) => flip(current, item.id))}
+                        />
+                        <span className={styles.typeText}>
+                          {item.label}
+                          {required && <span className={styles.code}> · obligatorio</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <span id="qa-required" className="visually-hidden">
+                  Positivos y negativos son obligatorios: la suite necesita al menos uno de cada.
+                </span>
+              </fieldset>
+              <button
+                type="button"
+                className={styles.disclosure}
+                aria-expanded={extrasOpen}
+                aria-controls="qa-extras"
+                aria-label={`Incluir además, ${extrasSummary(extras.size, EXTRAS.length)}`}
+                onClick={() => setExtrasOpen((open) => !open)}
+              >
+                <span className={styles.legend}>Incluir además</span>
+                <span className={styles.code}>{extrasSummary(extras.size, EXTRAS.length)}</span>
+                <Icon name="chevronDown" size={14} className={styles.chevron} />
+              </button>
+              <fieldset id="qa-extras" className={styles.sources} hidden={!extrasOpen}>
+                <legend className="visually-hidden">Incluir además</legend>
+                {EXTRAS.map((item) => (
+                  <label key={item.id} htmlFor={`extra-${item.id}`} className={styles.source}>
+                    <input
+                      id={`extra-${item.id}`}
+                      type="checkbox"
+                      checked={extras.has(item.id)}
+                      onChange={() => setExtras((current) => flip(current, item.id))}
+                    />
+                    <span className={styles.sourceText}>
+                      {item.label}
+                      {item.hint && <span className={styles.code}>{item.hint}</span>}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            </>
+          ) : (
+            <div className={styles.field}>
+              <label htmlFor="restrictions" className={styles.label}>
+                Restricciones (opcional)
+              </label>
+              <textarea
+                id="restrictions"
+                className={styles.textarea}
+                rows={2}
+                value={restrictions}
+                onChange={(event) => setRestrictions(event.target.value)}
+              />
+            </div>
+          )}
 
           <fieldset className={styles.sources}>
             <legend className={styles.legend}>Fuentes que se usarán</legend>
@@ -247,7 +335,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       panel={panel}
       composer={
         <Composer
-          placeholder={composerPlaceholder(operation !== undefined)}
+          placeholder={qa && operation ? 'Indicaciones para QA (opcional)' : composerPlaceholder(operation !== undefined)}
           value={draft}
           onChange={setDraft}
           canSubmit={draft.trim().length > 0}
@@ -276,8 +364,12 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
           <>
             {latest && <UserMessage>{operation.label}</UserMessage>}
             <AssistantMessage animate>
-              <FixedOperation title={fixedTitle(operation)}>{FIXED_TEXT}</FixedOperation>
-              <p>He preparado el contexto. Revisa las fuentes en el panel, añade restricciones si las hay y genera cuando quieras.</p>
+              <FixedOperation title={fixedTitle(operation)}>{qa ? qaFixedText(operation.origin.key) : FIXED_TEXT}</FixedOperation>
+              <p>
+                {qa
+                  ? 'Elige en el panel qué tipos de caso quieres y qué fuentes uso. La HU y su memoria ya están incluidas.'
+                  : 'He preparado el contexto. Revisa las fuentes en el panel, añade restricciones si las hay y genera cuando quieras.'}
+              </p>
             </AssistantMessage>
           </>
         )}

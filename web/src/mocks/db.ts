@@ -4,6 +4,8 @@ import type {
   ConversationOut,
   ConversationSummary,
   HandoffOut,
+  MemoryOut,
+  MemorySummary,
   IssueCard,
   IssueSummary,
   ProgressStep,
@@ -12,6 +14,8 @@ import type {
   SettingsOut,
   UsageTodayOut,
 } from '../api/types.ts'
+import type { ForcedCoverage } from './qaSuite.ts'
+import { mockMemoryDetails, mockMemorySummaries } from './memories.ts'
 import { example } from './examples.ts'
 
 // Permisos de core/permissions.py (ROLE_PERMISSIONS).
@@ -118,6 +122,8 @@ const FORCED_APPROVALS: Record<string, ForcedApproval> = {
   'aprobacion-rechazada': 'approval_rejected',
   'no-en-revision': 'not_in_review',
   publicado: 'published',
+  // Publica de verdad pero sin dejar memoria: *Ver la memoria* da 404 (PA-329).
+  'memoria-no-encontrada': 'published',
   parcial: 'partial',
 }
 
@@ -125,6 +131,24 @@ const FORCED_APPROVALS: Record<string, ForcedApproval> = {
 export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   const value = new URLSearchParams(search).get('simular')
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
+}
+
+const FORCED_COVERAGE: Record<string, ForcedCoverage> = { 'sin-cubrir': 'gaps', 'cobertura-desconocida': 'unknown' }
+
+/** `?simular=sin-cubrir|cobertura-desconocida` → cómo llega `uncovered` en la suite (PA-326); otro valor, el del ejemplo. */
+export function forcedCoverageFrom(search: string): ForcedCoverage | undefined {
+  const value = new URLSearchParams(search).get('simular')
+  return value && Object.hasOwn(FORCED_COVERAGE, value) ? FORCED_COVERAGE[value] : undefined
+}
+
+/** `?simular=memoria-no-encontrada`: al publicar una HU no se genera su memoria (404 en *Ver la memoria*). */
+export function memoryMissingFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'memoria-no-encontrada'
+}
+
+/** `?simular=sin-memorias`: la lista de memorias vacía (solo en el navegador). */
+export function noMemoriesFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'sin-memorias'
 }
 
 /** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
@@ -173,13 +197,21 @@ export interface MockDb {
   runs: Map<string, MockRun>
   /** QA encadenada (T-54): HU pasadas a QA y aún sin recoger. */
   handoffs: HandoffOut[]
+  /** Memorias (PA-329): la lista y el detalle de cada una. */
+  memories: MemorySummary[]
+  memoryDetails: Map<string, MemoryOut>
+  /** `?simular=memoria-no-encontrada`: publicar una HU no deja memoria. */
+  skipPublishedMemory?: boolean
   /** `?simular=ya-recogida`: al recoger, otra persona se adelantó (409 `handoff_unavailable`). */
   forceTaken?: boolean
+  /** `?simular=sin-cubrir|cobertura-desconocida`: `uncovered` de la suite (PA-326). */
+  forceCoverage?: ForcedCoverage
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }
 
 export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
+  const memories = mockMemorySummaries()
   return {
     session: null,
     projects: example<ProjectsOut>('GET /api/v1/projects 200'),
@@ -188,6 +220,8 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     conversations: example<ConversationSummary[]>('GET /api/v1/conversations 200'),
     runs: new Map(),
     handoffs: example<HandoffOut[]>('GET /api/v1/qa/handoffs 200'),
+    memories,
+    memoryDetails: mockMemoryDetails(memories),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

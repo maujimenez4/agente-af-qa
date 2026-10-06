@@ -53,7 +53,7 @@ describe('Iterar · versión «Jira» (bloque A)', () => {
 
   it('con la suite de QA (mode qa, jira_baseline null) no hay versión «Jira» y se abre el panel de la suite', async () => {
     /** README «Novedades» PA-316: jira_baseline es null en QA; §4 bis: «solo al evolucionar». */
-    mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json(mockSuiteConversation(EXAMPLE, 'DEMO-3'))))
+    mockServer.use(http.get('/api/v1/conversations/:id', () => HttpResponse.json(mockSuiteConversation('DEMO-3'))))
     mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
     render(<App />)
     const list = await screen.findByRole('complementary', { name: 'Conversaciones' })

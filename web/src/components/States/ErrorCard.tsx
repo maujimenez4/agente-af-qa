@@ -3,6 +3,7 @@ import { Button } from '../Button/index.ts'
 import { Icon } from '../Icon/index.ts'
 import { ACTION_LABELS, presentError, retryDelay, type ApiError } from './errorPresentation.ts'
 import styles from './States.module.css'
+import { countLabel } from '../../text/plural.ts'
 
 export interface ErrorCardProps {
   error: ApiError
@@ -37,7 +38,7 @@ export function ErrorCard({ error, onAction }: ErrorCardProps) {
         {presentation.title}
       </h2>
       <p className={styles.errorMessage}>{error.message}</p>
-      {waitFor > 0 && <p className="visually-hidden">Podrás reintentar dentro de {waitFor} segundos.</p>}
+      {waitFor > 0 && <p className="visually-hidden">Podrás reintentar dentro de {countLabel(waitFor, 'segundo', 'segundos')}.</p>}
       {remaining > 0 && (
         // Visual: la alerta no se vuelve a anunciar cada segundo; el aviso para lectores es la frase fija de arriba.
         <p className={`${styles.errorNote} tabular-nums`} aria-hidden="true">

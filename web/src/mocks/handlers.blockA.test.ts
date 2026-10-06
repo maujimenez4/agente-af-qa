@@ -1,10 +1,14 @@
-// Bloque A (T-56): API simulada de /cancel (PA-314), /retry (PA-276) y la versión «Jira» (PA-316, mockBaseline).
+// Bloque A (T-56): API simulada de /cancel (PA-314), /retry (PA-276) y la versión «Jira» (PA-316, del ejemplo del contrato).
 // docs/api/README.md «Novedades para el frontend» y DESIGN-DECISIONS.md §4 bis. Datos sintéticos.
 import { describe, expect, it } from 'vitest'
+import type { components } from '../api/schema'
 import type { ConversationOut, SessionOut } from '../api/types.ts'
 import { DEMO_PASSWORD } from './db.ts'
+import { example } from './examples.ts'
 import { CANCELLED_MESSAGE } from './handlers.ts'
 import { mockDb } from './node.ts'
+
+type UserStory = components['schemas']['UserStory']
 
 const url = (path: string) => new URL(`/api/v1${path}`, window.location.origin)
 
@@ -195,7 +199,7 @@ describe('MSW · POST /retry (bloque A)', () => {
   })
 })
 
-describe('MSW · versión «Jira» (mockBaseline, bloque A)', () => {
+describe('MSW · versión «Jira» (ejemplo del contrato, bloque A)', () => {
   it('al evolucionar, review_ready trae la HU de Jira sin los CA que los diffs dan por nuevos', async () => {
     /** §4 bis Iterar: la simulada se construye quitando lo que los diffs dan por nuevo. */
     const csrf = await login()
@@ -217,23 +221,46 @@ describe('MSW · versión «Jira» (mockBaseline, bloque A)', () => {
     expect(ready?.data.jira_baseline).toBeNull()
   })
 
-  it('sin diffs, la versión «Jira» es la propuesta entera (no quita ningún CA ni RN)', async () => {
-    /** Límite: sin `impact` no hay nada nuevo frente a Jira. */
+  it('la versión «Jira» es la del ejemplo GET conversación del contrato (CA-01 y RN-01/RN-02, sin CA-02)', async () => {
+    /** PA-316 y PA-118: ya no hay mockBaseline; la versión «Jira» sale tal cual del ejemplo del contrato. */
+    const csrf = await login()
+    const { id } = await create(csrf, 'evolve')
+    const baseline = (await lastEvent(id))?.data.jira_baseline
+    const exampleBaseline = example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200').jira_baseline
+    expect(baseline).toEqual(exampleBaseline)
+    expect(baseline?.acceptance_criteria.map((item) => item.id)).toEqual(['CA-01'])
+    expect(baseline?.acceptance_criteria.map((item) => item.id)).not.toContain('CA-02')
+  })
+
+  it('la versión «Jira» del ejemplo es coherente con los diffs: lo que los diffs dan por nuevo no está en Jira', async () => {
+    /** PA-316 · §4 bis Iterar: un diff sin `before` es un CA/RN nuevo frente a Jira; el resto de la propuesta sí está. */
+    const csrf = await login()
+    const { id } = await create(csrf, 'evolve')
+    const ready = (await lastEvent(id))?.data
+    const baseline = ready?.jira_baseline
+    const story = ready?.review?.artifact.content as UserStory | undefined
+    if (!baseline || !story) throw new Error('Falta la versión «Jira» o la propuesta')
+    const added = (ready?.review?.impact?.diffs ?? [])
+      .filter((diff) => diff.before == null)
+      .map((diff) => /^(?:acceptance_criteria|business_rules)\.(.+)$/.exec(diff.field)?.[1])
+      .filter((key): key is string => Boolean(key))
+    expect(added).toEqual(['CA-02'])
+    const inJira = new Set([...baseline.acceptance_criteria, ...baseline.business_rules].map((item) => item.id))
+    for (const key of added) expect(inJira.has(key)).toBe(false)
+    const proposal = [...story.acceptance_criteria, ...story.business_rules].map((item) => item.id).filter((key) => !added.includes(key))
+    expect([...inJira].sort()).toEqual(proposal.sort())
+  })
+
+  it('al iterar, la versión «Jira» sigue siendo la de partida del ejemplo', async () => {
+    /** PA-316: «al iterar se conserva la de partida». */
     const csrf = await login()
     const id = listed()
-    await fetch(url(`/conversations/${id}`))
-    const run = mockDb.runs.get(id)
-    if (!run?.conversation.review) throw new Error('Falta la conversación de ejemplo')
-    run.conversation = {
-      ...run.conversation,
-      jira_baseline: null,
-      review: { ...run.conversation.review, impact: null, artifact: { ...run.conversation.review.artifact, impact: null } },
-    }
+    const before = ((await (await fetch(url(`/conversations/${id}`))).json()) as ConversationOut).jira_baseline
     await post(`/conversations/${id}/iterate`, csrf, { feedback: 'Cambio ficticio' })
-    const baseline = (await lastEvent(id))?.data.jira_baseline
-    expect(baseline?.acceptance_criteria.map((item) => item.id)).toEqual(['CA-01', 'CA-02'])
-    expect(baseline?.business_rules.map((item) => item.id)).toEqual(['RN-01', 'RN-02'])
-    expect(baseline?.changes_from_previous).toEqual([])
+    const ready = await lastEvent(id)
+    expect(ready?.event).toBe('review_ready')
+    expect(ready?.data.jira_baseline).toEqual(before)
+    expect(ready?.data.jira_baseline?.acceptance_criteria.map((item) => item.id)).toEqual(['CA-01'])
   })
 
   it('sin review, la versión «Jira» es null', async () => {

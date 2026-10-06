@@ -13,6 +13,8 @@ import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
 import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
 import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
+import { MemoryScreen } from '../screens/Memory/MemoryScreen.tsx'
+import { QA_HANDOFF_ENABLED } from './features.ts'
 import { hasResult } from '../screens/Result/resultText.ts'
 import { useSession } from '../session/sessionContext.ts'
 import styles from './AppShell.module.css'
@@ -28,7 +30,17 @@ export interface AppShellProps {
 export function AppShell({ user }: AppShellProps) {
   const { logout } = useSession()
   const [zone, setZone] = useState<Zone>(homeZone(user.role))
+  // Memoria abierta desde *Ver la memoria* (Resultado); `opened` vuelve a montar la pantalla con esa clave.
+  const [memory, setMemory] = useState<{ key?: string; opened: number }>({ opened: 0 })
   const usage = useUsage()
+  const navigate = (next: Zone) => {
+    if (next === 'memory') setMemory((current) => ({ opened: current.opened + 1 }))
+    setZone(next)
+  }
+  const openMemory = (key: string) => {
+    setMemory((current) => ({ key, opened: current.opened + 1 }))
+    setZone('memory')
+  }
 
   return (
     <div className={styles.shell}>
@@ -37,18 +49,24 @@ export function AppShell({ user }: AppShellProps) {
         username={user.username}
         active={zone}
         usage={usage}
-        onNavigate={setZone}
+        onNavigate={navigate}
         onLogout={() => void logout()}
       />
+      {zone === 'memory' && <MemoryScreen key={memory.opened} openKey={memory.key} />}
       {user.role === 'admin' ? (
-        <main className={styles.main}>
-          <SoonScreen
-            title="Disponible pronto"
-            text="Los ajustes (conexiones, modelos, documentos y usuarios) llegarán después del punto de control de la demo."
-          />
-        </main>
+        zone !== 'memory' && (
+          <main className={styles.main}>
+            <SoonScreen
+              title="Disponible pronto"
+              text="Los ajustes (conexiones, modelos, documentos y usuarios) llegarán después del punto de control de la demo."
+            />
+          </main>
+        )
       ) : (
-        <WorkZone user={user} />
+        // Trabajo sigue montado mientras se mira la memoria: al volver, la conversación sigue donde estaba.
+        <div className={styles.workZone} hidden={zone === 'memory'}>
+          <WorkZone user={user} onOpenMemory={openMemory} />
+        </div>
       )}
     </div>
   )
@@ -82,7 +100,7 @@ const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: st
   },
 }
 
-function WorkZone({ user }: { user: UserOut }) {
+function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: string) => void }) {
   const { conversations, error: conversationsError, reload } = useConversations()
   const [currentId, setCurrentId] = useState<string | undefined>()
   const [view, setView] = useState<WorkView>({ name: 'home' })
@@ -141,7 +159,7 @@ function WorkZone({ user }: { user: UserOut }) {
           <HomeScreen
             user={user}
             onStart={(request) => setView({ name: 'origin', request })}
-            onTaken={(conversation) => {
+            onTaken={!QA_HANDOFF_ENABLED ? undefined : (conversation) => {
               setCurrentId(conversation.id)
               setView({ name: 'generating', conversation })
               reload()
@@ -222,7 +240,9 @@ function WorkZone({ user }: { user: UserOut }) {
           <ResultScreen
             key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
-            canHandoff={user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+            canHandoff={QA_HANDOFF_ENABLED && user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+            handoffSoon={!QA_HANDOFF_ENABLED && user.permissions.includes('generate_story') && view.conversation.mode !== 'qa'}
+            onOpenMemory={onOpenMemory}
           />
         )}
         {view.name === 'closed' && (

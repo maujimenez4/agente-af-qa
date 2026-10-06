@@ -5,6 +5,7 @@ import { Badge } from '../../components/Badge/index.ts'
 import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, FoundIssue } from '../../components/Chat/index.ts'
 import { capabilitiesLine } from './conversation.ts'
+import { countLabel } from '../../text/plural.ts'
 
 export interface ProposalMessageProps {
   proposal: StartProposal
@@ -20,7 +21,7 @@ export interface ProposalMessageProps {
 function testCasesText(count: number | null | undefined): string | undefined {
   if (count === null || count === undefined) return undefined
   if (count === 0) return 'sin casos de prueba en Jira'
-  return `${count} ${count === 1 ? 'caso de prueba' : 'casos de prueba'} en Jira`
+  return `${countLabel(count, 'caso de prueba', 'casos de prueba')} en Jira`
 }
 
 // En QA (UI.md §6.1) la ficha añade los casos que ya tiene en Jira (PA-104) y si la publicó el agente.
@@ -28,7 +29,7 @@ function issueDetail(issue: IssueSummary, card: IssueCard | undefined, qa = fals
   if (!card) return `${issue.issue_type} · ${issue.status}`
   const parts = [
     card.epic_key ? `Épica ${card.epic_key}` : undefined,
-    `${card.criteria_count} criterios y ${card.rules_count} reglas`,
+    `${countLabel(card.criteria_count, 'criterio', 'criterios')} y ${countLabel(card.rules_count, 'regla', 'reglas')}`,
     qa ? testCasesText(card.test_cases) : undefined,
     qa && card.published_by_agent ? 'publicada por el agente' : undefined,
   ]

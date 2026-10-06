@@ -309,20 +309,26 @@ describe('Recibo · conversación de QA (contrato §5.2, `publish_suite`)', () =
       ...REVIEW,
       version: 1,
       fingerprint: 'huella-ficticia-qa',
+      // PA-326: todo cubierto; sin `uncovered` el historial no diría «cobertura validada».
+      uncovered: { criteria: [], rules: [] },
       impact: null,
       artifact: { ...REVIEW.artifact, type: 'test_suite', version: 1, content: suite },
       plan: [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '3' }],
     },
   } as unknown as ConversationOut
 
-  it('una casilla «Publicar 3 casos de prueba en DEMO-3» con su detalle y el aviso con las fuentes de la suite', async () => {
+  it('QA 4: una casilla «Crear 3 subtareas en DEMO-3…» con los adjuntos y el aviso con las fuentes de la suite', async () => {
     render(<ReceiptScreen conversation={QA} onBack={vi.fn()} onDone={vi.fn()} onDiscarded={vi.fn()} onRestart={vi.fn()} />)
-    expect(screen.getByRole('heading', { level: 2, name: 'Versión 1 lista para revisar' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Suite, versión 1 lista para revisar' })).toBeInTheDocument()
     const boxes = checkboxes()
     expect(boxes).toHaveLength(1)
-    expect(within(operations()).getByText('Publicar 3 casos de prueba en DEMO-3')).toBeInTheDocument()
-    expect(within(operations()).getByText('Como subtareas con la etiqueta «caso-prueba».')).toBeInTheDocument()
-    expect(screen.getByText('Generado con IA a partir de 3 fuentes. Revisa cada operación antes de aprobar.')).toBeInTheDocument()
+    expect(within(operations()).getByText('Crear 3 subtareas en DEMO-3 con la etiqueta «caso-prueba»')).toBeInTheDocument()
+    expect(within(operations()).getByText('Una por caso, con pasos, datos, resultado esperado y prioridad. Adjunta estrategia-DEMO-3.md y matriz-DEMO-3.md.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Generado con IA a partir de la HU y 3 fuentes. Revisa cada operación antes de aprobar. Si una subtarea falla, las demás se mantienen.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver a la suite' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Historial de la suite' })).toHaveTextContent('0 casos · cobertura validada')
     await userEvent.click(boxes[0] as HTMLElement)
     expect(within(operations()).getByText('Todo revisado')).toBeInTheDocument()
     expect(approveButton()).toBeEnabled()

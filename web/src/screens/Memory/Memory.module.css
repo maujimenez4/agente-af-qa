@@ -1,0 +1,196 @@
+/* Memoria (PA-329): columna de la lista como la de conversaciones y el detalle en una tarjeta de lectura. */
+.zone {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.list {
+  width: var(--conversations-width);
+  flex-shrink: 0;
+  min-height: 0;
+  padding: var(--space-4) var(--space-3);
+  background: var(--color-surface-2);
+  border-right: var(--border-width) solid var(--color-border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 1199px) {
+  .list {
+    width: calc(var(--conversations-width) - 24px);
+  }
+}
+
+.heading {
+  flex-shrink: 0;
+  padding: 0 10px var(--space-1);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.control {
+  flex-shrink: 0;
+  height: var(--control-md);
+  margin-bottom: 2px;
+  padding: 0 10px;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+/* Con muchas memorias solo se desplaza esta parte, dentro de la columna. */
+.items {
+  min-height: 0;
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-top: var(--space-1);
+}
+
+.memories {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.memory:hover {
+  background: var(--color-bg);
+}
+
+.memory[aria-current='true'] {
+  background: var(--color-primary-tint);
+}
+
+.memoryHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.key {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.memoryTitle {
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta,
+.note,
+.empty {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+/* Punto de «indexada» (verde) o «no indexada» (borde gris); el texto va oculto para lectores de pantalla. */
+.dot {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.dot[data-indexed] {
+  border-color: var(--color-success);
+  background: var(--color-success);
+}
+
+.empty {
+  padding: var(--space-1) 10px;
+}
+
+.note {
+  flex-shrink: 0;
+  padding: 0 10px;
+}
+
+.detail {
+  flex-grow: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.detail > * {
+  width: 100%;
+  max-width: var(--hero-max);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.detailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detailTitle {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.status {
+  display: inline-flex;
+}
+
+.indexNote {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}

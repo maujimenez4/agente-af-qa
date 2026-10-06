@@ -6,16 +6,16 @@ import { http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import examples from '../../api/examples.json'
 import type { ConversationOut } from '../../api/types.ts'
-import { App } from '../../App.tsx'
 import { mockDb, mockServer } from '../../mocks/node.ts'
 import { mockSuiteConversation } from '../../mocks/qaSuite.ts'
+import { generateSuiteForDemo3 } from '../../test/qaFlow.tsx'
 import { openEventStream } from '../../test/sse.ts'
 import { GeneratingScreen } from './GeneratingScreen.tsx'
 import { qaHeaderTitle, readyHeadline } from './headline.ts'
 
 const TAKEN = examples['POST /api/v1/qa/handoffs/{handoff_id}/take 202'] as unknown as ConversationOut
 const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
-const SUITE = mockSuiteConversation(EXAMPLE, 'DEMO-3')
+const SUITE = mockSuiteConversation('DEMO-3')
 
 describe('readyHeadline en QA', () => {
   it('«Suite lista · Versión N · 4 casos»', () => {
@@ -59,11 +59,8 @@ describe('QA 2 · Generando', () => {
     expect(elsewhere).toEqual([])
   })
 
-  it('al recoger una HU, la generación termina en «Suite lista · … · 4 casos» con *Ver la suite*', async () => {
-    mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
-    render(<App />)
-    const pending = await screen.findByRole('region', { name: 'Pendientes de pruebas' })
-    await userEvent.click(await within(pending).findByRole('button', { name: 'Recoger DEMO-3' }))
+  it('al generar la suite de DEMO-3, termina en «Suite lista · … · 4 casos» con *Ver la suite*', async () => {
+    await generateSuiteForDemo3()
     expect(await screen.findByRole('heading', { name: /^Suite lista · Versión \d+ · 4 casos$/ })).toBeInTheDocument()
     const panel = screen.getByRole('complementary', { name: 'Suite de pruebas' })
     expect(within(panel).getByText('La suite está lista. Ábrela para revisarla.')).toBeInTheDocument()
@@ -74,10 +71,7 @@ describe('QA 2 · Generando', () => {
   })
 
   it('el MSW deja la conversación de QA en revisión con la suite y `publish_suite` en el plan', async () => {
-    mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
-    render(<App />)
-    const pending = await screen.findByRole('region', { name: 'Pendientes de pruebas' })
-    await userEvent.click(await within(pending).findByRole('button', { name: 'Recoger DEMO-3' }))
+    await generateSuiteForDemo3()
     await screen.findByRole('button', { name: 'Ver la suite' })
     const run = [...mockDb.runs.values()].find((item) => item.conversation.mode === 'qa')
     expect(run?.conversation.state).toBe('in_review')

@@ -52,13 +52,33 @@ export const OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
   },
 }
 
+/** QA 5 (UI.md §6.5): los mismos tres casos con los textos de la suite. Sin memoria: solo se genera al publicar una HU. */
+export const QA_OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
+  simulated: {
+    ...OUTCOME_TEXTS.simulated,
+    note: 'La aprobación sigue vigente para publicar cuando se active el modo real.',
+  },
+  published: {
+    ...OUTCOME_TEXTS.published,
+    title: 'Suite publicada en Jira',
+    lead: 'Los casos ya están en Jira como subtareas, con la estrategia y la matriz adjuntas:',
+    note: 'Cuando ejecutes las pruebas, podrás registrar aquí el resultado (llega más adelante).',
+  },
+  partial: {
+    ...OUTCOME_TEXTS.partial,
+    lead: 'Se aprobaron estas operaciones. Parte ya está en Jira; lo que falló se indica debajo:',
+    note: 'Lo creado se mantiene. Reintentar solo lo que falló llegará más adelante; mientras, revisa las subtareas en Jira.',
+  },
+}
+
 const TIME = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' })
 
 /** «Versión 2 aprobada por af-demo a las 15:47» (sin hora si la fecha no se puede leer). */
-export function approvedLine(version: number | undefined, result: PublishOutcome): string {
+export function approvedLine(version: number | undefined, result: PublishOutcome, qa = false): string {
   const date = new Date(result.approved_at)
   const time = Number.isNaN(date.getTime()) ? '' : ` a las ${TIME.format(date)}`
-  return `${version ? `Versión ${version}` : 'Propuesta'} aprobada por ${result.approved_by}${time}`
+  const what = qa ? (version ? `Suite versión ${version}` : 'Suite') : version ? `Versión ${version}` : 'Propuesta'
+  return `${what} aprobada por ${result.approved_by}${time}`
 }
 
 const ISSUE_KEY = /^[A-Z][A-Z0-9_]*-\d+$/

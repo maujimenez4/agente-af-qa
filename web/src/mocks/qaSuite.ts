@@ -1,97 +1,61 @@
-// Suite de pruebas sintética de la API simulada (flujo de QA). El contrato aún no trae un ejemplo de conversación
-// de QA en revisión (PA-326): esta sigue el esquema `TestSuite` y la HU de ejemplo (DEMO-3, CA-01/CA-02, RN-01/RN-02).
-// Solo datos ficticios.
-import type { ConversationOut, TestSuite } from '../api/types.ts'
+// Suite de pruebas de la API simulada (flujo de QA): la conversación de QA en revisión del contrato
+// (`components.examples.ConversationQaInReview`, PA-326, copiada a examples.json por PA-118), con 4 casos sobre
+// CA-01/CA-02 y RN-01/RN-02 de DEMO-3. Lo que el contrato no trae (iterar, publicar) se simula aquí. Solo datos ficticios.
+import type { ConversationOut, ProgressStep, ReviewPayload, TestSuite } from '../api/types.ts'
+import { coverageMatrix } from '../components/Suite/suiteText.ts'
+import { example } from './examples.ts'
 
-export function mockSuite(storyKey: string): TestSuite {
-  return {
-    story_jira_key: storyKey,
-    cases: [
-      {
-        internal_id: 'CP-01',
-        title: 'Renovar un préstamo activo sin reservas',
-        type: 'positivo',
-        priority: 'Must',
-        criterion_ids: ['CA-01'],
-        rule_ids: ['RN-01'],
-        preconditions: ['Persona socia ficticia con un préstamo activo y 0 renovaciones'],
-        steps: [
-          { action: 'Abrir «Mis préstamos» en la app', expected: 'Se ve el préstamo con el botón «Renovar»' },
-          { action: 'Pulsar «Renovar»', data: 'Préstamo PR-0001 (ficticio)', expected: 'El vencimiento se amplía 21 días' },
-        ],
-        gherkin:
-          'Escenario: Renovar un préstamo activo\n  Dado un préstamo activo con menos de 2 renovaciones\n  Y sin reservas pendientes\n  Cuando la persona socia pulsa «Renovar»\n  Entonces el vencimiento se amplía 21 días',
-      },
-      {
-        internal_id: 'CP-02',
-        title: 'Rechazar la renovación con reservas pendientes',
-        type: 'negativo',
-        priority: 'Must',
-        criterion_ids: ['CA-02'],
-        rule_ids: ['RN-02'],
-        preconditions: ['Préstamo activo con una reserva pendiente de otra persona socia ficticia'],
-        steps: [{ action: 'Pulsar «Renovar»', data: 'Préstamo PR-0002 (ficticio)', expected: 'Aviso «El ejemplar tiene reservas pendientes» y sin cambios' }],
-        gherkin:
-          'Escenario: Renovación rechazada por reservas\n  Dado un préstamo activo con reservas pendientes\n  Cuando la persona socia pulsa «Renovar»\n  Entonces se muestra el aviso «El ejemplar tiene reservas pendientes»',
-      },
-      {
-        internal_id: 'CP-03',
-        title: 'Rechazar la tercera renovación',
-        type: 'alterno',
-        priority: 'Should',
-        criterion_ids: ['CA-01'],
-        rule_ids: ['RN-01'],
-        preconditions: ['Préstamo activo con 2 renovaciones ya hechas'],
-        steps: [{ action: 'Pulsar «Renovar»', data: 'Préstamo PR-0003 (ficticio)', expected: 'Aviso de máximo de renovaciones y sin cambios' }],
-        gherkin: null,
-      },
-      {
-        internal_id: 'CP-04',
-        title: 'Renovar sin conexión con el catálogo',
-        type: 'excepcion',
-        priority: 'Could',
-        criterion_ids: ['CA-01'],
-        rule_ids: [],
-        preconditions: ['El servicio de catálogo no responde (entorno de pruebas)'],
-        steps: [{ action: 'Pulsar «Renovar»', expected: 'Mensaje de error recuperable; el préstamo no cambia' }],
-        gherkin: null,
-      },
-    ],
-    strategy_md:
-      '## Alcance\nRenovación de préstamos en la web y la app.\n\n## Niveles\nFuncional y regresión de reservas (DEMO-2).\n\n## Entornos\nPreproducción con datos ficticios.\n\n## Criterios\nEntrada: HU aprobada. Salida: CA-01 y CA-02 cubiertos y sin defectos críticos.',
-    synthetic_data: [
-      { socio: 'SOC-0001 (ficticio)', prestamo: 'PR-0001', renovaciones: '0', reservas: '0' },
-      { socio: 'SOC-0002 (ficticio)', prestamo: 'PR-0002', renovaciones: '0', reservas: '1' },
-      { socio: 'SOC-0003 (ficticio)', prestamo: 'PR-0003', renovaciones: '2', reservas: '0' },
-    ],
-    risks: ['Las reservas de DEMO-2 cambian el resultado de la renovación'],
-    dependencies: ['Servicio de catálogo para comprobar reservas'],
-    impact_areas: ['Préstamos', 'Reservas'],
-    sources: [
-      { kind: 'jira', ref: storyKey },
-      { kind: 'rag', ref: 'DOC-01' },
-    ],
-  }
+const QA_REVIEW = 'components.examples.ConversationQaInReview'
+const EXAMPLE_KEY = 'DEMO-3'
+
+/** `?simular=sin-cubrir` y `?simular=cobertura-desconocida`: cómo llega `ReviewPayload.uncovered` (PA-326). */
+export type ForcedCoverage = 'gaps' | 'unknown'
+
+/** CA y RN ficticios sin caso para `?simular=sin-cubrir`. */
+export const MOCK_UNCOVERED = { criteria: ['CA-03'], rules: ['RN-03'] }
+
+/** Pasos de una generación de QA (PA-327), con las etiquetas del ejemplo: 4, sin «Guardar la memoria». */
+export function qaGenerationSteps(): Pick<ProgressStep, 'node' | 'label'>[] {
+  return example<ConversationOut>(QA_REVIEW).progress.map(({ node, label }) => ({ node, label }))
 }
 
-/** Conversación de QA en revisión a partir de la de ejemplo: la suite como artefacto y `publish_suite` en el plan. */
-export function mockSuiteConversation(base: ConversationOut, storyKey: string): ConversationOut {
-  const next = structuredClone(base)
+/** La suite del ejemplo del contrato, con la clave de la HU pedida. */
+export function mockSuite(storyKey: string = EXAMPLE_KEY): TestSuite {
+  const suite = structuredClone(example<ConversationOut>(QA_REVIEW).review?.artifact.content) as TestSuite
+  suite.story_jira_key = storyKey
+  suite.sources = suite.sources.map((source) => (source.kind === 'jira' && source.ref === EXAMPLE_KEY ? { ...source, ref: storyKey } : source))
+  return suite
+}
+
+/** La matriz en Markdown, como `TestSuite.coverage_md()` de schemas/test_case.py: una fila por CA o RN con casos. */
+export function mockCoverageMd(suite: TestSuite): string {
+  const rows = coverageMatrix(suite).rows.map((row) => {
+    const cases = [...row.covered].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }))
+    return `| ${row.id} | ${cases.join(', ')} | ${cases.length} |`
+  })
+  return [`# Matriz de cobertura · ${suite.story_jira_key}`, '', '| CA/RN | Casos de prueba | Nº |', '|---|---|---|', ...rows].join('\n') + '\n'
+}
+
+/** `uncovered` según `?simular=`: por defecto, el del ejemplo (todo cubierto). */
+function mockUncovered(forced: ForcedCoverage | undefined, fallback: ReviewPayload['uncovered']): ReviewPayload['uncovered'] {
+  if (forced === 'gaps') return structuredClone(MOCK_UNCOVERED)
+  if (forced === 'unknown') return null
+  return fallback ?? { criteria: [], rules: [] }
+}
+
+/** Conversación de QA en revisión: el ejemplo del contrato con la clave de la HU pedida y el `uncovered` forzado. */
+export function mockSuiteConversation(storyKey: string = EXAMPLE_KEY, forced?: ForcedCoverage): ConversationOut {
+  const next = example<ConversationOut>(QA_REVIEW)
+  const review = next.review
+  if (!review) return next
   const suite = mockSuite(storyKey)
-  if (next.review) {
-    next.review.artifact = { ...next.review.artifact, type: 'test_suite', origin_key: storyKey, content: suite, impact: null }
-    next.review.impact = null
-    next.review.plan = [{ op: 'publish_suite', project: 'DEMO', story: storyKey, cases: String(suite.cases.length) }]
-    next.review.fingerprint = 'huella-suite-ficticia'
-    // Una suite recién generada es la versión 1 (el ejemplo de la HU va por la v2).
-    next.review.version = 1
-    next.review.artifact.version = 1
-  }
-  const artifact = next.review?.artifact
-  next.versions = next.versions.slice(0, 1).map((item) => ({ ...item, version: 1, artifact: artifact ?? item.artifact }))
-  next.flow = 'tests'
-  next.mode = 'qa'
-  next.jira_baseline = null
+  review.artifact = { ...review.artifact, origin_key: storyKey, content: suite }
+  review.target = { ...review.target, jira_key: storyKey }
+  review.plan = review.plan.map((item) => (item.op === 'publish_suite' ? { ...item, story: storyKey } : item))
+  review.coverage_md = mockCoverageMd(suite)
+  review.uncovered = mockUncovered(forced, review.uncovered)
+  next.title = `Preparar pruebas de ${storyKey}`
+  next.versions = next.versions.map((item) => ({ ...item, artifact: review.artifact }))
   return next
 }
 
@@ -127,6 +91,29 @@ export function nextSuiteVersion(previous: ConversationOut, feedback: string): C
   review.fingerprint = `huella-suite-ficticia-${crypto.randomUUID()}`
   review.artifact = { ...review.artifact, version, content: suite }
   review.plan = review.plan.map((item) => (item.op === 'publish_suite' ? { ...item, cases: String(suite.cases.length) } : item))
+  review.coverage_md = mockCoverageMd(suite)
   next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]
   return next
+}
+
+/** Error ficticio de una suite publicada en parte (`?simular=parcial`): el último caso no se creó. */
+export function suitePartialError(caseId: string): string {
+  return `No se pudo crear ${caseId}: Jira no respondió (mensaje ficticio).`
+}
+
+/**
+ * Resultado de publicar la suite simulada en modo real: una subtarea ficticia por caso (DEMO-21, DEMO-22…).
+ * En parte (PA-324), el último caso no se crea y la conversación queda en `approved` con `result.errors` y
+ * `failed_ids`; si se publica entera, en `published`.
+ */
+export function suitePublishOutcome(suite: TestSuite, partial: boolean) {
+  const ids = suite.cases.map((item) => item.internal_id)
+  const failed = partial ? ids.slice(-1) : []
+  const created = ids.filter((id) => !failed.includes(id))
+  return {
+    state: partial ? ('approved' as const) : ('published' as const),
+    published_keys: created.map((_, index) => `DEMO-${21 + index}`),
+    errors: failed.map(suitePartialError),
+    failed_ids: failed,
+  }
 }

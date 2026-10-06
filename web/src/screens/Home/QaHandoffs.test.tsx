@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { setCsrfToken } from '../../api/client.ts'
 import type { HandoffOut } from '../../api/types.ts'
 import { App } from '../../App.tsx'
+import { QA_HANDOFF_ENABLED } from '../../app/features.ts'
 import { mockDb, mockServer } from '../../mocks/node.ts'
-import { openEventStream } from '../../test/sse.ts'
 import { handoffMeta } from './handoffText.ts'
 import { QaHandoffs } from './QaHandoffs.tsx'
 
@@ -130,15 +130,20 @@ describe('Pendientes de pruebas', () => {
 })
 
 describe('Inicio · pendientes de pruebas por rol', () => {
-  it('QA ve la lista en Inicio y *Recoger* abre Generando con la conversación nueva en la lista', async () => {
+  it('flujo unido fuera de la entrega (QA_HANDOFF_ENABLED = false): QA no ve la lista en Inicio ni la pide', async () => {
+    expect(QA_HANDOFF_ENABLED).toBe(false)
     asQa()
     mockDb.handoffs = [HANDOFF]
-    mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
+    let asked = 0
+    mockServer.events.on('request:start', ({ request }) => {
+      if (new URL(request.url).pathname === '/api/v1/qa/handoffs') asked += 1
+    })
     render(<App />)
-    await userEvent.click(await within(await screen.findByRole('region', { name: 'Pendientes de pruebas' })).findByRole('button', { name: 'Recoger DEMO-3' }))
-    expect(await screen.findByRole('img', { name: /Avance: fase 2 de 4/ })).toBeInTheDocument()
-    const list = screen.getByRole('complementary', { name: 'Conversaciones' })
-    expect(await within(list).findByRole('button', { name: /Preparar pruebas de DEMO-3/ })).toHaveAttribute('aria-current', 'true')
+    await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
+    expect(screen.queryByRole('region', { name: 'Pendientes de pruebas' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Recoger/ })).toBeNull()
+    expect(asked).toBe(0)
+    mockServer.events.removeAllListeners()
   })
 
   it('el analista no ve la lista ni la pide', async () => {

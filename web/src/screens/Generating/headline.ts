@@ -1,5 +1,6 @@
 import type { ConversationOut, TestSuite } from '../../api/types.ts'
 import { changesLabel } from '../../components/Proposal/index.ts'
+import { countLabel } from '../../text/plural.ts'
 
 /** «Propuesta lista · Versión 1 · 3 cambios frente a Jira» (UI.md §4.4); en QA, «Suite lista · Versión 1 · 4 casos» (§6.2). */
 export function readyHeadline(conversation: ConversationOut): string {
@@ -7,7 +8,7 @@ export function readyHeadline(conversation: ConversationOut): string {
   if (conversation.mode === 'qa') {
     const content = conversation.review?.artifact.content
     const cases = content && 'cases' in content ? (content as TestSuite).cases.length : undefined
-    return ['Suite lista', `Versión ${version}`, cases === undefined ? undefined : `${cases} ${cases === 1 ? 'caso' : 'casos'}`]
+    return ['Suite lista', `Versión ${version}`, cases === undefined ? undefined : countLabel(cases, 'caso', 'casos')]
       .filter(Boolean)
       .join(' · ')
   }

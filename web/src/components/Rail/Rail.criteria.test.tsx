@@ -21,9 +21,9 @@ function ring(): HTMLElement {
 
 describe('railItemsFor (decisión 16)', () => {
   it.each([
-    ['functional', ['work']],
-    ['qa', ['work']],
-    ['admin', ['history', 'settings']],
+    ['functional', ['work', 'memory']],
+    ['qa', ['work', 'memory']],
+    ['admin', ['memory', 'history', 'settings']],
   ] as const)('%s → zonas %j', (role, zones) => {
     expect(railItemsFor(role).map((item) => item.zone)).toEqual(zones)
   })
@@ -35,8 +35,9 @@ describe('railItemsFor (decisión 16)', () => {
   })
 
   it('cada zona usa su icono del carril', () => {
-    expect(railItemsFor('admin').map((item) => item.icon)).toEqual(['history', 'settings'])
-    expect(railItemsFor('qa').map((item) => item.icon)).toEqual(['work'])
+    expect(railItemsFor('admin').map((item) => item.icon)).toEqual(['memory', 'history', 'settings'])
+    expect(railItemsFor('qa').map((item) => item.icon)).toEqual(['work', 'memory'])
+    expect(railItemsFor('functional').map((item) => item.icon)).toEqual(['work', 'memory'])
   })
 
   it('nombra los roles en español', () => {
@@ -70,10 +71,15 @@ describe('Rail: zonas y zona activa', () => {
   it('se navega con el teclado', async () => {
     const { onNavigate } = renderRail({ userRole: 'admin', username: 'admin-demo', active: 'history' })
     await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'Memoria' })).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(onNavigate).toHaveBeenLastCalledWith('memory')
+    await userEvent.tab()
     expect(screen.getByRole('button', { name: 'Historial' })).toHaveFocus()
     await userEvent.tab()
     await userEvent.keyboard('{Enter}')
-    expect(onNavigate).toHaveBeenCalledWith('settings')
+    expect(onNavigate).toHaveBeenLastCalledWith('settings')
+    expect(onNavigate).toHaveBeenCalledTimes(2)
   })
 
   it('pulsar la zona ya activa vuelve a avisar con la misma zona', async () => {

@@ -14,6 +14,7 @@ import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
 import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
 import { MemoryScreen } from '../screens/Memory/MemoryScreen.tsx'
+import { AdminScreen } from '../screens/Admin/AdminScreen.tsx'
 import { QA_HANDOFF_ENABLED } from './features.ts'
 import { hasResult } from '../screens/Result/resultText.ts'
 import { useSession } from '../session/sessionContext.ts'
@@ -55,11 +56,9 @@ export function AppShell({ user }: AppShellProps) {
       {zone === 'memory' && <MemoryScreen key={memory.opened} openKey={memory.key} />}
       {user.role === 'admin' ? (
         zone !== 'memory' && (
+          // Administración mínima (T-29): la zona de admin es Ajustes; Historial sigue «disponible pronto».
           <main className={styles.main}>
-            <SoonScreen
-              title="Disponible pronto"
-              text="Los ajustes (conexiones, modelos, documentos y usuarios) llegarán después del punto de control de la demo."
-            />
+            <AdminScreen />
           </main>
         )
       ) : (

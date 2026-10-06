@@ -57,6 +57,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
   - `?simular=cobertura-desconocida`: la suite llega con `uncovered: null` («no se sabe»): sin distintivo de cobertura ni «Todos los CA cubiertos»;
   - `?simular=memoria-no-encontrada`: publicación real de la HU (como `?simular=publicado`) pero sin que se genere su memoria: *Ver la memoria* abre Memoria con la tarjeta «No se encuentra» (404 `not_found`);
   - `?simular=sin-memorias`: la lista de Memoria vacía («Aún no hay memorias…»);
+  - `?simular=conexion-caida`: en Ajustes (admin), *Probar conexiones* devuelve el ejemplo del contrato con un servicio caído («Modelos · ollama», «Faltan modelos…»); sin él, todos salen bien. Repetir la prueba antes de 10 s da 429 con cuenta atrás;
   - `?simular=muchas-conversaciones`: 120 conversaciones ficticias en 30 días, para revisar la lista larga (este se aplica al cargar la página).
 
   Quita el parámetro y recarga para volver al comportamiento normal (al recargar se pierde la sesión simulada: vuelve a iniciar sesión).

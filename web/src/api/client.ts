@@ -1,8 +1,10 @@
 // Cliente de la API (T-55): mismo origen, cookie de sesión HttpOnly y X-CSRF-Token en memoria.
 // DESIGN-DECISIONS.md §4. Nunca guarda nada en el almacenamiento del navegador.
 import type {
+  AdminModelsOut,
   ApiError,
   ChooseProjectOut,
+  ConnectionsTestOut,
   ConversationCreateIn,
   ConversationOut,
   ConversationSummary,
@@ -166,4 +168,8 @@ export const api = {
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),
+
+  // Administración mínima (T-29): solo admin. Probar conexiones lleva CSRF y admite una prueba cada 10 s.
+  adminConnectionsTest: () => request<ConnectionsTestOut>('POST', '/admin/connections/test'),
+  adminModels: (signal?: AbortSignal) => request<AdminModelsOut>('GET', '/admin/models', undefined, signal),
 }

@@ -1,0 +1,211 @@
+/* Administración (T-29 mínima): Ajustes de la «Propuesta v2» del lienzo con las piezas de la Mixta. */
+.page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-6) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.subtitle,
+.muted,
+.footer {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.footer {
+  font-size: var(--text-2xs);
+}
+
+/* Dos columnas como el lienzo; la tarjeta de «disponible pronto» ocupa toda la fila. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1099px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  min-width: 0;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cardHead {
+  display: grid;
+  gap: 2px;
+}
+
+.cardTitle {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Conexiones: punto, servicio, estado y tiempo en una línea; el detalle debajo. */
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.checks[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  row-gap: 2px;
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--color-border-soft);
+}
+
+.check:last-child {
+  border-bottom: 0;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-warn);
+}
+
+.dot[data-ok] {
+  background: var(--color-success);
+}
+
+.service {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  grid-column: 2 / -1;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.duration {
+  grid-row: 1;
+  grid-column: 4;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+/* Modelos por tarea: cabecera oscura como el lienzo. */
+.tableWrap {
+  overflow-x: auto;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.table thead th {
+  background: var(--color-navy);
+  color: var(--color-surface);
+  font-weight: var(--weight-bold);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+}
+
+.table tbody th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  border-top: var(--border-width) solid var(--color-border-soft);
+}
+
+.table tbody th {
+  font-weight: var(--weight-bold);
+}
+
+.embeddings {
+  background: var(--color-surface-2);
+}
+
+.model,
+.host {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.host {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.fallback + .fallback {
+  margin-top: var(--space-1);
+}
+
+.override {
+  display: block;
+  margin-top: var(--space-1);
+  font-weight: normal;
+}
+
+.mode {
+  display: flex;
+}
+
+/* Documentos y usuarios: tarjeta discontinua del lienzo, a todo lo ancho. */
+.soon {
+  grid-column: 1 / -1;
+  border-style: dashed;
+  border-color: var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.soonSubtitle {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.soonNote {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}

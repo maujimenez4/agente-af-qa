@@ -14,7 +14,7 @@
 ## Estado de las ramas (2026-10-06)
 - **PR #8** (`t56-uimd`, UI.md v2.0) y **PR #9** (`t56-pa325`, PA-325 y PA-312) abiertas. La #9 ya trae `origin/PreProduccion` (conflicto del registro diario resuelto conservando las dos filas).
 - **`ses-web-fixes`** (PA-333, PA-336, PA-332, PA-334, PA-407) revisada y comentada en el issue #5: antes de fusionarla hay que arreglar dos fallos (*Generar* aborta la lista de fuentes y Origen se queda sin ellas; un 401 que llega tarde tras volver a entrar).
-- **`t56-sondeo`:** PA-406 (tope del sondeo de Revisar la calidad).
+- **PR #10** (`t56-sondeo`, PA-406: tope del sondeo de Revisar la calidad) abierta.
 
 ## T-57: punto de control
 **Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.

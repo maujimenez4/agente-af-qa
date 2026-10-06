@@ -3,15 +3,22 @@
 // que crea esta función; ningún valor de la API llega a `href` (la regla de safeHref sigue intacta, PA-308).
 // ESLint prohíbe `URL.createObjectURL` y asignar `.href` en el resto del código: esta es la única excepción.
 
+/** Espera antes de liberar el `blob:` tras el clic. */
+export const REVOKE_DELAY_MS = 1000
+
 /** Tipos de archivo que se pueden descargar: solo texto. */
 export type DownloadType = 'text/markdown' | 'text/plain'
 
-// Letras, cifras, «.», «_» y «-», sin empezar por punto ni pasar de 100 caracteres: ni rutas ni nombres ocultos.
-const SAFE_NAME = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,99}$/u
+// Solo ASCII (las claves de Jira lo son): letras, cifras, «.», «_» y «-», sin empezar ni acabar en punto ni pasar de
+// 100 caracteres. Ni rutas, ni nombres ocultos, ni homoglifos de otros alfabetos.
+const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
+// Nombres reservados de Windows, con o sin extensión (CON, nul.md, COM1.md…).
+const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i
 
 /** El nombre tal cual si es seguro como nombre de archivo; si no, `undefined`. */
 export function safeFileName(name: unknown): string | undefined {
-  return typeof name === 'string' && SAFE_NAME.test(name) && !name.includes('..') ? name : undefined
+  if (typeof name !== 'string' || !SAFE_NAME.test(name)) return undefined
+  return name.includes('..') || name.endsWith('.') || RESERVED.test(name) ? undefined : name
 }
 
 /** Descarga `text` como `fileName`. Devuelve `false` (y no descarga) si el nombre no es seguro. */
@@ -32,8 +39,8 @@ export function downloadText(fileName: string, text: string, type: DownloadType 
     link.click()
   } finally {
     link.remove()
-    // Tras el clic el navegador ya tiene el archivo; se libera en la siguiente vuelta del bucle de eventos.
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+    // Se libera un segundo después del clic: revocarla en el acto ha cancelado descargas en algunos navegadores.
+    setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
   }
   return true
 }

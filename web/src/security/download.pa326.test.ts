@@ -6,7 +6,7 @@ import { downloadText, safeFileName } from './download.ts'
 const BLOB_URL = 'blob:http://localhost/ficticio-0001'
 
 describe('safeFileName', () => {
-  it.each(['matriz-DEMO-3.md', 'estrategia-DEMO-3.md', 'memoria_DEMO-3.md', 'a', 'Ñandú-1.txt', 'a'.repeat(100)])('test_safe_file_name_accepts_%s', (name) => {
+  it.each(['matriz-DEMO-3.md', 'estrategia-DEMO-3.md', 'memoria_DEMO-3.md', 'a', 'MATRIZ_demo-3.v2.md', 'a'.repeat(100)])('test_safe_file_name_accepts_%s', (name) => {
     expect(safeFileName(name)).toBe(name)
   })
 
@@ -23,6 +23,16 @@ describe('safeFileName', () => {
     ['carácter nulo', 'a\u0000.md'],
     ['salto de línea', 'a\n.md'],
     ['empieza por guion', '-x.md'],
+    ['no ASCII (Ñ)', 'Ñandú-1.txt'],
+    ['homoglifo cirílico', 'matriz-ДЕМО-3.md'],
+    ['superíndices', 'matriz-¹².md'],
+    ['bidi U+202E', 'matriz-‮dm.md'],
+    ['acaba en punto', 'matriz-DEMO-3.'],
+    ['reservado CON', 'CON'],
+    ['reservado nul.md', 'nul.md'],
+    ['reservado COM1.md', 'COM1.md'],
+    ['reservado lpt9', 'lpt9.txt'],
+    ['reservado aux con mayúsculas', 'AuX.md'],
   ])('test_safe_file_name_rejects_%s', (_name, value) => {
     expect(safeFileName(value)).toBeUndefined()
   })

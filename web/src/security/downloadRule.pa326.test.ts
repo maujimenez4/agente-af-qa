@@ -73,6 +73,8 @@ describe('regla de descarga (href asignado y createObjectURL)', () => {
     'a.setAttribute(`href`, x)',
     "a['setAttribute']('href', x)",
     "a['setAttribute']('class', x)",
+    "URL['createObjectURL'](b)",
+    'const { createObjectURL } = URL',
   ])('%s → error', async (body) => {
     const messages = await lint(body)
     expect(messages.some((message) => DOWNLOAD.test(message))).toBe(true)

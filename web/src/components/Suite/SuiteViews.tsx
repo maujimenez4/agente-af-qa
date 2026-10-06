@@ -138,7 +138,7 @@ export function CoverageView({ suite, coverage = UNKNOWN_COVERAGE, coverageMd }:
           </table>
         </div>
       )}
-      {coverage.kind === 'complete' && <p className={p.muted}>Cada CA y cada RN de la HU tiene al menos un caso.</p>}
+      {coverage.kind === 'complete' && rows.length > 0 && <p className={p.muted}>Cada CA y cada RN de la HU tiene al menos un caso.</p>}
       {coverage.kind === 'unknown' && (
         <p className={p.muted}>No se ha podido comprobar qué CA y RN de la HU quedan sin caso: la matriz solo muestra lo que dicen los casos.</p>
       )}

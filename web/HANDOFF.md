@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-05
 
-**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Rama de trabajo actual: `t56-qa-cobertura`** (creada desde `area-b` el 2026-10-05). Lint, Vitest, build y `npm run api:check` en verde.
+**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. Lint, Vitest (1.731), build y `npm run api:check` en verde.
 **PR abierta:** [#6](https://github.com/maujimenez4/agente-af-qa/pull/6) `area-b → PreProduccion` («T-56: flujo de QA por roles, recibo y resultado de la suite», bloque 5). **Pendiente** de la prueba del flujo de QA contra la API real en el equipo de la principal y de la aprobación de su responsable. Ya fusionadas: la #2, la #3 y la #4.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
@@ -48,20 +48,15 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Antes de tocar un componente compartido**, avisar a la persona responsable para que avise a la principal: `Composer`, `AppShell`, el panel y la cabecera (`Workspace`), los estados (`States`), la lista de conversaciones, los botones, y las pantallas que comparten la HU y QA (Inicio, Origen, Generando, Iterar, Recibo y Resultado).
 - **`client.ts` y `types.ts`** (y el resto de `web/src/api/`) los coordina **la sesión MCP** (rama `ses-web`). No tocarlos sin avisar antes.
 
-## Detalle de PA-326, PA-327 y PA-118 (ya en el contrato desde el 2026-10-05)
-- **PA-326:**
-  - **`ReviewPayload.coverage_md`**: la matriz, igual que `matriz-CLAVE.md`;
-  - **`ReviewPayload.uncovered {criteria, rules}`**: `null` significa «no se sabe» y las listas vacías, «todo cubierto». **No se tratan igual**: con `null`, no se afirma «Todos los CA cubiertos» por esta vía; con listas vacías, sí; con elementos, se muestran como no cubiertos.
-  - Cambiar la pestaña Cobertura y el distintivo, y la suite sintética del MSW, para usarlos.
-- **Ejemplo de QA en revisión:** `components.examples.ConversationQaInReview`. Con **PA-118**, `tools/api-types/generate.mjs` copiará también `components.examples` a `src/api/examples.json`. Entonces el MSW y las pruebas usarán ese ejemplo en lugar de `mockSuiteConversation`.
-- **PA-327 (ya fusionada):** QA tiene 4 pasos (sin «Guardar la memoria») con sus etiquetas. El frontend ya pinta los que lleguen, tal cual, y la Q funciona con 4 o 5: falta que la API simulada use las etiquetas de QA (siguiente PR) y comprobar los textos con la API real.
-
-## Siguiente PR: contrato de QA (PA-326, PA-118, `jira_baseline`)
-El contrato ya trae PA-326 y PA-327 (fusionado en `area-b` con la PR del bloque 5; `schema.d.ts` y `examples.json` regenerados, sin cambios en la interfaz). Queda:
-- **PA-326 en Cobertura:** `ReviewPayload.coverage_md` y `ReviewPayload.uncovered {criteria, rules}`. `null` es «no se sabe» y las listas vacías, «todo cubierto»: **no se tratan igual**. Con elementos, se muestran como no cubiertos. Ajustar el distintivo «Todos los CA cubiertos».
-- **PA-118:** `tools/api-types/generate.mjs` copia también `components.examples` a `examples.json`; el MSW y las pruebas usan `ConversationQaInReview` en lugar de `mockSuiteConversation`.
-- **Quitar el apaño de `jira_baseline` del MSW** (`mockBaseline`): el ejemplo del contrato ya no trae el CA-02.
-- **PA-327 en la API simulada:** que una generación de QA use las etiquetas de QA (4 pasos), como `QA_STEP_LABELS`.
+## Bloque «contrato de QA en la web» (hecho, rama `t56-qa-cobertura`)
+- **PA-326 en Cobertura:** `uncovered` con `null` (o sin el campo) = «no se sabe»: sin distintivo, sin «Todos los CA cubiertos» y sin «cobertura validada». Listas vacías = «Todos los CA cubiertos». Con elementos = «1 CA y 1 RN sin caso», el aviso «Sin ningún caso: …» y filas «· Sin caso». Solo para la versión en revisión. Detalle en `DESIGN-DECISIONS.md` (QA 3).
+- **`coverage_md`:** botón *Descargar la matriz* (`matriz-<CLAVE>.md`); con `null`, no aparece. **Pieza reutilizable para Memoria:** `DownloadButton` (`src/components/Download/`) sobre `downloadText` (`src/security/download.ts`, nombres solo ASCII). ESLint prohíbe `createObjectURL` y asignar `href` fuera de ese archivo.
+- **PA-118:** `generate.mjs` copia `components.examples` a `examples.json` (`components.examples.<Nombre>`). El MSW usa `ConversationQaInReview` y los 4 pasos de QA; `qaSuite.ts` solo simula otra clave, iterar y publicar.
+- **`mockBaseline` fuera:** la versión «Jira» es la del ejemplo (CA-01, sin CA-02).
+- **PA-328:** recuentos con `countLabel` (`src/text/plural.ts`), también «1 fuente» en el modo HU de Iterar (cambio menor, en la descripción de la PR).
+- `?simular=sin-cubrir` y `?simular=cobertura-desconocida` en `web/README.md`.
+- **Issue #5:** avisado el cambio de `examples.json`.
+- **PR preparada** en el scratchpad de la sesión (`pr-descripcion-cobertura.md`): `t56-qa-cobertura → PreProduccion`. Se abre cuando se fusione la #6: antes, `git merge origin/PreProduccion` en `t56-qa-cobertura`, Vitest, lint, build y `api:check`.
 
 ## Alcance y orden tras el bloque 5
 1. **Memoria**, para los tres roles:
@@ -81,18 +76,15 @@ El contrato ya trae PA-326 y PA-327 (fusionado en `area-b` con la PR del bloque 
 **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución) y el selector de modelo funcional.
 
 ## PA abiertas
-- **Hechas por la principal, pendientes de adoptar en `web/`** (siguiente PR): **PA-326** (`coverage_md` y `uncovered`, ejemplo `ConversationQaInReview`) y **PA-327** (pasos de QA por modo, 4 sin `memorize`; el frontend ya los pinta).
+- **Adoptadas en `t56-qa-cobertura`:** PA-326, PA-327 (en la API simulada), PA-118 y PA-328.
 - **Del área B:**
-  - **PA-118** (que `generate.mjs` copie `components.examples` a `examples.json`; siguiente PR);
-  - PA-300 (UI.md: *Volver a la propuesta* en el recibo, el aviso de modo de prueba solo en simulación y el flujo unido fuera de la entrega);
+  - PA-300 (UI.md: *Volver a la propuesta* en el recibo, el aviso de modo de prueba solo en simulación, el flujo unido fuera de la entrega y el texto de Cobertura sin «Si no fuera así…»);
   - PA-304 (lienzo: foco, Q con reducir movimiento y la fase de la suite en parte);
   - PA-310, PA-312 y PA-325.
-- **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (falta quitar el apaño del MSW).
+- **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).
 
-## Siguiente (en `t56-qa-cobertura`)
-1. **PA-326 en Cobertura:** `ReviewPayload.coverage_md` y `ReviewPayload.uncovered` (`null` = «no se sabe», listas vacías = «todo cubierto»; no se tratan igual).
-2. **PA-118:** que `generate.mjs` copie `components.examples` a `examples.json`; el MSW y las pruebas usan `ConversationQaInReview` (y las etiquetas de QA en la API simulada).
-3. **Quitar el apaño de `jira_baseline` del MSW** (`mockBaseline`).
-4. Después, por este orden: **Memoria**, **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»).
+## Siguiente
+1. **Cuando se fusione la #6:** abrir la PR `t56-qa-cobertura → PreProduccion` con la descripción preparada (se enseña y se copia al portapapeles).
+2. Después, por este orden: **Memoria** (reutiliza `DownloadButton` para el `.md`), **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»). Mientras haya una PR abierta, cada bloque va en su propia rama.
 
 Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. Esperar la confirmación del responsable antes de empezar Memoria.

@@ -63,6 +63,8 @@ export default defineConfig([
         },
         { selector: "CallExpression[callee.computed=true][callee.property.value=/^setAttribute(NS)?$/]", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
         { selector: "CallExpression[callee.property.name='createObjectURL']", message: DOWNLOAD },
+        { selector: "CallExpression[callee.computed=true][callee.property.value='createObjectURL']", message: DOWNLOAD },
+        { selector: "VariableDeclarator > ObjectPattern > Property[key.name='createObjectURL']", message: DOWNLOAD },
         {
           selector:
             "JSXOpeningElement[name.name=/^(a|img|form|iframe|use|image|object|embed|source|video|audio|area|base|link|track)$/] > JSXSpreadAttribute",

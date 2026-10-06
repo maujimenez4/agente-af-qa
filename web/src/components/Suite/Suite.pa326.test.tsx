@@ -108,6 +108,13 @@ describe('coverageMatrix con no cubiertos', () => {
 })
 
 describe('CoverageView (PA-326)', () => {
+  it('todo cubierto pero ningún caso cita CA ni RN: solo «Los casos no dicen…», sin «Cada CA y cada RN…»', () => {
+    const bare = { ...SUITE, cases: SUITE.cases.map((item) => ({ ...item, criterion_ids: [], rule_ids: [] })) }
+    render(<CoverageView suite={bare} coverage={{ kind: 'complete' }} coverageMd={MATRIX} />)
+    expect(screen.getByText('Los casos no dicen qué CA o RN verifican.')).toBeInTheDocument()
+    expect(screen.queryByText('Cada CA y cada RN de la HU tiene al menos un caso.')).toBeNull()
+  })
+
   const table = () => screen.getByRole('table', { name: 'Qué casos verifican cada CA y cada RN' })
 
   it('test_coverage_view_complete_says_every_ca_and_rn_has_a_case_and_offers_download', () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
@@ -102,7 +102,10 @@ const SOON_FLOWS: Partial<Record<StartRequest['flow'], { title: string; text: st
 
 function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: string) => void }) {
   const { conversations, error: conversationsError, reload } = useConversations()
-  const [currentId, setCurrentId] = useState<string | undefined>()
+  const { state: session, remember } = useSession()
+  // PA-332: tras volver a entrar por una sesión caducada, la conversación en la que estaba la persona.
+  const resumeId = session.status === 'authenticated' ? session.resume?.conversationId : undefined
+  const [currentId, setCurrentId] = useState<string | undefined>(resumeId)
   const [view, setView] = useState<WorkView>({ name: 'home' })
   // «Elegir en Jira» (Mixta 1b): abierto con el proyecto de Inicio; lo elegido vuelve a Inicio.
   const [jira, setJira] = useState<{ initialProject?: string } | null>(null)
@@ -112,25 +115,41 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
   const [opened, setOpened] = useState(0)
 
   // Retomar una conversación de la lista (T-52): según su estado, Generando, Iterar o un aviso.
+  const showConversation = (conversation: ConversationOut) => {
+    // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
+    setOpened((count) => count + 1)
+    if (conversation.state === 'generating') {
+      setView({ name: 'generating', conversation })
+    } else if (conversation.state === 'in_review') {
+      setView({ name: 'ready', conversation })
+    } else if (hasResult(conversation)) {
+      setView({ name: 'result', conversation })
+    } else {
+      setView({ name: 'closed', conversation })
+    }
+  }
   const openConversation = async (threadId: string) => {
     setOpenError(undefined)
     try {
-      const conversation = await api.conversation(threadId)
-      // Reabrir la misma conversación vuelve a montar su pantalla con lo que trae la API (huella vigente).
-      setOpened((count) => count + 1)
-      if (conversation.state === 'generating') {
-        setView({ name: 'generating', conversation })
-      } else if (conversation.state === 'in_review') {
-        setView({ name: 'ready', conversation })
-      } else if (hasResult(conversation)) {
-        setView({ name: 'result', conversation })
-      } else {
-        setView({ name: 'closed', conversation })
-      }
+      showConversation(await api.conversation(threadId))
     } catch (cause) {
       setOpenError(toApiError(cause))
     }
   }
+
+  // PA-332: la sesión sabe qué conversación está abierta; tras volver a entrar, se reabre esa.
+  useEffect(() => remember(currentId), [currentId, remember])
+  useEffect(() => {
+    if (!resumeId) return
+    let cancelled = false
+    api
+      .conversation(resumeId)
+      .then((conversation) => !cancelled && showConversation(conversation))
+      .catch((cause: unknown) => !cancelled && setOpenError(toApiError(cause)))
+    return () => {
+      cancelled = true
+    }
+  }, [resumeId])
 
   return (
     <>

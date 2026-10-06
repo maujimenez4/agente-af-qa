@@ -98,13 +98,27 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
   if (response.status === 204) return undefined as T
   const payload: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
-    const error = (payload as { error?: ApiError } | undefined)?.error
-    throw new ApiRequestError(response.status, error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE })
+    const error = (payload as { error?: ApiError } | undefined)?.error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE }
+    if (response.status === 401 && !SESSION_PATHS.has(path)) unauthenticatedHandler?.(error)
+    throw new ApiRequestError(response.status, error)
   }
   return payload as T
 }
 
 const enc = encodeURIComponent
+
+// PA-332: un 401 en cualquier pantalla avisa a la sesión (SessionProvider pasa a anónimo). No avisan las
+// rutas de la propia sesión: un 401 en /auth/me al arrancar o en /auth/login es lo esperado.
+const SESSION_PATHS = new Set(['/auth/me', '/auth/login', '/auth/logout'])
+let unauthenticatedHandler: ((error: ApiError) => void) | undefined
+
+/** Registra quién se entera de un 401 (la sesión). Devuelve la función para dejar de escucharlo. */
+export function onUnauthenticated(handler: (error: ApiError) => void): () => void {
+  unauthenticatedHandler = handler
+  return () => {
+    if (unauthenticatedHandler === handler) unauthenticatedHandler = undefined
+  }
+}
 
 /** Filtros de `GET /memories`: proyecto, texto que buscar (clave y contenido) y cuántas como mucho (1 a 200). */
 export interface MemoryFilters {
@@ -137,8 +151,8 @@ export const api = {
   issue: (key: string) => request<IssueCard>('GET', `/issues/${enc(key)}`),
 
   propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body),
-  sources: (origin: OriginIn, excluded: string[] = []) =>
-    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn),
+  sources: (origin: OriginIn, excluded: string[] = [], signal?: AbortSignal) =>
+    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn, signal),
 
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),

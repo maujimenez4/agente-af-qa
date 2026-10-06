@@ -1,0 +1,179 @@
+/* Revisar la calidad (Mixta 5): informe en el panel, campo a campo; casillas INVEST y hallazgos del lienzo. */
+.muted,
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.note {
+  font-size: var(--text-2xs);
+}
+
+/* Cabecera del informe: «INVEST: 5 de 6 bien · 1 ambigüedad · 1 hueco». */
+.summary {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border-soft);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.section {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Seis casillas I, N, V, E, S, T; «Mejorable» en ámbar. */
+.invest {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* En el panel (480 px) los seis nombres no caben en una fila sin partirse: dos filas de tres. */
+@container (max-width: 520px) {
+  .invest {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.letter {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-1);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-btn);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.letter[data-verdict='improvable'] {
+  border-color: var(--color-warn-border);
+  background: var(--color-warn-bg);
+}
+
+.letterName {
+  font-size: var(--text-md);
+}
+
+.letterLabel {
+  max-width: 100%;
+  font-size: var(--text-3xs);
+  color: var(--color-text-muted);
+}
+
+.letter[data-verdict='improvable'] .letterLabel {
+  color: var(--color-warn-text);
+}
+
+.verdict {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-success);
+}
+
+.letter[data-verdict='improvable'] .verdict {
+  color: var(--color-warn-text);
+}
+
+.reasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.findings,
+.sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.finding {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 10px 12px;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-btn);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.kind {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+}
+
+.finding[data-kind='ambiguity'] .kind,
+.finding[data-kind='invest'] .kind {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+}
+
+.finding[data-kind='no_source'] .kind,
+.finding[data-kind='inconsistency'] .kind {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.sourceRef {
+  font-weight: var(--weight-bold);
+}

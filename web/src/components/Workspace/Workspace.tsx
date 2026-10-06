@@ -6,7 +6,8 @@ import styles from './Workspace.module.css'
 export interface WorkspaceProps {
   /** Título de la conversación (cabecera, H1). */
   title: string
-  phase: Phase
+  /** Fase de la Q; sin ella (flujos sin fases, como Revisar la calidad), la cabecera muestra solo `phaseName` como texto. */
+  phase?: Phase
   /** Otro nombre para la fase (p. ej. «Aprobada»). */
   phaseName?: string
   /** Mensajes de la conversación. */
@@ -37,7 +38,7 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
       <section className={styles.conversation} aria-label="Conversación">
         <header className={styles.header}>
           <h1 className={styles.title}>{title}</h1>
-          <PhaseQ phase={phase} name={phaseName} />
+          {phase ? <PhaseQ phase={phase} name={phaseName} /> : phaseName && <span className={styles.headerNote}>{phaseName}</span>}
           {panel && (
             <Button
               variant="secondary"

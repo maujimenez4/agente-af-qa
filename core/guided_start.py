@@ -14,12 +14,12 @@ Nada de este módulo llama al LLM; la vista previa solo usa los embeddings del R
 import re
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from adapters.base import IssueDetail, IssueSummary
 from adapters.errors import AuthenticationError, ExternalServiceError
 from core.container import Container
-from core.context.budget import BudgetReport
+from core.context.budget import BudgetReport, chunk_tokens, issue_tokens
 from core.context.service import EPIC_TYPES, NOT_STORIES, build_context_service, type_key
 from core.graph.state import Origin, normalize_excluded_sources
 from core.projects import ISSUE_KEY, normalize_project_key, project_of
@@ -58,6 +58,14 @@ class SourcePreview(BaseModel):
     title: str
     category: str | None = None
     required: bool = False  # la incidencia de origen no se puede desmarcar (T-51)
+    # PA-330: tokens que ocupa en el presupuesto (la incidencia, recortada si se recortó; un
+    # documento, la suma de sus fragmentos), para que la web estime al marcar o desmarcar.
+    tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description="PA-330: tokens estimados que ocupa en el presupuesto, para estimar en la web "
+        "al marcar o desmarcar; la respuesta de `POST /start/sources` es la que manda.",
+    )
 
 
 def find_issue_keys(text: str, limit: int = MAX_KEYS) -> list[str]:
@@ -150,19 +158,24 @@ class GuidedStart:
                     title=issue.summary,
                     category=issue.issue_type or None,
                     required=issue.key == key,
+                    tokens=issue_tokens(issue),
                 ),
             )
+        issue_refs = set(rows)  # filas de incidencias: ya llevan sus tokens
         for hit in gathered.rag:
             meta = hit.chunk.metadata
-            rows.setdefault(
+            row = rows.setdefault(
                 hit.source.ref,
                 SourcePreview(
                     ref=hit.source.ref,
                     kind=hit.source.kind,
                     title=meta.get("title") or hit.chunk.section or hit.source.ref,
                     category=meta.get("category"),
+                    tokens=0,
                 ),
             )
+            if hit.source.ref not in issue_refs:  # varios fragmentos del mismo documento suman
+                row.tokens = (row.tokens or 0) + chunk_tokens(hit)
         return list(rows.values()), gathered.budget
 
     def _existing(self, key: str) -> IssueDetail | None:

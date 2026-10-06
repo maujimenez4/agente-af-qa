@@ -609,13 +609,14 @@ def test_preview_sources_origin_is_required(container: Container) -> None:
         {"kind": "story", "key": "DEMO-3", "project": "DEMO"}
     )
 
-    assert rows[0] == SourcePreview(
+    assert rows[0].model_copy(update={"tokens": None}) == SourcePreview(
         ref="DEMO-3",
         kind="jira",
         title=dataset.STORIES["DEMO-3"].summary,
         category="Story",
         required=True,
     )
+    assert rows[0].tokens and rows[0].tokens > 0  # PA-330
     assert [r.ref for r in rows if r.required] == ["DEMO-3"]
 
 

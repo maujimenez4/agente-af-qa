@@ -176,6 +176,20 @@ class ContextBudgetOut(BaseModel):
         ge=0, description="Fuentes que no caben y no se enviarán (incidencias y fragmentos)."
     )
     truncated_sources: int = Field(ge=0, description="Incidencias recortadas para que quepan.")
+    fixed: int | None = Field(
+        default=None,
+        ge=0,
+        description="PA-330: tokens reservados para lo que no se puede desmarcar aparte de las "
+        "fuentes (el texto de la necesidad). `total = fixed + limit`.",
+    )
+    total: int | None = Field(
+        default=None,
+        ge=0,
+        description="PA-330: presupuesto total del contexto. Con `sources[].tokens`, la web puede "
+        "**estimar** al instante: usado ≈ suma de `tokens` de las fuentes marcadas, frente a "
+        "`limit`. Es una estimación: al excluir un documento, el RAG rellena su hueco con otro; la "
+        "respuesta de `POST /start/sources` es la que manda.",
+    )
 
 
 class SourcesOut(BaseModel):

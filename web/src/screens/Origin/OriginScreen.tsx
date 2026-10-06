@@ -37,6 +37,18 @@ function flip<T>(set: ReadonlySet<T>, id: T): ReadonlySet<T> {
   return next
 }
 
+/** Consulta de fuentes en curso (PA-336): se guarda para poder abortarla. */
+function track(pending: Set<AbortController>): AbortController {
+  const controller = new AbortController()
+  pending.add(controller)
+  return controller
+}
+
+function untrack(pending: Set<AbortController>, controller: AbortController) {
+  controller.abort()
+  pending.delete(controller)
+}
+
 // Mixta 2 · Origen fijado (UI.md §4.3): HU parecida o reconocida sin IA, operación fijada y fuentes.
 export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProps) {
   const mode = request.flow === 'tests' ? 'qa' : 'functional'
@@ -79,52 +91,72 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
     })
   }, [latest])
 
+  // PA-336: cada consulta de fuentes (17–35 s con la API real, embeddings) se aborta al dejar de hacer
+  // falta: al desmontar, al cambiar las casillas y al pulsar «Generar», para no competir con la generación.
+  const inFlight = useRef(new Set<AbortController>())
+  // Si «Generar» abortó la lista antes de que llegara y la creación falla, se vuelve a pedir con esta clave.
+  const [sourcesReload, setSourcesReload] = useState(0)
+  const sourcesLoaded = useRef(false)
+
   useEffect(() => {
     if (!operation) return
     let cancelled = false
+    sourcesLoaded.current = false
+    const pending = inFlight.current
+    const controller = track(pending)
     api
-      .sources(operation.origin)
+      .sources(operation.origin, [], controller.signal)
       .then((value) => {
         if (cancelled) return
         // La lista sale de la consulta sin exclusiones: con ellas, el backend ya no devuelve las desmarcadas.
         setSources(value.sources)
         setBudget(value.budget)
         budgetFor.current = ''
+        sourcesLoaded.current = true
       })
       .catch((cause: unknown) => {
         if (!cancelled && cause instanceof ApiRequestError) setError(cause.error)
       })
+      .finally(() => pending.delete(controller))
     return () => {
       cancelled = true
+      untrack(pending, controller)
     }
-  }, [operation])
+  }, [operation, sourcesReload])
 
   // Al cambiar las casillas, solo se vuelve a pedir el presupuesto (PA-102), con una espera entre clics.
   useEffect(() => {
-    if (!operation) return
+    if (!operation || generating) return
     const key = excluded.join('\n')
     if (key === budgetFor.current) return
     let cancelled = false
+    const pending = inFlight.current
+    let controller: AbortController | undefined
     const timer = window.setTimeout(() => {
+      controller = track(pending)
+      const own = controller
       api
-        .sources(operation.origin, excluded)
+        .sources(operation.origin, excluded, own.signal)
         .then((value) => {
           if (cancelled) return
           budgetFor.current = key
           setBudget(value.budget)
         })
         .catch(() => {
-          if (cancelled) return
+          // Abortada (PA-336): no es un fallo; el presupuesto que hubiera sigue valiendo.
+          if (cancelled || own.signal.aborted) return
           // Sin presupuesto válido: la próxima vez se vuelve a pedir aunque las casillas coincidan.
           budgetFor.current = BUDGET_FAILED
           setBudget(undefined)
         })
+        .finally(() => pending.delete(own))
     }, BUDGET_DEBOUNCE_MS)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
+      if (controller) untrack(pending, controller)
     }
-  }, [operation, excluded])
+  }, [operation, excluded, generating])
 
   const budgetInfo = budgetView(budget)
 
@@ -133,6 +165,9 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
 
   const generate = async () => {
     if (!operation) return
+    // PA-336: las fuentes ya no hacen falta; sus consultas no compiten con la generación por los embeddings.
+    for (const controller of inFlight.current) controller.abort()
+    inFlight.current.clear()
     setGenerating(true)
     setError(undefined)
     // En QA no hay campo de restricciones: las indicaciones del compositor van detrás de los tipos de caso.
@@ -142,6 +177,10 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded, options)))
     } catch (cause) {
       setError(toApiError(cause))
+      // Origen sigue abierto: la lista abortada al pulsar «Generar» se vuelve a pedir.
+      // Con un 401 la sesión ya pasa al inicio de sesión: no hay pantalla que recargar.
+      const expired = cause instanceof ApiRequestError && cause.status === 401
+      if (!sourcesLoaded.current && !expired) setSourcesReload((count) => count + 1)
     } finally {
       setGenerating(false)
     }

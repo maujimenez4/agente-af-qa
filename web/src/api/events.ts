@@ -17,6 +17,10 @@ export interface ConversationEvents {
   onError?: (error: ApiError, conversation?: ConversationOut) => void
   /** El flujo terminó o se cortó sin `result`: hay que consultar el estado con GET. */
   onDisconnect?: (reason: 'ended' | 'failed') => void
+  /** Llegaron las cabeceras de la respuesta: la petición salió y el flujo está abierto (PA-333). */
+  onOpen?: () => void
+  /** Llegó cualquier dato del flujo, también un comentario `: ping` (señal de vida, PA-333). */
+  onActivity?: () => void
 }
 
 interface ServerEvent {
@@ -100,12 +104,14 @@ export function subscribeEvents(conversationId: string, handlers: ConversationEv
         if (!closed) handlers.onDisconnect?.('failed')
         return
       }
+      handlers.onOpen?.()
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
       for (;;) {
         const { value, done } = await reader.read()
         if (done) break
+        if (!closed) handlers.onActivity?.()
         buffer += decoder.decode(value, { stream: true })
         const parsed = parseEventStream(buffer)
         buffer = parsed.rest

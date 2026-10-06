@@ -24,7 +24,7 @@
 - **Seguridad:** `safeHref` y su regla de ESLint (PA-308).
 - **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página ni títulos cortados; lista de conversaciones larga con scroll interno.
 - **Pruebas:** no dependen del reloj (SSE de prueba abierto, sondeo disparado por la prueba) y Vitest usa la mitad de los núcleos.
-- **Disponible pronto:** admin, Revisar la calidad, *Editar a mano*, auditoría, historial, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
+- **Disponible pronto:** Revisar la calidad, *Editar a mano*, auditoría, historial, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
 
 ## API real
 **Hecha** por la sesión MCP (rama `ses-web`) el 2026-10-05 y 06: la web funciona contra la API real de punta a punta (HU, QA y Memoria). Informe y hallazgos en `docs/pruebas/WEB-API-2026-10-05.md` (PA-330 a PA-339). La guía sigue en [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md). En este equipo no se monta el backend.
@@ -85,7 +85,7 @@
    - «indexada» o «no indexada»;
    - en el MSW, los datos de los ejemplos del contrato.
 2. **Revisar la calidad:** encargada a la sesión MCP (`ses-web-admin`).
-3. **Administración mínima** (encargada a la sesión MCP, `ses-web-admin`), solo para admin:
+3. ~~**Administración mínima**~~ (hecho por la sesión MCP en `ses-web-admin`, fusionada), solo para admin:
    - probar conexiones con `POST /admin/connections/test`: una cada 10 s, con 429 y `retry_after`, y con CSRF;
    - modelos por tarea en solo lectura (`GET /admin/models`);
    - `publish_mode` de `GET /settings` en solo lectura, con el aviso «Simulación: no se escribe nada en Jira»;

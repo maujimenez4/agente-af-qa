@@ -36,4 +36,6 @@ export type ClientContractChecks = [
   Expect<Equal<Returns<'memory'>, ResponseOf<`${V}/memories/{key}`, 'get'>>>,
   Expect<Equal<Returns<'settings'>, ResponseOf<`${V}/settings`, 'get'>>>,
   Expect<Equal<Returns<'usage'>, ResponseOf<`${V}/settings/usage`, 'get'>>>,
+  Expect<Equal<Returns<'adminConnectionsTest'>, ResponseOf<`${V}/admin/connections/test`, 'post'>>>,
+  Expect<Equal<Returns<'adminModels'>, ResponseOf<`${V}/admin/models`, 'get'>>>,
 ]

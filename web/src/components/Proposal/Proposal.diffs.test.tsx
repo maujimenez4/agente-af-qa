@@ -70,5 +70,12 @@ describe('nombres que no son de un CA o una RN', () => {
     expect(fieldLabel(field)).not.toBe('CA-02')
     expect(changeMarks(story, undefined, [{ field, before: null, after: 'x' }]).size).toBe(0)
   })
+})
 
+describe('nombres heredados de Object.prototype', () => {
+  it.each(['constructor', 'toString', '__proto__', 'constructor[CA-02]', 'hasOwnProperty.x'])('«%s» se muestra tal cual, como texto', (field) => {
+    const label = fieldLabel(field)
+    expect(typeof label).toBe('string')
+    expect(label.startsWith(field.split(/[.[]/)[0] ?? '')).toBe(true)
+  })
 })

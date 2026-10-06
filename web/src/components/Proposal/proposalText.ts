@@ -74,7 +74,8 @@ export function fieldLabel(field: string): string {
   const id = itemId(field)
   if (id) return id
   const [base, detail] = field.split(/[.[]/)
-  const name = FIELD_NAMES[base ?? ''] ?? field
+  // Solo los nombres propios de la tabla: «constructor» o «__proto__» no dan una propiedad heredada.
+  const name = (base && Object.hasOwn(FIELD_NAMES, base) ? FIELD_NAMES[base] : undefined) ?? field
   return detail ? `${name} (${detail.replace(/]$/, '')})` : name
 }
 

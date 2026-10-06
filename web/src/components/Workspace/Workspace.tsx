@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { useLayer } from '../../hooks/useLayer.ts'
-import { Button } from '../Button/index.ts'
+import { Button, IconButton } from '../Button/index.ts'
 import { PhaseQ, type Phase } from '../QMark/index.ts'
 import styles from './Workspace.module.css'
 
@@ -31,19 +31,36 @@ const PanelContext = createContext<{
   layer: boolean
   ref: RefObject<HTMLElement | null>
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void
+  /** Pliega el panel (botón «Cerrar» de la capa). */
+  close: () => void
 } | null>(null)
 
-/** Ancho del elemento (0 sin `ResizeObserver`, como en jsdom: entonces nunca hay capa). */
-function useWidth(ref: RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0)
+/**
+ * true si el área mide menos de `PANEL_LAYER_BELOW` (false sin `ResizeObserver`, como en jsdom: nunca hay capa).
+ * `onChange` se llama desde el observador (fuera del render) cada vez que cruza el umbral.
+ */
+function useNarrowArea(ref: RefObject<HTMLElement | null>, onChange: (narrow: boolean) => void): boolean {
+  const [narrow, setNarrow] = useState(false)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  })
   useEffect(() => {
     const element = ref.current
     if (!element || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => setWidth(entry?.contentRect.width ?? 0))
+    let last = false
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? 0
+      const next = width > 0 && width < PANEL_LAYER_BELOW
+      if (next === last) return
+      last = next
+      setNarrow(next)
+      onChangeRef.current(next)
+    })
     observer.observe(element)
     return () => observer.disconnect()
   }, [ref])
-  return width
+  return narrow
 }
 
 // Pantalla de trabajo (UI.md §2): cabecera con la Q de fase, conversación, compositor y panel derecho.
@@ -61,15 +78,18 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
   // PA-335: si el área no da para la conversación y el panel, el panel se abre como capa sobre la conversación
   // con el mismo botón. Al pasar a capa empieza plegado, para que se vea la conversación.
   const workspaceRef = useRef<HTMLDivElement>(null)
-  const width = useWidth(workspaceRef)
-  const layer = Boolean(panel) && width > 0 && width < PANEL_LAYER_BELOW
-  // Al salir de la capa (ventana más ancha), el panel vuelve a como estaba antes de entrar.
-  const [layerSeen, setLayerSeen] = useState<{ layer: boolean; openBefore: boolean }>({ layer: false, openBefore: open })
-  if (layer !== layerSeen.layer) {
-    setLayerSeen({ layer, openBefore: layer ? open : layerSeen.openBefore })
-    if (layer && open) setOpen(false)
-    if (!layer && layerSeen.openBefore !== open) setOpen(layerSeen.openBefore)
-  }
+  // Al salir de la capa (ventana más ancha), el panel vuelve a como estaba antes de entrar. El cambio se hace en el
+  // aviso del observador y no al pintar: avisar a la pantalla (`onPanelOpenChange`) durante el render es un error.
+  const openBefore = useRef(open)
+  const narrowArea = useNarrowArea(workspaceRef, (narrow) => {
+    if (narrow) {
+      openBefore.current = open
+      if (open) setOpen(false)
+    } else if (openBefore.current !== open) {
+      setOpen(openBefore.current)
+    }
+  })
+  const layer = Boolean(panel) && narrowArea
   const panelRef = useRef<HTMLElement>(null)
   const onPanelKeyDown = useLayer({
     open: layer && open,
@@ -83,8 +103,19 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
     <div ref={workspaceRef} className={styles.workspace} data-layer={layer ? '' : undefined}>
       <section className={styles.conversation} aria-label="Conversación">
         <header className={styles.header}>
-          <h1 className={styles.title}>{title}</h1>
-          {phase ? <PhaseQ phase={phase} name={phaseName} /> : phaseName && <span className={styles.headerNote}>{phaseName}</span>}
+          {/* Recortados con «…» en ventanas estrechas: completos al pasar el ratón (`title`); el lector los lee enteros. */}
+          <h1 className={styles.title} title={title}>
+            {title}
+          </h1>
+          {phase ? (
+            <PhaseQ phase={phase} name={phaseName} />
+          ) : (
+            phaseName && (
+              <span className={styles.headerNote} title={phaseName}>
+                {phaseName}
+              </span>
+            )
+          )}
           {panel && (
             <Button
               variant="secondary"
@@ -106,7 +137,7 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
       {/* Velo de la capa: un clic fuera del panel lo pliega (con el teclado, Esc). */}
       {panel && layer && open && <div className={styles.layerBackdrop} aria-hidden="true" onClick={() => setOpen(false)} />}
       {panel && (
-        <PanelContext.Provider value={{ id: panelId, open, layer, ref: panelRef, onKeyDown: onPanelKeyDown }}>{panel}</PanelContext.Provider>
+        <PanelContext.Provider value={{ id: panelId, open, layer, ref: panelRef, onKeyDown: onPanelKeyDown, close: () => setOpen(false) }}>{panel}</PanelContext.Provider>
       )}
     </div>
   )
@@ -154,6 +185,8 @@ export function SidePanel({ title, subtitle, headerActions, toolbar, size = 'sm'
           {subtitle && <span className={styles.panelSubtitle}>{subtitle}</span>}
         </div>
         {headerActions}
+        {/* PA-335: en capa, el botón de la cabecera queda tapado; «Cerrar» la pliega y el foco vuelve a «Mostrar el panel». */}
+        {control?.layer && <IconButton icon="close" label="Cerrar" onClick={control.close} />}
       </div>
       {toolbar}
       <div className={styles.panelBody}>

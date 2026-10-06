@@ -27,8 +27,10 @@ export function useLayer({
   const wasOpen = useRef(false)
   // El último `opener` sin volver a ejecutar el efecto en cada render (el foco solo se mueve al abrir y al cerrar).
   const openerRef = useRef(opener)
+  const onCloseRef = useRef(onClose)
   useEffect(() => {
     openerRef.current = opener
+    onCloseRef.current = onClose
   })
 
   useEffect(() => {
@@ -36,7 +38,15 @@ export function useLayer({
       wasOpen.current = true
       const element = layer.current
       ;(element ? (focusableIn(element)[0] ?? element) : null)?.focus()
-      return
+      // Si el foco sale de la capa (un clic en la franja o en el carril, que quedan fuera del velo), la capa se
+      // cierra: así no se puede tabular hacia lo que queda detrás ni quedan dos capas abiertas a la vez.
+      const onFocusIn = (event: FocusEvent) => {
+        const target = event.target
+        if (!(target instanceof Node) || layer.current?.contains(target) || openerRef.current()?.contains(target)) return
+        onCloseRef.current()
+      }
+      document.addEventListener('focusin', onFocusIn)
+      return () => document.removeEventListener('focusin', onFocusIn)
     }
     // Al cerrarse (no al montar cerrada), el foco vuelve al botón si se había quedado en la capa o en el vacío.
     if (!wasOpen.current) return

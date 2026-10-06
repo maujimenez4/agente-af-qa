@@ -6,7 +6,7 @@
 
 Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de qué depende**. La implementación es el frontend en **React** de `web/` (T-56), que habla con el backend **solo a través de la API HTTP** de T-55 (`docs/api/openapi.yaml`, `docs/api/README.md`). Las decisiones de detalle (medidas, textos, accesibilidad, casos límite) están en `web/DESIGN-DECISIONS.md`; cuando el lienzo y este documento no coinciden, manda este documento. Lo que aún no existe se marca con su tarea o su propuesta (PA-XX).
 
-**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Memoria y Administración. **Pendientes:** Revisar la calidad (§4.8, en desarrollo), *Editar a mano* (§4.5 bis, diseño pendiente de validar), los arreglos de la prueba contra la API (PA-332 a PA-336, en desarrollo), los dos nombres de los diffs (PA-341, PR #7) y lo que §11 deja fuera de la entrega.
+**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración. **Pendientes:** *Editar a mano* (§4.5 bis, diseño pendiente de validar), los arreglos de la prueba contra la API (PA-332 a PA-336, en desarrollo) y lo que §11 deja fuera de la entrega.
 
 ---
 
@@ -130,7 +130,7 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 | Aviso de modelo usado | «Generado con local · qwen3:4b-instruct · 2 fuentes» | — | `Artifact.model_used`. El motivo de un cambio de proveedor no lo expone el backend (PA-67) |
 | Sugerencias | Chips: «Añade un criterio de error», «Aclara el alcance», «Revisa INVEST» | Rellenar el compositor | — |
 | Panel · Versiones | *Jira* (solo al evolucionar) · *v1* · *v2* … | Ver una versión | `ConversationOut.versions`, `jira_baseline` (PA-316) |
-| Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira). La API real nombra los diffs de CA y RN `acceptance_criteria[CA-02]` y la web aún solo reconoce `acceptance_criteria.CA-02`, el del ejemplo del contrato: aceptar los dos es PA-341 (PR #7, pendiente), `impact.affected` |
+| Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira; los CA y RN se nombran `acceptance_criteria[CA-02]`, como en la API real y en el ejemplo del contrato, y la web acepta también `acceptance_criteria.CA-02`, PA-341), `impact.affected` |
 | Propuesta | «Como / quiero / para», CA y RN; marcas «Cambiado en vN» / «Nueva» frente a la versión anterior (en la v1, frente a Jira) | — | — |
 | Pie del panel | *Editar a mano* (§4.5 bis) · *Descartar* (con confirmación) · *Revisar y aprobar* | Editar / descartar / abrir el recibo | `POST /discard` · §4.6 |
 
@@ -171,18 +171,21 @@ Aprobar responde 202; la publicación sigue por el SSE («Aprobando y publicando
 
 *Reintentar solo los fallidos* es PA-05 (fuera de alcance). La memoria puede quedar sin indexar (`MemoryOut.indexed = false`) aunque el texto diga «indexado»: nota para la principal en PA-329.
 
-### 4.8 Mixta 5 · Revisar la calidad · en desarrollo
-Flujo propio, **solo lectura: no publica** (decisión del día 6). En la web, la tarjeta lleva a «Revisar la calidad: disponible pronto» hasta que se fusione su implementación (sesión MCP).
+### 4.8 Mixta 5 · Revisar la calidad
+Flujo propio, **solo lectura: no publica** (decisión del día 6). Pantalla propia tras Inicio, **sin el panel «Antes de generar», sin restricciones ni compositor**; las preguntas sobre el informe siguen en PA-101.
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Cabecera | «Calidad de DEMO-4 · Revisar la calidad · solo lectura» | — | — |
-| Progreso | Operación larga (minutos con el modelo local): pasos y progreso | — | `POST /quality-reviews` (202) y su seguimiento |
-| Conversación | «He revisado DEMO-4 con INVEST y contra las fuentes. Hay 3 puntos a mejorar. No he cambiado nada en Jira.» | — | `report.summary` (preguntas sobre el informe: PA-101) |
-| Panel · INVEST | Seis filas I, N, V, E, S, T con «Bien» / «Mejorable» | — | `report` |
-| Panel · Hallazgos | Tipo (Ambigüedad, Hueco, Sin fuente, INVEST, Incoherencia con las fuentes), CA afectado, explicación y propuesta; preguntas abiertas | — | `report.findings`, `report.open_questions` |
-| Pie | *Descargar informe* (`report_markdown`, solo para descargar) · *Evolucionar DEMO-4 con esto* | Descargar / conversación nueva | `GET /quality-reviews/{id}` |
-| Lista de conversaciones | La revisión aparece junto a las conversaciones, por `updated_at`, con «Informe listo» al terminar | Retomar | `GET /quality-reviews` (PA-103, PA-272) |
+| Elegir la HU | «Reviso la HU con INVEST y contra las fuentes, y te doy un informe. No cambio nada en Jira.» y una tarjeta por HU que se puede revisar: la elegida en Jira o, si no, las claves reconocidas y, sin ninguna, las parecidas (las épicas no se revisan). Sin ninguna, «No encuentro esa HU…» | *Revisar DEMO-4* (no se lanza el modelo sin confirmar) · *Volver al inicio* | `POST /start/propose` · `POST /quality-reviews` (202, `running`; `excluded_sources: []`, PA-403) |
+| Cabecera | «Calidad de DEMO-4» con «Revisar la calidad · solo lectura», **sin la Q de fases** | — | — |
+| En curso | «Revisando la calidad de DEMO-4…» y «Son dos llamadas al modelo: con el modelo local puede tardar unos minutos. No se escribe nada en Jira.» Sin pasos: la API no da el avance (PA-402) | — | `GET /quality-reviews/{id}` **cada 2 s** hasta `done` o `error` (sin SSE). El sondeo aún no tiene tope (PA-406) |
+| Error | La tarjeta de `quality_failed` (u otro `code`) con el mensaje tal cual y «Nada se ha escrito en Jira.» | *Reintentar* (empieza otra revisión) | `QualityReviewOut.error` |
+| Conversación | «He revisado DEMO-4 con INVEST y contra las fuentes.», el resumen del informe y «Hay 3 puntos a mejorar. No he cambiado nada en Jira.»; tarjeta «Informe de calidad de DEMO-4 · En el panel» | — | `report.summary` |
+| Panel «Informe de calidad» (480 px) | Bajo el título, un **resumen contado sin IA** a partir del veredicto («INVEST: 5 de 6 bien · 1 ambigüedad · 1 hueco», sin puntuaciones). Secciones: **INVEST** (las seis letras con su nombre y «Bien» / «Mejorable», en dos filas de tres), **Hallazgos** (tipo —Ambigüedad, Hueco, Sin fuente, INVEST, Incoherencia con las fuentes— con el CA o la RN afectados, explicación y propuesta; sin ninguno, «No hay hallazgos.»), **Preguntas para negocio** y **Fuentes**. Todo como texto | — | `report` (campo a campo) |
+| Pie del panel | *Descargar informe* (`calidad-DEMO-4.md`, solo para descargar) · *Evolucionar DEMO-4 con esto* (si hay mejoras); «Este flujo no publica en Jira. Evolucionar abre una conversación nueva con estas mejoras como punto de partida.» | Descargar · conversación nueva de evolución | `report_markdown` · `evolve_feedback` (el proyecto se deduce de la clave, PA-405) |
+| Lista de conversaciones | La revisión aparece junto a las conversaciones, por `updated_at`: «Revisar la calidad · Revisando / Informe listo / Con error»; al retomarla se abre esta pantalla | Retomar | `GET /quality-reviews` (PA-103, PA-272) |
+
+**Diferencias con el lienzo** (PA-404): el paso previo para elegir la HU, la cabecera sin la Q de fases, INVEST en dos filas de tres (en una no caben los nombres en 480 px), las secciones «Preguntas para negocio» y «Fuentes», el resumen sin IA y la pantalla sin compositor ni chips.
 
 ### 4.9 Memoria (PA-329)
 Zona propia del carril para los tres roles (diseño validado por la principal el 2026-10-06). Solo lectura: no llama al LLM ni escribe nada.
@@ -344,7 +347,7 @@ La web solo depende de la API (`docs/api/openapi.yaml`); los tipos y los ejemplo
 | Conversaciones | Lista, Generando, Iterar, recibo, Resultado | `GET /conversations`, `POST /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/events` (SSE), `POST /iterate`, `/approve`, `/discard`, `/cancel`, `/retry`; `/edit` (pendiente: Editar a mano, PA-340) |
 | Memoria | Memoria, Resultado | `GET /memories`, `GET /memories/{key}` |
 | Ajustes y consumo | Carril, Resultado, Administración | `GET /settings`, `GET /settings/usage`, `POST /admin/connections/test`, `GET /admin/models` |
-| Revisar la calidad (en desarrollo) | Mixta 5 | `POST /quality-reviews`, `GET /quality-reviews`, `GET /quality-reviews/{id}` |
+| Revisar la calidad | Mixta 5, lista de conversaciones | `POST /quality-reviews`, `GET /quality-reviews`, `GET /quality-reviews/{id}` |
 | Registrar la ejecución (fuera de la entrega) | QA 6 | `POST /executions`, `PUT /executions/{id}/results`, `POST /executions/{id}/approve` |
 | QA encadenada (fuera de la entrega) | Resultado, Inicio de QA | `POST /conversations/{id}/handoff`, `GET /qa/handoffs`, `POST /qa/handoffs/{id}/take` |
 

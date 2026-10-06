@@ -8,7 +8,10 @@
   paso a paso. `--delay` añade una pausa a cada llamada al LLM falso para ver el progreso y poder
   probar «Detener» y «Reintentar»; la cancelación sigue pasando por `CancellableLLM`, porque el
   retardo envuelve el LLM del contenedor antes de que `fake_runtime` lo envuelva a su vez.
+  La pausa no se interrumpe: «Detener» se nota al empezar la siguiente llamada (hasta `--delay` s).
 - Escucha solo en `127.0.0.1` y se niega a arrancar si `APP_ENV` no es `development`.
+- No lee el `.env`, pero sí las variables de entorno del shell (p. ej. `API_*`): lánzalo sin
+  credenciales en el entorno. `APP_ENV` y `JIRA_PUBLISH_MODE` se fijan por código.
 - Siempre en simulación: nada se escribe en ningún Jira.
 """
 

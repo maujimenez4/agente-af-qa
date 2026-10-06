@@ -539,9 +539,15 @@ EXECUTION_RECORDED = EXECUTION.model_copy(
         ),
     }
 )
+# PA-330: los tokens de cada fuente suman `used`; `fixed` es 0 porque el origen es una HU.
 SOURCES_OUT = SourcesOut(
-    sources=SOURCES,
-    budget=ContextBudgetOut(used=2350, limit=6000, dropped_sources=0, truncated_sources=1),
+    sources=[
+        source.model_copy(update={"tokens": tokens})
+        for source, tokens in zip(SOURCES, (1200, 800, 350), strict=True)
+    ],
+    budget=ContextBudgetOut(
+        used=2350, limit=6000, dropped_sources=0, truncated_sources=1, fixed=0, total=6000
+    ),
 )
 HANDOFFS = [
     HandoffOut(

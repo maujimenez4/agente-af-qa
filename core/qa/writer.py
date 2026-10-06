@@ -4,13 +4,23 @@
 estructurada (la conversión desde Jira es de la sesión principal) y la salida, una `TestSuite`.
 Si la suite no cubre la HU, cita fuentes no recibidas o trae datos que parecen personales, se
 reintenta una vez con el error; si persiste, se lanza `CoverageError` o `CitationError`.
+
+PA-331: al iterar, la suite actual va al prompt como datos (`<suite_actual>`) junto al feedback,
+y los casos que no cambian conservan su ID por código (`keep_case_ids`), sin depender del modelo.
+La última petición se repite en un mensaje final corto (`prompts/tests_iterate.md`): los modelos
+pequeños atienden mucho más al último mensaje. Si no cabe en la ventana: primero se recorta el
+contexto (RAG y HU relacionadas); después la suite entra parcial (sin estrategia, datos ni
+fuentes), luego resumida (con aviso en el prompt y en el log) y, si ni así cabe,
+`ContextOverflowError`.
 """
 
 import json
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from adapters.base import LLMProvider, Message, TaskType
-from core.context.budget import PromptLimits, default_prompt_limits
+from core.context.budget import ContextOverflowError, PromptLimits, default_prompt_limits
 from core.functional.citations import (
     CitationError,
     allowed_refs_text,
@@ -21,11 +31,14 @@ from core.functional.citations import (
 )
 from core.functional.context import CitableSource, StoryContext, render_context
 from core.functional.writer import PromptLoader, fill_placeholders, fit_context
+from core.logging import get_logger
 from core.qa.validation import CoverageError, suite_errors
 from core.rag.prompts import load_prompt
 from core.text import escape_data  # PA-227
-from schemas.test_case import TestSuite
+from schemas.test_case import TestCase, TestSuite
 from schemas.user_story import UserStory
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -39,6 +52,8 @@ class SuiteDraft:
     input_tokens: int
     output_tokens: int
     coverage_md: str = field(default="")
+    previous_summarized: bool = False  # PA-331: la suite anterior no cabía y entró resumida
+    previous_partial: bool = False  # PA-331: entró sin estrategia, datos ni fuentes
 
 
 # T-54: HU aprobada en simulación (sin clave de Jira). No tiene forma de clave, así que nunca se
@@ -67,9 +82,18 @@ class TestWriter:
         return self._limits
 
     def generate(
-        self, story: UserStory, ctx: StoryContext | None = None, *, unpublished: bool = False
+        self,
+        story: UserStory,
+        ctx: StoryContext | None = None,
+        *,
+        unpublished: bool = False,
+        previous_suite: TestSuite | None = None,
     ) -> SuiteDraft:
-        """`unpublished`: HU encadenada sin clave (T-54); la suite lleva `UNPUBLISHED_STORY_KEY`."""
+        """`unpublished`: HU encadenada sin clave (T-54); la suite lleva `UNPUBLISHED_STORY_KEY`.
+
+        `previous_suite`: al iterar, la suite actual; la nueva aplica el feedback sobre ella
+        (PA-331).
+        """
         base = ctx or StoryContext(origin_kind="story", origin_key=story.jira_key)
         # La clave de origen solo identifica a la HU si el origen es una historia (no una épica).
         origin_story_key = base.origin_key if base.origin_kind == "story" else None
@@ -90,19 +114,21 @@ class TestWriter:
             feedback=base.feedback,
         )
         prompt = self._load("generate_tests")
-        ctx, messages = fit_context(  # PA-114: nunca se desborda la ventana en silencio
+        blocks = previous_blocks(previous_suite)
+        request = self._request(ctx, previous_suite)
+        ctx, messages, level = self._fit(  # PA-114: nunca se desborda la ventana en silencio
             ctx,
-            lambda c: [
+            blocks,
+            lambda c, block: [
                 Message(role="system", content=prompt.text),
-                Message(role="user", content=render_context(c)),
+                Message(role="user", content=_user_message(c, block)),
+                *request,
             ],
-            self.limits,
-            TaskType.GENERATE_TESTS,
             action="generate_tests",
         )
         sources = ctx.sources()
         result = self._llm.generate_structured(messages, TestSuite, TaskType.GENERATE_TESTS)
-        suite = _cited(_with_key(result.content, story_key), sources)
+        suite = keep_case_ids(_cited(_with_key(result.content, story_key), sources), previous_suite)
         input_tokens, output_tokens = result.input_tokens, result.output_tokens
 
         errors = suite_errors(suite, story, sources)
@@ -111,7 +137,7 @@ class TestWriter:
             suite_json = json.dumps(suite.model_dump(mode="json"), ensure_ascii=False)
             first = suite
 
-            def retry_messages(c: StoryContext) -> list[Message]:
+            def retry_messages(c: StoryContext, block: str) -> list[Message]:
                 # Las fuentes permitidas y los errores, del contexto que de verdad se envía.
                 allowed = c.sources()
                 feedback = fill_placeholders(
@@ -126,22 +152,21 @@ class TestWriter:
                 )
                 return [
                     Message(role="system", content=prompt.text),
-                    Message(role="user", content=render_context(c)),
+                    Message(role="user", content=_user_message(c, block)),
+                    *request,
                     Message(role="assistant", content=suite_json),
                     Message(role="user", content=feedback),
                 ]
 
             # PA-114: el reintento de cobertura es el mensaje más largo; pasa por la guarda.
-            ctx, retry = fit_context(
-                ctx,
-                retry_messages,
-                self.limits,
-                TaskType.GENERATE_TESTS,
-                action="generate_tests_retry",
+            ctx, retry, level = self._fit(
+                ctx, blocks[level:], retry_messages, action="generate_tests_retry", start=level
             )
             sources = ctx.sources()
             result = self._llm.generate_structured(retry, TestSuite, TaskType.GENERATE_TESTS)
-            suite = _cited(_with_key(result.content, story_key), sources)
+            suite = keep_case_ids(
+                _cited(_with_key(result.content, story_key), sources), previous_suite
+            )
             input_tokens += result.input_tokens
             output_tokens += result.output_tokens
             if citation_errors(suite, sources):
@@ -168,7 +193,127 @@ class TestWriter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             coverage_md=suite.coverage_md(),
+            previous_summarized=level >= SUMMARY_LEVEL,
+            previous_partial=level == PARTIAL_LEVEL,
         )
+
+    def _request(self, ctx: StoryContext, previous: TestSuite | None) -> list[Message]:
+        """PA-331: al iterar, la última petición repetida al final (como dato, escapada)."""
+        if previous is None or not ctx.feedback:
+            return []
+        template = self._load("tests_iterate").text
+        text = fill_placeholders(template, {"request": escape_data(ctx.feedback[-1])})
+        return [Message(role="user", content=text)]
+
+    def _fit(
+        self,
+        ctx: StoryContext,
+        blocks: list[str],
+        build: Callable[[StoryContext, str], list[Message]],
+        *,
+        action: str,
+        start: int = 0,
+    ) -> tuple[StoryContext, list[Message], int]:
+        """Mensajes que caben, probando la suite anterior completa, parcial y resumida.
+
+        Devuelve el contexto recortado, los mensajes y el escalón usado (0 completa, 1 parcial,
+        2 resumida).
+        Si ni resumida cabe, `ContextOverflowError` (nunca un recorte en silencio).
+        """
+        error: ContextOverflowError | None = None
+        for offset, block in enumerate(blocks):
+            try:
+                fitted, messages = fit_context(
+                    ctx,
+                    lambda c, b=block: build(c, b),
+                    self.limits,
+                    TaskType.GENERATE_TESTS,
+                    action=action,
+                )
+            except ContextOverflowError as exc:
+                error = exc
+                continue
+            level = start + offset
+            if level == PARTIAL_LEVEL:
+                log.info("suite anterior sin estrategia, datos ni fuentes: no cabía", action=action)
+            elif level >= SUMMARY_LEVEL:
+                log.warning("suite anterior resumida: no cabía entera", action=action)
+            return fitted, messages, level
+        if error is None:  # `blocks` nunca está vacío
+            raise ValueError("Sin bloques de suite anterior.")
+        raise error
+
+
+# --- Suite anterior (PA-331) ------------------------------------------------------------------
+
+# Escalones de la suite anterior; qué hacer con cada uno lo dice `prompts/generate_tests.md`.
+PARTIAL_LEVEL = 1  # sin estrategia, datos ni fuentes (el modelo los vuelve a escribir)
+SUMMARY_LEVEL = 2  # solo lo esencial de cada caso
+_SUMMARY_FIELDS = ("internal_id", "title", "type", "criterion_ids", "rule_ids", "priority")
+
+
+def previous_blocks(previous: TestSuite | None) -> list[str]:
+    """Los bloques `<suite_actual>` en orden de preferencia: completo, parcial y resumido (o
+    ninguno, en la primera generación)."""
+    if previous is None:
+        return [""]
+    full = json.dumps(previous.model_dump(mode="json"), ensure_ascii=False)
+    partial = json.dumps(
+        previous.model_dump(mode="json", include={"story_jira_key", "cases"}), ensure_ascii=False
+    )
+    summary = {
+        "story_jira_key": previous.story_jira_key,
+        "cases": [
+            case.model_dump(mode="json", include=set(_SUMMARY_FIELDS)) for case in previous.cases
+        ],
+    }
+    short = json.dumps(summary, ensure_ascii=False)
+    return [
+        f"<suite_actual>\n{escape_data(full)}\n</suite_actual>",
+        f'<suite_actual parcial="si">\n{escape_data(partial)}\n</suite_actual>',
+        f'<suite_actual resumida="si">\n{escape_data(short)}\n</suite_actual>',
+    ]
+
+
+def _user_message(ctx: StoryContext, block: str) -> str:
+    rendered = render_context(ctx)
+    return f"{rendered}\n\n{block}" if block else rendered
+
+
+def keep_case_ids(suite: TestSuite, previous: TestSuite | None) -> TestSuite:
+    """Los casos idénticos a uno de la versión anterior (salvo el ID) recuperan su ID; los demás
+    conservan el suyo si queda libre o reciben el siguiente número. Sin depender del modelo."""
+    if previous is None:
+        return suite
+    old: dict[str, list[str]] = {}
+    for case in previous.cases:
+        old.setdefault(_signature(case), []).append(case.internal_id)
+    kept = [ids.pop(0) if (ids := old.get(_signature(case))) else None for case in suite.cases]
+    used = {case_id for case_id in kept if case_id}
+    numbers = [_number(c.internal_id) for c in (*previous.cases, *suite.cases)]
+    next_number = max(numbers, default=0) + 1
+    cases: list[TestCase] = []
+    for case, case_id in zip(suite.cases, kept, strict=True):
+        if case_id is None:
+            if case.internal_id in used:
+                case_id, next_number = f"CP-{next_number:02d}", next_number + 1
+            else:
+                case_id = case.internal_id
+        used.add(case_id)
+        changed = case_id != case.internal_id
+        cases.append(case.model_copy(update={"internal_id": case_id}) if changed else case)
+    return suite.model_copy(update={"cases": cases})
+
+
+def _signature(case: TestCase) -> str:
+    return json.dumps(
+        case.model_dump(mode="json", exclude={"internal_id"}), ensure_ascii=False, sort_keys=True
+    )
+
+
+def _number(case_id: str) -> int:
+    match = re.fullmatch(r"CP-(\d+)", case_id)
+    return int(match.group(1)) if match else 0
 
 
 def _cited(suite: TestSuite, sources: list[CitableSource]) -> TestSuite:

@@ -1619,7 +1619,14 @@ def test_sources_include_the_context_budget(api: Api) -> None:
     """PA-102: la vista previa trae el presupuesto de tokens (usado frente a disponible)."""
     body = {"origin": {"kind": "story", "key": "DEMO-3", "project": "DEMO"}}
     budget = api.post("/start/sources", body).json()["budget"]
-    assert set(budget) == {"used", "limit", "dropped_sources", "truncated_sources"}
+    assert set(budget) == {
+        "used",
+        "limit",
+        "dropped_sources",
+        "truncated_sources",
+        "fixed",
+        "total",  # PA-330
+    }
     assert 0 < budget["used"] <= budget["limit"]
 
 

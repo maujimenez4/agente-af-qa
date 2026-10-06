@@ -3193,7 +3193,7 @@ export interface operations {
                      *           "impact": {
                      *             "diffs": [
                      *               {
-                     *                 "field": "acceptance_criteria.CA-02",
+                     *                 "field": "acceptance_criteria[CA-02]",
                      *                 "after": "Renovación rechazada por reservas"
                      *               }
                      *             ],
@@ -3222,7 +3222,7 @@ export interface operations {
                      *         "impact": {
                      *           "diffs": [
                      *             {
-                     *               "field": "acceptance_criteria.CA-02",
+                     *               "field": "acceptance_criteria[CA-02]",
                      *               "after": "Renovación rechazada por reservas"
                      *             }
                      *           ],
@@ -3365,7 +3365,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -3766,7 +3766,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -4339,7 +4339,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],
@@ -4678,7 +4678,7 @@ export interface operations {
                      *           "impact": {
                      *             "diffs": [
                      *               {
-                     *                 "field": "acceptance_criteria.CA-02",
+                     *                 "field": "acceptance_criteria[CA-02]",
                      *                 "after": "Renovación rechazada por reservas"
                      *               }
                      *             ],
@@ -4707,7 +4707,7 @@ export interface operations {
                      *         "impact": {
                      *           "diffs": [
                      *             {
-                     *               "field": "acceptance_criteria.CA-02",
+                     *               "field": "acceptance_criteria[CA-02]",
                      *               "after": "Renovación rechazada por reservas"
                      *             }
                      *           ],
@@ -4850,7 +4850,7 @@ export interface operations {
                      *             "impact": {
                      *               "diffs": [
                      *                 {
-                     *                   "field": "acceptance_criteria.CA-02",
+                     *                   "field": "acceptance_criteria[CA-02]",
                      *                   "after": "Renovación rechazada por reservas"
                      *                 }
                      *               ],

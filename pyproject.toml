@@ -50,6 +50,8 @@ constraint-dependencies = ["pyjwt<2.15.1", "sse-starlette<3.5", "googleapis-comm
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
+# PA-425: si una prueba se cuelga, a los 5 min vuelca la traza de todos los hilos (no la aborta).
+faulthandler_timeout = 300
 markers = [
     "integration: pruebas contra servicios reales (Jira, LLM, PostgreSQL); se saltan si faltan credenciales",
 ]

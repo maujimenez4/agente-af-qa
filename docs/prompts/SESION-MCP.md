@@ -1,81 +1,67 @@
-# SESIÓN MCP · Ronda 3: probar la web en React contra la API (T-56)
+# SESIÓN MCP · Ronda 4: Administración mínima y Revisar la calidad en la web (T-56)
 
-> Encargo de la **sesión MCP**. T-59 está cerrada y fusionada. El frontend en React (`web/`, rama `area-b`) ya está fusionado en `PreProduccion`. Su responsable no puede montar la API en su equipo, así que la prueba se hace en este.
->
-> **Respaldo:** si algo sale mal, el estado anterior a la fusión está en la rama `respaldo/pre-frontend-2026-10-05` (y en la etiqueta `pre-frontend-2026-10-05`).
+> Encargo de la **sesión MCP**. Tu prueba de la web contra la API (`ses-web`) ya está fusionada. El responsable de `web/` está ausente: el usuario ha decidido terminar los pendientes con sesiones. En paralelo, la sesión UI arregla fallos de la web (rama `ses-web-fixes`).
 
-Pon el worktree al día, **copia el `.env`** (lo hace el usuario, la sesión nunca lo lee) y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
-```powershell
+```bash
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/ses-mcp switch -C ses-web origin/PreProduccion
-copy .env .claude\worktrees\ses-mcp\.env
-cd .claude/worktrees/ses-mcp
-uv sync
-uv run python -m pytest -m "not integration"   # en verde
+git -C .claude/worktrees/ses-mcp switch -C ses-web-admin origin/PreProduccion
+cd .claude/worktrees/ses-mcp/web
+npm ci
+npm test
 ```
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-web`**, creada desde `PreProduccion`. Tu T-59 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-web-admin`**, creada desde `PreProduccion`. Tu ronda anterior (`ses-web`) ya está fusionada.
 
-**Objetivo:** comprobar que la web en React (`web/`, T-56) funciona contra la API (`api/`, T-55) de punta a punta. Si algo falla, arreglar lo que sea de la conexión entre las dos y apuntar el resto para su responsable.
+**Objetivo:** dos pantallas de la web en React que faltan para la entrega, una detrás de otra. Commit y push al terminar cada una.
 
-El responsable de `web/` sigue trabajando en paralelo en el flujo de QA (rama `area-b`). Para no pisaros:
-- **Tú arreglas solo la conexión:** `web/src/api/**` (cliente, tipos, SSE) y la configuración de Vite. Si es un fallo de la API o del contrato, en `api/` y sus pruebas, sin cambiar lo que ya existe.
-- **Lo de pantallas** (textos, estados, navegación, estilos) **no lo tocas:** lo anotas en el informe para el responsable.
+Lee:
+- `web/README.md`, `web/DESIGN-DECISIONS.md` y `web/HANDOFF.md`;
+- `docs/specs/UI.md`;
+- `docs/api/README.md`;
+- el issue de seguimiento del responsable (resumido abajo).
 
-Lee antes:
-- `web/PRUEBA-API-REAL.md`: la guía y la lista de comprobación que escribió el responsable. Es tu guion.
-- `web/README.md`;
-- `docs/api/README.md`, sobre todo «Reglas para el frontend» y «Novedades para el frontend».
+## Bloque 1 · Administración mínima (decidida por el usuario para la entrega)
+- **Solo el rol `admin`.** El administrador no ve las tarjetas de flujo (D-01); los demás roles no ven la zona y, si llegan a ella, reciben 403 con su tarjeta.
+- **Contenido (solo lo que tiene API):**
+  - **Probar conexiones:** `POST /admin/connections/test` → `ConnectionsTestOut`, con una fila por servicio (`service`, `ok`, `detail` y `duration_ms`). Lleva CSRF. Una prueba cada 10 s por persona; un 429 trae `retry_after`, así que enseña la cuenta atrás.
+  - **Modelos por tarea, solo lectura:** `GET /admin/models` → `AdminModelsOut`: la cadena por tarea con proveedor, modelo y host, el override de la sesión si lo hay, y el modelo de embeddings.
+  - **Modo de publicación, solo lectura:** `publish_mode` de `GET /settings`, con el aviso «Simulación: no se escribe nada en Jira».
+  - **Usuarios, documentos e historial**, como «disponible pronto».
+- **Diseño:** la parte de Ajustes de la página «Propuesta v2» del lienzo (la que cita UI.md para T-29), adaptada al estilo de la «Propuesta mixta». Si no tienes acceso al lienzo, usa los componentes y el estilo de las pantallas existentes, y apunta la diferencia como PA para UI.md.
+- **Cliente:** añade al **final** de `web/src/api/client.ts` los métodos `adminConnectionsTest` y `adminModels`, más sus tipos en `types.ts` y su línea en `client.contract.ts`. Solo añadir.
 
-## Fase 1 · API con los dobles de prueba (automática, sin modelo ni Jira)
-Sirve para validar la parte HTTP sin depender de Ollama ni de contraseñas reales: cookie, CSRF, proxy de Vite, SSE, 202 y 409.
-1. **Un script solo de desarrollo** que arranque la API real (FastAPI) sobre `tests/fakes/api.fake_runtime`, con `run_inline=False` para que el SSE avance paso a paso. Por ejemplo, `tests/fakes/serve_api.py` (`uv run python -m tests.fakes.serve_api`).
-   - Escucha solo en `127.0.0.1`.
-   - Se niega a arrancar si `APP_ENV` no es `development`.
-   - Usa los usuarios ficticios de `tests/fakes/dataset.py`.
-   - Nunca lee el `.env`.
-2. `cd web && npm ci && npm run dev`, con el proxy apuntando a ese puerto (`API_PROXY_TARGET`).
-3. **Recorre la lista de comprobación** con el navegador sin interfaz que ya usó el responsable (Edge + CDP, con los scripts en el scratchpad y fuera del repositorio) o con peticiones HTTP que imiten a la web.
-   - Si añadir Playwright u otra dependencia a `web/` te parece imprescindible, **para y propónmelo**.
-   - Cubre lo que esté conectado: login y recarga, Inicio, Elegir en Jira, Origen con el presupuesto, Generando con Detener y Reintentar, Iterar con una v2 y la versión «Jira», el recibo con la operación `comment` (PA-319), aprobar con la huella, el resultado simulado y descartar.
-   - Con `qa-demo` y `admin-demo`, solo que no fallen.
-
-## Fase 2 · API real (guiada por el usuario)
-Ollama local, PostgreSQL y Jira AFQP en **simulación**. El usuario está delante y lleva el navegador. Él inicia sesión con sus contraseñas: **nunca le pidas ni registres contraseñas**.
-1. **Tú arrancas:** `uv run python -m api` (127.0.0.1:8000) y `npm run dev` (http://localhost:5173), y compruebas que `GET /api/v1/settings` responde y que `publish_mode` es `simulation`. Si no lo es, **para**.
-2. **Guías al usuario** por la lista de `web/PRUEBA-API-REAL.md`, paso a paso.
-   - Con el modelo local, cada generación tarda unos 5 minutos: aprovecha la espera para revisar el log de la API.
-   - Antes de cada generación, confirma con el usuario que quiere lanzarla.
-3. **Vigila** el log de la API y la consola de Vite. Cada operación deja una traza en Langfuse: si algo falla, úsala para ver en qué paso.
+## Bloque 2 · Revisar la calidad (Mixta 5)
+- **La API ya existe:**
+  - la revisión INVEST de una HU se arranca como dice `docs/api/README.md` (busca «Revisar la calidad» y `/quality-reviews`);
+  - la lista, con `GET /quality-reviews`, que se junta con `GET /conversations` por `updated_at` y pinta «Informe listo» con `state=done`;
+  - el informe, con `GET /quality-reviews/{id}`.
+- **La pantalla**, según UI.md (Mixta 5): solo lectura, sin restricciones ni conversación. Informe INVEST, hallazgos y preguntas abiertas, con sus fuentes; el Markdown del informe solo para descargar.
+- **Es una operación larga** (minutos con el modelo local): progreso, y nada se publica.
 
 ## Reglas
-- **Nunca escribe en Jira:** todo en simulación. No cambies `JIRA_PUBLISH_MODE`.
-- **Secretos:** nunca leas el `.env`, ni pidas o registres contraseñas, tokens o cookies. Los logs y capturas del informe, sin secretos.
-- **Puedes tocar:**
-  - `web/src/api/**` y `web/vite.config.ts` (solo la conexión);
-  - `tests/fakes/` (añadir, no romper);
-  - `api/` y sus pruebas (solo arreglos de la conexión, sin cambiar lo existente del contrato);
-  - el informe.
-
-  Ni pantallas de `web/`, ni `core/`, `adapters/`, `schemas/`, `config/` o `app/`.
-- **Si cambias `web/`:** `npm run lint`, `npx tsc -b`, `npm test` y `npm run api:check` en verde.
-  - En este equipo fallan a veces 2 o 3 pruebas de «Retomar en error · Reintentar», que dependen del tiempo (ya avisado al responsable): no las cuentes como regresión tuya, pero dilo.
-- **Si cambias Python:** `uv run python -m pytest -m "not integration"`, `ruff check` y `ruff format --check` en verde. Regenera el contrato si cambia `api/`.
-- **No mates procesos globales** (nada de `taskkill` por nombre). Para la API y Vite que arranques tú, usa sus propias tareas en segundo plano. Pídeselo también a los subagentes.
-- **Informe** `docs/pruebas/WEB-API-2026-10-05.md` con:
-  - qué fases y qué pasos se recorrieron, y con qué resultado;
-  - una tabla de hallazgos: paso, síntoma, causa, arreglado por ti o para el responsable, y la prioridad para la demo;
-  - los tiempos reales de cada generación (de Langfuse).
+- **Coordinación con la sesión UI** (rama `ses-web-fixes`), que toca el 401 en `client.ts`, `Publishing`, Generando, Iterar, la Estrategia y el alto de la app:
+  - tú añades al final de `client.ts` y en el carril o `AppShell` solo lo necesario para tus zonas;
+  - no toques las pantallas que arregla ella.
+- **Puedes tocar:** `web/` y sus pruebas. No toques `api/`, `core/` ni `app/`. Si la API no da algo que la pantalla necesite, **para y propónmelo** (PA).
+- **Pruebas (Vitest con MSW, deterministas):**
+  - Admin: solo `admin`; la prueba de conexiones con todo bien, con un servicio caído y con un 429 con cuenta atrás; los modelos; el modo de publicación.
+  - Calidad: arrancar, el progreso, el informe, la lista con «Informe listo» y los errores.
+  - En el MSW, los ejemplos del contrato.
+- **Verificación:** `npm run lint`, `npx tsc -b`, `npm test` (dos veces) y `npm run api:check` en verde. Mira los tamaños de ventana (1024, 1280 y 1440) con Edge sin interfaz y un perfil nuevo.
+- **Al final, una prueba corta contra la API real** en el equipo del usuario: Administración con `admin-demo` (probar conexiones no gasta tokens) y una revisión de calidad con `af-demo`. La revisión **sí** usa el modelo local, unos minutos: **pide permiso antes**.
+  - El usuario inicia sesión; tú nunca ves las contraseñas.
+  - No levantes Docker con `docker compose` desde el worktree: crea otro proyecto. Arranca los contenedores existentes con `docker start`.
+  - SQLAlchemy: renombra sus `*.pyd` del `.venv` del worktree si hace falta (PA-338).
+- **No mates procesos globales.** Pídeselo también a los subagentes.
 - **Kanban:**
-  - tu fila en el registro;
-  - propuestas en **PA-324…PA-339** (PA-324 ya está usada: empieza en PA-325).
-- **Antes del commit:**
-  - `spec-checker` CONFORME y `security-reviewer` APTO.
-  - Pide a los subagentes que no maten procesos globales.
-- **Sin fusionar.** Haz `git push -u origin ses-web` y avísame.
+  - fila en el registro;
+  - propuestas en **PA-400…PA-409** (tu rango PA-320…PA-339 está lleno).
+- **Antes de cada commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
+- **Sin fusionar.** Haz `git push -u origin ses-web-admin` al terminar cada bloque y avísame.
 
-Empieza presentándome el plan (sobre todo el script de la fase 1 y cómo vas a recorrer la web sin navegador visible) antes de escribir código.
+Empieza presentándome el plan del bloque 1 antes de escribir código.

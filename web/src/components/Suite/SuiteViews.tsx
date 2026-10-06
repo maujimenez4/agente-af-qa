@@ -1,9 +1,19 @@
 import { useId, useState } from 'react'
 import type { TestCase, TestSuite } from '../../api/types.ts'
 import { Badge, CaseKindBadge } from '../Badge/index.ts'
+import { DownloadButton } from '../Download/index.ts'
 import p from '../Proposal/Proposal.module.css'
 import styles from './Suite.module.css'
-import { CASE_KIND, coverageMatrix, dataColumns, newCaseIds, strategyBlocks, verifiesLabel } from './suiteText.ts'
+import {
+  CASE_KIND,
+  coverageMatrix,
+  dataColumns,
+  newCaseIds,
+  strategyBlocks,
+  UNKNOWN_COVERAGE,
+  verifiesLabel,
+  type SuiteCoverage,
+} from './suiteText.ts'
 
 // Pestañas del panel de la suite (UI.md §6.3, lienzo QaIterar). Lo que llega del LLM se pinta como texto.
 
@@ -63,13 +73,30 @@ export function CasesView({ suite, version, previous }: { suite: TestSuite; vers
   )
 }
 
-export function CoverageView({ suite }: { suite: TestSuite }) {
-  const { cases, rows } = coverageMatrix(suite)
+export interface CoverageViewProps {
+  suite: TestSuite
+  /** CA y RN sin caso (`ReviewPayload.uncovered`, PA-326); por defecto, «no se sabe». */
+  coverage?: SuiteCoverage
+  /** `ReviewPayload.coverage_md`: la matriz que se adjunta en Jira. Sin ella, no hay descarga. */
+  coverageMd?: string | null
+}
+
+export function CoverageView({ suite, coverage = UNKNOWN_COVERAGE, coverageMd }: CoverageViewProps) {
+  const gaps = coverage.kind === 'gaps' ? [...coverage.criteria, ...coverage.rules] : []
+  const missing = new Set(gaps)
+  const { cases, rows } = coverageMatrix(suite, gaps)
+  const fileName = `matriz-${suite.story_jira_key}.md`
   return (
     <div className={styles.section}>
-      <p className={p.muted}>
-        Matriz de cobertura CA/RN ↔ CP (RF-24) · se adjunta como matriz-{suite.story_jira_key}.md
-      </p>
+      <div className={styles.coverageHead}>
+        <p className={p.muted}>Matriz de cobertura CA/RN ↔ CP (RF-24) · se adjunta como {fileName}</p>
+        <DownloadButton label="Descargar la matriz" fileName={fileName} text={coverageMd} />
+      </div>
+      {coverage.kind === 'gaps' && (
+        <p className={styles.gaps}>
+          <b>Sin ningún caso:</b> {gaps.join(', ')}.
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className={p.empty}>Los casos no dicen qué CA o RN verifican.</p>
       ) : (
@@ -88,8 +115,11 @@ export function CoverageView({ suite }: { suite: TestSuite }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row">{row.id}</th>
+                <tr key={row.id} data-uncovered={missing.has(row.id) ? '' : undefined}>
+                  <th scope="row">
+                    {row.id}
+                    {missing.has(row.id) && <span className={styles.noCase}> · Sin caso</span>}
+                  </th>
                   {cases.map((id) => (
                     <td key={id} className={styles.cell}>
                       {row.covered.has(id) ? (
@@ -108,7 +138,10 @@ export function CoverageView({ suite }: { suite: TestSuite }) {
           </table>
         </div>
       )}
-      {rows.length > 0 && <p className={p.muted}>Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.</p>}
+      {coverage.kind === 'complete' && <p className={p.muted}>Cada CA y cada RN de la HU tiene al menos un caso.</p>}
+      {coverage.kind === 'unknown' && (
+        <p className={p.muted}>No se ha podido comprobar qué CA y RN de la HU quedan sin caso: la matriz solo muestra lo que dicen los casos.</p>
+      )}
     </div>
   )
 }

@@ -3888,5 +3888,379 @@
       "code": "service_unavailable",
       "message": "La configuración no está disponible: no se pueden comprobar los servicios."
     }
+  },
+  "components.examples.ConversationQaInReview": {
+    "id": "d4f6b8c0-3e5a-4b7c-9d1e-2f3a4b5c6d7e",
+    "title": "Preparar pruebas de DEMO-3",
+    "project": "DEMO",
+    "flow": "tests",
+    "mode": "qa",
+    "state": "in_review",
+    "progress": [
+      {
+        "node": "load_origin",
+        "label": "Recuperar la HU de origen",
+        "state": "done"
+      },
+      {
+        "node": "retrieve_context",
+        "label": "Recuperar el contexto (Jira, documentos y memoria)",
+        "state": "done"
+      },
+      {
+        "node": "generate",
+        "label": "Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia",
+        "state": "done"
+      },
+      {
+        "node": "publish",
+        "label": "Publicar (o simular la publicación de) los casos de prueba en Jira",
+        "state": "pending"
+      }
+    ],
+    "review": {
+      "artifact": {
+        "id": "9a3c5e7f-1b2d-4e6f-8a0b-1c2d3e4f5a6b",
+        "type": "test_suite",
+        "status": "in_review",
+        "version": 1,
+        "origin_key": "DEMO-3",
+        "content": {
+          "story_jira_key": "DEMO-3",
+          "cases": [
+            {
+              "internal_id": "CP-01",
+              "title": "Renovar un préstamo sin reservas ni renovaciones previas",
+              "criterion_ids": [
+                "CA-01"
+              ],
+              "rule_ids": [
+                "RN-01"
+              ],
+              "type": "positivo",
+              "preconditions": [
+                "La persona socia ficticia SOC-0001 ha iniciado sesión."
+              ],
+              "steps": [
+                {
+                  "action": "Abrir la ficha del préstamo PR-0001",
+                  "data": "PR-0001",
+                  "expected": "Se muestra el botón «Renovar»"
+                },
+                {
+                  "action": "Pulsar «Renovar»",
+                  "data": null,
+                  "expected": "El vencimiento se amplía 21 días"
+                }
+              ],
+              "gherkin": "Dado un préstamo activo sin renovaciones ni reservas\nCuando la persona socia pulsa «Renovar»\nEntonces el vencimiento se amplía 21 días",
+              "priority": "Must"
+            },
+            {
+              "internal_id": "CP-02",
+              "title": "Rechazar la renovación de un préstamo con reservas pendientes",
+              "criterion_ids": [
+                "CA-02"
+              ],
+              "rule_ids": [
+                "RN-02"
+              ],
+              "type": "negativo",
+              "preconditions": [
+                "La persona socia ficticia SOC-0001 ha iniciado sesión."
+              ],
+              "steps": [
+                {
+                  "action": "Abrir la ficha del préstamo PR-0002 (con 1 reserva)",
+                  "data": "PR-0002",
+                  "expected": "Se muestra el botón «Renovar»"
+                },
+                {
+                  "action": "Pulsar «Renovar»",
+                  "data": null,
+                  "expected": "Aviso «El ejemplar tiene reservas pendientes»"
+                }
+              ],
+              "gherkin": "Dado un préstamo activo con reservas pendientes\nCuando la persona socia pulsa «Renovar»\nEntonces se muestra el aviso «El ejemplar tiene reservas pendientes»",
+              "priority": "Must"
+            },
+            {
+              "internal_id": "CP-03",
+              "title": "Rechazar una tercera renovación",
+              "criterion_ids": [
+                "CA-01"
+              ],
+              "rule_ids": [
+                "RN-01"
+              ],
+              "type": "excepcion",
+              "preconditions": [
+                "La persona socia ficticia SOC-0001 ha iniciado sesión."
+              ],
+              "steps": [
+                {
+                  "action": "Abrir la ficha del préstamo PR-0003 (2 renovaciones)",
+                  "data": "PR-0003",
+                  "expected": "El botón «Renovar» no está disponible"
+                }
+              ],
+              "gherkin": "Dado un préstamo activo con 2 renovaciones\nCuando la persona socia abre su ficha\nEntonces no puede renovarlo",
+              "priority": "Must"
+            },
+            {
+              "internal_id": "CP-04",
+              "title": "Renovar desde el correo de aviso de vencimiento",
+              "criterion_ids": [
+                "CA-01"
+              ],
+              "rule_ids": [],
+              "type": "alterno",
+              "preconditions": [
+                "La persona socia ficticia SOC-0001 ha iniciado sesión."
+              ],
+              "steps": [
+                {
+                  "action": "Abrir el enlace «Renovar» del correo de aviso ficticio",
+                  "data": null,
+                  "expected": "El vencimiento se amplía 21 días"
+                }
+              ],
+              "gherkin": "Dado un aviso de vencimiento de un préstamo renovable\nCuando la persona socia usa el enlace «Renovar»\nEntonces el vencimiento se amplía 21 días",
+              "priority": "Must"
+            }
+          ],
+          "strategy_md": "# Estrategia de pruebas · DEMO-3\n\n- Alcance: renovación de préstamos.\n- Niveles: funcional y de integración con el catálogo.\n- Entorno: preproducción.\n",
+          "synthetic_data": [
+            {
+              "prestamo": "PR-0001",
+              "renovaciones": "0",
+              "reservas": "0"
+            },
+            {
+              "prestamo": "PR-0002",
+              "renovaciones": "0",
+              "reservas": "1"
+            },
+            {
+              "prestamo": "PR-0003",
+              "renovaciones": "2",
+              "reservas": "0"
+            }
+          ],
+          "risks": [
+            "El catálogo puede no responder al renovar."
+          ],
+          "dependencies": [
+            "DEMO-2"
+          ],
+          "impact_areas": [
+            "Reservas"
+          ],
+          "sources": [
+            {
+              "kind": "jira",
+              "ref": "DEMO-3",
+              "excerpt": "Renovar un préstamo"
+            }
+          ]
+        },
+        "impact": null,
+        "created_by": "qa-demo",
+        "model_used": "local/qwen3:4b-instruct",
+        "prompt_version": "3"
+      },
+      "version": 1,
+      "target": {
+        "operation": "publicar casos de prueba",
+        "project": "DEMO",
+        "jira_key": "DEMO-3",
+        "epic_key": null
+      },
+      "fingerprint": "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "impact": null,
+      "plan": [
+        {
+          "op": "publish_suite",
+          "project": "DEMO",
+          "story": "DEMO-3",
+          "cases": "4"
+        }
+      ],
+      "decisions": [
+        "iterate",
+        "edit",
+        "approve",
+        "discard"
+      ],
+      "error": null,
+      "coverage_md": "# Matriz de cobertura · DEMO-3\n\n| CA/RN | Casos de prueba | Nº |\n|---|---|---|\n| CA-01 | CP-01, CP-03, CP-04 | 3 |\n| CA-02 | CP-02 | 1 |\n| RN-01 | CP-01, CP-03 | 2 |\n| RN-02 | CP-02 | 1 |\n",
+      "uncovered": {
+        "criteria": [],
+        "rules": []
+      }
+    },
+    "versions": [
+      {
+        "version": 1,
+        "artifact": {
+          "id": "9a3c5e7f-1b2d-4e6f-8a0b-1c2d3e4f5a6b",
+          "type": "test_suite",
+          "status": "in_review",
+          "version": 1,
+          "origin_key": "DEMO-3",
+          "content": {
+            "story_jira_key": "DEMO-3",
+            "cases": [
+              {
+                "internal_id": "CP-01",
+                "title": "Renovar un préstamo sin reservas ni renovaciones previas",
+                "criterion_ids": [
+                  "CA-01"
+                ],
+                "rule_ids": [
+                  "RN-01"
+                ],
+                "type": "positivo",
+                "preconditions": [
+                  "La persona socia ficticia SOC-0001 ha iniciado sesión."
+                ],
+                "steps": [
+                  {
+                    "action": "Abrir la ficha del préstamo PR-0001",
+                    "data": "PR-0001",
+                    "expected": "Se muestra el botón «Renovar»"
+                  },
+                  {
+                    "action": "Pulsar «Renovar»",
+                    "data": null,
+                    "expected": "El vencimiento se amplía 21 días"
+                  }
+                ],
+                "gherkin": "Dado un préstamo activo sin renovaciones ni reservas\nCuando la persona socia pulsa «Renovar»\nEntonces el vencimiento se amplía 21 días",
+                "priority": "Must"
+              },
+              {
+                "internal_id": "CP-02",
+                "title": "Rechazar la renovación de un préstamo con reservas pendientes",
+                "criterion_ids": [
+                  "CA-02"
+                ],
+                "rule_ids": [
+                  "RN-02"
+                ],
+                "type": "negativo",
+                "preconditions": [
+                  "La persona socia ficticia SOC-0001 ha iniciado sesión."
+                ],
+                "steps": [
+                  {
+                    "action": "Abrir la ficha del préstamo PR-0002 (con 1 reserva)",
+                    "data": "PR-0002",
+                    "expected": "Se muestra el botón «Renovar»"
+                  },
+                  {
+                    "action": "Pulsar «Renovar»",
+                    "data": null,
+                    "expected": "Aviso «El ejemplar tiene reservas pendientes»"
+                  }
+                ],
+                "gherkin": "Dado un préstamo activo con reservas pendientes\nCuando la persona socia pulsa «Renovar»\nEntonces se muestra el aviso «El ejemplar tiene reservas pendientes»",
+                "priority": "Must"
+              },
+              {
+                "internal_id": "CP-03",
+                "title": "Rechazar una tercera renovación",
+                "criterion_ids": [
+                  "CA-01"
+                ],
+                "rule_ids": [
+                  "RN-01"
+                ],
+                "type": "excepcion",
+                "preconditions": [
+                  "La persona socia ficticia SOC-0001 ha iniciado sesión."
+                ],
+                "steps": [
+                  {
+                    "action": "Abrir la ficha del préstamo PR-0003 (2 renovaciones)",
+                    "data": "PR-0003",
+                    "expected": "El botón «Renovar» no está disponible"
+                  }
+                ],
+                "gherkin": "Dado un préstamo activo con 2 renovaciones\nCuando la persona socia abre su ficha\nEntonces no puede renovarlo",
+                "priority": "Must"
+              },
+              {
+                "internal_id": "CP-04",
+                "title": "Renovar desde el correo de aviso de vencimiento",
+                "criterion_ids": [
+                  "CA-01"
+                ],
+                "rule_ids": [],
+                "type": "alterno",
+                "preconditions": [
+                  "La persona socia ficticia SOC-0001 ha iniciado sesión."
+                ],
+                "steps": [
+                  {
+                    "action": "Abrir el enlace «Renovar» del correo de aviso ficticio",
+                    "data": null,
+                    "expected": "El vencimiento se amplía 21 días"
+                  }
+                ],
+                "gherkin": "Dado un aviso de vencimiento de un préstamo renovable\nCuando la persona socia usa el enlace «Renovar»\nEntonces el vencimiento se amplía 21 días",
+                "priority": "Must"
+              }
+            ],
+            "strategy_md": "# Estrategia de pruebas · DEMO-3\n\n- Alcance: renovación de préstamos.\n- Niveles: funcional y de integración con el catálogo.\n- Entorno: preproducción.\n",
+            "synthetic_data": [
+              {
+                "prestamo": "PR-0001",
+                "renovaciones": "0",
+                "reservas": "0"
+              },
+              {
+                "prestamo": "PR-0002",
+                "renovaciones": "0",
+                "reservas": "1"
+              },
+              {
+                "prestamo": "PR-0003",
+                "renovaciones": "2",
+                "reservas": "0"
+              }
+            ],
+            "risks": [
+              "El catálogo puede no responder al renovar."
+            ],
+            "dependencies": [
+              "DEMO-2"
+            ],
+            "impact_areas": [
+              "Reservas"
+            ],
+            "sources": [
+              {
+                "kind": "jira",
+                "ref": "DEMO-3",
+                "excerpt": "Renovar un préstamo"
+              }
+            ]
+          },
+          "impact": null,
+          "created_by": "qa-demo",
+          "model_used": "local/qwen3:4b-instruct",
+          "prompt_version": "3"
+        },
+        "created_at": "2026-10-02T10:30:00Z",
+        "edited": false
+      }
+    ],
+    "feedback": [],
+    "result": null,
+    "error": null,
+    "updated_at": "2026-10-02T10:30:00Z",
+    "cancel_requested": false,
+    "jira_baseline": null
   }
 }

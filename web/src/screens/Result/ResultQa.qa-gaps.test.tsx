@@ -5,7 +5,6 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import examples from '../../api/examples.json'
 import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import { App } from '../../App.tsx'
 import { mockDb, mockServer } from '../../mocks/node.ts'
@@ -13,8 +12,7 @@ import { mockSuiteConversation } from '../../mocks/qaSuite.ts'
 import { ResultScreen } from './ResultScreen.tsx'
 import { QA_OUTCOME_TEXTS } from './resultText.ts'
 
-const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
-const QA_REVIEW = mockSuiteConversation(EXAMPLE, 'DEMO-3')
+const QA_REVIEW = mockSuiteConversation('DEMO-3')
 const PLAN = QA_REVIEW.review?.plan ?? []
 
 type WithResult = ConversationOut & { result: PublishOutcome }

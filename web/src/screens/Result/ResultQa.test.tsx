@@ -9,6 +9,9 @@ import { mockDb, mockServer } from '../../mocks/node.ts'
 import { openSuiteForDemo3 } from '../../test/qaFlow.tsx'
 import { approvedLine, QA_OUTCOME_TEXTS } from './resultText.ts'
 
+/** Huella de la suite en revisión del ejemplo del contrato (ConversationQaInReview). */
+const QA_FINGERPRINT = '7c'.repeat(32)
+
 async function approveSuite() {
   await openSuiteForDemo3()
   await userEvent.click(await screen.findByRole('button', { name: 'Revisar y aprobar' }))
@@ -25,7 +28,8 @@ describe('QA 4 · Recibo', () => {
     expect(boxes).toHaveLength(1)
     expect(operations).toHaveTextContent('Crear 4 subtareas en DEMO-3 con la etiqueta «caso-prueba»')
     expect(operations).toHaveTextContent('Adjunta estrategia-DEMO-3.md y matriz-DEMO-3.md.')
-    expect(within(receipt).getByText(/^Generado con IA a partir de la HU y 2 fuentes\./)).toBeInTheDocument()
+    // La suite del ejemplo del contrato trae una sola fuente (la HU en Jira): singular.
+    expect(within(receipt).getByText(/^Generado con IA a partir de la HU y 1 fuente\./)).toBeInTheDocument()
     expect(within(receipt).getByRole('button', { name: 'Volver a la suite' })).toBeInTheDocument()
     const history = screen.getByRole('complementary', { name: 'Historial de la suite' })
     expect(within(history).getByRole('list', { name: 'Versiones de la suite' })).toHaveTextContent('4 casos · cobertura validada')
@@ -48,7 +52,7 @@ describe('QA 5 · Resultado', () => {
     await userEvent.click(within(receipt).getAllByRole('checkbox')[0] as HTMLElement)
     await userEvent.click(within(receipt).getByRole('button', { name: 'Aprobar y publicar' }))
     const region = await screen.findByRole('region', { name: 'Publicación simulada' })
-    expect(bodies).toEqual([{ fingerprint: 'huella-suite-ficticia' }])
+    expect(bodies).toEqual([{ fingerprint: QA_FINGERPRINT }])
     expect(within(region).getByText(QA_OUTCOME_TEXTS.simulated.note)).toBeInTheDocument()
     expect(within(region).queryByText(/memoria/i)).toBeNull()
     expect(within(region).getByText(/^Suite versión 1 aprobada por qa-demo/)).toBeInTheDocument()

@@ -20,13 +20,19 @@ const testCase = (overrides: Partial<TestCase>): TestCase => ({ ...firstCase, ..
 describe('suiteText · límites', () => {
   it('test_suite_summary_omits_risk_when_suite_has_no_risks', () => {
     // UI.md §6.3: «Suite lista: 4 casos y todos los CA cubiertos. Riesgo: …» (el riesgo solo si lo hay).
-    expect(suiteSummary({ ...SUITE, risks: [] }, 1, undefined)).toBe('Suite lista: 4 casos y todos los CA cubiertos.')
+    expect(suiteSummary({ ...SUITE, risks: [] }, 1, undefined, { kind: 'complete' })).toBe('Suite lista: 4 casos y todos los CA cubiertos.')
+  })
+
+  it('test_suite_summary_omits_risk_and_coverage_when_suite_has_no_risks_and_coverage_is_unknown', () => {
+    // PA-326: sin `uncovered`, el resumen no afirma la cobertura; sin riesgos, no hay «Riesgo:».
+    expect(suiteSummary({ ...SUITE, risks: [] }, 1, undefined, { kind: 'unknown' })).toBe('Suite lista: 4 casos.')
   })
 
   it('test_suite_summary_strips_final_dot_of_risk_and_uses_singular', () => {
     // UI.md §6.3: resumen del asistente; un solo caso es «1 caso» y el punto del riesgo no se duplica.
     const one = { ...SUITE, cases: [firstCase], risks: ['Riesgo ficticio con punto.'] }
-    expect(suiteSummary(one, 1, undefined)).toBe('Suite lista: 1 caso y todos los CA cubiertos. Riesgo: Riesgo ficticio con punto.')
+    expect(suiteSummary(one, 1, undefined, { kind: 'complete' })).toBe('Suite lista: 1 caso y todos los CA cubiertos. Riesgo: Riesgo ficticio con punto.')
+    expect(suiteSummary(one, 1, undefined, { kind: 'unknown' })).toBe('Suite lista: 1 caso. Riesgo: Riesgo ficticio con punto.')
   })
 
   it('test_suite_summary_lists_every_added_case_when_several_are_new', () => {
@@ -35,7 +41,8 @@ describe('suiteText · límites', () => {
       ...SUITE,
       cases: [...SUITE.cases, testCase({ internal_id: 'CP-05', type: 'negativo' }), testCase({ internal_id: 'CP-06', type: 'alterno' })],
     }
-    expect(suiteSummary(next, 2, SUITE)).toBe('Versión 2: añadí el CP-05 (negativo), el CP-06 (alterno). 6 casos; la cobertura sigue completa.')
+    expect(suiteSummary(next, 2, SUITE, { kind: 'complete' })).toBe('Versión 2: añadí el CP-05 (negativo), el CP-06 (alterno). 6 casos; la cobertura sigue completa.')
+    expect(suiteSummary(next, 2, SUITE, { kind: 'unknown' })).toBe('Versión 2: añadí el CP-05 (negativo), el CP-06 (alterno). 6 casos.')
   })
 
   it('test_new_case_ids_is_empty_when_a_case_was_only_removed', () => {
@@ -78,7 +85,7 @@ describe('Casos · Gherkin desplegable con el teclado', () => {
     render(<CasesView suite={SUITE} version={1} previous={undefined} />)
     const first = caseItems()[0] as HTMLElement
     const toggle = within(first).getByRole('button', { name: 'Ver el Gherkin' })
-    const gherkin = within(first).getByText(/Escenario: Renovar un préstamo activo/, { selector: 'pre' })
+    const gherkin = within(first).getByText(/Dado un préstamo activo sin renovaciones ni reservas/, { selector: 'pre' })
     toggle.focus()
     await userEvent.keyboard('{Enter}')
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
@@ -103,7 +110,8 @@ describe('Casos · Gherkin desplegable con el teclado', () => {
     const secondId = secondToggle.getAttribute('aria-controls')
     expect(firstId).toBeTruthy()
     expect(firstId).not.toBe(secondId)
-    expect(document.getElementById(firstId ?? '')).toHaveTextContent('Escenario: Renovar un préstamo activo')
+    expect(document.getElementById(firstId ?? '')).toHaveTextContent('Dado un préstamo activo sin renovaciones ni reservas')
+    expect(document.getElementById(secondId ?? '')).toHaveTextContent('Dado un préstamo activo con reservas pendientes')
     // Abrir el segundo no abre el primero.
     await userEvent.keyboard('{Enter}')
     expect(secondToggle).toHaveAttribute('aria-expanded', 'true')
@@ -123,8 +131,11 @@ describe('Vistas · estados vacíos y datos parciales', () => {
     // RF-23 · UI.md §6.3: pasos con datos y resultado esperado; precondiciones si las hay.
     render(<CasesView suite={SUITE} version={1} previous={undefined} />)
     const [first, , , fourth] = caseItems() as HTMLElement[]
-    expect(first).toHaveTextContent('Precondiciones: Persona socia ficticia con un préstamo activo y 0 renovaciones')
-    expect(within(first as HTMLElement).getByRole('list', { name: 'Pasos de CP-01' })).toHaveTextContent('· Datos: Préstamo PR-0001 (ficticio)')
+    expect(first).toHaveTextContent('Precondiciones: La persona socia ficticia SOC-0001 ha iniciado sesión.')
+    const firstSteps = within(within(first as HTMLElement).getByRole('list', { name: 'Pasos de CP-01' })).getAllByRole('listitem')
+    expect(firstSteps[0]).toHaveTextContent('· Datos: PR-0001')
+    // El segundo paso del CP-01 trae `data: null`: sin «Datos:».
+    expect(firstSteps[1]).not.toHaveTextContent('Datos:')
     // CP-04 no trae datos en su paso.
     expect(within(fourth as HTMLElement).getByRole('list', { name: 'Pasos de CP-04' })).not.toHaveTextContent('Datos:')
   })
@@ -143,8 +154,9 @@ describe('Vistas · estados vacíos y datos parciales', () => {
     const items = caseItems()
     expect(items[0]).toHaveTextContent('Positivo')
     expect(items[1]).toHaveTextContent('Negativo')
-    expect(items[2]).toHaveTextContent('Alterno')
-    expect(items[3]).toHaveTextContent('Excepción')
+    // Ejemplo del contrato: CP-03 es de excepción y CP-04, alterno.
+    expect(items[2]).toHaveTextContent('Excepción')
+    expect(items[3]).toHaveTextContent('Alterno')
   })
 
   it('test_coverage_view_without_references_shows_empty_text', () => {

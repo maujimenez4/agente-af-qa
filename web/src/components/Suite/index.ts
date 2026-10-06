@@ -1,2 +1,16 @@
-export { CasesView, CoverageView, DataRisksView, StrategyView } from './SuiteViews.tsx'
-export { casesLabel, CASE_KIND, coverageMatrix, newCaseIds, strategyBlocks, suiteSummary, verifiesLabel } from './suiteText.ts'
+export { CasesView, CoverageView, DataRisksView, StrategyView, type CoverageViewProps } from './SuiteViews.tsx'
+export {
+  casesLabel,
+  CASE_KIND,
+  coverageBadge,
+  coverageNote,
+  coverageMatrix,
+  newCaseIds,
+  strategyBlocks,
+  suiteCoverage,
+  suiteSummary,
+  uncoveredLabel,
+  UNKNOWN_COVERAGE,
+  verifiesLabel,
+  type SuiteCoverage,
+} from './suiteText.ts'

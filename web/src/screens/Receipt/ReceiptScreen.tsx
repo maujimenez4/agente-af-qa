@@ -5,7 +5,7 @@ import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
-import { casesLabel } from '../../components/Suite/index.ts'
+import { casesLabel, coverageNote, suiteCoverage, UNKNOWN_COVERAGE, type SuiteCoverage } from '../../components/Suite/index.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { ErrorCard, LoadingState, Notice, presentError } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
@@ -27,10 +27,15 @@ export interface ReceiptScreenProps {
 
 const TIME = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' })
 
-/** «4 casos · cobertura validada» en el historial de la suite (sin `cases`, nada). */
-function casesOf(content: unknown): string | undefined {
+/**
+ * «4 casos · cobertura validada» en el historial de la suite (sin `cases`, nada). La cobertura solo se conoce
+ * para la versión en revisión (`uncovered`, PA-326): con huecos, «1 RN sin caso»; si no se sabe, solo los casos.
+ */
+function casesOf(content: unknown, coverage: SuiteCoverage): string | undefined {
   const cases = (content as Partial<TestSuite> | null)?.cases
-  return Array.isArray(cases) ? `${casesLabel(cases.length)} · cobertura validada` : undefined
+  if (!Array.isArray(cases)) return undefined
+  const note = coverageNote(coverage)
+  return note ? `${casesLabel(cases.length)} · ${note}` : casesLabel(cases.length)
 }
 
 function timeOf(value: string): string {
@@ -179,7 +184,9 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
             <b>Versión {item.version} generada</b>
             <span className={styles.muted}>
               {[
-                suite ? casesOf(item.artifact.content) : undefined,
+                suite
+                  ? casesOf(item.artifact.content, item.version === conversation.review?.version ? suiteCoverage(conversation.review.uncovered) : UNKNOWN_COVERAGE)
+                  : undefined,
                 modelLabel(item.artifact.model_used),
                 item.artifact.prompt_version ? `prompt v${item.artifact.prompt_version}` : undefined,
                 timeOf(createdAt.get(item.version) ?? ''),

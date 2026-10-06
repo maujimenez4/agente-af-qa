@@ -309,6 +309,8 @@ describe('Recibo · conversación de QA (contrato §5.2, `publish_suite`)', () =
       ...REVIEW,
       version: 1,
       fingerprint: 'huella-ficticia-qa',
+      // PA-326: todo cubierto; sin `uncovered` el historial no diría «cobertura validada».
+      uncovered: { criteria: [], rules: [] },
       impact: null,
       artifact: { ...REVIEW.artifact, type: 'test_suite', version: 1, content: suite },
       plan: [{ op: 'publish_suite', project: 'DEMO', story: 'DEMO-3', cases: '3' }],

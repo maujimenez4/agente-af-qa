@@ -38,7 +38,7 @@ import type { components } from '../api/schema'
 
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
-import { mockSuiteConversation, nextSuiteVersion, suitePublishOutcome } from './qaSuite.ts'
+import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublishOutcome } from './qaSuite.ts'
 
 const API = '/api/v1'
 
@@ -66,12 +66,13 @@ function error(status: number, code: ErrorCode, message: string, retryAfter?: nu
 
 const UNAUTHENTICATED = () => error(401, 'unauthenticated', 'Inicia sesión para continuar.')
 
-/** Pasos de la generación (labels de `api/service.py`), en el orden en que llegan por SSE. */
+/** Pasos de la generación de una HU (labels de `api/service.py`), en el orden en que llegan por SSE. */
 const GENERATION_STEPS: ReadonlyArray<Pick<ProgressStep, 'node' | 'label'>> = [
   { node: 'load_origin', label: 'Cargar el origen' },
   { node: 'retrieve_context', label: 'Recuperar contexto' },
   { node: 'generate', label: 'Generar la propuesta, validar las citas y analizar el impacto' },
 ]
+const GENERATION_NODES: ReadonlySet<ProgressStep['node']> = new Set(GENERATION_STEPS.map((step) => step.node))
 
 // Como conversation_title() de core/conversations.py: flujo y clave, sin texto libre.
 function mockTitle(body: ConversationCreateIn): string {
@@ -81,8 +82,18 @@ function mockTitle(body: ConversationCreateIn): string {
   return key ? `${flow} ${key}` : `${flow} · ${project}`
 }
 
-function generationScript(): ProgressStep[] {
-  return GENERATION_STEPS.flatMap((step) => [
+/** Pasos según el modo (PA-327): en QA, los 4 del ejemplo del contrato, con sus etiquetas y sin «Guardar la memoria». */
+function generationSteps(mode: ConversationOut['mode']): ReadonlyArray<Pick<ProgressStep, 'node' | 'label'>> {
+  return mode === 'qa' ? qaGenerationSteps() : GENERATION_STEPS
+}
+
+function pendingSteps(mode: ConversationOut['mode']): ProgressStep[] {
+  return generationSteps(mode).map((step) => ({ ...step, state: 'pending' }))
+}
+
+/** Lo que emite el SSE: solo los pasos de generar; `publish` sigue pendiente hasta aprobar. */
+function generationScript(mode: ConversationOut['mode']): ProgressStep[] {
+  return generationSteps(mode).filter((step) => GENERATION_NODES.has(step.node)).flatMap((step) => [
     { ...step, state: 'running' as const },
     { ...step, state: 'done' as const },
   ])
@@ -116,26 +127,6 @@ function nextVersion(previous: ConversationOut, feedback: string): ConversationO
   review.artifact = { ...review.artifact, version, impact }
   next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]
   return next
-}
-
-/**
- * Versión «Jira» simulada (PA-316), coherente con los diffs frente a Jira: la propuesta sin los CA y
- * RN que los diffs dan por nuevos (sin «before»). El ejemplo del contrato trae una que ya los incluye.
- */
-function mockBaseline(conversation: ConversationOut): UserStory | null {
-  const review = conversation.review
-  if (!review) return null
-  const story = structuredClone(review.artifact.content as UserStory)
-  const added = new Set(
-    (review.impact?.diffs ?? [])
-      .filter((diff) => diff.before == null)
-      .map((diff) => /^(?:acceptance_criteria|business_rules).(.+)$/.exec(diff.field)?.[1])
-      .filter(Boolean),
-  )
-  story.acceptance_criteria = story.acceptance_criteria.filter((item) => !added.has(item.id))
-  story.business_rules = story.business_rules.filter((item) => !added.has(item.id))
-  story.changes_from_previous = []
-  return story
 }
 
 /** Paso del SSE al aprobar: publicar (en simulación no escribe en Jira). */
@@ -240,7 +231,8 @@ export function createHandlers(db: MockDb) {
         id,
         title: summary.title,
         project: summary.project_key,
-        jira_baseline: base.flow === 'evolve' ? mockBaseline(base) : null,
+        // La versión «Jira» del ejemplo (PA-316): sin el CA-02 que los diffs dan por nuevo.
+        jira_baseline: base.flow === 'evolve' ? base.jira_baseline : null,
       },
       script: [],
     }
@@ -396,11 +388,11 @@ export function createHandlers(db: MockDb) {
           flow: body.flow,
           mode: body.flow === 'tests' ? 'qa' : 'functional',
           state: 'generating',
-          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+          progress: pendingSteps(body.flow === 'tests' ? 'qa' : 'functional'),
           feedback: body.feedback,
           updated_at: now,
         }
-        db.runs.set(id, { conversation, script: generationScript(), storyKey: body.origin.key ?? undefined })
+        db.runs.set(id, { conversation, script: generationScript(conversation.mode), storyKey: body.origin.key ?? undefined })
         const current = db.session
         const summary: ConversationSummary = {
           thread_id: id,
@@ -443,9 +435,9 @@ export function createHandlers(db: MockDb) {
           ...run.conversation,
           state: 'generating',
           feedback: [...run.conversation.feedback, feedback],
-          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+          progress: pendingSteps(run.conversation.mode),
         }
-        run.script = generationScript()
+        run.script = generationScript(run.conversation.mode)
         run.cancel = false
         setSummary(params.id, { status: 'started' })
         return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
@@ -499,11 +491,11 @@ export function createHandlers(db: MockDb) {
             } else if (run.conversation.state === 'generating') {
               await delay(db.stepDelayMs)
               const base = example<ConversationOut>('GET /api/v1/conversations/{conversation_id} 200')
-              // QA: la suite sintética (PA-326: el contrato aún no trae una revisión de QA de ejemplo).
+              // QA: la conversación de QA en revisión del contrato (ConversationQaInReview, PA-326 y PA-118).
               const reviewed = run.previous
                 ? (run.previous.mode === 'qa' ? nextSuiteVersion : nextVersion)(run.previous, run.pendingFeedback ?? '')
                 : run.conversation.mode === 'qa'
-                  ? mockSuiteConversation(base, run.storyKey ?? 'DEMO-3')
+                  ? mockSuiteConversation(run.storyKey ?? 'DEMO-3', db.forceCoverage)
                   : base
               run.previous = undefined
               run.pendingFeedback = undefined
@@ -518,7 +510,7 @@ export function createHandlers(db: MockDb) {
                 progress: run.conversation.progress,
                 state: 'in_review',
                 // Solo al evolucionar; al iterar se conserva la de partida.
-                jira_baseline: run.conversation.flow === 'evolve' ? (run.conversation.jira_baseline ?? mockBaseline(reviewed)) : null,
+                jira_baseline: run.conversation.flow === 'evolve' ? (run.conversation.jira_baseline ?? reviewed.jira_baseline) : null,
               }
               // Detener cuando ya solo quedaba la revisión: llega la propuesta y la petición se olvida.
               run.cancel = false
@@ -591,9 +583,9 @@ export function createHandlers(db: MockDb) {
           state: 'generating',
           error: null,
           cancel_requested: false,
-          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+          progress: pendingSteps(run.conversation.mode),
         }
-        run.script = generationScript()
+        run.script = generationScript(run.conversation.mode)
         setSummary(params.id, { status: 'started' })
         return HttpResponse.json(run.conversation as JsonBodyType, { status: 202 })
       }),
@@ -651,9 +643,9 @@ export function createHandlers(db: MockDb) {
           title: `Preparar pruebas de ${handoff?.story_key ?? handoff?.title ?? 'la HU'}`,
           project: handoff?.project ?? 'DEMO',
           state: 'generating',
-          progress: GENERATION_STEPS.map((step) => ({ ...step, state: 'pending' })),
+          progress: pendingSteps('qa'),
         }
-        db.runs.set(id, { conversation, script: generationScript(), storyKey: handoff?.story_key ?? undefined })
+        db.runs.set(id, { conversation, script: generationScript('qa'), storyKey: handoff?.story_key ?? undefined })
         db.conversations.unshift({
           ...example<ConversationSummary[]>('GET /api/v1/conversations 200')[0],
           thread_id: id,

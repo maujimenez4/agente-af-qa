@@ -15,7 +15,7 @@ import { qaHeaderTitle, readyHeadline } from './headline.ts'
 
 const TAKEN = examples['POST /api/v1/qa/handoffs/{handoff_id}/take 202'] as unknown as ConversationOut
 const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
-const SUITE = mockSuiteConversation(EXAMPLE, 'DEMO-3')
+const SUITE = mockSuiteConversation('DEMO-3')
 
 describe('readyHeadline en QA', () => {
   it('«Suite lista · Versión N · 4 casos»', () => {

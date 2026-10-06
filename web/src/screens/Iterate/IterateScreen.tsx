@@ -18,7 +18,19 @@ import {
   versionSummary,
 } from '../../components/Proposal/index.ts'
 import { TypewriterText, TypingIndicator } from '../../components/QMark/index.ts'
-import { casesLabel, CasesView, CoverageView, DataRisksView, StrategyView, suiteSummary } from '../../components/Suite/index.ts'
+import {
+  casesLabel,
+  CasesView,
+  coverageBadge,
+  coverageNote,
+  CoverageView,
+  DataRisksView,
+  StrategyView,
+  suiteCoverage,
+  suiteSummary,
+  UNKNOWN_COVERAGE,
+  type SuiteCoverage,
+} from '../../components/Suite/index.ts'
 import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
@@ -189,6 +201,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
 
   const suite = qa && shown ? suiteOf(shown.artifact.content) : undefined
   const previousSuite = qa && shown ? versions[versions.indexOf(shown) - 1] : undefined
+  // PA-326: `uncovered` y `coverage_md` son de la versión en revisión; las anteriores no los traen («no se sabe»).
+  const coverageOf = (version: number): SuiteCoverage =>
+    conversation.review && version === conversation.review.version ? suiteCoverage(conversation.review.uncovered) : UNKNOWN_COVERAGE
+  const shownCoverage = shown ? coverageOf(shown.version) : UNKNOWN_COVERAGE
+  const shownCoverageMd = conversation.review && shown?.version === conversation.review.version ? conversation.review.coverage_md : null
+  const badge = coverageBadge(shownCoverage)
   const tabs: { id: PanelTab; label: string }[] = suite
     ? [
         { id: 'cases', label: `Casos (${suite.cases.length})` },
@@ -245,17 +263,17 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         </div>
       ) : (
         <Tabs label="Contenido del panel" tabs={tabs} selected={tab} onSelect={setTab}>
-          {suite && (
+          {suite && badge && (
             <p className={styles.covered}>
-              <Badge tone="success" icon="done">
-                Todos los CA cubiertos
+              <Badge tone={badge.tone} icon={badge.tone === 'success' ? 'done' : 'warning'}>
+                {badge.text}
               </Badge>
             </p>
           )}
           {suite && tab === 'cases' && (
             <CasesView key={shown.version} suite={suite} version={shown.version} previous={previousSuite && suiteOf(previousSuite.artifact.content)} />
           )}
-          {suite && tab === 'coverage' && <CoverageView suite={suite} />}
+          {suite && tab === 'coverage' && <CoverageView suite={suite} coverage={shownCoverage} coverageMd={shownCoverageMd} />}
           {suite && tab === 'data' && <DataRisksView suite={suite} />}
           {suite && tab === 'strategy' && <StrategyView suite={suite} />}
           {!suite && tab === 'proposal' && <StoryView key={shown.version} story={shown.story} version={shown.version} previous={previousStory} diffs={diffs} />}
@@ -310,10 +328,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           const itemSuite = qa ? suiteOf(item.artifact.content) : undefined
           const before = versions[versions.indexOf(item) - 1]
           const summary = itemSuite
-            ? suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content))
+            ? suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content), coverageOf(item.version))
             : versionSummary(item.story, item.version, item.impact)
           const model = modelLabel(item.artifact.model_used)
           const sourceCount = itemSuite ? itemSuite.sources.length : item.story.sources.length
+          // «cobertura validada» solo con `uncovered` vacío; con huecos, cuántos (PA-326).
+          const coverage = itemSuite ? coverageNote(coverageOf(item.version)) : undefined
           return (
             <AssistantMessage key={`a-${entry.version}`} animate={entry.animate}>
               <span>{entry.animate ? <TypewriterText text={summary} /> : summary}</span>
@@ -338,7 +358,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               </button>
               {model && (
                 <span className={styles.meta}>
-                  Generado con {model} · {sourceCount} fuentes{itemSuite && ' · cobertura validada'}
+                  Generado con {model} · {sourceCount} fuentes{coverage && ` · ${coverage}`}
                 </span>
               )}
               {index === lastAssistant && !iterating && (

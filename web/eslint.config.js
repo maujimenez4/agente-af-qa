@@ -10,6 +10,7 @@ import tseslint from 'typescript-eslint'
 // se pinta como texto y la sesión nunca va al almacenamiento del navegador.
 const HTML_INJECTION = 'El contenido de la API se muestra como texto: no se inserta HTML.'
 const UNSAFE_LINK = 'Un enlace construido con datos pasa por safeHref() (src/security/safeHref.ts, PA-308): nunca javascript: ni data:.'
+const DOWNLOAD = 'Para descargar un texto, usa downloadText() (src/security/download.ts).'
 const BROWSER_STORAGE = 'No se usa el almacenamiento del navegador: la sesión va como diga el contrato de T-55.'
 
 export default defineConfig([
@@ -47,6 +48,21 @@ export default defineConfig([
         // xlink:href con namespace y spread de props en elementos con URL: la regla de arriba no los ve.
         // <button> e <input> quedan fuera: los componentes del sistema les reenvían props (Chip, TextField).
         { selector: "JSXAttribute[name.type='JSXNamespacedName'][name.name.name='href']", message: UNSAFE_LINK },
+        // Enlaces fuera de JSX: un href asignado a mano o un blob: solo en src/security/download.ts (downloadText).
+        { selector: "AssignmentExpression[left.property.name='href']", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
+        { selector: "AssignmentExpression[left.property.value='href']", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
+        { selector: "AssignmentExpression[left.property.quasis.0.value.raw='href']", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
+        {
+          selector: "CallExpression[callee.property.name=/^setAttribute(NS)?$/][arguments.length>=2] > Literal[value=/^(xlink:)?(href|src|action|formaction)$/i]",
+          message: `${UNSAFE_LINK} ${DOWNLOAD}`,
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name=/^setAttribute(NS)?$/][arguments.length>=2] > TemplateLiteral[quasis.0.value.raw=/^(xlink:)?(href|src|action|formaction)$/i]",
+          message: `${UNSAFE_LINK} ${DOWNLOAD}`,
+        },
+        { selector: "CallExpression[callee.computed=true][callee.property.value=/^setAttribute(NS)?$/]", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
+        { selector: "CallExpression[callee.property.name='createObjectURL']", message: DOWNLOAD },
         {
           selector:
             "JSXOpeningElement[name.name=/^(a|img|form|iframe|use|image|object|embed|source|video|audio|area|base|link|track)$/] > JSXSpreadAttribute",

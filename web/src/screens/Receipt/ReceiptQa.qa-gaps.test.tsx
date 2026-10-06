@@ -5,7 +5,6 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import examples from '../../api/examples.json'
 import type { ApproveIn, ConversationOut } from '../../api/types.ts'
 import { FINGERPRINT_MISMATCH } from '../../mocks/handlers.ts'
 import { mockDb, mockServer } from '../../mocks/node.ts'
@@ -15,8 +14,7 @@ import { openEventStream } from '../../test/sse.ts'
 import { ReceiptScreen } from './ReceiptScreen.tsx'
 import { aiNotice } from './receiptText.ts'
 
-const EXAMPLE = examples['GET /api/v1/conversations/{conversation_id} 200'] as unknown as ConversationOut
-const QA_REVIEW = mockSuiteConversation(EXAMPLE, 'DEMO-3')
+const QA_REVIEW = mockSuiteConversation('DEMO-3')
 
 const receipt = (version = 1) => screen.getByRole('region', { name: `Suite, versión ${version} lista para revisar` })
 const operations = () => within(receipt()).getByRole('group', { name: /Qué se hará en Jira/ })
@@ -74,7 +72,9 @@ describe('QA 4 · review.error en el recibo de una suite (contrato §5.3)', () =
     await userEvent.click(within(operations()).getByRole('checkbox'))
     await userEvent.click(approveButton())
     expect(await screen.findByRole('region', { name: 'Publicación simulada' })).toBeInTheDocument()
-    expect(bodies).toEqual([{ fingerprint: 'huella-suite-ficticia' }, { fingerprint: 'huella-suite-ficticia' }])
+    const fingerprint = QA_REVIEW.review?.fingerprint
+    expect(fingerprint).toBe('7c'.repeat(32))
+    expect(bodies).toEqual([{ fingerprint }, { fingerprint }])
   })
 
   it('test_review_error_with_html_is_shown_as_text', () => {
@@ -104,7 +104,9 @@ describe('QA 4 · versión, contador e historial', () => {
     const items = within(history).getAllByRole('listitem')
     expect(items.map((item) => item.querySelector('b')?.textContent)).toEqual(['Versión 2 generada', 'Versión 1 generada'])
     expect(items[0]).toHaveTextContent('5 casos · cobertura validada')
-    expect(items[1]).toHaveTextContent('4 casos · cobertura validada')
+    // PA-326: la cobertura solo se conoce para la versión en revisión; la anterior, solo sus casos.
+    expect(items[1]).toHaveTextContent('4 casos')
+    expect(items[1]).not.toHaveTextContent(/cobertura validada|sin caso/)
   })
 
   it('test_back_to_suite_keeps_both_versions', async () => {

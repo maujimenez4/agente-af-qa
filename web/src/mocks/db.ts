@@ -12,6 +12,7 @@ import type {
   SettingsOut,
   UsageTodayOut,
 } from '../api/types.ts'
+import type { ForcedCoverage } from './qaSuite.ts'
 import { example } from './examples.ts'
 
 // Permisos de core/permissions.py (ROLE_PERMISSIONS).
@@ -127,6 +128,14 @@ export function forcedApprovalFrom(search: string): ForcedApproval | undefined {
   return value && Object.hasOwn(FORCED_APPROVALS, value) ? FORCED_APPROVALS[value] : undefined
 }
 
+const FORCED_COVERAGE: Record<string, ForcedCoverage> = { 'sin-cubrir': 'gaps', 'cobertura-desconocida': 'unknown' }
+
+/** `?simular=sin-cubrir|cobertura-desconocida` → cómo llega `uncovered` en la suite (PA-326); otro valor, el del ejemplo. */
+export function forcedCoverageFrom(search: string): ForcedCoverage | undefined {
+  const value = new URLSearchParams(search).get('simular')
+  return value && Object.hasOwn(FORCED_COVERAGE, value) ? FORCED_COVERAGE[value] : undefined
+}
+
 /** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
 export function takenFrom(search: string): boolean {
   return new URLSearchParams(search).get('simular') === 'ya-recogida'
@@ -175,6 +184,8 @@ export interface MockDb {
   handoffs: HandoffOut[]
   /** `?simular=ya-recogida`: al recoger, otra persona se adelantó (409 `handoff_unavailable`). */
   forceTaken?: boolean
+  /** `?simular=sin-cubrir|cobertura-desconocida`: `uncovered` de la suite (PA-326). */
+  forceCoverage?: ForcedCoverage
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }

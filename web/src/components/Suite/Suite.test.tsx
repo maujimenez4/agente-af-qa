@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest'
 import type { TestSuite } from '../../api/types.ts'
 import { mockSuite } from '../../mocks/qaSuite.ts'
 import { CasesView, CoverageView, DataRisksView, StrategyView } from './SuiteViews.tsx'
-import { coverageMatrix, dataColumns, newCaseIds, strategyBlocks, suiteSummary, verifiesLabel } from './suiteText.ts'
+import { coverageMatrix, dataColumns, newCaseIds, strategyBlocks, suiteSummary, verifiesLabel, type SuiteCoverage } from './suiteText.ts'
 
 const SUITE = mockSuite('DEMO-3')
+const COMPLETE: SuiteCoverage = { kind: 'complete' }
+const UNKNOWN: SuiteCoverage = { kind: 'unknown' }
 const withCase = (suite: TestSuite): TestSuite => ({
   ...suite,
   cases: [
@@ -19,14 +21,24 @@ const withCase = (suite: TestSuite): TestSuite => ({
 
 describe('suiteText', () => {
   it('suiteSummary v1: casos, todos los CA cubiertos y el primer riesgo', () => {
-    expect(suiteSummary(SUITE, 1, undefined)).toBe(
-      'Suite lista: 4 casos y todos los CA cubiertos. Riesgo: Las reservas de DEMO-2 cambian el resultado de la renovación.',
+    expect(suiteSummary(SUITE, 1, undefined, COMPLETE)).toBe(
+      'Suite lista: 4 casos y todos los CA cubiertos. Riesgo: El catálogo puede no responder al renovar.',
     )
   })
 
+  it('suiteSummary v1 con cobertura desconocida: casos y riesgo, sin afirmar la cobertura (PA-326)', () => {
+    expect(suiteSummary(SUITE, 1, undefined, UNKNOWN)).toBe('Suite lista: 4 casos. Riesgo: El catálogo puede no responder al renovar.')
+    expect(suiteSummary(SUITE, 1, undefined)).toBe('Suite lista: 4 casos. Riesgo: El catálogo puede no responder al renovar.')
+  })
+
   it('suiteSummary v2: dice qué casos añadió y cuántos hay', () => {
-    expect(suiteSummary(withCase(SUITE), 2, SUITE)).toBe('Versión 2: añadí el CP-05 (positivo). 5 casos; la cobertura sigue completa.')
-    expect(suiteSummary(SUITE, 3, SUITE)).toBe('Versión 3: revisé los casos. 4 casos; la cobertura sigue completa.')
+    expect(suiteSummary(withCase(SUITE), 2, SUITE, COMPLETE)).toBe('Versión 2: añadí el CP-05 (positivo). 5 casos; la cobertura sigue completa.')
+    expect(suiteSummary(SUITE, 3, SUITE, COMPLETE)).toBe('Versión 3: revisé los casos. 4 casos; la cobertura sigue completa.')
+  })
+
+  it('suiteSummary v2 con cobertura desconocida: no dice que la cobertura siga completa (PA-326)', () => {
+    expect(suiteSummary(withCase(SUITE), 2, SUITE, UNKNOWN)).toBe('Versión 2: añadí el CP-05 (positivo). 5 casos.')
+    expect(suiteSummary(SUITE, 3, SUITE)).toBe('Versión 3: revisé los casos. 4 casos.')
   })
 
   it('verifiesLabel y newCaseIds', () => {
@@ -65,19 +77,28 @@ describe('Vistas de la suite', () => {
     expect(items).toHaveLength(4)
     const first = items[0] as HTMLElement
     expect(first).toHaveTextContent('CP-01')
-    expect(first).toHaveTextContent('Renovar un préstamo activo sin reservas')
+    expect(first).toHaveTextContent('Renovar un préstamo sin reservas ni renovaciones previas')
     expect(first).toHaveTextContent('Positivo')
     expect(first).toHaveTextContent('Must')
     expect(first).toHaveTextContent('Verifica CA-01, RN-01')
     expect(within(first).getByRole('list', { name: 'Pasos de CP-01' })).toHaveTextContent('→ El vencimiento se amplía 21 días')
     const toggle = within(first).getByRole('button', { name: 'Ver el Gherkin' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(within(first).getByText(/Escenario: Renovar un préstamo activo/, { selector: 'pre' })).not.toBeVisible()
+    expect(within(first).getByText(/Dado un préstamo activo sin renovaciones ni reservas/, { selector: 'pre' })).not.toBeVisible()
     await userEvent.click(toggle)
     expect(within(first).getByRole('button', { name: 'Ocultar el Gherkin' })).toHaveAttribute('aria-expanded', 'true')
-    expect(within(first).getByText(/Escenario: Renovar un préstamo activo/, { selector: 'pre' })).toBeVisible()
-    // Sin Gherkin, sin botón.
+    expect(within(first).getByText(/Dado un préstamo activo sin renovaciones ni reservas/, { selector: 'pre' })).toBeVisible()
+  })
+
+  it('Casos: sin Gherkin, sin botón para desplegarlo', () => {
+    // En el ejemplo del contrato todos los casos traen Gherkin: el CP-03 se queda sin él para la prueba.
+    const suite = { ...SUITE, cases: SUITE.cases.map((item) => (item.internal_id === 'CP-03' ? { ...item, gherkin: null } : item)) }
+    render(<CasesView suite={suite} version={1} previous={undefined} />)
+    const items = within(screen.getByRole('list', { name: 'Casos de prueba' }))
+      .getAllByRole('listitem')
+      .filter((item) => item.parentElement?.getAttribute('aria-label') === 'Casos de prueba')
     expect(within(items[2] as HTMLElement).queryByRole('button', { name: /Gherkin/ })).toBeNull()
+    expect(within(items[0] as HTMLElement).getByRole('button', { name: 'Ver el Gherkin' })).toBeInTheDocument()
   })
 
   it('Casos: el nuevo frente a la versión anterior lleva «Nuevo en v2»', () => {
@@ -87,13 +108,14 @@ describe('Vistas de la suite', () => {
   })
 
   it('Cobertura: tabla CA/RN × CP con cabeceras y «Lo verifica» para los lectores de pantalla', () => {
-    render(<CoverageView suite={SUITE} />)
+    render(<CoverageView suite={SUITE} coverage={COMPLETE} />)
     expect(screen.getByText('Matriz de cobertura CA/RN ↔ CP (RF-24) · se adjunta como matriz-DEMO-3.md')).toBeInTheDocument()
     const table = screen.getByRole('table', { name: 'Qué casos verifican cada CA y cada RN' })
     expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['CA / RN', 'CP-01', 'CP-02', 'CP-03', 'CP-04'])
     const row = within(table).getByRole('row', { name: /^CA-02/ })
     expect(within(row).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['No lo verifica', '✓Lo verifica', 'No lo verifica', 'No lo verifica'])
-    expect(screen.getByText('Cada CA y cada RN tiene al menos un caso. Si no fuera así, la suite no se podría aprobar.')).toBeInTheDocument()
+    expect(screen.getByText('Cada CA y cada RN de la HU tiene al menos un caso.')).toBeInTheDocument()
+    expect(screen.queryByText(/Si no fuera así, la suite no se podría aprobar/)).toBeNull()
   })
 
   it('Cobertura sin referencias: lo dice y no afirma que cada CA tenga un caso', () => {
@@ -105,10 +127,10 @@ describe('Vistas de la suite', () => {
   it('Datos y riesgos: tabla de datos ficticios, riesgos, dependencias y áreas de impacto', () => {
     render(<DataRisksView suite={SUITE} />)
     const table = screen.getByRole('table', { name: 'Datos sintéticos de la suite' })
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['socio', 'prestamo', 'renovaciones', 'reservas'])
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['prestamo', 'renovaciones', 'reservas'])
     expect(within(table).getAllByRole('row')).toHaveLength(4)
-    expect(screen.getByText('Las reservas de DEMO-2 cambian el resultado de la renovación')).toBeInTheDocument()
-    expect(screen.getByText('Servicio de catálogo para comprobar reservas')).toBeInTheDocument()
+    expect(screen.getByText('El catálogo puede no responder al renovar.')).toBeInTheDocument()
+    expect(screen.getByText('DEMO-2')).toBeInTheDocument()
     expect(screen.getByText('Reservas')).toBeInTheDocument()
   })
 

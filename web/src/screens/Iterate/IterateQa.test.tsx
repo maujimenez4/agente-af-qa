@@ -29,7 +29,8 @@ describe('QA 3 · Iterar la suite', () => {
     await userEvent.click(within(panel()).getByRole('tab', { name: 'Datos y riesgos' }))
     expect(within(panel()).getByRole('table', { name: 'Datos sintéticos de la suite' })).toBeInTheDocument()
     await userEvent.click(within(panel()).getByRole('tab', { name: 'Estrategia' }))
-    expect(within(panel()).getByRole('heading', { name: 'Alcance' })).toBeInTheDocument()
+    expect(within(panel()).getByRole('heading', { name: 'Estrategia de pruebas · DEMO-3' })).toBeInTheDocument()
+    expect(within(panel()).getByText('• Alcance: renovación de préstamos.')).toBeInTheDocument()
   })
 
   it('el asistente resume la suite sin LLM, con su tarjeta y las sugerencias de QA', async () => {

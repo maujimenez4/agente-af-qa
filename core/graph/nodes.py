@@ -337,9 +337,13 @@ class GraphNodes:
             if unpublished:
                 chained = chained.model_copy(update={"jira_key": None})
             tests_writer = TestWriter(self.c.llm, limits=self._limits())
-            return tests_writer.generate(chained, ctx, unpublished=unpublished)
+            return tests_writer.generate(
+                chained, ctx, unpublished=unpublished, previous_suite=_previous_suite(state)
+            )
         story = self._baseline(StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id)
-        return TestWriter(self.c.llm, limits=self._limits()).generate(story, ctx)
+        return TestWriter(self.c.llm, limits=self._limits()).generate(
+            story, ctx, previous_suite=_previous_suite(state)
+        )
 
     def _handoff_trace(self, handoff_id: str) -> dict[str, Any]:
         """Referencias de la HU de origen para la auditoría (solo ids, nunca contenido)."""
@@ -899,3 +903,10 @@ def _diff_comment_md(impact: ImpactAnalysis | None) -> str:
 def _table_cell(value: str) -> str:
     """PA-201: un valor de la tabla del diff no añade columnas ni parte la fila."""
     return " ".join(value.split()).replace("|", "\\|")
+
+
+def _previous_suite(state: AgentState) -> TestSuite | None:
+    """PA-331: al iterar en QA, la suite en revisión, para aplicar el feedback sobre ella."""
+    previous = state["artifact"]
+    content = previous.content if previous is not None else None
+    return content if isinstance(content, TestSuite) else None

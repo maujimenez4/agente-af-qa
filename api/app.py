@@ -93,6 +93,7 @@ from api.security import (
     session_for,
 )
 from core.config import Settings
+from core.context.budget import estimate_tokens
 from core.context.jql import text_search_jql
 from core.guided_start import GuidedStart
 from core.logging import get_logger
@@ -470,6 +471,8 @@ def sources(body: SourcesIn, request: Request) -> SourcesOut:
             limit=report.budget,
             dropped_sources=report.dropped_issues + report.dropped_chunks,
             truncated_sources=report.truncated_issues,
+            fixed=(fixed := estimate_tokens(origin.get("text") or "")),  # PA-330: como `gather`
+            total=report.budget + fixed,
         ),
     )
 

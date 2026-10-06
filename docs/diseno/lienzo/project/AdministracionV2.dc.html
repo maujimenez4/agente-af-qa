@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Ajustes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.qi{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #E6EAEE;font-size:13px}
+th{color:#FFFFFF;background:#1E2D3D;font-weight:600}
+.conn{display:flex;gap:10px;align-items:center;font-size:14px;padding:10px 0;border-bottom:1px solid #E6EAEE}
+.dot{width:10px;height:10px;border-radius:3px 3px 1px 3px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Rail" active="admin" role="admin" hint-size="88px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<header style="height: 64px; padding: 0 32px; display: flex; align-items: center; background: #FFFFFF; border-bottom: 1px solid #E6EAEE;">
+<h1 style="margin: 0; font-size: 18px; font-weight: 700;">Ajustes</h1>
+</header>
+<div style="padding: 24px 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px;">
+<section aria-labelledby="c" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 20px; display: flex; flex-direction: column;">
+<h2 id="c" style="margin: 0 0 6px; font-size: 16px; font-weight: 700;">Conexiones</h2>
+<div class="conn"><span class="dot" style="background: #1E7A46;"></span><span style="flex-grow: 1;">Jira Cloud, proyecto DEMO</span><span style="color: #1E7A46; font-weight: 600;">Conectado</span></div>
+<div class="conn"><span class="dot" style="background: #1E7A46;"></span><span style="flex-grow: 1;">Groq</span><span style="color: #1E7A46; font-weight: 600;">Disponible</span></div>
+<div class="conn"><span class="dot" style="background: #B35C00;"></span><span style="flex-grow: 1;">OpenRouter</span><span style="color: #8A4600; font-weight: 600;">Falta la clave</span></div>
+<div class="conn" style="border-bottom: 0;"><span class="dot" style="background: #1E7A46;"></span><span style="flex-grow: 1;">Ollama local</span><span style="color: #1E7A46; font-weight: 600;">Disponible</span></div>
+<button style="margin-top: 10px; align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #93A0AB; border-radius: 10px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600;">Probar conexiones</button>
+</section>
+<section aria-labelledby="m" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; overflow: hidden;">
+<h2 id="m" style="margin: 0; padding: 20px 20px 12px; font-size: 16px; font-weight: 700;">Modelos por tarea</h2>
+<table style="width: 100%; border-collapse: collapse;">
+<thead><tr><th>Tarea</th><th>Principal</th><th>Respaldo</th></tr></thead>
+<tbody>
+<tr><td>Generar HU</td><td>Groq, gpt-oss-120b</td><td>OpenRouter</td></tr>
+<tr><td>Generar pruebas</td><td>Groq, gpt-oss-120b</td><td>OpenRouter</td></tr>
+<tr><td>Memoria</td><td>Groq, gpt-oss-20b</td><td>Local</td></tr>
+<tr><td>Clasificar fuentes</td><td>Local</td><td>Groq, gpt-oss-20b</td></tr>
+</tbody>
+</table>
+</section>
+<section aria-labelledby="d" style="grid-column: span 2; background: #FFFFFF; border: 1.5px dashed #93A0AB; border-radius: 16px; padding: 22px; display: flex; gap: 16px; align-items: center;">
+<svg class="qi" viewBox="0 0 24 24" style="width: 32px; height: 32px; color: #FF7932;" aria-hidden="true"><path d="M3 9a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v12H9a6 6 0 0 1-6-6z M12 15.5v-7 M8.5 12l3.5-3.5 3.5 3.5"></path></svg>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+<h2 id="d" style="margin: 0; font-size: 16px; font-weight: 700;">Añadir documentos a la base de conocimiento</h2>
+<span style="font-size: 13px; color: #5C6E7C;">PDF, DOCX, MD o TXT de hasta 20 MB. Se clasifican e indexan solos.</span>
+</div>
+<button style="height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: #FF7932; color: #233441; font: inherit; font-size: 14px; font-weight: 700;">Elegir archivos</button>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

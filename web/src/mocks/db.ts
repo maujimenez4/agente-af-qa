@@ -1,6 +1,8 @@
 // Estado en memoria de la API simulada (MSW). Solo datos sintéticos: proyecto DEMO de la biblioteca
 // ficticia de Villaficticia, usuarios af-demo, qa-demo y admin-demo. Parte de los ejemplos del contrato.
 import type {
+  AdminModelsOut,
+  ConnectionsTestOut,
   ConversationOut,
   ConversationSummary,
   HandoffOut,
@@ -17,6 +19,7 @@ import type {
 import type { ForcedCoverage } from './qaSuite.ts'
 import { mockMemoryDetails, mockMemorySummaries } from './memories.ts'
 import { example } from './examples.ts'
+import { seedQualityReviews, type MockQualityReview } from './quality.ts'
 
 // Permisos de core/permissions.py (ROLE_PERMISSIONS).
 const PERMISSIONS: Record<Role, string[]> = {
@@ -151,6 +154,31 @@ export function noMemoriesFrom(search: string): boolean {
   return new URLSearchParams(search).get('simular') === 'sin-memorias'
 }
 
+/** `?simular=conexion-caida`: al probar las conexiones, un servicio falla (el ejemplo del contrato). */
+export function connectionDownFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'conexion-caida'
+}
+
+/** Prueba de conexiones del ejemplo del contrato, con todos los servicios bien (el caso normal en la demo). */
+export function connectionsAllOk(): ConnectionsTestOut {
+  const result = example<ConnectionsTestOut>('POST /api/v1/admin/connections/test 200')
+  return {
+    checks: result.checks.map((check) => (check.ok ? check : { ...check, ok: true, detail: 'Modelos disponibles.' })),
+  }
+}
+
+/** Modelos por tarea: el ejemplo del contrato más una tarea con respaldo y otra que la sesión cambió. */
+export function mockAdminModels(): AdminModelsOut {
+  const models = example<AdminModelsOut>('GET /api/v1/admin/models 200')
+  const ollama = { provider: 'ollama', model: 'qwen3:1.7b', host: 'ollama:11434' }
+  const fallback = { provider: 'ollama', model: 'phi4-mini', host: 'ollama:11434' }
+  models.tasks.push(
+    { task: 'generate_story', chain: [ollama, fallback] },
+    { task: 'generate_tests', chain: [ollama, fallback], override: { provider: 'ollama', model: 'phi4-mini' } },
+  )
+  return models
+}
+
 /** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
 export function takenFrom(search: string): boolean {
   return new URLSearchParams(search).get('simular') === 'ya-recogida'
@@ -206,6 +234,15 @@ export interface MockDb {
   forceTaken?: boolean
   /** `?simular=sin-cubrir|cobertura-desconocida`: `uncovered` de la suite (PA-326). */
   forceCoverage?: ForcedCoverage
+  /** Administración (T-29): resultado de probar las conexiones y modelos por tarea. */
+  connections: ConnectionsTestOut
+  adminModels: AdminModelsOut
+  /** Hora (ms) de la última prueba de conexiones: una cada 10 s por persona (429 con `retry_after`). */
+  lastConnectionsTest?: number
+  /** Revisiones de calidad (T-48) de cada persona, guardadas. */
+  qualityReviews: MockQualityReview[]
+  /** `?simular=calidad-error`: la revisión acaba en `error` con `quality_failed`. */
+  forceQualityError?: boolean
   /** Milisegundos entre eventos del SSE simulado (0 en las pruebas). */
   stepDelayMs: number
 }
@@ -222,6 +259,9 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     handoffs: example<HandoffOut[]>('GET /api/v1/qa/handoffs 200'),
     memories,
     memoryDetails: mockMemoryDetails(memories),
+    connections: connectionsAllOk(),
+    adminModels: mockAdminModels(),
+    qualityReviews: seedQualityReviews(),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

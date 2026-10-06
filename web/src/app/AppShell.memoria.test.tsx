@@ -61,22 +61,22 @@ describe('AppShell · Memoria y Trabajo', () => {
 
 describe('AppShell · admin', () => {
   it('test_admin_enters_settings_and_can_open_memory', async () => {
-    /** Decisión 16 y PA-329: admin entra por Ajustes («Disponible pronto»), sin Trabajo, y puede abrir Memoria y volver. */
+    /** Decisión 16, PA-329 y T-29: admin entra por Ajustes (Administración), sin Trabajo, y puede abrir Memoria y volver. */
     signIn('admin')
     render(<App />)
     const nav = await screen.findByRole('navigation', { name: 'Zonas' })
     expect(within(nav).getByRole('button', { name: 'Ajustes' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('heading', { level: 1, name: 'Disponible pronto' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Ajustes' })).toBeInTheDocument()
     expect(within(nav).queryByRole('button', { name: 'Trabajo' })).toBeNull()
 
     await userEvent.click(within(nav).getByRole('button', { name: 'Memoria' }))
     const list = await screen.findByRole('complementary', { name: 'Memorias' })
     expect(await within(list).findByRole('button', { name: /DEMO-9001/ })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 1, name: 'Disponible pronto' })).toBeNull()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Ajustes' })).toBeNull()
     expect(within(nav).getByRole('button', { name: 'Memoria' })).toHaveAttribute('aria-current', 'page')
 
     await userEvent.click(within(nav).getByRole('button', { name: 'Ajustes' }))
-    expect(screen.getByRole('heading', { level: 1, name: 'Disponible pronto' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Ajustes' })).toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Memorias' })).toBeNull()
   })
 

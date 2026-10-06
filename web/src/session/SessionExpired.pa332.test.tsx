@@ -112,6 +112,30 @@ describe('Volver a entrar tras la sesión caducada (PA-332)', () => {
     expect(within(list).getByRole('button', { name: /Evolucionar DEMO-3/ })).toHaveAttribute('aria-current')
   })
 
+  it('una revisión de calidad abierta se reabre como revisión, sin pedirla como conversación (PA-407)', async () => {
+    const conversationGets: string[] = []
+    mockServer.events.on('request:start', ({ request }) => {
+      const path = new URL(request.url).pathname
+      if (request.method === 'GET' && /^\/api\/v1\/conversations\/[^/]+$/.test(path)) conversationGets.push(path)
+    })
+    signIn()
+    render(<App />)
+    const list = await screen.findByRole('complementary', { name: 'Conversaciones' })
+    await userEvent.click(await within(list).findByRole('button', { name: /Revisar la calidad de DEMO-3/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Calidad de DEMO-3' })).toBeInTheDocument()
+    // «Evolucionar con esto» (POST /conversations) con la sesión ya caducada: 401.
+    expire()
+    await userEvent.click(screen.getByRole('button', { name: 'Evolucionar DEMO-3 con esto' }))
+    await expectExpiredLogin()
+
+    await logIn('af-demo')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Calidad de DEMO-3' })).toBeInTheDocument()
+    const again = screen.getByRole('complementary', { name: 'Conversaciones' })
+    expect(await within(again).findByRole('button', { name: /Revisar la calidad de DEMO-3/ })).toHaveAttribute('aria-current', 'true')
+    expect(conversationGets).toEqual([]) // nunca GET /conversations/{id de la revisión} (daría 404)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('otra persona no hereda la conversación: entra en su inicio', async () => {
     mockServer.use(
       http.get('/api/v1/conversations/:id', () => {

@@ -1499,7 +1499,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -1518,7 +1518,7 @@ paths:
                   fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
                   impact:
                     diffs:
-                    - field: acceptance_criteria.CA-02
+                    - field: acceptance_criteria[CA-02]
                       after: Renovación rechazada por reservas
                     affected:
                     - jira_key: DEMO-2
@@ -1612,7 +1612,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2149,7 +2149,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2168,7 +2168,7 @@ paths:
                   fingerprint: 4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f
                   impact:
                     diffs:
-                    - field: acceptance_criteria.CA-02
+                    - field: acceptance_criteria[CA-02]
                       after: Renovación rechazada por reservas
                     affected:
                     - jira_key: DEMO-2
@@ -2262,7 +2262,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -2545,7 +2545,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2
@@ -3067,7 +3067,7 @@ paths:
                       open_questions: []
                     impact:
                       diffs:
-                      - field: acceptance_criteria.CA-02
+                      - field: acceptance_criteria[CA-02]
                         after: Renovación rechazada por reservas
                       affected:
                       - jira_key: DEMO-2

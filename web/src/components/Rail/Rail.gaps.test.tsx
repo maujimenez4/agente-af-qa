@@ -129,12 +129,12 @@ describe('Rail en la app: zonas por rol', () => {
     expect(badge).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('test_admin_settings_click_keeps_soon_screen', async () => {
-    /** Criterio 5: pulsar Ajustes (zona activa) deja a admin en «Disponible pronto». */
+  it('test_admin_settings_click_keeps_admin_screen', async () => {
+    /** Criterio 5 y T-29: pulsar Ajustes (zona activa) deja a admin en la pantalla de Administración. */
     signIn('admin')
     render(<App />)
     await userEvent.click(await screen.findByRole('button', { name: 'Ajustes' }))
-    expect(screen.getByRole('heading', { level: 1, name: 'Disponible pronto' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Ajustes' })).toBeInTheDocument()
   })
 
   it.each(['functional', 'qa'] as const)('test_%s_enters_work_zone', async (role) => {

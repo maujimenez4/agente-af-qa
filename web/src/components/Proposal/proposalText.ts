@@ -10,10 +10,13 @@ export type SourceRef = components['schemas']['SourceRef']
 
 export type ChangeMark = 'new' | 'changed'
 
-/** «acceptance_criteria.CA-02» → id CA-02. Los diffs de CA y RN van por id (core/impact/diff.py). */
+/**
+ * Id del CA o la RN de un diff: CA-02. Los diffs de CA y RN van por id (core/impact/diff.py). La API real los nombra
+ * «acceptance_criteria[CA-02]» y el ejemplo del contrato, «acceptance_criteria.CA-02»: se aceptan los dos (PA-341).
+ */
 function itemId(field: string): string | undefined {
-  const match = /^(?:acceptance_criteria|business_rules)\.([A-Z]+-\d+)$/.exec(field)
-  return match?.[1]
+  const match = /^(?:acceptance_criteria|business_rules)(?:\.([A-Z]+-\d+)|\[([A-Z]+-\d+)\])$/.exec(field)
+  return match?.[1] ?? match?.[2]
 }
 
 type Item = UserStory['acceptance_criteria'][number] | UserStory['business_rules'][number]
@@ -71,7 +74,8 @@ export function fieldLabel(field: string): string {
   const id = itemId(field)
   if (id) return id
   const [base, detail] = field.split(/[.[]/)
-  const name = FIELD_NAMES[base ?? ''] ?? field
+  // Solo los nombres propios de la tabla: «constructor» o «__proto__» no dan una propiedad heredada.
+  const name = (base && Object.hasOwn(FIELD_NAMES, base) ? FIELD_NAMES[base] : undefined) ?? field
   return detail ? `${name} (${detail.replace(/]$/, '')})` : name
 }
 

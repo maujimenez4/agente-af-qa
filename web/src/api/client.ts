@@ -1,8 +1,10 @@
 // Cliente de la API (T-55): mismo origen, cookie de sesión HttpOnly y X-CSRF-Token en memoria.
 // DESIGN-DECISIONS.md §4. Nunca guarda nada en el almacenamiento del navegador.
 import type {
+  AdminModelsOut,
   ApiError,
   ChooseProjectOut,
+  ConnectionsTestOut,
   ConversationCreateIn,
   ConversationOut,
   ConversationSummary,
@@ -16,6 +18,9 @@ import type {
   OriginIn,
   ProjectsOut,
   ProposeIn,
+  QualityReviewIn,
+  QualityReviewOut,
+  QualityReviewSummary,
   SessionOut,
   SettingsOut,
   SourcesIn,
@@ -180,4 +185,14 @@ export const api = {
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),
+
+  // Administración mínima (T-29): solo admin. Probar conexiones lleva CSRF y admite una prueba cada 10 s.
+  adminConnectionsTest: () => request<ConnectionsTestOut>('POST', '/admin/connections/test'),
+  adminModels: (signal?: AbortSignal) => request<AdminModelsOut>('GET', '/admin/models', undefined, signal),
+
+  // Revisar la calidad (T-48, Mixta 5): solo lectura, no publica. Responde 202 en `running`; el avance, consultando la revisión.
+  startQualityReview: (body: QualityReviewIn) => request<QualityReviewOut>('POST', '/quality-reviews', body),
+  qualityReviews: () => request<QualityReviewSummary[]>('GET', '/quality-reviews'),
+  qualityReview: (id: string, signal?: AbortSignal) =>
+    request<QualityReviewOut>('GET', `/quality-reviews/${enc(id)}`, undefined, signal),
 }

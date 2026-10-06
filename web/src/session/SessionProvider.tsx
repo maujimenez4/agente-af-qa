@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ApiRequestError, onUnauthenticated, setCsrfToken } from '../api/client.ts'
 import type { SessionOut } from '../api/types.ts'
-import { SessionContext, type SessionState } from './sessionContext.ts'
+import { SessionContext, type OpenKind, type SessionState } from './sessionContext.ts'
 
 // Sesión del frontend: la cookie la gestiona el navegador; aquí solo el usuario y el CSRF en memoria.
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: 'loading' })
-  // Conversación abierta ahora: si la sesión caduca, se reabre al volver a entrar la misma persona.
-  const openConversation = useRef<string | undefined>(undefined)
+  // Lo abierto ahora (conversación o revisión): si la sesión caduca, se reabre al volver a entrar la misma persona.
+  const opened = useRef<{ id: string; kind: OpenKind } | undefined>(undefined)
 
   const accept = useCallback((session: SessionOut) => {
     setCsrfToken(session.csrf_token)
@@ -28,19 +28,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setCsrfToken(null)
         setState((previous) => {
           if (previous.status !== 'authenticated') return previous
-          const conversationId = openConversation.current
+          const open = opened.current
           return {
             status: 'anonymous',
             error,
-            resume: conversationId ? { username: previous.user.username, conversationId } : undefined,
+            resume: open ? { username: previous.user.username, ...open } : undefined,
           }
         })
       }),
     [],
   )
 
-  const remember = useCallback((conversationId: string | undefined) => {
-    openConversation.current = conversationId
+  const remember = useCallback((id: string | undefined, kind: OpenKind = 'conversation') => {
+    opened.current = id ? { id, kind } : undefined
   }, [])
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Aunque la API no responda, la sesión local se cierra.
     }
     setCsrfToken(null)
-    openConversation.current = undefined
+    opened.current = undefined
     setState({ status: 'anonymous' })
   }, [])
 

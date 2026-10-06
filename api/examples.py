@@ -97,7 +97,7 @@ STORY = UserStory(
 IMPACT = ImpactAnalysis(
     diffs=[
         StoryDiff(
-            field="acceptance_criteria.CA-02",
+            field="acceptance_criteria[CA-02]",  # formato real de core/impact/diff.py (PA-341)
             before=None,
             after="Renovación rechazada por reservas",
         )

@@ -32,10 +32,10 @@ describe('App', () => {
     expect(await screen.findByRole('img', { name: /Consumo de tokens de hoy de toda la instalación: 42.000 de 180.000/ })).toBeInTheDocument()
   })
 
-  it('admin ve «Disponible pronto» y no tiene lista de conversaciones', async () => {
+  it('admin ve los Ajustes (Administración mínima) y no tiene lista de conversaciones', async () => {
     signIn('admin-demo', 'admin')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Disponible pronto' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ajustes' })).toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Conversaciones' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Ajustes' })).toHaveAttribute('aria-current', 'page')
   })

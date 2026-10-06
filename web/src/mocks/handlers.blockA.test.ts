@@ -242,7 +242,11 @@ describe('MSW · versión «Jira» (ejemplo del contrato, bloque A)', () => {
     if (!baseline || !story) throw new Error('Falta la versión «Jira» o la propuesta')
     const added = (ready?.review?.impact?.diffs ?? [])
       .filter((diff) => diff.before == null)
-      .map((diff) => /^(?:acceptance_criteria|business_rules)\.(.+)$/.exec(diff.field)?.[1])
+      // El contrato usa el formato real de la API, `acceptance_criteria[CA-02]` (PA-341); se acepta también el antiguo con punto.
+      .map((diff) => {
+        const match = /^(?:acceptance_criteria|business_rules)(?:\.([A-Z]+-\d+)|\[([A-Z]+-\d+)\])$/.exec(diff.field)
+        return match?.[1] ?? match?.[2]
+      })
       .filter((key): key is string => Boolean(key))
     expect(added).toEqual(['CA-02'])
     const inJira = new Set([...baseline.acceptance_criteria, ...baseline.business_rules].map((item) => item.id))

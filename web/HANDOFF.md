@@ -24,7 +24,7 @@
 - **Seguridad:** `safeHref` y su regla de ESLint (PA-308).
 - **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página ni títulos cortados; lista de conversaciones larga con scroll interno.
 - **Pruebas:** no dependen del reloj (SSE de prueba abierto, sondeo disparado por la prueba) y Vitest usa la mitad de los núcleos.
-- **Disponible pronto:** admin, Revisar la calidad, *Editar a mano*, auditoría, historial, *Ver la memoria*, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
+- **Disponible pronto:** *Editar a mano*, auditoría, historial, *Ver la memoria*, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
 
 ## API real
 La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única (`API-LOCAL.md` solo enlaza a ella). En este equipo no se monta el backend. Quiere probar el flujo de QA contra su API antes de fusionar la PR del bloque 5.
@@ -77,8 +77,8 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
    - `GET /memories/{key}` pintado por secciones; el `.md` solo para descargar;
    - «indexada» o «no indexada»;
    - en el MSW, los datos de los ejemplos del contrato.
-2. **Revisar la calidad.**
-3. **Administración mínima**, solo para admin:
+2. ~~**Revisar la calidad.**~~ (hecho en `ses-web-admin`)
+3. ~~**Administración mínima**~~ (hecho en `ses-web-admin`), solo para admin:
    - probar conexiones con `POST /admin/connections/test`: una cada 10 s, con 429 y `retry_after`, y con CSRF;
    - modelos por tarea en solo lectura (`GET /admin/models`);
    - `publish_mode` de `GET /settings` en solo lectura, con el aviso «Simulación: no se escribe nada en Jira»;

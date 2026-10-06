@@ -77,7 +77,8 @@ describe('Resultado tras aprobar', () => {
     expect(screen.getByRole('img', { name: 'Avance: fase 4 de 4, Publicado' })).toBeInTheDocument()
     expect(within(region).getByRole('heading', { level: 2, name: 'Publicado en Jira' })).toBeInTheDocument()
     expect(within(region).getByRole('list', { name: 'Operaciones hechas en Jira' })).toBeInTheDocument()
-    expect(within(region).getByText('Claves en Jira: DEMO-3')).toBeInTheDocument()
+    // PA-325: cada clave puede ser un enlace a Jira (con texto oculto); se comparan solo las claves.
+    expect(within(region).getByText(/^Claves en Jira:/, { selector: 'p' }).textContent?.match(/[A-Z][A-Z0-9_]*-\d+/g)).toEqual(['DEMO-3'])
     expect(within(region).queryByText(/Modo de prueba activo/)).toBeNull()
     expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La dirección de Jira no está disponible.')
     // PA-329: con la HU publicada y su clave, *Ver la memoria* ya abre Memoria (no es «disponible pronto»).

@@ -10,6 +10,8 @@ import {
   type StoryDiff,
   type UserStory,
 } from './proposalText.ts'
+import { useJiraBrowseUrl } from '../../hooks/useJiraBrowseUrl.ts'
+import { JiraKeyLink } from '../Jira/index.ts'
 
 /** Valor de `selected` para la versión «Jira» (la HU tal como está en Jira, PA-316). */
 export const JIRA_VERSION = 0
@@ -191,6 +193,8 @@ export function ChangesView({ diffs, againstJira = true }: { diffs: readonly Sto
 export function ImpactView({ impact }: { impact: ImpactAnalysis | null | undefined }) {
   const affected = impact?.affected ?? []
   const notes = impact?.regression_notes ?? []
+  // PA-325: cada HU afectada enlaza a Jira con `jira_browse_url`; sin él, la clave va como texto.
+  const browseUrl = useJiraBrowseUrl(affected.length > 0)
   if (affected.length === 0 && notes.length === 0) return <p className={styles.empty}>No afecta a otras HU.</p>
   return (
     <>
@@ -199,7 +203,9 @@ export function ImpactView({ impact }: { impact: ImpactAnalysis | null | undefin
           {affected.map((item) => (
             <li key={`${item.jira_key}-${item.kind}`} className={styles.item}>
               <span className={styles.itemHead}>
-                <b>{item.jira_key}</b>
+                <b>
+                  <JiraKeyLink jiraKey={item.jira_key} browseUrl={browseUrl} />
+                </b>
                 <Badge>{IMPACT_KIND[item.kind]}</Badge>
               </span>
               <span>{item.reason}</span>

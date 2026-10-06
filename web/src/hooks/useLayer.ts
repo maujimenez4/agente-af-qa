@@ -16,6 +16,7 @@ export function useLayer({
   layer,
   opener,
   onClose,
+  onFocusLeave,
 }: {
   /** Capa abierta (y en modo capa: fuera de él no hace nada). */
   open: boolean
@@ -23,14 +24,16 @@ export function useLayer({
   /** El botón que abre y cierra la capa: recibe el foco al cerrarla. */
   opener: () => HTMLElement | null | undefined
   onClose: () => void
+  /** Si el foco sale de la capa (por defecto, `onClose`). Plegar sin preguntar: la capa solo se oculta, no se pierde nada. */
+  onFocusLeave?: () => void
 }) {
   const wasOpen = useRef(false)
   // El último `opener` sin volver a ejecutar el efecto en cada render (el foco solo se mueve al abrir y al cerrar).
   const openerRef = useRef(opener)
-  const onCloseRef = useRef(onClose)
+  const onFocusLeaveRef = useRef(onFocusLeave ?? onClose)
   useEffect(() => {
     openerRef.current = opener
-    onCloseRef.current = onClose
+    onFocusLeaveRef.current = onFocusLeave ?? onClose
   })
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export function useLayer({
       const onFocusIn = (event: FocusEvent) => {
         const target = event.target
         if (!(target instanceof Node) || layer.current?.contains(target) || openerRef.current()?.contains(target)) return
-        onCloseRef.current()
+        onFocusLeaveRef.current()
       }
       document.addEventListener('focusin', onFocusIn)
       return () => document.removeEventListener('focusin', onFocusIn)

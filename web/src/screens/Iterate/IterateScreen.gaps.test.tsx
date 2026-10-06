@@ -135,15 +135,14 @@ describe('Iterar: huecos (UI.md §4.5, DESIGN-DECISIONS.md §4 bis)', () => {
     expect(screen.queryByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeNull()
   })
 
-  it('«Editar a mano» se puede enfocar con el teclado aunque no haga nada', async () => {
+  it('«Editar a mano» se activa con el teclado y abre el editor (no el descarte)', async () => {
     await openFromList()
-    for (const name of ['Editar a mano']) {
-      const button = within(panel()).getByRole('button', { name })
-      expect(button).not.toBeDisabled()
-      button.focus()
-      expect(button).toHaveFocus()
-      await userEvent.keyboard('{Enter}')
-      expect(within(panel()).queryByRole('group', { name: 'Confirmar el descarte' })).toBeNull()
-    }
+    const button = within(panel()).getByRole('button', { name: 'Editar a mano' })
+    expect(button).not.toBeDisabled()
+    button.focus()
+    expect(button).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('complementary', { name: 'Editar a mano' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Confirmar el descarte' })).toBeNull()
   })
 })

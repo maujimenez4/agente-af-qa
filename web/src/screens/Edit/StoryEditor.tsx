@@ -205,11 +205,30 @@ export interface StoryEditorActionsProps {
   busy?: boolean
   onSave: (content: StoryEditor['content'], note: string | null) => void
   onCancel: () => void
+  /**
+   * La pregunta «¿Descartar los cambios?», si la controla quien lo usa (p. ej. Iterar la abre también con Esc o *Cerrar*
+   * del panel en capa). Sin estas dos, la lleva el propio pie.
+   */
+  confirming?: boolean
+  onConfirmingChange?: (confirming: boolean) => void
 }
 
 /** El pie del editor: lo que falta antes de guardar, los avisos, la nota opcional y *Cancelar* / *Guardar*. */
-export function StoryEditorActions({ editor, version, busy = false, onSave, onCancel }: StoryEditorActionsProps) {
-  const [confirming, setConfirming] = useState(false)
+export function StoryEditorActions({
+  editor,
+  version,
+  busy = false,
+  onSave,
+  onCancel,
+  confirming: controlled,
+  onConfirmingChange,
+}: StoryEditorActionsProps) {
+  const [own, setOwn] = useState(false)
+  const confirming = controlled ?? own
+  const setConfirming = (next: boolean) => {
+    setOwn(next)
+    onConfirmingChange?.(next)
+  }
   const noteId = useId()
   const summaryId = useId()
   const { errors, warnings } = editor.check

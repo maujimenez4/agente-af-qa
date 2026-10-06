@@ -119,15 +119,14 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     expect(within(alert).getByRole('heading', { name: 'La revisión ya no está abierta' })).toBeInTheDocument()
   })
 
-  it('«Editar a mano» está como «disponible pronto» y no hace nada', async () => {
+  // Editar a mano, parte B (RF-32): ya no es «disponible pronto» en la HU; abre el editor en lugar de la propuesta.
+  it('«Editar a mano» abre el editor de la versión en revisión en el panel', async () => {
     await openFromList()
-    for (const name of ['Editar a mano']) {
-      const button = within(panel()).getByRole('button', { name })
-      expect(button).toHaveAttribute('aria-disabled', 'true')
-      expect(button).toHaveAccessibleDescription('Disponible pronto: llega después del punto de control de la demo.')
-      await userEvent.click(button)
-    }
-    expect(screen.getByRole('complementary', { name: 'Propuesta de HU' })).toBeInTheDocument()
+    const button = within(panel()).getByRole('button', { name: 'Editar a mano' })
+    expect(button).not.toHaveAttribute('aria-disabled')
+    await userEvent.click(button)
+    expect(screen.getByRole('complementary', { name: 'Editar a mano' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Propuesta de HU' })).toBeNull()
   })
 
   it('«Revisar y aprobar» abre el recibo con la versión en revisión (UI.md §4.6)', async () => {

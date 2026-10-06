@@ -1,11 +1,11 @@
 // Editar a mano en la API simulada (`POST /conversations/{id}/edit`, RF-32), como `_edit` de core/graph/nodes.py:
 // versión siguiente sin llamar al modelo, con huella nueva y `edited: true`; una edición inválida no es un error
-// HTTP sino `review.error` con la misma revisión. Archivo aparte hasta conectarlo en `createHandlers` (parte B).
+// HTTP sino `review.error` con la misma revisión. Registrado en `createHandlers` (parte B), que le pasa su `runFor`.
 // Solo datos ficticios.
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import type { components } from '../api/schema'
 import type { ApiError, ConversationOut, ErrorCode } from '../api/types.ts'
-import type { MockDb } from './db.ts'
+import type { MockDb, MockRun } from './db.ts'
 import { FINGERPRINT_MISMATCH } from './handlers.ts'
 
 type UserStory = components['schemas']['UserStory']
@@ -99,14 +99,17 @@ export function diffAgainst(baseline: UserStory, story: UserStory): StoryDiff[] 
 
 const randomFingerprint = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('')
 
-/** Handlers de Editar a mano sobre el mismo estado que `createHandlers` (las conversaciones de `db.runs`). */
-export function editHandlers(db: MockDb) {
+/**
+ * Handlers de Editar a mano sobre el mismo estado que `createHandlers`. `findRun` es su `runFor`: así también se
+ * edita una conversación de la lista que aún no se había abierto (se crea con el ejemplo del contrato).
+ */
+export function editHandlers(db: MockDb, findRun: (id: string) => MockRun | undefined = (id) => db.runs.get(id)) {
   const rejections = new Map<string, number>()
   return [
     http.post<{ id: string }>(`${API}/conversations/:id/edit`, async ({ request, params }) => {
       if (!db.session) return error(401, 'unauthenticated', 'Inicia sesión para continuar.')
       if (request.headers.get('X-CSRF-Token') !== db.session.csrf) return error(403, 'forbidden', 'No tienes permiso para realizar esta acción.')
-      const run = db.runs.get(params.id)
+      const run = findRun(params.id)
       if (!run) return error(404, 'not_found', 'No existe esa conversación o no es tuya.')
       const reviewing = run.conversation
       const review = reviewing.review

@@ -43,6 +43,7 @@ import { example } from './examples.ts'
 import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublishOutcome } from './qaSuite.ts'
 import { filterMemories, mockPublishedMemory } from './memories.ts'
 import { newQualityReview, qualitySummary, settleQualityReview } from './quality.ts'
+import { editHandlers } from './editHandler.ts'
 
 const API = '/api/v1'
 
@@ -776,6 +777,9 @@ export function createHandlers(db: MockDb) {
     ),
 
     // Lo que la API simulada aún no cubre.
+    // Editar a mano (RF-32, parte B): su archivo, con la misma búsqueda de conversaciones.
+    ...editHandlers(db, runFor),
+
     http.all(`${API}/*`, () => error(404, 'not_found', 'Aún no está en la API simulada del frontend.')),
   ]
 }

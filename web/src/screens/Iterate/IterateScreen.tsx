@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
@@ -35,6 +35,9 @@ import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
+import { EditPanel } from '../Edit/EditPanel.tsx'
+import { editedSummary, editedVersions } from '../Edit/editText.ts'
+import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
@@ -114,6 +117,14 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(false)
+  // Editar a mano (RF-32, parte B): el editor sustituye al panel de la propuesta mientras se edita la versión en revisión.
+  const [editing, setEditing] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const closeGuardRef = useRef<(() => boolean) | null>(null)
+  const edited = editedVersions(conversation.versions)
+  // Solo la HU: editar la suite de QA queda para un bloque aparte (PA-340).
+  const canEdit = !qa && !iterating && Boolean(conversation.review)
 
   // Versión «Jira» (PA-316): la HU tal como está en Jira, solo al evolucionar; la v1 se compara con ella.
   const baseline = conversation.jira_baseline ?? undefined
@@ -187,6 +198,39 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
     }
   }
 
+  const startEditing = () => {
+    setEditError(null)
+    setEditing(true)
+    setPanelOpen(true)
+  }
+
+  // Guardar la versión N+1 con la huella de la que se muestra. Un rechazo de la API llega en `review.error` (misma
+  // versión): se queda en el editor con el motivo tal cual. Un error HTTP (409, 503…) sale en la conversación.
+  const saveEdit = async (content: UserStory, note: string | null) => {
+    const review = conversation.review
+    if (!review) return
+    setSaving(true)
+    setEditError(null)
+    setError(undefined)
+    try {
+      const next = await api.edit(conversation.id, review.fingerprint, content, note)
+      setConversation(next)
+      if (next.review?.error) {
+        setEditError(next.review.error)
+        return
+      }
+      const version = next.review?.version ?? proposalVersions(next).at(-1)?.version ?? selected
+      setEditing(false)
+      setSelected(version)
+      setTab(firstTab)
+      setEntries((current) => [...current, ...(note?.trim() ? [{ kind: 'user' as const, text: note.trim() }] : []), { kind: 'assistant', version, animate: true }])
+    } catch (cause) {
+      fail(toApiError(cause), () => void saveEdit(content, note))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const discard = async () => {
     setBusy(true)
     try {
@@ -222,7 +266,23 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         { id: 'sources', label: `Fuentes (${shown?.story.sources.length ?? 0})` },
       ]
 
-  const panel = shown && (
+  const panel = editing && conversation.review ? (
+    <EditPanel
+      key={conversation.review.version}
+      title={conversationTitle(conversation.title)}
+      story={conversation.review.artifact.content as UserStory}
+      version={conversation.review.version}
+      reviewError={editError}
+      busy={saving}
+      onSave={(content, note) => void saveEdit(content, note)}
+      onCancel={() => {
+        setEditing(false)
+        setEditError(null)
+      }}
+      closeGuardRef={closeGuardRef}
+      onClosePanel={() => setPanelOpen(false)}
+    />
+  ) : shown && (
     <SidePanel
       title={qa ? 'Suite de pruebas' : 'Propuesta de HU'}
       subtitle={`${conversationTitle(conversation.title)} · ${iterating ? 'generando' : 'en revisión'}`}
@@ -245,7 +305,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           </div>
         ) : (
           <div className={styles.footer}>
-            <SoonButton label="Editar a mano" />
+            {qa ? (
+              <SoonButton label="Editar a mano" />
+            ) : (
+              <Button variant="secondary" disabled={!canEdit} onClick={startEditing}>
+                Editar a mano
+              </Button>
+            )}
             <Button variant="ghost" disabled={Boolean(iterating)} onClick={() => setConfirmDiscard(true)}>
               Descartar
             </Button>
@@ -295,10 +361,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       panel={panel}
       panelOpen={panelOpen}
       onPanelOpenChange={setPanelOpen}
+      onPanelCloseRequest={() => closeGuardRef.current?.() ?? true}
       composer={
         <Composer
           placeholder={
-            qa
+            editing
+              ? 'Guarda o cancela la edición para pedir cambios'
+              : qa
               ? iterating
                 ? 'Espera a la suite para pedir cambios'
                 : 'Pide un cambio a la suite'
@@ -309,7 +378,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           value={draft}
           onChange={setDraft}
           canSubmit={draft.trim().length > 0}
-          disabled={Boolean(iterating)}
+          disabled={Boolean(iterating) || editing}
           submitLabel="Enviar"
           onStop={iterating ? () => void stop() : undefined}
           stopping={stopping}
@@ -330,7 +399,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           const before = versions[versions.indexOf(item) - 1]
           const summary = itemSuite
             ? suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content), coverageOf(item.version))
-            : versionSummary(item.story, item.version, item.impact)
+            : edited.has(item.version)
+              ? editedSummary(item.story, item.version, item.impact)
+              : versionSummary(item.story, item.version, item.impact)
           const model = modelLabel(item.artifact.model_used)
           const sourceCount = itemSuite ? itemSuite.sources.length : item.story.sources.length
           // «cobertura validada» solo con `uncovered` vacío; con huecos, cuántos (PA-326).
@@ -357,7 +428,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                   {againstJira && ` · ${changesLabel(item.impact?.diffs.length ?? 0)}`}
                 </span>
               </button>
-              {model && (
+              {edited.has(item.version) ? (
+                <span className={styles.meta}>Editada a mano · {countLabel(sourceCount, 'fuente', 'fuentes')}</span>
+              ) : model && (
                 <span className={styles.meta}>
                   Generado con {model} · {countLabel(sourceCount, 'fuente', 'fuentes')}{coverage && ` · ${coverage}`}
                 </span>

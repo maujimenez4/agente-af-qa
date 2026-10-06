@@ -330,7 +330,7 @@ Todas responden a una acción o a un proceso real, duran ≤ 0,42 s salvo la car
 | 4 | **Escritura de la respuesta** | La respuesta (completa, sin streaming) se escribe letra a letra, como mucho 1,5 s | Solo visual (`aria-hidden`); el texto completo se anuncia una vez | Texto completo de inmediato |
 | 5 | **Entrada escalonada de la versión nueva** | Los CA entran con un pequeño retardo y el cambiado se resalta | CSS con `animation-delay` | Marcas «Cambiado en vN» / «Nueva» sin animación |
 | 6 | **Recibo con casillas** | Cada casilla confirma su operación; el botón se activa al completar | Casillas nativas y transición de color | Igual, sin transición |
-| 7 | **Q que se completa al publicar** | Publicada entera, la Q del Resultado llega a 4/4; publicada en parte, se queda sin llenarse (la fase de la cabecera sí marca 4 de 4) | SVG + CSS | Q en su estado final, sin movimiento |
+| 7 | **Q que se completa al publicar** | Publicada entera, la Q del Resultado llega a 4/4; publicada en parte, se llena solo en parte y no llega a 4/4 (la fase de la cabecera sí marca 4 de 4) | SVG + CSS | Q en su estado final, sin movimiento |
 
 ## 9. Dependencias del backend
 

@@ -136,6 +136,39 @@ describe('Volver a entrar tras la sesión caducada (PA-332)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('con una revisión abierta, elegir una conversación que da 401 la recuerda como conversación (PA-407)', async () => {
+    const reviewGets: string[] = []
+    mockServer.events.on('request:start', ({ request }) => {
+      const path = new URL(request.url).pathname
+      if (request.method === 'GET' && /^\/api\/v1\/quality-reviews\/[^/]+$/.test(path)) reviewGets.push(path)
+    })
+    signIn()
+    render(<App />)
+    const list = await screen.findByRole('complementary', { name: 'Conversaciones' })
+    await userEvent.click(await within(list).findByRole('button', { name: /Revisar la calidad de DEMO-3/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Calidad de DEMO-3' })).toBeInTheDocument()
+    const opened = reviewGets.length
+    // La sesión caduca justo en la petición de la conversación elegida (la vista aún es la de calidad):
+    // así el 401 lo da esa petición y no otra anterior.
+    mockServer.use(
+      http.get(
+        '/api/v1/conversations/:id',
+        () => {
+          expire()
+          return HttpResponse.json({ error: { code: 'unauthenticated', message: 'Inicia sesión para continuar.' } }, { status: 401 })
+        },
+        { once: true },
+      ),
+    )
+    await userEvent.click(within(list).getByRole('button', { name: /Evolucionar DEMO-3/ }))
+    await expectExpiredLogin()
+
+    await logIn('af-demo')
+    expect(await screen.findByRole('complementary', { name: 'Propuesta de HU' })).toBeInTheDocument()
+    expect(reviewGets).toHaveLength(opened) // no se pide como revisión (daría 404)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('otra persona no hereda la conversación: entra en su inicio', async () => {
     mockServer.use(
       http.get('/api/v1/conversations/:id', () => {

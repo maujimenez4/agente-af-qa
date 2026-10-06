@@ -135,7 +135,13 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
   }
 
   // PA-332: la sesión sabe qué está abierto (conversación o revisión); tras volver a entrar, se reabre.
-  const openKind = view.name === 'quality' ? 'quality' : 'conversation'
+  // El tipo va con el id, no con la vista: al elegir una conversación desde una revisión, la vista sigue en
+  // `quality` hasta que responde la API, y ese id es de una conversación.
+  const openKind =
+    (view.name === 'quality' && view.reviewId === currentId) ||
+    conversations.some((item) => item.thread_id === currentId && item.review_state)
+      ? 'quality'
+      : 'conversation'
   useEffect(() => remember(currentId, openKind), [currentId, openKind, remember])
   useEffect(() => {
     if (!resumeId) return
@@ -163,7 +169,10 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         }}
         onSelect={(threadId) => {
           setCurrentId(threadId)
-          if (conversations.some((item) => item.thread_id === threadId && item.review_state)) {
+          const isReview = conversations.some((item) => item.thread_id === threadId && item.review_state)
+          // PA-407: la sesión lo sabe antes de pedirlo; si esa petición da 401, se recuerda lo elegido con su tipo.
+          remember(threadId, isReview ? 'quality' : 'conversation')
+          if (isReview) {
             setOpenError(undefined)
             setOpened((count) => count + 1)
             setView({ name: 'quality', reviewId: threadId })
@@ -181,7 +190,11 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         {view.name === 'home' && (
           <HomeScreen
             user={user}
-            onStart={(request) => setView(request.flow === 'review' ? { name: 'quality', request } : { name: 'origin', request })}
+            onStart={(request) => {
+              // Una revisión nueva aún no tiene id (PA-130): no se recuerda la conversación anterior como revisión.
+              if (request.flow === 'review') setCurrentId(undefined)
+              setView(request.flow === 'review' ? { name: 'quality', request } : { name: 'origin', request })
+            }}
             onTaken={!QA_HANDOFF_ENABLED ? undefined : (conversation) => {
               setCurrentId(conversation.id)
               setView({ name: 'generating', conversation })

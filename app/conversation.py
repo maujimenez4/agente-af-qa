@@ -184,7 +184,14 @@ def _after_failure(ws: Workspace, conv: Conversation) -> None:
     """
     try:
         view = pending_from_state(ws.graph.get_state(conv.config))
-    except Exception:  # sin estado legible: se trata como hilo no recuperable
+    except Exception as exc:  # sin estado legible: se trata como hilo no recuperable
+        # PA-244: queda rastro del tipo (nunca el mensaje, que podría llevar datos).
+        log.warning(
+            "estado del hilo no legible tras un fallo",
+            user=conv.user,
+            action="after_failure",
+            error_type=type(exc).__name__,
+        )
         view = None
     _record_view(conv, view)
     if view is None:
@@ -212,7 +219,14 @@ def _settle_approval(
     """
     try:
         values = ws.graph.get_state(conv.config).values or {}
-    except Exception:  # sin estado legible: no se puede afirmar nada sobre Jira
+    except Exception as exc:  # sin estado legible: no se puede afirmar nada sobre Jira
+        # PA-244: queda rastro del tipo (nunca el mensaje, que podría llevar datos).
+        log.warning(
+            "estado del hilo no legible tras aprobar",
+            user=conv.user,
+            action="settle_approval",
+            error_type=type(exc).__name__,
+        )
         return False
     outcome = outcome_from_state(values, approved, conv.user, failure=failure)
     if outcome is None:

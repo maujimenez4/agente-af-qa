@@ -771,7 +771,14 @@ def _failed_ids(ws: Workspace, artifact: Artifact) -> list[str]:
     """CP o adjuntos que fallaron, de la última publicación en la auditoría (RNF-13)."""
     try:
         entries = ws.container.audit.entries(artifact.id)
-    except Exception:  # la auditoría es secundaria para pintar el resultado
+    except Exception as exc:  # la auditoría es secundaria para pintar el resultado
+        # PA-244: queda rastro del tipo (nunca el mensaje, que podría llevar datos).
+        log.warning(
+            "fallidos no leídos de la auditoría",
+            action="read_failed_ids",
+            artifact_id=str(artifact.id),
+            error_type=type(exc).__name__,
+        )
         return []
     for entry in reversed(entries):
         if entry.action == "publish":

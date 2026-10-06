@@ -14,6 +14,8 @@ export const ICONS = {
   work: { d: `${TILE} M8 10h8 M8 14h5` },
   history: { d: `${TILE} M12 8v4l2.5 2` },
   settings: { d: `${TILE} M8 10h8 M8 14h8 M10.5 8.5v3 M13.5 12.5v3` },
+  // Memoria (PA-329): no está en el lienzo; la baldosa con un marcapáginas, como Trabajo, Historial y Ajustes.
+  memory: { d: `${TILE} M9.5 8h5v8.5l-2.5-1.75-2.5 1.75z` },
   new: { d: `${TILE} M12 8.5v7 M8.5 12h7` },
   model: { d: `${TILE} M9.5 9.5h5v5h-5z` },
   searchSource: { d: `${TILE} M10.5 13.5a2.5 2.5 0 1 0 3-3 M13.5 13.5l2 2` },

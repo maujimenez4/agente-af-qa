@@ -3,7 +3,7 @@ import { api } from '../../api/client.ts'
 import { safeHref } from '../../security/safeHref.ts'
 import type { ConversationOut, PublishOutcome } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
-import { ButtonLink, SoonButton } from '../../components/Button/index.ts'
+import { Button, ButtonLink, SoonButton } from '../../components/Button/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
 import { ResultQ } from '../../components/QMark/index.ts'
@@ -22,6 +22,8 @@ export interface ResultScreenProps {
   canHandoff?: boolean
   /** Flujo unido fuera de la entrega (`QA_HANDOFF_ENABLED`): *Pedir sus pruebas a QA* sale «disponible pronto». */
   handoffSoon?: boolean
+  /** *Ver la memoria*: abre Memoria con la clave de la HU publicada (PA-329). Sin él, «disponible pronto». */
+  onOpenMemory?: (key: string) => void
 }
 
 // Qué falta para cada acción del lienzo que aún no hace nada (DESIGN-DECISIONS.md §4 bis).
@@ -29,13 +31,13 @@ const SOON = {
   audit: 'El registro de auditoría aún no está en el contrato de la API.',
   history: 'El historial es solo para administración y llega después del punto de control de la demo.',
   jira: 'La dirección de Jira no está disponible.',
-  memory: 'La pestaña Memoria llega después del punto de control de la demo.',
+  memory: 'No hay una HU publicada con clave de la que abrir la memoria.',
   execution: 'Registrar la ejecución de las pruebas llega más adelante.',
   qa: 'No entra en esta entrega: QA prepara las pruebas escribiendo la clave de la HU.',
 }
 
 // Mixta 4 · Resultado (UI.md §4.7): publicación simulada, real o en parte, tras aprobar en el recibo.
-export function ResultScreen({ conversation, canHandoff = false, handoffSoon = false }: ResultScreenProps) {
+export function ResultScreen({ conversation, canHandoff = false, handoffSoon = false, onOpenMemory }: ResultScreenProps) {
   const { result } = conversation
   const outcome = outcomeOf(result)
   // QA 5 (UI.md §6.5): el resultado de una suite (`publish_suite` en el plan).
@@ -124,6 +126,9 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
                   *Reintentar solo los fallidos* (PA-05), fuera de alcance. */}
               {qa ? (
                 outcome === 'published' && <SoonButton label="Registrar la ejecución" variant="primary" note={SOON.execution} />
+              ) : onOpenMemory && key ? (
+                // La memoria se genera al publicar la HU; si aún no está, Memoria muestra su 404 (`not_found`).
+                <Button onClick={() => onOpenMemory(key)}>Ver la memoria</Button>
               ) : (
                 <SoonButton label="Ver la memoria" note={SOON.memory} />
               )}

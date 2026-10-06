@@ -4,6 +4,8 @@ import type {
   ConversationOut,
   ConversationSummary,
   HandoffOut,
+  MemoryOut,
+  MemorySummary,
   IssueCard,
   IssueSummary,
   ProgressStep,
@@ -13,6 +15,7 @@ import type {
   UsageTodayOut,
 } from '../api/types.ts'
 import type { ForcedCoverage } from './qaSuite.ts'
+import { mockMemoryDetails, mockMemorySummaries } from './memories.ts'
 import { example } from './examples.ts'
 
 // Permisos de core/permissions.py (ROLE_PERMISSIONS).
@@ -136,6 +139,11 @@ export function forcedCoverageFrom(search: string): ForcedCoverage | undefined {
   return value && Object.hasOwn(FORCED_COVERAGE, value) ? FORCED_COVERAGE[value] : undefined
 }
 
+/** `?simular=sin-memorias`: la lista de memorias vacía (solo en el navegador). */
+export function noMemoriesFrom(search: string): boolean {
+  return new URLSearchParams(search).get('simular') === 'sin-memorias'
+}
+
 /** `?simular=ya-recogida`: la HU que QA intenta recoger ya la recogió otra persona. */
 export function takenFrom(search: string): boolean {
   return new URLSearchParams(search).get('simular') === 'ya-recogida'
@@ -182,6 +190,9 @@ export interface MockDb {
   runs: Map<string, MockRun>
   /** QA encadenada (T-54): HU pasadas a QA y aún sin recoger. */
   handoffs: HandoffOut[]
+  /** Memorias (PA-329): la lista y el detalle de cada una. */
+  memories: MemorySummary[]
+  memoryDetails: Map<string, MemoryOut>
   /** `?simular=ya-recogida`: al recoger, otra persona se adelantó (409 `handoff_unavailable`). */
   forceTaken?: boolean
   /** `?simular=sin-cubrir|cobertura-desconocida`: `uncovered` de la suite (PA-326). */
@@ -191,6 +202,7 @@ export interface MockDb {
 }
 
 export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
+  const memories = mockMemorySummaries()
   return {
     session: null,
     projects: example<ProjectsOut>('GET /api/v1/projects 200'),
@@ -199,6 +211,8 @@ export function createMockDb(options: { stepDelayMs?: number } = {}): MockDb {
     conversations: example<ConversationSummary[]>('GET /api/v1/conversations 200'),
     runs: new Map(),
     handoffs: example<HandoffOut[]>('GET /api/v1/qa/handoffs 200'),
+    memories,
+    memoryDetails: mockMemoryDetails(memories),
     stepDelayMs: options.stepDelayMs ?? 900,
   }
 }

@@ -55,6 +55,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
   - `?simular=ya-recogida`: al recoger una HU pendiente de pruebas (QA), otra persona se adelantó (409 `handoff_unavailable`). Solo con el flujo unido activado (`QA_HANDOFF_ENABLED`, hoy fuera de la entrega);
   - `?simular=sin-cubrir`: la suite de QA llega con CA y RN sin ningún caso (`uncovered` con CA-03 y RN-03 ficticios): distintivo «1 CA y 1 RN sin caso» y filas «Sin caso» en Cobertura (PA-326);
   - `?simular=cobertura-desconocida`: la suite llega con `uncovered: null` («no se sabe»): sin distintivo de cobertura ni «Todos los CA cubiertos»;
+  - `?simular=sin-memorias`: la lista de Memoria vacía («Aún no hay memorias…»);
   - `?simular=muchas-conversaciones`: 120 conversaciones ficticias en 30 días, para revisar la lista larga (este se aplica al cargar la página).
 
   Quita el parámetro y recarga para volver al comportamiento normal (al recargar se pierde la sesión simulada: vuelve a iniciar sesión).

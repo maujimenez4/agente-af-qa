@@ -39,6 +39,7 @@ import type { components } from '../api/schema'
 type UserStory = components['schemas']['UserStory']
 import { example } from './examples.ts'
 import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublishOutcome } from './qaSuite.ts'
+import { filterMemories } from './memories.ts'
 
 const API = '/api/v1'
 
@@ -662,6 +663,25 @@ export function createHandlers(db: MockDb) {
           updated_at: now,
         } as ConversationSummary)
         return HttpResponse.json(conversation as JsonBodyType, { status: 202 })
+      }),
+    ),
+
+    // Memoria (PA-329; T-33): solo lectura, para los tres roles.
+    http.get(
+      `${API}/memories`,
+      query(({ request }) => {
+        const params = new URL(request.url).searchParams
+        const limit = Number(params.get('limit') ?? 50)
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) return error(422, 'invalid_request', 'La petición no es válida: revisa limit.')
+        const found = filterMemories(db.memories, db.memoryDetails, { project: params.get('project'), q: params.get('q') ?? '', limit })
+        return HttpResponse.json(found as JsonBodyType)
+      }),
+    ),
+    http.get<{ key: string }>(
+      `${API}/memories/:key`,
+      query(({ params }) => {
+        const found = db.memories.some((item) => item.key === params.key) ? db.memoryDetails.get(params.key) : undefined
+        return found ? HttpResponse.json(found as JsonBodyType) : error(404, 'not_found', 'No existe esa memoria o no la puedes ver.')
       }),
     ),
 

@@ -80,7 +80,8 @@ describe('Resultado tras aprobar', () => {
     expect(within(region).getByText('Claves en Jira: DEMO-3')).toBeInTheDocument()
     expect(within(region).queryByText(/Modo de prueba activo/)).toBeNull()
     expect(within(region).getByRole('button', { name: 'Abrir DEMO-3 en Jira' })).toHaveAccessibleDescription('La dirección de Jira no está disponible.')
-    expect(within(region).getByRole('button', { name: 'Ver la memoria' })).toHaveAttribute('aria-disabled', 'true')
+    // PA-329: con la HU publicada y su clave, *Ver la memoria* ya abre Memoria (no es «disponible pronto»).
+    expect(within(region).getByRole('button', { name: 'Ver la memoria' })).not.toHaveAttribute('aria-disabled')
     // Flujo unido HU → QA fuera de la entrega (QA_HANDOFF_ENABLED = false): «disponible pronto» con su motivo.
     expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAttribute('aria-disabled', 'true')
     expect(within(region).getByRole('button', { name: 'Pedir sus pruebas a QA' })).toHaveAccessibleDescription(

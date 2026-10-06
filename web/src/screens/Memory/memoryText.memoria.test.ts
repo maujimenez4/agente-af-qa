@@ -27,15 +27,15 @@ function memoryWith(fields: Record<string, unknown>): MemoryContent {
 
 describe('MEMORY_SECTIONS', () => {
   it('test_sections_follow_md_order_with_their_kind', () => {
-    /** Las 8 secciones del detalle, en el orden de core/memory: dos de texto y seis listas. */
+    /** Las 8 secciones del detalle, en el orden del `.md` que se descarga: dos de texto y seis listas. */
     expect(MEMORY_SECTIONS.map((section) => [section.title, section.kind, section.field])).toEqual([
       ['Objetivo', 'text', 'objective'],
       ['Alcance', 'text', 'scope'],
       ['Reglas de negocio', 'list', 'business_rules'],
-      ['Criterios de aceptación', 'list', 'acceptance_criteria'],
       ['Decisiones', 'list', 'decisions'],
       ['Dependencias', 'list', 'dependencies'],
       ['Cambios', 'list', 'changes'],
+      ['Criterios de aceptación', 'list', 'acceptance_criteria'],
       ['Referencias', 'list', 'references'],
     ])
   })

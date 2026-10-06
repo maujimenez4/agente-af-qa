@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-05
 
-**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. **Rama de trabajo actual: `t56-memoria`** (desde `t56-qa-cobertura`, 2026-10-05). Lint, Vitest (1.731), build y `npm run api:check` en verde.
+**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. **Bloque Memoria cerrado** en `t56-memoria` (desde `t56-qa-cobertura`). Lint, Vitest (1.846), build y `npm run api:check` en verde.
 **PR abierta:** [#6](https://github.com/maujimenez4/agente-af-qa/pull/6) `area-b → PreProduccion` («T-56: flujo de QA por roles, recibo y resultado de la suite», bloque 5). **Pendiente** de la prueba del flujo de QA contra la API real en el equipo de la principal y de la aprobación de su responsable. Ya fusionadas: la #2, la #3 y la #4.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
@@ -39,7 +39,7 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Al leer comentarios con la API de GitHub**, revisar el issue #5 y la última PR.
 
 ## Cadena de ramas (mientras la PR #6 siga abierta)
-`area-b` (PR #6 → `PreProduccion`) → `t56-qa-cobertura` (contrato de QA, PR preparada) → `t56-memoria` (Memoria, en curso). Cada rama sale de la anterior y solo se hace push de la rama en curso.
+`area-b` (PR #6 → `PreProduccion`) → `t56-qa-cobertura` (contrato de QA, PR preparada) → `t56-memoria` (Memoria, cerrado; su PR se prepara cuando se fusione la de `t56-qa-cobertura`). Cada rama sale de la anterior y solo se hace push de la rama en curso.
 - **Al fusionarse una PR:** traer `origin/PreProduccion` a la siguiente rama de la cadena (`git merge`, nunca rebase), comprobar Vitest, lint, build y `api:check`, y preparar su PR (`<rama> → PreProduccion`).
 - **Si hay correcciones en una rama anterior** (p. ej. fallos de la #6 que pide la principal, que se corrigen en `area-b`): hacerlas allí y traerlas a las siguientes con `git merge`, por orden (`area-b` → `t56-qa-cobertura` → `t56-memoria`).
 
@@ -63,8 +63,16 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Issue #5:** avisado el cambio de `examples.json`.
 - **PR preparada** en el scratchpad de la sesión (`pr-descripcion-cobertura.md`): `t56-qa-cobertura → PreProduccion`. Se abre cuando se fusione la #6: antes, `git merge origin/PreProduccion` en `t56-qa-cobertura`, Vitest, lint, build y `api:check`.
 
+## Bloque Memoria (hecho, rama `t56-memoria`)
+- **Zona Memoria** en el carril para los tres roles (icono nuevo; admin sigue entrando en Ajustes). Lista con proyecto, búsqueda (300 ms) y `limit=200`, sin «Mostrar más»; detalle por secciones como texto, en el orden del `.md`, con *Descargar la memoria* (`DownloadButton`) e «Indexada»/«No indexada». Trabajo sigue montado (oculto) mientras se mira Memoria.
+- **Cliente** (`web/src/api/`, solo añadiendo, commits aparte y avisado en el issue #5): `api.memories`, `api.memory` (rechaza «.» y «..»), `MemorySummary`, `MemoryOut`.
+- ***Ver la memoria*** en el Resultado de la HU publicada (o en parte) abre Memoria con la clave; un 404 sale como su tarjeta de error.
+- **MSW:** ejemplos del contrato (DEMO-9001 y DEMO-9002); publicar una HU deja su memoria indexada; `?simular=memoria-no-encontrada` (404) y `?simular=sin-memorias`.
+- **PA-329** (diseño de Memoria): pendiente de validar por la principal, con dos notas para ella (el «se ha generado e indexado» del Resultado frente a `indexed: false`, y `docs/api/README.md` que aún cita Memoria como pendiente).
+- Detalle en `DESIGN-DECISIONS.md` (§4 bis, Memoria).
+
 ## Alcance y orden tras el bloque 5
-1. **Memoria**, para los tres roles:
+1. ~~**Memoria**~~ (hecho en `t56-memoria`), para los tres roles:
    - `GET /memories` con `project`, `q` y `limit`;
    - `GET /memories/{key}` pintado por secciones; el `.md` solo para descargar;
    - «indexada» o «no indexada»;
@@ -89,7 +97,7 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).
 
 ## Siguiente
-1. **Cuando se fusione la #6:** abrir la PR `t56-qa-cobertura → PreProduccion` con la descripción preparada (se enseña y se copia al portapapeles).
-2. Después, por este orden: **Memoria** (reutiliza `DownloadButton` para el `.md`), **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»). Mientras haya una PR abierta, cada bloque va en su propia rama.
+1. **Cuando se fusione la #6:** traer `origin/PreProduccion` a `t56-qa-cobertura` y abrir su PR con la descripción preparada (se enseña y se copia al portapapeles). Después, lo mismo con `t56-memoria` (su PR, cuando se fusione la de `t56-qa-cobertura`).
+2. Después, por este orden: **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»), cada bloque en su propia rama mientras haya PR abiertas.
 
 Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. Esperar la confirmación del responsable antes de empezar Memoria.

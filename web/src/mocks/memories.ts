@@ -91,7 +91,7 @@ export function mockPublishedMemory(story: UserStory, key: string, project: stri
   const includes = story.scope_includes.length > 0 ? `Incluye: ${story.scope_includes.join('; ')}.` : ''
   const excludes = story.scope_excludes.length > 0 ? ` No incluye: ${story.scope_excludes.join('; ')}.` : ''
   const memory: MemoryOut['memory'] = {
-    ...base.memory,
+    ...structuredClone(base.memory),
     jira_key: key,
     version,
     objective,

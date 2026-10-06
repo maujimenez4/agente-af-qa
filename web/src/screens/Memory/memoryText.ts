@@ -21,15 +21,15 @@ type ListField = 'business_rules' | 'acceptance_criteria' | 'decisions' | 'depen
 
 export type MemorySection = { title: string } & ({ kind: 'text'; field: TextField } | { kind: 'list'; field: ListField })
 
-/** Secciones del detalle, en el orden del `.md` (core/memory). */
+/** Secciones del detalle, en el orden del `.md` que se descarga (`schemas/memory.py`, ejemplo del contrato). */
 export const MEMORY_SECTIONS: readonly MemorySection[] = [
   { title: 'Objetivo', kind: 'text', field: 'objective' },
   { title: 'Alcance', kind: 'text', field: 'scope' },
   { title: 'Reglas de negocio', kind: 'list', field: 'business_rules' },
-  { title: 'Criterios de aceptación', kind: 'list', field: 'acceptance_criteria' },
   { title: 'Decisiones', kind: 'list', field: 'decisions' },
   { title: 'Dependencias', kind: 'list', field: 'dependencies' },
   { title: 'Cambios', kind: 'list', field: 'changes' },
+  { title: 'Criterios de aceptación', kind: 'list', field: 'acceptance_criteria' },
   { title: 'Referencias', kind: 'list', field: 'references' },
 ]
 

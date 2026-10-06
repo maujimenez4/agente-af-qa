@@ -1,6 +1,7 @@
 // Memoria (PA-329) · *Ver la memoria* en el Resultado: con la HU publicada (o en parte) y `onOpenMemory`, es un
 // botón que abre Memoria con la clave; en simulado y en QA no está; sin `onOpenMemory` o sin clave, «disponible
-// pronto». En la app, DEMO-3 no tiene memoria en el MSW (404) y se ve la tarjeta de error dentro de Memoria.
+// pronto». En la app, publicar DEMO-3 deja su memoria y *Ver la memoria* la abre; con `?simular=memoria-no-encontrada`
+// (`skipPublishedMemory`) no la deja y se ve la tarjeta 404 dentro de Memoria.
 // Solo datos sintéticos (DEMO-3, af-demo).
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

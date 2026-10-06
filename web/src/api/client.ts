@@ -10,6 +10,8 @@ import type {
   IssueCard,
   IssueSummary,
   IterateIn,
+  MemoryOut,
+  MemorySummary,
   ApproveIn,
   OriginIn,
   ProjectsOut,
@@ -104,6 +106,23 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
 
 const enc = encodeURIComponent
 
+/** Filtros de `GET /memories`: proyecto, texto que buscar (clave y contenido) y cuántas como mucho (1 a 200). */
+export interface MemoryFilters {
+  project?: string | null
+  q?: string
+  limit?: number
+}
+
+/** «?project=DEMO&q=renovar&limit=200», sin los filtros vacíos. */
+export function memoryQuery({ project, q, limit }: MemoryFilters): string {
+  const params = new URLSearchParams()
+  if (project) params.set('project', project)
+  if (q?.trim()) params.set('q', q.trim())
+  if (limit !== undefined) params.set('limit', String(limit))
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
 export const api = {
   login: (username: string, password: string) => request<SessionOut>('POST', '/auth/login', { username, password }),
   logout: () => request<void>('POST', '/auth/logout'),
@@ -136,6 +155,10 @@ export const api = {
   handoff: (id: string) => request<HandoffOut>('POST', `/conversations/${enc(id)}/handoff`),
   qaHandoffs: () => request<HandoffOut[]>('GET', '/qa/handoffs'),
   takeHandoff: (id: string) => request<ConversationOut>('POST', `/qa/handoffs/${enc(id)}/take`),
+
+  // Memoria (T-33): las memorias de las HU publicadas que ve la conexión, y una con su contenido y su .md.
+  memories: (filters: MemoryFilters = {}, signal?: AbortSignal) => request<MemorySummary[]>('GET', `/memories${memoryQuery(filters)}`, undefined, signal),
+  memory: (key: string, signal?: AbortSignal) => request<MemoryOut>('GET', `/memories/${enc(key)}`, undefined, signal),
 
   settings: () => request<SettingsOut>('GET', '/settings'),
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),

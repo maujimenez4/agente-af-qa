@@ -7,6 +7,7 @@ y estado) sobre una BD temporal propia; se saltan si PostgreSQL no está disponi
 """
 
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -18,14 +19,20 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from sqlalchemy.engine import Engine
 
-from adapters.errors import ExternalServiceError
+from adapters.errors import ExternalServiceError, PublishError
 from core.approvals import ApprovalLedger
 from core.artifact_state import SqlArtifactStateStore
 from core.audit import InMemoryAuditTrail, SqlAuditTrail
 from core.config import ROOT_DIR, AppConfig, Settings, load_models_config
 from core.container import Container, build_container
 from core.graph import Origin, build_graph, initial_state, memory_checkpointer
-from core.graph.nodes import LINK_TYPE_IMPACT, GraphNodes, _target
+from core.graph.nodes import (
+    LINK_TYPE_IMPACT,
+    SIMULATED_BEFORE_PA41,
+    SPENT_IN_SIMULATION,
+    GraphNodes,
+    _target,
+)
 from core.impact.analysis import ImpactAnalyzer
 from core.impact.versions import StoryVersionStore
 from schemas.artifact import Artifact
@@ -171,10 +178,11 @@ def _all_fakes() -> dict[str, Any]:
     ],
     ids=["evolucion", "epica", "necesidad", "qa"],
 )
-def test_simulated_publish_writes_nothing_and_keeps_approval(
+def test_simulated_publish_writes_nothing_and_spends_approval(
     tmp_path: Path, mode: str, origin: Origin, user: str
 ) -> None:
-    """RF-34 · T-25: en simulación, ni tracker ni publish_suite; APPROVED y aprobación vigente."""
+    """RF-34 · T-25 · PA-41: en simulación, ni tracker ni publish_suite; APPROVED y la aprobación
+    queda gastada (marcada como simulada), sin publicación ni memoria."""
     container, graph, config, final = _simulate(tmp_path, mode, origin, user)
 
     assert _tracker(container).writes == []
@@ -185,7 +193,10 @@ def test_simulated_publish_writes_nothing_and_keeps_approval(
     assert final["errors"] == []
     assert graph.get_state(config).next == ()
     target = _target(graph.get_state(config).values, config)
-    assert container.approvals.find(artifact, target) is not None
+    assert container.approvals.find(artifact, target) is None
+    spent = container.approvals.simulated_approval(artifact, target)
+    assert spent is not None and spent.consumed and spent.published_fingerprint is None
+    assert container.approvals.used_in_simulation(artifact, target) is True
     assert container.approvals.was_published(artifact) is False
     # memorize no escribe memoria: ni fichero, ni índice, ni llamada al generador.
     assert list(tmp_path.glob("*.md")) == []
@@ -277,22 +288,110 @@ def test_simulated_publish_node_returns_empty_update(tmp_path: Path) -> None:
     assert _tracker(container).writes == []
 
 
-def test_simulated_approval_can_be_published_live_later(tmp_path: Path) -> None:
-    """RF-33 · T-25: la aprobación no se consume en simulación; luego se publica en live."""
-    container, graph, config, _final = _simulate(tmp_path)
-    live = fake_container(
+def _live_after(tmp_path: Path, container: Container) -> Container:
+    """El mismo registro, la misma auditoría y el mismo Jira, con el modo real activo."""
+    return fake_container(
         tmp_path,
         publish_mode="live",
         state_store=container.state_store,
         issue_tracker=container.issue_tracker,
+        audit=container.audit,
     )
+
+
+def test_simulated_approval_cannot_be_published_live(tmp_path: Path) -> None:
+    """PA-41: la aprobación gastada al simular no escribe en Jira al activar `live`."""
+    container, graph, config, final = _simulate(tmp_path)
+    live = _live_after(tmp_path, container)
     state = graph.get_state(config).values
+
+    with pytest.raises(PublishError, match="publicación simulada") as exc:
+        GraphNodes(live).publish(state, config)  # type: ignore[arg-type]
+
+    assert str(exc.value) == SPENT_IN_SIMULATION
+    assert _tracker(live).writes == []
+    assert live.approvals.was_published(state["artifact"]) is False
+    # La auditoría ya dice qué pasó: la aprobación se gastó en la simulación.
+    publish = _audit(live).entries(final["artifact"].id)[-1]
+    assert publish.detail["simulated"] is True
+    assert publish.detail["approval"] == "spent_in_simulation"
+
+
+def test_simulated_publish_audits_spent_approval_with_its_instant(tmp_path: Path) -> None:
+    """PA-41: la auditoría de la simulación guarda el instante de la aprobación usada (UTC)."""
+    container, graph, config, final = _simulate(tmp_path)
+    target = _target(graph.get_state(config).values, config)
+    spent = container.approvals.simulated_approval(final["artifact"], target)
+    assert spent is not None
+
+    detail = _audit(container).entries(final["artifact"].id)[-1].detail
+    assert detail["approval"] == "spent_in_simulation"
+    assert datetime.fromisoformat(detail["approval_at"]) == spent.at
+    simulated_at = datetime.fromisoformat(detail["simulated_at"])
+    assert simulated_at.tzinfo is not None and simulated_at >= spent.at
+
+
+def test_new_approval_after_simulation_publishes_live(tmp_path: Path) -> None:
+    """PA-41: con el modo real activo, una aprobación humana nueva de la misma versión publica."""
+    container, graph, config, final = _simulate(tmp_path)
+    live = _live_after(tmp_path, container)
+    state = graph.get_state(config).values
+    target = _target(state, config)
+    live.approvals.offer(state["artifact"], target)  # vuelve a revisión
+    fresh = live.approvals.record(state["artifact"], target)  # y una persona la aprueba
+    spent_at = datetime.fromisoformat(
+        _audit(live).entries(final["artifact"].id)[-1].detail["approval_at"]
+    )
+    assert fresh.at > spent_at
 
     result = GraphNodes(live).publish(state, config)  # type: ignore[arg-type]
 
     assert result["artifact"].status is ArtifactStatus.PUBLISHED
     assert _tracker(live).writes[0] == ("update_story", {"key": "DEMO-3"})
     assert live.approvals.was_published(result["artifact"])
+    publish = _audit(live).entries(final["artifact"].id)[-1]
+    assert publish.detail["simulated"] is False and "rejected" not in publish.detail
+
+
+def _make_legacy(container: Container, artifact: Artifact, *, drop_dates: bool = False) -> None:
+    """Deja el registro como antes de PA-41: la aprobación de la simulación sin consumir y sin
+    el campo `simulated`; con `drop_dates`, la auditoría tampoco guarda los instantes."""
+    state = container.state_store.load(str(artifact.id))
+    assert isinstance(state, dict)
+    ledger = state["ledger"]
+    for approval in ledger["approvals"]:
+        approval["consumed"] = False
+        approval["published_fingerprint"] = None
+        del approval["simulated"]
+    container.state_store.save(str(artifact.id), {**state, "ledger": ledger})
+    if drop_dates:
+        for entry in _audit(container).recorded:
+            for key in ("approval", "approval_at", "simulated_at"):
+                entry.detail.pop(key, None)
+
+
+@pytest.mark.parametrize("drop_dates", [False, True], ids=["con-instantes", "sin-instantes"])
+def test_legacy_approval_used_in_simulation_is_rejected_live(
+    tmp_path: Path, drop_dates: bool
+) -> None:
+    """PA-41: registro anterior al cambio (aprobación sin `simulated` y sin consumir) con una
+    simulación posterior a ella en la auditoría → rechazado en real, sin escribir y auditado."""
+    container, graph, config, final = _simulate(tmp_path)
+    _make_legacy(container, final["artifact"], drop_dates=drop_dates)
+    live = _live_after(tmp_path, container)
+    state = graph.get_state(config).values
+    assert live.approvals.find(state["artifact"], _target(state, config)) is not None  # se lee
+
+    with pytest.raises(PublishError) as exc:
+        GraphNodes(live).publish(state, config)  # type: ignore[arg-type]
+
+    assert str(exc.value) == (SIMULATED_BEFORE_PA41 if drop_dates else SPENT_IN_SIMULATION)
+    assert _tracker(live).writes == []
+    rejected = _audit(live).entries(final["artifact"].id)[-1]
+    assert rejected.action == "publish"
+    assert rejected.detail["simulated"] is False
+    assert rejected.detail["rejected"] == "approval_spent_in_simulation"
+    assert live.approvals.was_published(state["artifact"]) is False
 
 
 def test_live_publish_audits_not_simulated_with_keys_and_failed(tmp_path: Path) -> None:

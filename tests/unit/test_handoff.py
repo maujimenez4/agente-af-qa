@@ -30,7 +30,7 @@ from core.artifact_state import InMemoryArtifactStateStore
 from core.container import Container
 from core.conversations import THREAD_ID, new_conversation_config
 from core.graph import build_graph, initial_state
-from core.graph.nodes import GraphNodes
+from core.graph.nodes import GraphNodes, _target
 from core.handoff import (
     DEFAULT_LIMIT,
     NOT_AVAILABLE,
@@ -214,7 +214,8 @@ def test_hand_off_twice_in_simulation_returns_same_handoff(tmp_path: Path) -> No
 def _publish_live_later(
     tmp_path: Path, container: Container, graph: CompiledStateGraph, config: dict[str, Any]
 ) -> Container:
-    """La misma versión aprobada en simulación se publica después en live (T-25)."""
+    """La misma versión aprobada en simulación se publica después en live (T-25) con una
+    aprobación nueva: la de la simulación quedó gastada (PA-41)."""
     live = fake_container(
         tmp_path,
         publish_mode="live",
@@ -224,6 +225,9 @@ def _publish_live_later(
         audit=container.audit,
     )
     state = graph.get_state(config).values
+    target = _target(state, config, live.require_actor)  # type: ignore[arg-type]
+    live.approvals.offer(state["artifact"], target)  # vuelve a revisión con el modo real
+    live.approvals.record(state["artifact"], target)  # y una persona la aprueba de nuevo
     result = GraphNodes(live).publish(state, config)  # type: ignore[arg-type]
     graph.update_state(config, result, as_node="publish")
     return live

@@ -251,6 +251,11 @@ def _options(result: CallToolResult) -> list[tuple[str, str]]:
     return [(o["kind"], o["label"]) for o in result.structured_content["options"]]
 
 
+def _without_mark(data: dict[str, Any]) -> dict[str, Any]:
+    """El resultado sin `aviso` ni `campos_no_confiables` (PA-249): lo que ya devolvía."""
+    return {k: v for k, v in data.items() if k not in {"aviso", "campos_no_confiables"}}
+
+
 def _logged(events: list[dict[str, Any]]) -> str:
     return json.dumps(events, ensure_ascii=False, default=str)
 
@@ -443,7 +448,10 @@ def test_view_issue_returns_all_fields(container: Container) -> None:
     data = result.structured_content
     assert data is not None
     story = dataset.STORIES["DEMO-3"]
-    assert data == {
+    # PA-249: el aviso y la lista de campos no confiables van delante; el resto no cambia.
+    assert list(data)[:2] == ["aviso", "campos_no_confiables"]
+    assert data["campos_no_confiables"] == ["summary", "description"]
+    assert _without_mark(data) == {
         "key": "DEMO-3",
         "project": "DEMO",
         "summary": story.summary,
@@ -550,11 +558,13 @@ def test_review_quality_invalid_key_returns_spanish_error(container: Container) 
 
 
 def test_qa_cannot_review_quality(container: Container) -> None:
-    """T-59 caso 5: el rol qa no puede revisar la calidad (permiso de generar HU)."""
+    """T-59 caso 5 y PA-249: el rol qa no puede revisar la calidad (permiso de generar HU): la
+    herramienta ni se le ofrece y llamarla da error sin resultado."""
     result = _call(container, QA, "revisar_calidad", {"clave": "DEMO-3"})
 
+    assert "revisar_calidad" not in {tool.name for tool in _list_tools(container, QA).tools}
     assert result.is_error is True
-    assert _text(result) == PERMISSION_MESSAGE
+    assert result.structured_content is None
 
 
 def test_qa_can_search_and_view(container: Container) -> None:
@@ -570,11 +580,12 @@ def test_qa_can_search_and_view(container: Container) -> None:
 
 
 def test_admin_cannot_review_quality(container: Container) -> None:
-    """T-59 caso 5: admin no tiene GENERATE_STORY, así que no puede revisar la calidad."""
+    """T-59 caso 5 y PA-249: admin no tiene GENERATE_STORY: no se le ofrece revisar la calidad."""
     result = _call(container, ADMIN, "revisar_calidad", {"clave": "DEMO-3"})
 
+    assert "revisar_calidad" not in {tool.name for tool in _list_tools(container, ADMIN).tools}
     assert result.is_error is True
-    assert _text(result) == PERMISSION_MESSAGE
+    assert result.structured_content is None
 
 
 @pytest.mark.parametrize(
@@ -582,7 +593,6 @@ def test_admin_cannot_review_quality(container: Container) -> None:
     [
         ("buscar_historias", {"proyecto": "DEMO"}),
         ("ver_incidencia", {"clave": "DEMO-2"}),
-        ("revisar_calidad", {"clave": "DEMO-3"}),
         ("fuentes_de_contexto", {"clave": "DEMO-3"}),
         ("proponer_inicio", {"texto": "demo-3", "proyecto": "DEMO"}),
     ],
@@ -590,11 +600,21 @@ def test_admin_cannot_review_quality(container: Container) -> None:
 def test_unknown_role_is_denied_every_tool(
     container: Container, tool: str, args: dict[str, Any]
 ) -> None:
-    """T-59 caso 5 (negativo): un rol sin permisos no puede usar ninguna herramienta."""
+    """T-59 caso 5 (negativo): un rol sin permisos no puede usar ninguna herramienta
+    (`revisar_calidad` ni se le ofrece: PA-249, `test_unknown_role_is_not_offered_review`)."""
     result = _call(container, NO_ROLE, tool, args)
 
     assert result.is_error is True
     assert _text(result) == PERMISSION_MESSAGE
+    assert result.structured_content is None
+
+
+def test_unknown_role_is_not_offered_review(container: Container) -> None:
+    """PA-249: sin el permiso de revisar no se ofrece `revisar_calidad`; llamarla da error."""
+    result = _call(container, NO_ROLE, "revisar_calidad", {"clave": "DEMO-3"})
+
+    assert "revisar_calidad" not in {t.name for t in _list_tools(container, NO_ROLE).tools}
+    assert result.is_error is True
     assert result.structured_content is None
 
 

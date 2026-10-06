@@ -147,8 +147,8 @@ def test_interrupted_write_is_audited_before_the_error(
     assert entries[-1].detail.get("error_type") == "RuntimeError"
 
 
-def test_simulation_inside_publishing_writes_and_consumes_nothing(tmp_path: Path) -> None:
-    """Simulación: sin escrituras ni consumo; la reserva se libera y la aprobación sigue vigente."""
+def test_simulation_inside_publishing_writes_nothing_and_spends_approval(tmp_path: Path) -> None:
+    """Simulación: sin escrituras; la reserva se libera y la aprobación queda gastada (PA-41)."""
     container = fake_container(tmp_path, publish_mode="simulation")
     graph = build_graph(container, memory_checkpointer())
     config = _config()
@@ -159,6 +159,7 @@ def test_simulation_inside_publishing_writes_and_consumes_nothing(tmp_path: Path
     values = graph.get_state(config).values
     target = _target(dict(values), config, container.require_actor)  # type: ignore[arg-type]
     assert _tracker(container).writes == []
-    assert container.approvals.find(values["artifact"], target) is not None
-    with container.approvals.publishing(values["artifact"], target):
-        pass  # la reserva está libre
+    assert container.approvals.find(values["artifact"], target) is None
+    assert container.approvals.simulated_approval(values["artifact"], target) is not None
+    with container.approvals.publishing(values["artifact"], target) as approval:
+        assert approval is None  # la reserva está libre, pero no hay aprobación vigente

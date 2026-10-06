@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { TestCase, TestSuite } from '../../api/types.ts'
 import { Badge, CaseKindBadge } from '../Badge/index.ts'
+import { InlineMarkdown } from '../Markdown/index.ts'
 import { DownloadButton } from '../Download/index.ts'
 import p from '../Proposal/Proposal.module.css'
 import styles from './Suite.module.css'
@@ -215,15 +216,15 @@ export function StrategyView({ suite }: { suite: TestSuite }) {
           {blocks.map((block, index) =>
             block.kind === 'heading' ? (
               <h4 key={index} className={p.sectionTitle}>
-                {block.text}
+                <InlineMarkdown text={block.text} />
               </h4>
             ) : block.kind === 'item' ? (
               <p key={index} className={styles.strategyItem}>
-                • {block.text}
+                • <InlineMarkdown text={block.text} />
               </p>
             ) : (
               <p key={index} className={p.story}>
-                {block.text}
+                <InlineMarkdown text={block.text} />
               </p>
             ),
           )}

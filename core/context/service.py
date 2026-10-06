@@ -5,7 +5,7 @@ ajusta al presupuesto de tokens. Solo depende de protocolos de `adapters/base.py
 """
 
 import unicodedata
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -47,6 +47,18 @@ def type_key(issue_type: str) -> str:
 def is_story(issue_type: str) -> bool:
     """`True` si el tipo puede ser una HU: no es épica, subtarea ni tarea (T-48, T-53)."""
     return type_key(issue_type) not in NOT_STORIES
+
+
+ShouldStop = Callable[[], bool]
+
+
+class GatheringCancelledError(Exception):
+    """PA-128: quien pidió el contexto ya no lo espera (p. ej. la web canceló la petición)."""
+
+
+def _check(should_stop: ShouldStop | None) -> None:
+    if should_stop is not None and should_stop():
+        raise GatheringCancelledError
 
 
 class GatheredContext(BaseModel):
@@ -99,14 +111,22 @@ class ContextService:
         origin: Mapping[str, str],
         origin_issue: IssueDetail | None,
         excluded: Collection[str] = (),
+        should_stop: ShouldStop | None = None,
     ) -> GatheredContext:
         """`excluded`: fuentes desmarcadas por la persona (T-51); se quitan antes del presupuesto,
-        así su espacio lo aprovechan las demás. La incidencia de origen nunca se excluye."""
+        así su espacio lo aprovechan las demás. La incidencia de origen nunca se excluye.
+
+        PA-128: con `should_stop`, se deja de trabajar en cuanto devuelve verdadero (antes de
+        Jira, de los embeddings y de cada búsqueda): `GatheringCancelledError`. Una llamada ya
+        empezada no se interrumpe.
+        """
+        _check(should_stop)
         issues = self._jira_context(origin, origin_issue)
+        _check(should_stop)
         query = origin.get("text") or " ".join(
             f"{i.summary} {i.description_text}" for i in issues[:1]
         )
-        chunks = self._rag_context(query, set(excluded)) if query.strip() else []
+        chunks = self._rag_context(query, set(excluded), should_stop) if query.strip() else []
         if excluded:
             origin_key = origin_issue.key if origin_issue else None
             issues = [i for i in issues if i.key == origin_key or i.key not in excluded]
@@ -187,18 +207,23 @@ class ContextService:
 
     # --- RAG --------------------------------------------------------------------------------
 
-    def _rag_context(self, query: str, excluded: set[str]) -> list[RetrievedChunk]:
+    def _rag_context(
+        self, query: str, excluded: set[str], should_stop: ShouldStop | None = None
+    ) -> list[RetrievedChunk]:
         """Las fuentes excluidas se quitan antes del par norma ↔ acta y su hueco se rellena."""
         (vector,) = self._embeddings.embed([query])
+        _check(should_stop)
         # PA-197: un documento excluido puede tener varios fragmentos; se amplía la búsqueda
         # hasta rellenar `top_k` o agotar los resultados (con un tope).
         k = max(self._top_k, min(self._top_k + len(excluded), MAX_RAG_SEARCH))
         while True:
+            _check(should_stop)
             found = self._store.search(vector, query, k=k, memory_boost=self._memory_boost)
             results = [r for r in found if not _is_excluded(r, excluded)][: self._top_k]
             if len(results) >= self._top_k or len(found) < k or k >= MAX_RAG_SEARCH:
                 break
             k = min(k * 2, MAX_RAG_SEARCH)
+        _check(should_stop)
         results += self._related_documents(vector, query, results, excluded)
         # Memorias primero (RF-51); después, el resto por puntuación.
         return sorted(

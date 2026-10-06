@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Administración</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.tab{height:48px;padding:0 16px;border:0;background:transparent;font:inherit;font-size:14px;color:#C9D2DB;border-bottom:3px solid transparent}
+.tab.on{color:#FFFFFF;font-weight:600;border-bottom-color:#FF7932}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #E6EAEE;font-size:13px}
+th{color:#FFFFFF;background:#1E2D3D;font-weight:600}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; display: flex; background: #F4F6F8; font-family: 'DM Sans', system-ui, sans-serif; color: #233441;">
+<dc-import name="Sidebar" role="admin" hint-size="260px,800px"></dc-import>
+<main style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<nav aria-label="Pestañas" style="display: flex; gap: 4px; padding: 0 28px; background: #1E2D3D;">
+<button class="tab">Contexto</button>
+<button class="tab">Memoria</button>
+<button class="tab on" aria-current="page">Administración</button>
+</nav>
+<div style="padding: 24px 28px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+<section aria-label="Conexiones" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600;">Conexiones</h2>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px;"><span>Jira Cloud · proyecto DEMO</span><span style="font-weight: 600; color: #1E7A46;">Conectado</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px;"><span>Groq</span><span style="font-weight: 600; color: #1E7A46;">Disponible</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px;"><span>OpenRouter</span><span style="font-weight: 600; color: #8A4600;">Falta OPENROUTER_API_KEY</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px;"><span>Ollama (local)</span><span style="font-weight: 600; color: #1E7A46;">Disponible</span></div>
+<button style="align-self: flex-start; height: 44px; padding: 0 16px; border: 1px solid #93A0AB; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 14px;">Probar conexiones</button>
+<span style="font-size: 12px; color: #5C6E7C;">Las claves se leen del .env y nunca se muestran.</span>
+</section>
+<section aria-label="Modelos por tarea" style="background: #FFFFFF; border: 1px solid #E6EAEE; border-radius: 16px; overflow: hidden;">
+<h2 style="margin: 0; padding: 14px; font-size: 16px; font-weight: 600;">Modelos por tarea</h2>
+<table style="width: 100%; border-collapse: collapse;">
+<thead><tr><th>Tarea</th><th>Principal</th><th>Respaldo</th></tr></thead>
+<tbody>
+<tr><td>generate_story</td><td>groq · gpt-oss-120b</td><td>openrouter</td></tr>
+<tr><td>generate_tests</td><td>groq · gpt-oss-120b</td><td>openrouter</td></tr>
+<tr><td>synthesize_memory</td><td>groq · gpt-oss-20b</td><td>local</td></tr>
+<tr><td>classify_source</td><td>local</td><td>groq · gpt-oss-20b</td></tr>
+</tbody>
+</table>
+</section>
+<section aria-label="Documentos" style="grid-column: span 2; background: #FFFFFF; border: 1px dashed #93A0AB; border-radius: 16px; padding: 18px; display: flex; gap: 16px; align-items: center;">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF7932" stroke-width="2" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"></path></svg>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+<span style="font-size: 15px; font-weight: 600;">Cargar documentos a la base de conocimiento</span>
+<span style="font-size: 13px; color: #5C6E7C;">PDF, DOCX, MD o TXT · máx. 20 MB · se clasifican en 7 categorías y se indexan</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border: 0; border-radius: 8px; background: #FF7932; color: #233441; font: inherit; font-size: 14px; font-weight: 600;">Elegir archivos</button>
+</section>
+<p style="grid-column: span 2; margin: 0; font-size: 13px; color: #5C6E7C;">El administrador configura, pero no genera ni publica artefactos (D-01): no ve Historia, QA ni Revisión.</p>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

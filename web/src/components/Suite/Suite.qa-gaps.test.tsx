@@ -234,6 +234,8 @@ describe('Lo que llega del LLM se pinta como texto (nunca HTML)', () => {
     expect(container.querySelector('script')).toBeNull()
     expect(container.querySelector('a')).toBeNull()
     expect(screen.getByRole('heading', { name: '<script>alert(1)</script>' })).toBeInTheDocument()
-    expect(screen.getByText('• [enlace](javascript:alert(1))')).toBeInTheDocument()
+    // PA-334: un enlace de Markdown deja solo su texto; la URL no se pinta ni se puede abrir.
+    expect(screen.getByText('• enlace')).toBeInTheDocument()
+    expect(container.textContent).not.toContain('javascript:')
   })
 })

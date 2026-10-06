@@ -1,5 +1,8 @@
 """Fixtures compartidas de las pruebas."""
 
+import gc
+from collections.abc import Iterator
+
 import pytest
 
 from core.config import Settings
@@ -16,6 +19,7 @@ ENV_VARS = [
     "LANGFUSE_PUBLIC_KEY",  # T-40: sin claves en el entorno, las pruebas nunca trazan de verdad
     "LANGFUSE_SECRET_KEY",
     "LANGFUSE_HOST",
+    "LANGFUSE_BASE_URL",  # alias de LANGFUSE_HOST (nombre del apartado .env de Langfuse)
     "LANGFUSE_CAPTURE_CONTENT",
     "OPENROUTER_API_KEY",
     "OLLAMA_BASE_URL",
@@ -29,6 +33,27 @@ ENV_VARS = [
     "LOG_LEVEL",
     "MODELS_CONFIG_PATH",
 ]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_automatic_garbage_collection() -> Iterator[None]:
+    """Sin recolección automática durante las pruebas (PA-425).
+
+    Si una prueba deja a medias un `stream()` de LangGraph, el recolector puede finalizarlo
+    en cualquier momento, también mientras arranca un hilo de otra prueba: el finalizador cierra
+    un `ThreadPoolExecutor` y en Python 3.12 el arranque del hilo se bloquea para siempre. Sin
+    recolección automática, los finalizadores solo corren en `_collect_garbage_per_module`.
+    """
+    gc.disable()
+    yield
+    gc.enable()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _collect_garbage_per_module() -> Iterator[None]:
+    """Recoge la basura al acabar cada archivo de pruebas, entre pruebas y sin hilos arrancando."""
+    yield
+    gc.collect()
 
 
 @pytest.fixture

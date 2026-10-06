@@ -437,7 +437,7 @@ def test_publish_with_project_altered_in_state_is_rejected(tmp_path: Path) -> No
     graph = build_graph(simulated)
     config = _config()
     _start(graph, config, _need("DEMO"))
-    graph.invoke(_approve(graph, config), config)  # aprobación vigente (no consumida)
+    graph.invoke(_approve(graph, config), config)  # la simulación gasta la aprobación (PA-41)
     live = fake_container(
         tmp_path,
         publish_mode="live",
@@ -445,6 +445,9 @@ def test_publish_with_project_altered_in_state_is_rejected(tmp_path: Path) -> No
         issue_tracker=simulated.issue_tracker,
     )
     state = dict(graph.get_state(config).values)
+    target = _target(state, config, live.require_actor)  # type: ignore[arg-type]
+    live.approvals.offer(state["artifact"], target)  # aprobación vigente con el modo real
+    live.approvals.record(state["artifact"], target)
     state["origin"] = {**state["origin"], "project": "OTRO"}
 
     with pytest.raises(PublishError, match="No consta una aprobación"):

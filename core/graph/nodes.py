@@ -4,16 +4,20 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 (T-25) y la memoria real (T-33) se completan en sus tareas.
 """
 
+import hashlib
+import json
 import time
+from collections.abc import Iterable
 from dataclasses import replace
-from typing import Any
-from uuid import uuid4
+from datetime import UTC, datetime
+from typing import Any, Literal
+from uuid import UUID, uuid4, uuid5
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
-from adapters.base import Chunk
+from adapters.base import Chunk, IssueDetail
 from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
@@ -68,6 +72,17 @@ class ReviewRejectedError(ValueError):
 UNPUBLISHED_STORY = (
     "No se pueden publicar los casos: la HU de origen no está publicada en Jira (se aprobó en "
     "simulación). Publica antes la HU y vuelve a pasarla a QA."
+)
+# PA-41: una aprobación gastada en simulación nunca sirve para escribir en Jira.
+SPENT_IN_SIMULATION = (
+    "La aprobación se usó en una publicación simulada; vuelve a revisar y aprobar con el modo "
+    "real activo."
+)
+# PA-41: simulación anterior al cambio, sin instantes en la auditoría: no se puede saber si una
+# aprobación es posterior, así que esa versión ya no se publica en real (falla cerrado).
+SIMULATED_BEFORE_PA41 = (
+    "Esta versión se publicó en simulación antes de que la simulación gastara la aprobación; "
+    "para publicarla de verdad, genera una versión nueva o empieza una conversación nueva."
 )
 
 
@@ -150,18 +165,21 @@ class GraphNodes:
         origin = state["origin"]
         previous = state["artifact"]
         artifact_id = previous.id if previous is not None else uuid4()
+        # PA-339: la primera versión estrena id en cada intento; la versión de partida ya
+        # estructurada se guarda también por conversación para que un reintento la reutilice.
+        pending = _pending_baseline_key(config) if previous is None else None
         impact: ImpactAnalysis | None = None
         prompt_version: str | None = None
 
         content: UserStory | TestSuite
         try:
             if state["mode"] == "qa":
-                suite_draft = self._write_suite(state, str(artifact_id), config)
+                suite_draft = self._write_suite(state, str(artifact_id), config, pending)
                 content, artifact_type = suite_draft.suite, ArtifactType.TEST_SUITE
                 model_used = f"{suite_draft.provider}/{suite_draft.model}"
                 prompt_version = suite_draft.prompt_version
             else:
-                draft, impact = self._write_story(state, str(artifact_id))
+                draft, impact = self._write_story(state, str(artifact_id), pending)
                 content, artifact_type = draft.story, ArtifactType.USER_STORY
                 model_used = f"{draft.provider}/{draft.model}"
                 prompt_version = draft.prompt_version
@@ -180,6 +198,7 @@ class GraphNodes:
             raise
 
         if previous is None:
+            self._forget_pending_baseline(pending)  # PA-339: ya está en el artefacto
             artifact = Artifact(
                 id=artifact_id,
                 type=artifact_type,
@@ -257,7 +276,7 @@ class GraphNodes:
         return default_prompt_limits()
 
     def _write_story(
-        self, state: AgentState, artifact_id: str
+        self, state: AgentState, artifact_id: str, pending: str | None = None
     ) -> tuple[StoryDraft, ImpactAnalysis | None]:
         """HU con los prompts de T-20; en una evolución, diff frente a la versión de Jira."""
         origin, previous = state["origin"], state["artifact"]
@@ -284,7 +303,7 @@ class GraphNodes:
             epic = origin.get("key") if origin["kind"] == "epic" else None
             return draft, analyzer.analyze(draft.story, jira, parent_key=epic)
 
-        baseline = self._baseline(writer, ctx, artifact_id)
+        baseline = self._baseline(writer, ctx, artifact_id, pending)
         draft = writer.evolve(replace(ctx, previous=current or baseline))
         # T-21: diff determinista frente a Jira + HU afectadas y regresión validadas.
         impact = analyzer.analyze(
@@ -314,7 +333,11 @@ class GraphNodes:
         return handoff.story
 
     def _write_suite(
-        self, state: AgentState, artifact_id: str, config: RunnableConfig | None = None
+        self,
+        state: AgentState,
+        artifact_id: str,
+        config: RunnableConfig | None = None,
+        pending: str | None = None,
     ) -> SuiteDraft:
         """Suite de QA con los prompts de T-26 sobre la HU de Jira estructurada (PA-61).
 
@@ -340,7 +363,9 @@ class GraphNodes:
             return tests_writer.generate(
                 chained, ctx, unpublished=unpublished, previous_suite=_previous_suite(state)
             )
-        story = self._baseline(StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id)
+        story = self._baseline(
+            StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id, pending
+        )
         return TestWriter(self.c.llm, limits=self._limits()).generate(
             story, ctx, previous_suite=_previous_suite(state)
         )
@@ -357,17 +382,57 @@ class GraphNodes:
             "source_story_key": handoff.story_key,
         }
 
-    def _baseline(self, writer: StoryWriter, ctx: StoryContext, artifact_id: str) -> UserStory:
-        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37)."""
+    def _baseline(
+        self,
+        writer: StoryWriter,
+        ctx: StoryContext,
+        artifact_id: str,
+        pending: str | None = None,
+    ) -> UserStory:
+        """Versión de partida: la HU de Jira pasada a la plantilla una sola vez (PA-30, PA-37).
+
+        PA-339: con `pending` (primera versión), también se guarda por conversación con la
+        huella de la incidencia de origen; un reintento la reutiliza si la incidencia no cambió.
+        """
         state = self.c.state_store.load(artifact_id) or {}
         if saved := state.get("baseline"):
             return UserStory.model_validate(saved)
         origin_issue = [i for i in ctx.jira if i.key == ctx.origin_key][:1]
-        origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
-        baseline = writer.structure(origin_only).story
+        source = _issue_fingerprint(origin_issue)
+        baseline = self._pending_baseline(pending, source)
+        if baseline is None:
+            origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
+            baseline = writer.structure(origin_only).story
+            if pending is not None:
+                self.c.state_store.save(
+                    pending, {"baseline": baseline.model_dump(mode="json"), "source": source}
+                )
         state["baseline"] = baseline.model_dump(mode="json")
         self.c.state_store.save(artifact_id, state)
         return baseline
+
+    def _pending_baseline(self, pending: str | None, source: str) -> UserStory | None:
+        """La versión de partida de un intento anterior de esta conversación, si la incidencia
+        de origen es la misma; si no, `None` (se vuelve a estructurar)."""
+        if pending is None:
+            return None
+        saved = self.c.state_store.load(pending) or {}
+        if saved.get("source") != source or not saved.get("baseline"):
+            return None
+        try:
+            return UserStory.model_validate(saved["baseline"])
+        except ValidationError:
+            log.warning("versión de partida guardada no válida", action="structure_story")
+            return None
+
+    def _forget_pending_baseline(self, pending: str | None) -> None:
+        if pending is None:
+            return
+        saved = self.c.state_store.load(pending)
+        if saved and ("baseline" in saved or "source" in saved):
+            saved.pop("baseline", None)
+            saved.pop("source", None)
+            self.c.state_store.save(pending, saved)
 
     def _forget_baseline(self, artifact_id: str) -> None:
         state = self.c.state_store.load(artifact_id)
@@ -570,6 +635,8 @@ class GraphNodes:
         target = _target(state, config, self.c.require_actor)
         with self.c.approvals.publishing(artifact, target) as approval:
             if approval is None:
+                if self.c.approvals.used_in_simulation(artifact, target):
+                    raise PublishError(SPENT_IN_SIMULATION)
                 raise PublishError(
                     "No consta una aprobación humana vigente para esta versión exacta "
                     "del artefacto."
@@ -582,15 +649,25 @@ class GraphNodes:
         epic_key = _parent_of(state, approval.target.origin_key)
         plan = self._plan(approval.target, artifact, epic_key)
         if self.c.publish_mode != "live":
-            # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría y la
-            # aprobación sigue vigente para publicar de verdad cuando se active `live`.
+            # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría.
+            # PA-41: la aprobación se gasta, como en una publicación real: para publicar de
+            # verdad hace falta otra aprobación humana con el modo real activo. Primero la
+            # auditoría (con el instante de la aprobación usada) y después el consumo: si este
+            # fallara, la auditoría basta para rechazarla en real.
             self._record(
                 "publish",
                 state,
                 artifact,
-                detail={"simulated": True, "plan": plan},
+                detail={
+                    "simulated": True,
+                    "plan": plan,
+                    "approval": "spent_in_simulation",
+                    "approval_at": approval.at.isoformat(),
+                    "simulated_at": datetime.now(UTC).isoformat(),
+                },
                 save_version=False,
             )
+            self.c.approvals.consume(approval, artifact, simulated=True)
             log.info(
                 "publicación simulada",
                 user=state["user"],
@@ -600,6 +677,29 @@ class GraphNodes:
             )
             self._track(approval.target, "simulated", artifact)
             return {}
+
+        # PA-41: una aprobación que ya se usó al simular (también las guardadas antes de que la
+        # simulación las consumiera) no escribe en Jira; una posterior a la simulación, sí.
+        spent = spent_in_simulation(self.c.audit.entries(artifact.id), approval)
+        if spent is not None:
+            self._record(
+                "publish",
+                state,
+                artifact,
+                detail={
+                    "simulated": False,
+                    "plan": plan,
+                    "rejected": "approval_spent_in_simulation",
+                },
+                save_version=False,
+            )
+            log.warning(
+                "aprobación gastada en simulación",
+                user=state["user"],
+                action="publish",
+                artifact_id=str(artifact.id),
+            )
+            raise PublishError(SIMULATED_BEFORE_PA41 if spent == "legacy" else SPENT_IN_SIMULATION)
 
         # PA-141: la aprobación queda gastada antes de la primera escritura; si después falla la
         # auditoría o el consumo, no se vuelve a escribir con ella en este proceso.
@@ -910,3 +1010,67 @@ def _previous_suite(state: AgentState) -> TestSuite | None:
     previous = state["artifact"]
     content = previous.content if previous is not None else None
     return content if isinstance(content, TestSuite) else None
+
+
+def _aware(raw: object) -> datetime | None:
+    """Instante guardado en la auditoría; `None` si falta o no lleva zona horaria."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return value if value.tzinfo is not None else None
+
+
+def spent_in_simulation(
+    entries: Iterable[AuditEntry], approval: Approval
+) -> Literal["spent", "legacy"] | None:
+    """PA-41: `approval` es la que se usó al simular esta versión (o una anterior).
+
+    Se compara con cada publicación simulada de la misma versión en la auditoría: se rechaza si
+    la aprobación es anterior a la simulación o es la misma que se usó (mismo instante; las dos
+    fechas salen de `datetime.now(UTC)` en este proceso). Una simulación sin fechas (anterior a
+    PA-41) o una aprobación sin zona horaria fallan cerrado. Devuelve `"spent"`, `"legacy"`
+    (simulación sin instantes: ninguna aprobación de esa versión vale) o `None`.
+    """
+    if approval.at.tzinfo is None:
+        return "spent"
+    for entry in entries:
+        detail = entry.detail
+        if (
+            entry.action != "publish"
+            or detail.get("simulated") is not True
+            or detail.get("version") != approval.version
+        ):
+            continue
+        simulated_at = _aware(detail.get("simulated_at"))
+        if simulated_at is None:
+            return "legacy"
+        used_at = _aware(detail.get("approval_at"))
+        if approval.at < simulated_at or approval.at == used_at:
+            return "spent"
+    return None
+
+
+# PA-339: espacio propio para las claves de la versión de partida por conversación.
+_PENDING_BASELINE_NS = UUID("6f1d8f4e-3a52-4c1b-9d7e-2b8a51c0e339")
+
+
+def _pending_baseline_key(config: RunnableConfig | None) -> str | None:
+    """Clave estable entre reintentos de la primera versión de una conversación (PA-339)."""
+    thread_id = ((config or {}).get("configurable") or {}).get("thread_id")
+    if not thread_id or not THREAD_ID.fullmatch(str(thread_id)):
+        return None
+    return str(uuid5(_PENDING_BASELINE_NS, f"baseline:{thread_id}"))
+
+
+def _issue_fingerprint(issues: list[IssueDetail]) -> str:
+    """Huella de la incidencia de origen tal como se leyó de Jira (PA-339)."""
+    payload = json.dumps(
+        [issue.model_dump(mode="json") for issue in issues],
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(taskkill *)",
+      "Bash(kill *)",
+      "Bash(pkill *)",
+      "Bash(killall *)",
+      "PowerShell(taskkill *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(kill *)"
+    ]
+  }
+}

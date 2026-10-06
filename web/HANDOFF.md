@@ -1,7 +1,7 @@
-# Traspaso de T-56 (frontend React, área B) · 2026-10-05
+# Traspaso de T-56 (frontend React, área B) · 2026-10-06
 
-**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. **Bloque Memoria cerrado** en `t56-memoria` (desde `t56-qa-cobertura`). Lint, Vitest (1.846), build y `npm run api:check` en verde.
-**PR abierta:** [#6](https://github.com/maujimenez4/agente-af-qa/pull/6) `area-b → PreProduccion` («T-56: flujo de QA por roles, recibo y resultado de la suite», bloque 5). **Pendiente** de la prueba del flujo de QA contra la API real en el equipo de la principal y de la aprobación de su responsable. Ya fusionadas: la #2, la #3 y la #4.
+**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP). Pendientes de fusionar: `ses-web-fixes` (PA-332 a PA-336), Editar a mano (`t56-editar`, parte A; la B espera a `ses-web-fixes`), UI.md v2.0 (#8) y PA-325/PA-312 (#9).
+**PR abiertas:** [#8](https://github.com/maujimenez4/agente-af-qa/pull/8) `t56-uimd → PreProduccion` (UI.md v2.0, PA-300) y [#9](https://github.com/maujimenez4/agente-af-qa/pull/9) `t56-pa325 → PreProduccion` (claves de Jira enlazadas, PA-325, y regla de ESLint del almacenamiento, PA-312). Fusionadas: la #2, la #3, la #4, la #6 y la #7.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
@@ -18,6 +18,20 @@
 
 ## T-57: punto de control
 **Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.
+
+## Pulido final
+- **UI.md v2.0** (`docs/specs/UI.md`, PA-300, 2026-10-06) describe la web en React tal como está fusionada (ya con Revisar la calidad y PA-341). Hay que **actualizarla** cuando se fusionen:
+  - **`ses-web-fixes`** (PA-332 a PA-336): 401 común (§7), «Aprobando y publicando…», Estrategia con formato (§6.3), alto de la app y `/start/sources` durante la generación;
+  - **Editar a mano**: la parte A (`t56-editar`), la parte B y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA), y `/edit` en §9;
+  - **PA-330** (presupuesto rápido en Origen, §4.3).
+- Con la v2.0, alinear también las frases que aún dicen que algo «no está en UI.md» o citan la v1.0: `web/DESIGN-DECISIONS.md` (aviso de modo de prueba del Resultado, «Si no fuera así…» de Cobertura y Memoria) y el comentario de `web/src/screens/Memory/memoryText.ts`.
+- Otros textos desfasados por lo ya fusionado: el comentario de `itemId` en `web/src/components/Proposal/proposalText.ts` (el ejemplo del contrato ya usa `acceptance_criteria[CA-02]`) y `web/PRUEBA-API-REAL.md`, que aún da Revisar la calidad y Administración como «disponible pronto».
+- **Administración** (Ajustes, solo admin) está completa en `PreProduccion` y es ahora del responsable de `web/`: revisarla en el pulido final (textos, tamaños y las PA abiertas).
+
+## Reparto (2026-10-06)
+- **Del responsable de `web/`:** Administración (completa en `PreProduccion`; se revisa en el pulido final), Editar a mano (`t56-editar`), la parte web de PA-330, revisar `ses-web-fixes` antes de fusionarla, el pulido de UI.md y **PA-400** (copiar el archivo del lienzo de Ajustes), **PA-404** (diferencias de Mixta 5 con el lienzo, ya en UI.md §4.8) y **PA-406** (tope del sondeo de Revisar la calidad, en `t56-sondeo`).
+- **PA-402 a PA-406** vienen de la sesión MCP (Revisar la calidad); de ellas, PA-402 y PA-405 son de la API (principal) y PA-403 sigue pendiente de decidir.
+- **Sesión UI** (`ses-web-fixes`): PA-332 a PA-336, aún sin fusionar.
 
 ## Hecho
 - **Flujo de la HU contra MSW:** login, Inicio, Elegir en Jira, Origen (presupuesto de tokens y conversación de la ronda 8), Generando e Iterar (versión «Jira», *Detener* y *Reintentar*), Recibo con la huella exacta y Resultado simulado, publicado o en parte; *Abrir <clave> en Jira* (PA-318).
@@ -101,7 +115,6 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 ## PA abiertas
 - **Adoptadas en `t56-qa-cobertura`:** PA-326, PA-327 (en la API simulada), PA-118 y PA-328.
 - **Del área B:**
-  - PA-300 (UI.md: *Volver a la propuesta* en el recibo, el aviso de modo de prueba solo en simulación, el flujo unido fuera de la entrega y el texto de Cobertura sin «Si no fuera así…»);
   - PA-304 (lienzo: foco, Q con reducir movimiento y la fase de la suite en parte);
   - PA-310, PA-312 y PA-325.
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).

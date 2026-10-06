@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-05
 
-**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. Lint, Vitest (1.731), build y `npm run api:check` en verde.
+**Estado:** T-56 🔄. Flujo de la HU completo y **flujo de QA por roles completo** (QA 1 a QA 5), en la PR #6. **Bloque «contrato de QA en la web» cerrado** en `t56-qa-cobertura` (PA-326 en Cobertura, PA-118, fuera `mockBaseline` y PA-328), con su PR preparada **sin abrir** hasta que se fusione la #6. **Rama de trabajo actual: `t56-memoria`** (desde `t56-qa-cobertura`, 2026-10-05). Lint, Vitest (1.731), build y `npm run api:check` en verde.
 **PR abierta:** [#6](https://github.com/maujimenez4/agente-af-qa/pull/6) `area-b → PreProduccion` («T-56: flujo de QA por roles, recibo y resultado de la suite», bloque 5). **Pendiente** de la prueba del flujo de QA contra la API real en el equipo de la principal y de la aprobación de su responsable. Ya fusionadas: la #2, la #3 y la #4.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
@@ -37,6 +37,11 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Al cerrar cada bloque:** push y se prepara la PR (se abre la página en el navegador y la descripción va al portapapeles).
 - **Lo que no sea de una entrega va al issue #5:** fallos de la prueba con la API real, preguntas sobre PA y avisos de componentes compartidos.
 - **Al leer comentarios con la API de GitHub**, revisar el issue #5 y la última PR.
+
+## Cadena de ramas (mientras la PR #6 siga abierta)
+`area-b` (PR #6 → `PreProduccion`) → `t56-qa-cobertura` (contrato de QA, PR preparada) → `t56-memoria` (Memoria, en curso). Cada rama sale de la anterior y solo se hace push de la rama en curso.
+- **Al fusionarse una PR:** traer `origin/PreProduccion` a la siguiente rama de la cadena (`git merge`, nunca rebase), comprobar Vitest, lint, build y `api:check`, y preparar su PR (`<rama> → PreProduccion`).
+- **Si hay correcciones en una rama anterior** (p. ej. fallos de la #6 que pide la principal, que se corrigen en `area-b`): hacerlas allí y traerlas a las siguientes con `git merge`, por orden (`area-b` → `t56-qa-cobertura` → `t56-memoria`).
 
 ## Reglas de trabajo
 - `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.

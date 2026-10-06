@@ -5,8 +5,10 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 """
 
 import time
+from collections.abc import Iterable
 from dataclasses import replace
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
@@ -68,6 +70,17 @@ class ReviewRejectedError(ValueError):
 UNPUBLISHED_STORY = (
     "No se pueden publicar los casos: la HU de origen no está publicada en Jira (se aprobó en "
     "simulación). Publica antes la HU y vuelve a pasarla a QA."
+)
+# PA-41: una aprobación gastada en simulación nunca sirve para escribir en Jira.
+SPENT_IN_SIMULATION = (
+    "La aprobación se usó en una publicación simulada; vuelve a revisar y aprobar con el modo "
+    "real activo."
+)
+# PA-41: simulación anterior al cambio, sin instantes en la auditoría: no se puede saber si una
+# aprobación es posterior, así que esa versión ya no se publica en real (falla cerrado).
+SIMULATED_BEFORE_PA41 = (
+    "Esta versión se publicó en simulación antes de que la simulación gastara la aprobación; "
+    "para publicarla de verdad, genera una versión nueva o empieza una conversación nueva."
 )
 
 
@@ -566,6 +579,8 @@ class GraphNodes:
         target = _target(state, config, self.c.require_actor)
         with self.c.approvals.publishing(artifact, target) as approval:
             if approval is None:
+                if self.c.approvals.used_in_simulation(artifact, target):
+                    raise PublishError(SPENT_IN_SIMULATION)
                 raise PublishError(
                     "No consta una aprobación humana vigente para esta versión exacta "
                     "del artefacto."
@@ -578,15 +593,25 @@ class GraphNodes:
         epic_key = _parent_of(state, approval.target.origin_key)
         plan = self._plan(approval.target, artifact, epic_key)
         if self.c.publish_mode != "live":
-            # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría y la
-            # aprobación sigue vigente para publicar de verdad cuando se active `live`.
+            # T-25: modo simulación. Nada se escribe en Jira; el plan queda en la auditoría.
+            # PA-41: la aprobación se gasta, como en una publicación real: para publicar de
+            # verdad hace falta otra aprobación humana con el modo real activo. Primero la
+            # auditoría (con el instante de la aprobación usada) y después el consumo: si este
+            # fallara, la auditoría basta para rechazarla en real.
             self._record(
                 "publish",
                 state,
                 artifact,
-                detail={"simulated": True, "plan": plan},
+                detail={
+                    "simulated": True,
+                    "plan": plan,
+                    "approval": "spent_in_simulation",
+                    "approval_at": approval.at.isoformat(),
+                    "simulated_at": datetime.now(UTC).isoformat(),
+                },
                 save_version=False,
             )
+            self.c.approvals.consume(approval, artifact, simulated=True)
             log.info(
                 "publicación simulada",
                 user=state["user"],
@@ -596,6 +621,29 @@ class GraphNodes:
             )
             self._track(approval.target, "simulated", artifact)
             return {}
+
+        # PA-41: una aprobación que ya se usó al simular (también las guardadas antes de que la
+        # simulación las consumiera) no escribe en Jira; una posterior a la simulación, sí.
+        spent = spent_in_simulation(self.c.audit.entries(artifact.id), approval)
+        if spent is not None:
+            self._record(
+                "publish",
+                state,
+                artifact,
+                detail={
+                    "simulated": False,
+                    "plan": plan,
+                    "rejected": "approval_spent_in_simulation",
+                },
+                save_version=False,
+            )
+            log.warning(
+                "aprobación gastada en simulación",
+                user=state["user"],
+                action="publish",
+                artifact_id=str(artifact.id),
+            )
+            raise PublishError(SIMULATED_BEFORE_PA41 if spent == "legacy" else SPENT_IN_SIMULATION)
 
         # PA-141: la aprobación queda gastada antes de la primera escritura; si después falla la
         # auditoría o el consumo, no se vuelve a escribir con ella en este proceso.
@@ -899,3 +947,44 @@ def _diff_comment_md(impact: ImpactAnalysis | None) -> str:
 def _table_cell(value: str) -> str:
     """PA-201: un valor de la tabla del diff no añade columnas ni parte la fila."""
     return " ".join(value.split()).replace("|", "\\|")
+
+
+def _aware(raw: object) -> datetime | None:
+    """Instante guardado en la auditoría; `None` si falta o no lleva zona horaria."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return value if value.tzinfo is not None else None
+
+
+def spent_in_simulation(
+    entries: Iterable[AuditEntry], approval: Approval
+) -> Literal["spent", "legacy"] | None:
+    """PA-41: `approval` es la que se usó al simular esta versión (o una anterior).
+
+    Se compara con cada publicación simulada de la misma versión en la auditoría: se rechaza si
+    la aprobación es anterior a la simulación o es la misma que se usó (mismo instante; las dos
+    fechas salen de `datetime.now(UTC)` en este proceso). Una simulación sin fechas (anterior a
+    PA-41) o una aprobación sin zona horaria fallan cerrado. Devuelve `"spent"`, `"legacy"`
+    (simulación sin instantes: ninguna aprobación de esa versión vale) o `None`.
+    """
+    if approval.at.tzinfo is None:
+        return "spent"
+    for entry in entries:
+        detail = entry.detail
+        if (
+            entry.action != "publish"
+            or detail.get("simulated") is not True
+            or detail.get("version") != approval.version
+        ):
+            continue
+        simulated_at = _aware(detail.get("simulated_at"))
+        if simulated_at is None:
+            return "legacy"
+        used_at = _aware(detail.get("approval_at"))
+        if approval.at < simulated_at or approval.at == used_at:
+            return "spent"
+    return None

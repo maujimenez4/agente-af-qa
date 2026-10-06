@@ -30,6 +30,16 @@
   flex-shrink: 0;
 }
 
+/* Texto en lugar de la Q de fases (Revisar la calidad): cede antes que el título. */
+.header > .headerNote {
+  flex-shrink: 4;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .title {
   flex-grow: 1;
   min-width: 0;

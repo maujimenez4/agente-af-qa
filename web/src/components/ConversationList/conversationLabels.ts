@@ -1,13 +1,38 @@
 // Textos de la lista de conversaciones a partir de `ConversationSummary` (docs/api/openapi.yaml).
-import type { ConversationStatus, ConversationSummary } from '../../api/types.ts'
+import type { ConversationStatus, ConversationSummary, QualityReviewSummary } from '../../api/types.ts'
 
 export type { ConversationStatus }
 
-/** Los campos de `ConversationSummary` que usa la lista. */
+/**
+ * Los campos de `ConversationSummary` que usa la lista. Una revisión de calidad (`GET /quality-reviews`) entra
+ * con `review_state` y su `id` en `thread_id` (docs/api/README.md: se juntan por `updated_at`).
+ */
 export type ConversationSummaryView = Pick<
   ConversationSummary,
   'thread_id' | 'project_key' | 'mode' | 'origin_kind' | 'origin_key' | 'title' | 'status' | 'version' | 'updated_at'
->
+> & { review_state?: QualityReviewSummary['state'] }
+
+const REVIEW_STATES: Record<QualityReviewSummary['state'], string> = {
+  running: 'Revisando',
+  done: 'Informe listo',
+  error: 'Con error',
+}
+
+/** Una revisión de calidad como fila de la lista («Revisar la calidad de DEMO-3 · Informe listo»). */
+export function qualityReviewView(review: QualityReviewSummary): ConversationSummaryView {
+  return {
+    thread_id: review.id,
+    project_key: review.project,
+    mode: 'functional',
+    origin_kind: 'story',
+    origin_key: review.issue_key,
+    title: review.title,
+    status: 'started',
+    version: null,
+    updated_at: review.updated_at,
+    review_state: review.state,
+  }
+}
 
 // La API titula «Nueva HU en DEMO-1» la HU nueva dentro de una épica (core/conversations.py, PA-317).
 const EPIC_TITLE = /^Nueva HU en (\S+)$/
@@ -21,6 +46,7 @@ export function conversationTitle(title: string): string {
 /** Flujo de la conversación («Evolucionar DEMO-3», «HU nueva en la épica DEMO-1», «Pruebas de DEMO-3»). */
 export function flowLabel(conversation: ConversationSummaryView): string {
   const key = conversation.origin_key
+  if (conversation.review_state) return 'Revisar la calidad'
   if (conversation.mode === 'qa') return key ? `Pruebas de ${key}` : 'Preparar pruebas'
   if (conversation.origin_kind === 'story') return key ? `Evolucionar ${key}` : 'Evolucionar una HU'
   if (conversation.origin_kind === 'epic') return key ? `HU nueva en la épica ${key}` : 'HU nueva en una épica'
@@ -29,6 +55,7 @@ export function flowLabel(conversation: ConversationSummaryView): string {
 
 /** Estado legible (UI.md §9, T-52). Los que UI.md no nombra van en DESIGN-DECISIONS.md §5. */
 export function statusLabel(conversation: ConversationSummaryView): string {
+  if (conversation.review_state) return REVIEW_STATES[conversation.review_state]
   switch (conversation.status) {
     case 'started':
       return 'En curso'

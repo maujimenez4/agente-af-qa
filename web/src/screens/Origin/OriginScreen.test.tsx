@@ -190,9 +190,11 @@ describe('Origen y fuentes (Mixta 2, UI.md §4.3)', () => {
     expect(screen.queryByText(/Evolucionar DEMO-1/)).toBeNull()
   })
 
-  it('«Revisar la calidad» queda como «disponible pronto» en la demo', async () => {
+  it('«Revisar la calidad» abre su propia pantalla (Mixta 5), sin el panel de Origen', async () => {
     await startWithText('Revisar DEMO-4', 'Revisar la calidad de una HU')
-    expect(await screen.findByRole('heading', { name: 'Revisar la calidad: disponible pronto' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Revisar la calidad' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Revisar DEMO-4' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Antes de generar' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Volver al inicio' }))
     expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
   })

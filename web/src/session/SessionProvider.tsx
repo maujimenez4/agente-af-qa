@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, ApiRequestError, onUnauthenticated, setCsrfToken } from '../api/client.ts'
+import { api, ApiRequestError, onUnauthenticated, setCsrfToken, startSession } from '../api/client.ts'
 import type { SessionOut } from '../api/types.ts'
 import { SessionContext, type OpenKind, type SessionState } from './sessionContext.ts'
 
@@ -10,6 +10,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const opened = useRef<{ id: string; kind: OpenKind } | undefined>(undefined)
 
   const accept = useCallback((session: SessionOut) => {
+    startSession()
     setCsrfToken(session.csrf_token)
     setState((previous) => {
       const resume = previous.status === 'anonymous' ? previous.resume : undefined

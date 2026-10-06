@@ -94,10 +94,14 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   // PA-336: cada consulta de fuentes (17–35 s con la API real, embeddings) se aborta al dejar de hacer
   // falta: al desmontar, al cambiar las casillas y al pulsar «Generar», para no competir con la generación.
   const inFlight = useRef(new Set<AbortController>())
+  // Si «Generar» abortó la lista antes de que llegara y la creación falla, se vuelve a pedir con esta clave.
+  const [sourcesReload, setSourcesReload] = useState(0)
+  const sourcesLoaded = useRef(false)
 
   useEffect(() => {
     if (!operation) return
     let cancelled = false
+    sourcesLoaded.current = false
     const pending = inFlight.current
     const controller = track(pending)
     api
@@ -108,6 +112,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
         setSources(value.sources)
         setBudget(value.budget)
         budgetFor.current = ''
+        sourcesLoaded.current = true
       })
       .catch((cause: unknown) => {
         if (!cancelled && cause instanceof ApiRequestError) setError(cause.error)
@@ -117,7 +122,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       cancelled = true
       untrack(pending, controller)
     }
-  }, [operation])
+  }, [operation, sourcesReload])
 
   // Al cambiar las casillas, solo se vuelve a pedir el presupuesto (PA-102), con una espera entre clics.
   useEffect(() => {
@@ -172,6 +177,10 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       onGenerating(await api.createConversation(createBody(operation, allRestrictions, excluded, options)))
     } catch (cause) {
       setError(toApiError(cause))
+      // Origen sigue abierto: la lista abortada al pulsar «Generar» se vuelve a pedir.
+      // Con un 401 la sesión ya pasa al inicio de sesión: no hay pantalla que recargar.
+      const expired = cause instanceof ApiRequestError && cause.status === 401
+      if (!sourcesLoaded.current && !expired) setSourcesReload((count) => count + 1)
     } finally {
       setGenerating(false)
     }

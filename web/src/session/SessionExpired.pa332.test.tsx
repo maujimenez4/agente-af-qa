@@ -3,10 +3,11 @@
 // persona, se reabre la conversación en la que estaba (el estado vive en el servidor). La sesión caduca
 // en la API simulada al vaciar `mockDb.session`: el 401 llega cuando la pantalla hace su siguiente
 // petición, sin esperas. Datos sintéticos (DEMO, af-demo, qa-demo).
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { api } from '../api/client.ts'
 import { App } from '../App.tsx'
 import { DEMO_PASSWORD } from '../mocks/db.ts'
 import { mockDb, mockServer } from '../mocks/node.ts'
@@ -43,6 +44,7 @@ async function openDemo3InReview() {
 
 afterEach(() => {
   mockServer.events.removeAllListeners()
+  vi.restoreAllMocks()
 })
 
 describe('Sesión caducada en cualquier pantalla (PA-332)', () => {
@@ -200,5 +202,93 @@ describe('Volver a entrar tras la sesión caducada (PA-332)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
     expect(await screen.findByText('Usuario o contraseña incorrectos.')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Sesión caducada' })).toBeNull()
+  })
+})
+
+/** Respuesta 401 retenida hasta que la prueba la suelta. */
+function held401(message: string) {
+  let release: () => void = () => undefined
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let arrive: () => void = () => undefined
+  const arrived = new Promise<void>((resolve) => {
+    arrive = resolve
+  })
+  const respond = async () => {
+    arrive()
+    await gate
+    return HttpResponse.json({ error: { code: 'unauthenticated', message } }, { status: 401 })
+  }
+  return { respond, release: () => release(), arrived }
+}
+
+/** La promesa de cada llamada a `api[name]`: la prueba espera a que el cliente la haya resuelto. */
+function trackCalls<K extends 'iterate'>(name: K) {
+  const calls: Promise<unknown>[] = []
+  const original = api[name] as (...args: unknown[]) => Promise<unknown>
+  vi.spyOn(api, name).mockImplementation(((...args: unknown[]) => {
+    const pending = original(...args)
+    calls.push(pending)
+    return pending
+  }) as never)
+  return calls
+}
+
+/** Espera (dentro de `act`) a que terminen esas peticiones, con éxito o con error. */
+async function settled(calls: Promise<unknown>[]) {
+  await act(async () => {
+    await Promise.allSettled(calls)
+  })
+}
+
+describe('401 que llegan tarde o a la vez (revisión de web/)', () => {
+  it('el 401 de una petición lanzada antes de volver a entrar no vuelve a echar a la persona', async () => {
+    const old = held401('Inicia sesión para continuar (petición antigua).')
+    mockServer.use(http.post('/api/v1/conversations/:id/iterate', old.respond, { once: true }))
+    const iterations = trackCalls('iterate')
+    await openDemo3InReview()
+    // Una petición larga queda en curso (como una consulta de fuentes o del vigilante)…
+    await userEvent.type(screen.getByRole('textbox', { name: /^Pide un cambio a la propuesta/ }), 'Un cambio ficticio')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    // …y otra petición descubre la sesión caducada: inicio de sesión.
+    expire()
+    await userEvent.click(within(screen.getByRole('complementary', { name: 'Conversaciones' })).getByRole('button', { name: 'Nueva conversación' }))
+    await expectExpiredLogin()
+    await logIn('af-demo')
+    expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
+
+    // La petición antigua responde ahora con 401: es de la sesión anterior y se ignora.
+    await old.arrived
+    old.release()
+    expect(iterations).toHaveLength(1)
+    await settled(iterations) // el cliente ya procesó su 401
+    expect(screen.queryByRole('heading', { name: 'Sesión caducada' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
+  })
+
+  it('varios 401 a la vez → un solo paso al inicio de sesión', async () => {
+    signIn()
+    render(<App />)
+    expect(await screen.findByRole('heading', { level: 1, name: '¿En qué trabajamos hoy?' })).toBeInTheDocument()
+    // Con la app ya cargada, dos peticiones salen a la vez en esta sesión y las dos responden 401.
+    const first = held401('Primer 401 ficticio.')
+    const second = held401('Segundo 401 ficticio.')
+    mockServer.use(
+      http.get('/api/v1/issues/:key', first.respond, { once: true }),
+      http.get('/api/v1/memories', second.respond, { once: true }),
+    )
+    const requests = [api.issue('DEMO-3'), api.memories()]
+    await Promise.all([first.arrived, second.arrived])
+
+    first.release()
+    await expectExpiredLogin()
+    expect(screen.getByText('Primer 401 ficticio.')).toBeInTheDocument()
+    second.release()
+    await settled(requests) // el cliente ya procesó los dos 401
+    // El segundo no vuelve a cambiar el estado: sigue la tarjeta del primero, una sola.
+    expect(screen.getAllByRole('heading', { name: 'Sesión caducada' })).toHaveLength(1)
+    expect(screen.getByText('Primer 401 ficticio.')).toBeInTheDocument()
+    expect(screen.queryByText('Segundo 401 ficticio.')).toBeNull()
   })
 })

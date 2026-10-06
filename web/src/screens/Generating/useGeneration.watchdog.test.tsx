@@ -211,6 +211,46 @@ describe('useGeneration · flujo abierto · PA-333', () => {
     expect(gets).toHaveBeenCalledTimes(3) // solo la 2.ª cadena sigue: una consulta, no dos
   })
 
+  it('al llegar a un estado final por consulta, cierra el flujo SSE (no ocupa una plaza de too_many_streams)', async () => {
+    statusAnswers(() => conversation('simulated'))
+    const { result } = renderHook(() => useGeneration(GENERATING))
+    await receive(() => stream.handlers?.onOpen?.())
+    await advance(SILENCE_MS)
+    expect(result.current.state.status).toBe('ready')
+    expect(stream.closed).toBe(1) // con la pantalla aún montada
+  })
+
+  it.each([
+    [404, 'not_found'],
+    [403, 'forbidden'],
+  ])('en modo vigilante, un %i (permanente) se muestra y no se reintenta', async (status, code) => {
+    const gets = vi
+      .spyOn(api, 'conversation')
+      .mockRejectedValue(new ApiRequestError(status, { code: code as 'not_found', message: 'Error permanente ficticio.' }))
+    const { result } = renderHook(() => useGeneration(GENERATING))
+    await receive(() => stream.handlers?.onOpen?.())
+    await advance(SILENCE_MS)
+    expect(result.current.state.status).toBe('error')
+    expect(stream.closed).toBe(1) // el flujo abierto se cierra
+    await advance(WATCH_POLL_MS * 3)
+    expect(gets).toHaveBeenCalledTimes(1)
+  })
+
+  it('en modo vigilante, un 429 (pasajero) se reintenta a los 3 s', async () => {
+    let calls = 0
+    vi.spyOn(api, 'conversation').mockImplementation(() => {
+      calls += 1
+      if (calls === 1) return Promise.reject(new ApiRequestError(429, { code: 'rate_limited', message: 'Límite ficticio.' }))
+      return Promise.resolve(conversation('simulated'))
+    })
+    const { result } = renderHook(() => useGeneration(GENERATING))
+    await receive(() => stream.handlers?.onOpen?.())
+    await advance(SILENCE_MS)
+    expect(result.current.state.status).toBe('running')
+    await advance(WATCH_POLL_MS)
+    expect(result.current.state.status).toBe('ready')
+  })
+
   it('al desmontar, cierra el flujo y no deja consultas pendientes', async () => {
     const gets = statusAnswers(() => conversation('generating'))
     const { unmount } = renderHook(() => useGeneration(GENERATING))

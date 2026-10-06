@@ -82,6 +82,7 @@ export function apiUrl(path: string): string {
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 async function request<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const startedIn = sessionNumber
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -104,7 +105,8 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
   const payload: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
     const error = (payload as { error?: ApiError } | undefined)?.error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE }
-    if (response.status === 401 && !SESSION_PATHS.has(path)) unauthenticatedHandler?.(error)
+    // Un 401 de una petición lanzada en una sesión anterior (antes de volver a entrar) no echa a nadie.
+    if (response.status === 401 && !SESSION_PATHS.has(path) && startedIn === sessionNumber) unauthenticatedHandler?.(error)
     throw new ApiRequestError(response.status, error)
   }
   return payload as T
@@ -116,6 +118,12 @@ const enc = encodeURIComponent
 // rutas de la propia sesión: un 401 en /auth/me al arrancar o en /auth/login es lo esperado.
 const SESSION_PATHS = new Set(['/auth/me', '/auth/login', '/auth/logout'])
 let unauthenticatedHandler: ((error: ApiError) => void) | undefined
+let sessionNumber = 0
+
+/** Empieza una sesión nueva (cada inicio de sesión aceptado): los 401 de peticiones anteriores se ignoran. */
+export function startSession(): void {
+  sessionNumber += 1
+}
 
 /** Registra quién se entera de un 401 (la sesión). Devuelve la función para dejar de escucharlo. */
 export function onUnauthenticated(handler: (error: ApiError) => void): () => void {

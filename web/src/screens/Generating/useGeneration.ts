@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, toApiError } from '../../api/client.ts'
+import { api, ApiRequestError, toApiError } from '../../api/client.ts'
 import { subscribeEvents } from '../../api/events.ts'
 import type { ApiError, ConversationOut, ProgressStep } from '../../api/types.ts'
 
@@ -29,6 +29,13 @@ export interface Generation {
   /** Error al pedir detener (salvo `not_cancellable`, que solo significa que ya terminó). */
   stopError?: ApiError
   stop: () => void
+}
+
+/** Fallo pasajero de una consulta (red, 429, 5xx): el vigilante vuelve a consultar. 404, 403… se muestran. */
+function transient(cause: unknown): boolean {
+  // La red caída llega como ApiRequestError con estado 0; otro fallo (de programación) no se reintenta sin fin.
+  if (!(cause instanceof ApiRequestError)) return false
+  return cause.status === 0 || cause.status === 429 || cause.status >= 500
 }
 
 function upsert(steps: readonly ProgressStep[], step: ProgressStep): ProgressStep[] {
@@ -78,6 +85,8 @@ export function useGeneration(initial: ConversationOut): Generation {
     let disconnected = false
     // Cada cadena de consultas tiene su número: la respuesta de una cadena anterior no programa otra.
     let chain = 0
+    // Cierra el flujo SSE (se asigna al suscribirse): tras un final visto por consulta no ocupa una plaza.
+    let closeStream: (() => void) | undefined
 
     const settle = (conversation: ConversationOut) => {
       if (finished) return
@@ -103,17 +112,22 @@ export function useGeneration(initial: ConversationOut): Generation {
           if (finished) return
           setState((current) => ({ ...current, steps: conversation.progress }))
           settle(conversation)
+          // Final visto por la consulta, no por el flujo: el SSE se cierra para no ocupar una plaza (too_many_streams).
+          // Si el final llega por el propio flujo, es la API la que lo termina.
+          if (finished && !disconnected) closeStream?.()
           if (!finished && polling && own === chain) pollTimer = window.setTimeout(poll, disconnected ? POLL_MS : WATCH_POLL_MS)
         })
         .catch((cause: unknown) => {
           if (finished) return
           // Consulta del vigilante con el flujo sin cortar: un fallo pasajero (503, red) no termina la
-          // generación; se vuelve a consultar. Un 401 ya lo trata la sesión (PA-332).
-          if (!disconnected && polling && own === chain) {
+          // generación; se vuelve a consultar. Un 401 no se reintenta: lo trata la sesión (PA-332).
+          if (!disconnected && polling && own === chain && transient(cause)) {
             pollTimer = window.setTimeout(poll, WATCH_POLL_MS)
             return
           }
           finished = true
+          // Error permanente con el flujo aún abierto: se cierra para no ocupar una plaza (too_many_streams).
+          if (!disconnected) closeStream?.()
           const error = toApiError(cause)
           setState((current) => ({ status: 'error', steps: current.steps, error, retryable: false }))
         })
@@ -140,7 +154,7 @@ export function useGeneration(initial: ConversationOut): Generation {
     }
     watch(OPEN_TIMEOUT_MS)
 
-    const close = subscribeEvents(initial.id, {
+    const close = (closeStream = subscribeEvents(initial.id, {
       onOpen: () => watch(SILENCE_MS),
       onActivity: alive,
       onProgress: (step) => setState((current) => (current.status === 'running' ? { ...current, steps: upsert(current.steps, step) } : current)),
@@ -166,7 +180,7 @@ export function useGeneration(initial: ConversationOut): Generation {
         polling = false
         startPolling()
       },
-    })
+    }))
 
     return () => {
       finished = true

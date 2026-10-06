@@ -4,7 +4,7 @@
 // pendiente hasta que la prueba mira su señal. Datos sintéticos (DEMO, af-demo).
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client.ts'
 import { App } from '../../App.tsx'
@@ -120,5 +120,35 @@ describe('Origen y fuentes · una consulta abortada no es un error (PA-336)', ()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
     await screen.findByRole('img', { name: 'Avance: fase 2 de 4, Generar' })
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('Origen y fuentes · «Generar» falla antes de que llegue la lista (revisión de web/)', () => {
+  it('si POST /conversations falla, la lista abortada se vuelve a pedir y el panel recupera fuentes y presupuesto', async () => {
+    let listCalls = 0
+    mockServer.use(
+      // La primera lista no llega (se abortará al pulsar «Generar»); las siguientes, las de la API simulada.
+      http.post('/api/v1/start/sources', () => {
+        listCalls += 1
+        return listCalls === 1 ? new Promise<never>(() => undefined) : undefined
+      }),
+      http.post('/api/v1/conversations', () =>
+        HttpResponse.json({ error: { code: 'service_unavailable', message: 'Servicio ficticio caído.' } }, { status: 503 }),
+      ),
+    )
+    mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
+    render(<App />)
+    await screen.findByRole('button', { name: /Proyecto de Jira: DEMO/ })
+    await userEvent.type(screen.getByRole('textbox'), 'Renovar un préstamo desde la app')
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Evolucionar DEMO-3' }))
+    await waitFor(() => expect(listCalls).toBe(1))
+    expect(within(panel()).queryByRole('checkbox')).toBeNull() // la lista aún no ha llegado
+
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Generar propuesta' }))
+    expect(await screen.findByText('Servicio ficticio caído.')).toBeInTheDocument()
+    expect(await within(panel()).findByRole('checkbox', { name: /HU de origen/ })).toBeDisabled()
+    expect(listCalls).toBe(2)
+    expect(within(panel()).getByText(/Contexto ·/)).toBeInTheDocument()
   })
 })

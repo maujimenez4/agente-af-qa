@@ -123,6 +123,9 @@
 }
 
 .id {
+  /* «CA-02» y «CP-02» no se parten en dos líneas cuando el título al lado es largo (revisión general del pulido). */
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: var(--text-2xs);
   font-weight: var(--weight-bold);
   color: var(--color-text-muted);

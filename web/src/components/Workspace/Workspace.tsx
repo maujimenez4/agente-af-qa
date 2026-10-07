@@ -172,10 +172,15 @@ export interface SidePanelProps {
   size?: 'sm' | 'md' | 'lg'
   children: ReactNode
   footer?: ReactNode
+  /**
+   * Nombre del cuerpo cuando no tiene controles dentro (p. ej. el informe de calidad): el cuerpo se puede enfocar con
+   * Tab para desplazarlo con el teclado (axe `scrollable-region-focusable`). Sin él, el cuerpo no es una parada.
+   */
+  bodyLabel?: string
 }
 
 // Panel derecho (420/480/540 px, decisión 10) que se puede plegar (UI.md §2) desde la cabecera del Workspace.
-export function SidePanel({ title, subtitle, headerActions, toolbar, size = 'sm', children, footer }: SidePanelProps) {
+export function SidePanel({ title, subtitle, headerActions, toolbar, size = 'sm', children, footer, bodyLabel }: SidePanelProps) {
   const control = useContext(PanelContext)
   const titleId = useId()
 
@@ -207,9 +212,14 @@ export function SidePanel({ title, subtitle, headerActions, toolbar, size = 'sm'
         {control?.layer && <IconButton icon="close" label="Cerrar" onClick={control.close} />}
       </div>
       {toolbar}
-      <div className={styles.panelBody}>
-        {children}
-      </div>
+      {bodyLabel ? (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- región con scroll y sin controles: Tab la alcanza para desplazarla
+        <div className={styles.panelBody} role="region" aria-label={bodyLabel} tabIndex={0}>
+          {children}
+        </div>
+      ) : (
+        <div className={styles.panelBody}>{children}</div>
+      )}
       {footer && <div className={styles.panelFooter}>{footer}</div>}
     </aside>
   )

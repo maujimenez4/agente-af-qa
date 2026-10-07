@@ -300,6 +300,8 @@ function ReportPanel({
     <SidePanel
       title={REPORT_TITLE}
       subtitle={key}
+      // El informe no tiene controles dentro: el cuerpo se enfoca con Tab para desplazarlo (axe, revisión del pulido).
+      bodyLabel="Contenido del informe de calidad"
       // Resumen contado sin IA a partir del veredicto, fijo bajo el título (puede ocupar varias líneas).
       toolbar={<p className={styles.summary}>{reportSummary(report)}</p>}
       size="md"

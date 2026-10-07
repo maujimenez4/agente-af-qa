@@ -170,7 +170,8 @@
   background: var(--color-border-soft);
   font-size: var(--text-3xs);
   font-weight: var(--weight-bold);
-  color: var(--color-text-muted);
+  /* El gris de apoyo daba 4,36:1 sobre este fondo (axe, revisión general del pulido): el texto principal pasa de 10:1. */
+  color: var(--color-text);
 }
 
 .title {

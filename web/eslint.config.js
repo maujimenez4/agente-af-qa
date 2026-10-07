@@ -90,6 +90,25 @@ export default defineConfig([
             "VariableDeclarator[id.type='Identifier'][init.type='MemberExpression'][init.object.name=/^(window|self|globalThis)$/][init.property.name=/^(document|window|self|globalThis)$/]",
           message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
         },
+        // Lo mismo con un tipo por medio (`document as Document`, `window!`, `satisfies`) o como valor por defecto de un
+        // parámetro o de una desestructuración (`(x: Document = document) => …`). Pasar el objeto global como argumento a
+        // una función (`leer(document)`) no se puede ver con selectores: se revisa a mano.
+        {
+          selector: "VariableDeclarator[id.type='Identifier'][init.type=/^TS(AsExpression|NonNullExpression|SatisfiesExpression|TypeAssertion)$/][init.expression.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "AssignmentExpression[left.type='Identifier'][right.type=/^TS(AsExpression|NonNullExpression|SatisfiesExpression|TypeAssertion)$/][right.expression.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "AssignmentPattern[right.type='Identifier'][right.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "AssignmentPattern[right.type=/^TS(AsExpression|NonNullExpression|SatisfiesExpression|TypeAssertion)$/][right.expression.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
         {
           selector: "VariableDeclarator[init.name=/^(document|window|self|globalThis)$/] > ObjectPattern > RestElement",
           message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,

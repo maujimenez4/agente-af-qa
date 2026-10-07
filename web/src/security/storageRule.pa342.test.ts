@@ -52,6 +52,14 @@ describe('PA-342 · alias y resto de los objetos globales', () => {
     ['resto de window', 'const { ...todo } = window\n  void todo'],
     ['resto de globalThis.window', 'const { ...todo } = globalThis.window\n  void todo'],
     ['resto por asignación', 'let todo: unknown\n  ;({ ...todo } = document)\n  void todo'],
+    // security-reviewer de la PR 2: con un tipo por medio o como valor por defecto.
+    ['alias con as', 'const d = document as Document\n  void d.cookie'],
+    ['alias con !', 'const w = window!\n  void w'],
+    ['alias con satisfies', 'const w = window satisfies Window\n  void w'],
+    ['alias por asignación con as', 'let d: Document\n  d = document as Document\n  void d'],
+    ['parámetro con document por defecto', 'const leer = (x: Document = document) => x.cookie\n  void leer'],
+    ['parámetro con window as por defecto', 'const leer = (x = window as Window) => x\n  void leer'],
+    ['desestructuración con window por defecto', 'const { w = window } = {} as { w?: Window }\n  void w'],
   ])('test_storage_rule_errors_on_%s', async (_name, body) => {
     const messages = await lint(body)
     expect(messages.some((message) => STORAGE.test(message) && ALIAS.test(message))).toBe(true)
@@ -65,7 +73,15 @@ describe('PA-342 · sin falsos positivos', () => {
     ['desestructurar de window.location', 'const { href } = window.location\n  void href'],
     ['resto de un objeto propio', "const { ...copia } = { clave: 'valor-ficticio' }\n  void copia"],
     ['parámetro con otra clave', 'const leer = ({ title }: Document) => title\n  void leer'],
+    ['parámetro con otro valor por defecto', "const saludar = (nombre = 'ficticio') => nombre\n  void saludar"],
+    ['window.location con as', 'const lugar = window.location as Location\n  void lugar'],
   ])('test_storage_rule_no_error_on_%s', async (_name, body) => {
     expect((await lint(body)).some((message) => STORAGE.test(message))).toBe(false)
+  })
+
+  it('test_storage_rule_known_limit_global_passed_as_argument', async () => {
+    // Límite conocido (DESIGN-DECISIONS §7): pasar el objeto global como argumento no se ve con selectores; se revisa a
+    // mano. La prueba fija el límite: si un día la regla lo detecta, hay que actualizar la documentación.
+    expect((await lint('const leer = (x: Document) => x.title\n  void leer(document)')).some((message) => STORAGE.test(message))).toBe(false)
   })
 })

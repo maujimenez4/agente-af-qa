@@ -29,8 +29,10 @@ export function useLayer({
   onFocusLeave?: () => void
   /**
    * Lo que queda tapado por el velo mientras la capa está abierta (PA-343): se marca `inert`, así el modo exploración
-   * de los lectores de pantalla no lo recorre y no se puede tocar. El velo, el botón que abre la capa y lo que queda
-   * fuera del velo (el carril, la franja) no se tocan: un clic ahí sigue cerrando la capa.
+   * de los lectores de pantalla no lo recorre y no se puede tocar. El velo y lo que queda fuera de él (el carril, la
+   * franja con el botón de la lista) no se marcan: un clic ahí sigue cerrando la capa. Si el botón que abre la capa
+   * queda bajo el velo (el del panel, en la cabecera de la conversación), se marca con lo demás: la capa se cierra con
+   * Esc, el velo o *Cerrar*, y el `inert` se quita antes de devolverle el foco.
    */
   inertBehind?: () => readonly (Element | null | undefined)[]
 }) {

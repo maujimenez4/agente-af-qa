@@ -98,7 +98,6 @@ export function diffAgainst(baseline: UserStory, story: UserStory): StoryDiff[] 
   return diffs
 }
 
-
 /**
  * Handlers de Editar a mano sobre el mismo estado que `createHandlers`. `findRun` es su `runFor`: así también se
  * edita una conversación de la lista que aún no se había abierto (se crea con el ejemplo del contrato).

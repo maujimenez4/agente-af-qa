@@ -1,6 +1,6 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-07
 
-**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, en `t56-pulido`.
+**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, parte 1 en `t56-pulido` (#16) y parte 2 en `t56-pulido-2`.
 **PR abiertas:** [#16](https://github.com/maujimenez4/agente-af-qa/pull/16) `t56-pulido → PreProduccion` (pulido final, parte 1: pasos 1 a 5). La parte 2 sigue en `t56-pulido-2` (sale de `t56-pulido`); su PR, cuando se fusione la #16. Fusionadas: de la #2 a la #15.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
@@ -38,7 +38,7 @@
 - **PA-310** sigue bloqueada: `eslint-plugin-jsx-a11y` 6.10.2 solo admite ESLint hasta la 9 (comprobado el 2026-10-07).
 
 ## T-57: punto de control
-**Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.
+**Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo está en [DEMO.md](DEMO.md).
 
 ## Hecho
 - **Flujo de la HU contra MSW:** login, Inicio, Elegir en Jira, Origen (presupuesto de tokens y conversación de la ronda 8), Generando e Iterar (versión «Jira», *Detener* y *Reintentar*), Recibo con la huella exacta y Resultado simulado, publicado o en parte; *Abrir <clave> en Jira* (PA-318).

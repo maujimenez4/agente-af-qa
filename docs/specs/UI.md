@@ -41,7 +41,7 @@ Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar**
 **Ventanas estrechas (PA-335).** Con menos de 1024 px CSS útiles (el escalado habitual de Windows: 1024 al 125 %, y 1280 y 1440 al 150 %), no hay barra horizontal ni controles cortados:
 - La **lista de conversaciones** se pliega en una franja de 48 px con el botón «Conversaciones» (solo icono, con su nombre accesible y su tooltip) y se abre como capa junto a ella.
 - Si el área de trabajo mide menos de 680 px (p. ej. 1024 al 150 %), el **panel derecho** se abre como capa sobre la conversación, con *Mostrar el panel* y un botón *Cerrar* (×) en su cabecera.
-- Las dos capas se comportan como un diálogo: el foco entra al abrirlas y vuelve al botón al cerrarlas; se cierran con Esc, con un clic fuera o si el foco sale de ellas (así nunca quedan dos abiertas); Tab no sale de ellas. Los botones llevan `aria-expanded`.
+- Las dos capas se comportan como un diálogo: el foco entra al abrirlas y vuelve al botón al cerrarlas; se cierran con Esc, con un clic fuera o si el foco sale de ellas (así nunca quedan dos abiertas); Tab no sale de ellas. Los botones llevan `aria-expanded`. Lo que queda bajo el velo no se puede usar ni lo recorren los lectores de pantalla (`inert`, PA-343).
 - Un título recortado con «…» se ve completo al pasar el ratón.
 - Por encima de 1024 px, nada cambia.
 
@@ -269,7 +269,7 @@ Panel «Suite de pruebas» (540 px).
 | Pestaña **Casos** | Por caso: id, título, tipo, prioridad, «Verifica CA-01, RN-01», precondiciones, pasos, marca «Nuevo en v2» y su **Gherkin** desplegable | — | `TestSuite` (RF-23) |
 | Pestaña **Cobertura** | Matriz CA/RN × CP (RF-24) «se adjunta como matriz-DEMO-3.md» y *Descargar la matriz* (si la API trae `coverage_md`) | Descargar | `coverage_md`, `uncovered` (PA-326) |
 | Pestaña **Datos y riesgos** | Tabla de datos sintéticos (identificadores ficticios, RF-25) y riesgos, dependencias y áreas de impacto (RF-27) | — | `TestSuite` |
-| Pestaña **Estrategia** | = plan de pruebas (decisión del día 6): alcance, niveles, entornos, criterios de entrada y salida, prioridad; «se adjunta como estrategia-DEMO-3.md». Se muestra como texto (títulos y puntos), con negrita, cursiva y código pintados como elementos de la página, nunca como HTML (PA-334); una línea de más de 4.000 caracteres sale sin formato (PA-131) | — | `strategy_md` (RF-26) |
+| Pestaña **Estrategia** | = plan de pruebas (decisión del día 6): alcance, niveles, entornos, criterios de entrada y salida, prioridad; «se adjunta como estrategia-DEMO-3.md». Se muestra como texto (títulos y puntos), con negrita, cursiva y código pintados como elementos de la página, nunca como HTML (PA-334); una línea de más de 4.000 caracteres, o un texto de más de 20.000, sale sin formato (PA-131, PA-347) | — | `strategy_md` (RF-26) |
 | Pie | *Editar a mano* («disponible pronto»: encima de los botones, el distintivo «Disponible pronto» y «Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.», PA-346; editar la suite queda fuera por ahora, PA-340) · *Descartar* · *Revisar y aprobar* (siempre activo; con un CA sin caso, el recibo no deja aprobar) | — | §6.4 |
 
 **Cobertura** (`uncovered`, PA-326); `null` y listas vacías **no se tratan igual**:

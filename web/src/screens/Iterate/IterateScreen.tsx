@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
@@ -31,7 +31,7 @@ import {
   UNKNOWN_COVERAGE,
   type SuiteCoverage,
 } from '../../components/Suite/index.ts'
-import { ErrorCard, presentError } from '../../components/States/index.ts'
+import { ErrorCard, Notice, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
@@ -41,7 +41,8 @@ import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { ITERATING_LABEL, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { missingCasesLabel } from '../Receipt/receiptText.ts'
 import { countLabel } from '../../text/plural.ts'
 
 export interface IterateScreenProps {
@@ -279,6 +280,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const shownCoverage = shown ? coverageOf(shown.version) : UNKNOWN_COVERAGE
   const shownCoverageMd = conversation.review && shown?.version === conversation.review.version ? conversation.review.coverage_md : null
   const badge = coverageBadge(shownCoverage)
+  // Un CA sin caso bloquea la aprobación en el recibo; aquí se avisa (versión en revisión) y se sugiere pedirlo.
+  // *Revisar y aprobar* sigue activo: el recibo explica el bloqueo (decisión del responsable, 2026-10-07).
+  const reviewCoverage = conversation.review ? coverageOf(conversation.review.version) : UNKNOWN_COVERAGE
+  const missingCriteria = reviewCoverage.kind === 'gaps' ? reviewCoverage.criteria : []
+  const shownMissing = shownCoverage.kind === 'gaps' ? missingCasesLabel(shownCoverage.criteria) : undefined
+  const missingId = useId()
+  const qaSuggestions = [addCasesSuggestion(missingCriteria), ...QA_SUGGESTIONS].filter((item): item is string => Boolean(item))
   const tabs: { id: PanelTab; label: string }[] = suite
     ? [
         { id: 'cases', label: `Casos (${suite.cases.length})` },
@@ -344,7 +352,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               Descartar
             </Button>
             <span className={styles.spacer} />
-            <Button variant="primary" disabled={Boolean(iterating) || !conversation.review} onClick={() => onReview(conversation)}>
+            <Button
+              variant="primary"
+              disabled={Boolean(iterating) || !conversation.review}
+              aria-describedby={suite && shownMissing ? missingId : undefined}
+              onClick={() => onReview(conversation)}
+            >
               Revisar y aprobar
             </Button>
           </div>
@@ -364,6 +377,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 {badge.text}
               </Badge>
             </p>
+          )}
+          {suite && shownMissing && (
+            <div id={missingId} className={styles.missing}>
+              <Notice>
+                <b>{shownMissing}.</b> {MISSING_CASES_ITERATE_REASON}
+              </Notice>
+            </div>
           )}
           {suite && tab === 'cases' && (
             <CasesView key={shown.version} suite={suite} version={shown.version} previous={previousSuite && suiteOf(previousSuite.artifact.content)} />
@@ -471,7 +491,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               )}
               {index === lastAssistant && !iterating && !editing && (
                 <ul className={styles.suggestions} aria-label="Cambios sugeridos">
-                  {(qa ? QA_SUGGESTIONS : SUGGESTIONS).map((suggestion) => (
+                  {(qa ? qaSuggestions : SUGGESTIONS).map((suggestion) => (
                     <li key={suggestion}>
                       <Chip onClick={() => setDraft(suggestion)}>{suggestion}</Chip>
                     </li>

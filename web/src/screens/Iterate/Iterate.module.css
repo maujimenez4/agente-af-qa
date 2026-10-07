@@ -83,3 +83,7 @@
 .covered {
   margin: 0 0 var(--space-2);
 }
+
+.missing {
+  margin: 0 0 var(--space-3);
+}

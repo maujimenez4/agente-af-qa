@@ -1,7 +1,7 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-06
 
 **Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9) y `ses-web-fixes` (PA-332 a PA-336). **Bloque en curso: Editar a mano, parte B**, en `t56-editar` (la parte A ya está en la rama).
-**PR abiertas:** [#10](https://github.com/maujimenez4/agente-af-qa/pull/10) `t56-sondeo → PreProduccion` (PA-406, tope del sondeo de Revisar la calidad) y [#11](https://github.com/maujimenez4/agente-af-qa/pull/11) `t56-anchos → PreProduccion` (PA-335, escalado de Windows). Fusionadas: la #2, la #3, la #4, la #6, la #7, la #8 y la #9.
+**PR abiertas:** [#10](https://github.com/maujimenez4/agente-af-qa/pull/10) `t56-sondeo → PreProduccion` (PA-406, tope del sondeo de Revisar la calidad), [#11](https://github.com/maujimenez4/agente-af-qa/pull/11) `t56-anchos → PreProduccion` (PA-335, escalado de Windows) y [#12](https://github.com/maujimenez4/agente-af-qa/pull/12) `t56-editar → PreProduccion` (Editar a mano, parte B; **trae la #11 y se fusiona después de ella**). Fusionadas: la #2, la #3, la #4, la #6, la #7, la #8 y la #9.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
@@ -10,6 +10,7 @@
 **Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.
 
 ## Pulido final
+- **Prioritaria: PA-344** (Editar a mano): con el editor abierto, *Actualizar* o *Reintentar* tras un error al guardar pueden hacer perder los cambios sin avisar. Pasar antes por la confirmación del editor (`closeGuardRef`) o hacer *Actualizar* en lugar de reintentar tras un error de red; y la tarjeta «Abrir en el panel» mientras se edita.
 - **UI.md v2.0** (`docs/specs/UI.md`, PA-300, 2026-10-06) describe la web en React tal como está fusionada (ya con Revisar la calidad y PA-341). Hay que **actualizarla** cuando se fusionen:
   - **`ses-web-fixes`** (PA-332 a PA-336): 401 común (§7), «Aprobando y publicando…», Estrategia con formato (§6.3), alto de la app y `/start/sources` durante la generación;
   - **Editar a mano**: la parte A (`t56-editar`), la parte B y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA), y `/edit` en §9;

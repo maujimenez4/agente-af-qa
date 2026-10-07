@@ -101,6 +101,8 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
   })
   const layer = Boolean(panel) && narrowArea
   const panelRef = useRef<HTMLElement>(null)
+  const conversationRef = useRef<HTMLElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   // Esc, el velo y *Cerrar* de la capa: la pantalla puede pedir antes una confirmación (`onPanelCloseRequest`).
   const requestClose = () => {
     if (onPanelCloseRequest && !onPanelCloseRequest()) return
@@ -109,15 +111,16 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
   const onPanelKeyDown = useLayer({
     open: layer && open,
     layer: panelRef,
-    // El botón de la cabecera (`Button` no reenvía `ref`): el que controla este panel.
-    opener: () => workspaceRef.current?.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(panelId)}"]`),
+    opener: () => toggleRef.current,
     onClose: () => requestClose(),
+    // PA-343: la conversación queda bajo el velo (con el botón del panel, que recibe el foco al cerrar).
+    inertBehind: () => [conversationRef.current],
     onFocusLeave: () => setOpen(false),
   })
 
   return (
     <div ref={workspaceRef} className={styles.workspace} data-layer={layer ? '' : undefined}>
-      <section className={styles.conversation} aria-label="Conversación">
+      <section ref={conversationRef} className={styles.conversation} aria-label="Conversación">
         <header className={styles.header}>
           {/* Recortados con «…» en ventanas estrechas: completos al pasar el ratón (`title`); el lector los lee enteros. */}
           <h1 className={styles.title} title={title}>
@@ -134,6 +137,7 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
           )}
           {panel && (
             <Button
+              ref={toggleRef}
               variant="secondary"
               size="sm"
               icon="panelRight"

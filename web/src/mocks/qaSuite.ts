@@ -4,6 +4,7 @@
 import type { ConversationOut, ProgressStep, ReviewPayload, TestSuite } from '../api/types.ts'
 import { coverageMatrix } from '../components/Suite/suiteText.ts'
 import { example } from './examples.ts'
+import { randomFingerprint } from './fingerprint.ts'
 
 const QA_REVIEW = 'components.examples.ConversationQaInReview'
 const EXAMPLE_KEY = 'DEMO-3'
@@ -94,7 +95,7 @@ export function nextSuiteVersion(previous: ConversationOut, feedback: string): C
     gherkin: null,
   })
   review.version = version
-  review.fingerprint = `huella-suite-ficticia-${crypto.randomUUID()}`
+  review.fingerprint = randomFingerprint()
   review.artifact = { ...review.artifact, version, content: suite }
   review.plan = review.plan.map((item) => (item.op === 'publish_suite' ? { ...item, cases: String(suite.cases.length) } : item))
   review.coverage_md = mockCoverageMd(suite)

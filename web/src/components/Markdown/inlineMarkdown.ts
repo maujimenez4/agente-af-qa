@@ -15,6 +15,13 @@ const TOKEN =
  */
 export const INLINE_MAX_LINE = 4000
 
+/**
+ * Un texto entero más largo (la Estrategia o un extracto) se pinta sin buscar marcas (PA-347): quien lo reparte línea a
+ * línea llama a `inlineParts` por cada una, así que el tope por línea no limita el total (100 líneas de 4.000 `[`, unos
+ * 0,7 s). La salida real del modelo local queda muy por debajo.
+ */
+export const INLINE_MAX_TOTAL = 20_000
+
 type Push = (kind: InlinePart['kind'], value: string) => void
 
 export function inlineParts(text: string): InlinePart[] {

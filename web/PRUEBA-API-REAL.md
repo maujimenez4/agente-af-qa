@@ -1,37 +1,30 @@
-# Probar `web/` (rama `area-b`) contra la API real
+# Probar `web/` contra la API real
 
 Guía para la sesión principal: levantar el frontend de T-56 en su equipo, con la API de T-55 ya en marcha, y recorrerlo de punta a punta. Es la **única** guía para esta prueba (`API-LOCAL.md` solo enlaza aquí).
 
 > **Reglas:** ni el `.env`, ni las contraseñas de `core.seed_users`, ni tokens se pegan en la PR, el chat o las capturas. `JIRA_PUBLISH_MODE=simulation`: aprobar no escribe nada en Jira. Solo datos sintéticos.
 
 ## 1. Requisitos
-- **Backend:** `origin/PreProduccion` en `d6422c2` o posterior (está fusionada en `area-b`, así que el contrato coincide), con PostgreSQL, las migraciones, el corpus indexado (`bge-m3` en Ollama) y el modelo de generación que uses. Lo de siempre: `README.md` de la raíz y `docs/api/README.md`.
+- **Backend:** `origin/PreProduccion` al día (la web y la API van en la misma rama, así que el contrato coincide), con PostgreSQL, las migraciones, el corpus indexado (`bge-m3` en Ollama) y el modelo de generación que uses. Lo de siempre: `README.md` de la raíz y `docs/api/README.md`.
 - **Node.js 22.12 o superior** (`node --version`).
 - **Puertos libres:** 8000 (API) y 5173 (Vite).
 
 ## 2. Traer la rama
-Si ya tienes el worktree de `area-b`:
+La web está en `PreProduccion` (antes vivía en `area-b`, ya fusionada y retirada). Basta con tu checkout de `PreProduccion` al día:
 
 ```powershell
-git -C <ruta-del-worktree-area-b> pull --ff-only origin area-b
-```
-
-Si no, crea uno aparte para no tocar tu rama:
-
-```powershell
-git fetch origin
-git worktree add ..\agente-af-qa-area-b area-b
+git pull --ff-only origin PreProduccion
 ```
 
 ## 3. Arrancar
-Terminal 1, en tu checkout de `PreProduccion` (o en el worktree de `area-b`: tiene el mismo backend):
+Terminal 1, en tu checkout de `PreProduccion`:
 
 ```powershell
 uv run python -m core.seed_users     # solo si no tienes ya af-demo, qa-demo y admin-demo (cambia sus contraseñas)
 uv run python -m api                 # http://127.0.0.1:8000/api/v1, un solo proceso
 ```
 
-Terminal 2, en el worktree de `area-b`:
+Terminal 2, en el mismo checkout:
 
 ```powershell
 cd web

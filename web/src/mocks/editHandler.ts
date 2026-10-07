@@ -6,6 +6,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw'
 import type { components } from '../api/schema'
 import type { ApiError, ConversationOut, ErrorCode } from '../api/types.ts'
 import type { MockDb, MockRun } from './db.ts'
+import { randomFingerprint } from './fingerprint.ts'
 import { FINGERPRINT_MISMATCH } from './handlers.ts'
 
 type UserStory = components['schemas']['UserStory']
@@ -96,8 +97,6 @@ export function diffAgainst(baseline: UserStory, story: UserStory): StoryDiff[] 
   byId('business_rules', baseline.business_rules, story.business_rules, ruleText)
   return diffs
 }
-
-const randomFingerprint = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('')
 
 /**
  * Handlers de Editar a mano sobre el mismo estado que `createHandlers`. `findRun` es su `runFor`: así también se

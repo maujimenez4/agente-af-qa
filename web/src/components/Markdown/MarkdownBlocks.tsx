@@ -1,10 +1,12 @@
 import { InlineMarkdown } from './InlineMarkdown.tsx'
+import { INLINE_MAX_TOTAL } from './inlineMarkdown.ts'
 import styles from './Markdown.module.css'
 import { markdownBlocks } from './markdownBlocks.ts'
 
 // Extracto en Markdown de una fuente (PA-428): bloques como elementos de React, nunca HTML. Los títulos del
 // extracto no son títulos de la página (no entran en el índice de encabezados): se pintan en negrita.
 export function MarkdownBlocks({ text, className }: { text: string; className?: string }) {
+  const plain = text.length > INLINE_MAX_TOTAL // PA-347
   return (
     <div className={[styles.blocks, className].filter(Boolean).join(' ')}>
       {markdownBlocks(text).map((block, index) => {
@@ -12,7 +14,7 @@ export function MarkdownBlocks({ text, className }: { text: string; className?: 
           return (
             <p key={index} className={styles.heading}>
               <strong>
-                <InlineMarkdown text={block.text} />
+                <InlineMarkdown plain={plain} text={block.text} />
               </strong>
             </p>
           )
@@ -20,7 +22,7 @@ export function MarkdownBlocks({ text, className }: { text: string; className?: 
         if (block.kind === 'list') {
           const items = block.items.map((item, position) => (
             <li key={position}>
-              <InlineMarkdown text={item} />
+              <InlineMarkdown plain={plain} text={item} />
             </li>
           ))
           return block.ordered ? (
@@ -41,7 +43,7 @@ export function MarkdownBlocks({ text, className }: { text: string; className?: 
                   <tr>
                     {block.header.map((cell, column) => (
                       <th key={column} scope="col">
-                        <InlineMarkdown text={cell} />
+                        <InlineMarkdown plain={plain} text={cell} />
                       </th>
                     ))}
                   </tr>
@@ -51,7 +53,7 @@ export function MarkdownBlocks({ text, className }: { text: string; className?: 
                     <tr key={position}>
                       {row.map((cell, column) => (
                         <td key={column}>
-                          <InlineMarkdown text={cell} />
+                          <InlineMarkdown plain={plain} text={cell} />
                         </td>
                       ))}
                     </tr>
@@ -63,7 +65,7 @@ export function MarkdownBlocks({ text, className }: { text: string; className?: 
         }
         return (
           <p key={index}>
-            <InlineMarkdown text={block.text} />
+            <InlineMarkdown plain={plain} text={block.text} />
           </p>
         )
       })}

@@ -2,21 +2,14 @@
 
 Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisada, 2026-10-02). Lo construye el responsable del área B. Streamlit (`app/`) queda como plan B hasta el punto de control T-57.
 
-## Alcance
-- Pantallas del flujo de HU:
-  - Inicio y Elegir en Jira;
-  - Origen y fuentes;
-  - Generando;
-  - Iterar: chat, versiones, propuesta, cambios, impacto y fuentes; *editar a mano*, en los días 6 a 8 (DESIGN-DECISIONS.md §4 bis);
-  - Recibo de aprobación y Resultado;
-  - Revisar la calidad.
-- Pantallas del flujo de QA (Qa*), incluido «Preparar pruebas» desde una HU aprobada (T-54).
-- Piezas comunes:
-  - carril y barra de conversaciones;
-  - la Q animada de fase, carga y escritura;
-  - estados vacío, cargando y error.
+**Estado y traspaso:** [HANDOFF.md](HANDOFF.md). **Guion de la demo:** [DEMO.md](DEMO.md).
 
-  Todo respeta `prefers-reduced-motion`.
+## Alcance (hecho)
+- **Flujo de HU:** Inicio y Elegir en Jira; Origen y fuentes (con presupuesto de tokens); Generando; Iterar (chat, versiones, propuesta, cambios, impacto y fuentes, y *Editar a mano*); Recibo de aprobación y Resultado (simulado, publicado o en parte).
+- **Flujo de QA** por roles: QA escribe la clave de la HU (QA 1 a QA 5: origen, generando, iterar la suite con su cobertura, recibo y resultado). Un CA sin caso bloquea la aprobación de la suite; una RN sin caso solo avisa.
+- **Revisar la calidad** (solo lectura), **Memoria** (los tres roles) y **Administración** (Ajustes, solo admin).
+- **Piezas comunes:** carril (con el anillo de consumo total), lista de conversaciones, la Q animada de fase, carga y escritura, y los estados vacío, cargando y error. Todo respeta `prefers-reduced-motion`, se maneja con el teclado y funciona a 1024, 1280 y 1440 px al 100, 125 y 150 % (lista y panel en capa por debajo de 1024 px útiles).
+- **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución), Historial y auditoría, editar la suite a mano y elegir el modelo por petición (UI.md §11).
 - Referencias:
   - diseño: `docs/diseno/lienzo/` y el lienzo en claude.ai;
   - comportamiento: `docs/specs/UI.md`;
@@ -24,7 +17,7 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
 
 ## Cómo habla con el backend
 - **Solo a través de la API HTTP de T-55:** nunca directamente con Jira ni con el LLM.
-- **Antes de la API real:** contra una API simulada generada a partir del contrato OpenAPI.
+- **API simulada** (MSW) generada a partir de los ejemplos del contrato OpenAPI, para desarrollar y para las pruebas; la web también se ha probado de punta a punta contra la API real ([PRUEBA-API-REAL.md](PRUEBA-API-REAL.md)).
 - **Para aprobar:** se devuelve exactamente la `fingerprint` del último payload de revisión (UI.md §5).
 
 ## Reglas
@@ -65,7 +58,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
 - **Catálogo del sistema de diseño:** `http://localhost:5173/?catalogo`, solo en desarrollo.
 - **API real:** `uv run python -m api` en la raíz del repo (ver `docs/api/README.md`). El destino del proxy se cambia con `API_PROXY_TARGET`. Recorrido y lista de comprobación: [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md).
 
-Antes de cada entrega: `npm run lint`, `npm run test` y `npm run build` sin errores.
+Antes de cada entrega: `npm run lint`, `npm run test`, `npm run build` y `npm run api:check` sin errores.
 
 ## Tipos del contrato
 `src/api/schema.d.ts` se genera desde `docs/api/openapi.yaml` y se versiona. No se edita a mano.

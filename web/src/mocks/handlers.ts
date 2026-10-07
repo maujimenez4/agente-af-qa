@@ -44,6 +44,7 @@ import { mockSuiteConversation, nextSuiteVersion, qaGenerationSteps, suitePublis
 import { filterMemories, mockPublishedMemory } from './memories.ts'
 import { newQualityReview, qualitySummary, settleQualityReview } from './quality.ts'
 import { editHandlers } from './editHandler.ts'
+import { randomFingerprint } from './fingerprint.ts'
 
 const API = '/api/v1'
 
@@ -105,7 +106,7 @@ const GENERATION_NODES: ReadonlySet<ProgressStep['node']> = new Set(GENERATION_S
 function mockTitle(body: ConversationCreateIn): string {
   const { kind, key, project } = body.origin
   const flow =
-    body.flow === 'tests' ? 'Preparar pruebas de' : kind === 'story' ? 'Evolucionar' : kind === 'epic' ? 'Nueva HU en' : 'Nueva necesidad'
+    body.flow === 'tests' ? 'Preparar pruebas de' : kind === 'story' ? 'Evolucionar' : kind === 'epic' ? 'HU nueva en la épica' : 'Nueva necesidad'
   return key ? `${flow} ${key}` : `${flow} · ${project}`
 }
 
@@ -149,7 +150,7 @@ function nextVersion(previous: ConversationOut, feedback: string): ConversationO
     : previousDiffs
   const impact = { ...(review.impact ?? { affected: [], regression_notes: [] }), diffs }
   review.version = version
-  review.fingerprint = `huella-ficticia-${crypto.randomUUID()}`
+  review.fingerprint = randomFingerprint()
   review.impact = impact
   review.artifact = { ...review.artifact, version, impact }
   next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]

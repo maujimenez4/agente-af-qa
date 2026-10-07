@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import type { TestCase, TestSuite } from '../../api/types.ts'
 import { Badge, CaseKindBadge } from '../Badge/index.ts'
-import { InlineMarkdown } from '../Markdown/index.ts'
+import { INLINE_MAX_TOTAL, InlineMarkdown } from '../Markdown/index.ts'
 import { DownloadButton } from '../Download/index.ts'
 import p from '../Proposal/Proposal.module.css'
 import styles from './Suite.module.css'
@@ -206,6 +206,8 @@ export function DataRisksView({ suite }: { suite: TestSuite }) {
 
 export function StrategyView({ suite }: { suite: TestSuite }) {
   const blocks = strategyBlocks(suite.strategy_md)
+  // PA-347: una estrategia enorme se pinta sin buscar marcas (cada línea pasaría por inlineParts).
+  const plain = suite.strategy_md.length > INLINE_MAX_TOTAL
   return (
     <div className={styles.section}>
       <p className={p.muted}>Estrategia de pruebas (RF-26) · se adjunta como estrategia-{suite.story_jira_key}.md</p>
@@ -216,15 +218,15 @@ export function StrategyView({ suite }: { suite: TestSuite }) {
           {blocks.map((block, index) =>
             block.kind === 'heading' ? (
               <h4 key={index} className={p.sectionTitle}>
-                <InlineMarkdown text={block.text} />
+                <InlineMarkdown plain={plain} text={block.text} />
               </h4>
             ) : block.kind === 'item' ? (
               <p key={index} className={styles.strategyItem}>
-                • <InlineMarkdown text={block.text} />
+                • <InlineMarkdown plain={plain} text={block.text} />
               </p>
             ) : (
               <p key={index} className={p.story}>
-                <InlineMarkdown text={block.text} />
+                <InlineMarkdown plain={plain} text={block.text} />
               </p>
             ),
           )}

@@ -37,6 +37,7 @@ from core.audit import SqlAuditTrail
 from core.config import AppConfig, ConfigError, Settings
 from core.container import Container, build_container
 from core.conversations import SqlConversationStore
+from core.functional.determinism import current_call_options
 from core.graph.builder import postgres_checkpointer
 from core.handoff import SqlHandoffStore
 from core.health import ConnectionTester, database_check
@@ -93,6 +94,7 @@ def build_llm_provider(
         recorder,
         daily_token_warning=config.models.limits.daily_token_warning,
         observer=LLMTraceObserver(),  # T-40: sin operación trazada en curso no hace nada
+        call_options=current_call_options,  # PA-432: temperatura 0 al estructurar una HU
     )
 
 

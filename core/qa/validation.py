@@ -36,15 +36,32 @@ def coverage_errors(suite: TestSuite, story: UserStory) -> list[str]:
             errors.append(
                 f"{case.internal_id} referencia CA/RN que no existen en la HU: {', '.join(unknown)}"
             )
-    covered = suite.coverage()
-    missing = [c.id for c in story.acceptance_criteria if not covered.get(c.id)]
-    if missing:
-        errors.append(f"criterios sin ningún caso de prueba: {', '.join(missing)}")
+    if missing := missing_criteria(suite, story):
+        errors.append(_missing_message(missing))
     types = {case.type for case in suite.cases}
     absent = [t.value for t in REQUIRED_TYPES if t not in types]
     if absent:
         errors.append(f"faltan casos de tipo: {', '.join(absent)}")
     return errors
+
+
+def missing_criteria(suite: TestSuite, story: UserStory) -> list[str]:
+    """PA-426: los CA de la HU sin ningún caso de prueba, en el orden de la HU."""
+    covered = suite.coverage()
+    return [c.id for c in story.acceptance_criteria if not covered.get(c.id)]
+
+
+def _missing_message(missing: list[str]) -> str:
+    return f"criterios sin ningún caso de prueba: {', '.join(missing)}"
+
+
+def blocking_errors(suite: TestSuite, story: UserStory, sources: list[CitableSource]) -> list[str]:
+    """PA-426: los errores de `suite_errors` salvo el de CA sin caso, que no tira la suite: se
+    intenta completar con un reintento dirigido y, si no, se avisa en la revisión y se bloquea la
+    aprobación."""
+    missing = missing_criteria(suite, story)
+    skip = _missing_message(missing) if missing else None
+    return [error for error in suite_errors(suite, story, sources) if error != skip]
 
 
 def personal_data_errors(suite: TestSuite) -> list[str]:

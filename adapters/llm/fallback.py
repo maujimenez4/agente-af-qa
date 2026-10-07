@@ -14,12 +14,12 @@ muestran como *generations*, también los fallidos). Si el observador falla, la 
 """
 
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import structlog
 from pydantic import BaseModel
@@ -117,11 +117,15 @@ class FallbackLLMProvider:
         *,
         daily_token_warning: int | None = None,
         observer: AttemptObserver | None = None,
+        call_options: Callable[[], Mapping[str, Any]] | None = None,
     ) -> None:
         self._chain_for = chain_for
         self._recorder = recorder
         self._daily_token_warning = daily_token_warning
         self._observer = observer
+        # PA-432: ajustes de muestreo de la llamada en curso (p. ej. temperatura 0 al
+        # estructurar una HU); los aplica el proveedor que tenga `with_options`.
+        self._call_options = call_options
 
     def generate(self, messages: list[Message], task: TaskType) -> LLMResult:
         return self._run(task, lambda provider: provider.generate(messages, task), messages)
@@ -150,7 +154,10 @@ class FallbackLLMProvider:
                 "Revisa las claves configuradas y config/models.yaml."
             )
         failures: list[ExternalServiceError] = []
+        options = self._options()
         for provider in chain:
+            if options and hasattr(provider, "with_options"):
+                provider = provider.with_options(**options)
             name = getattr(provider, "provider", type(provider).__name__)
             model = getattr(provider, "model", None)
             start = time.monotonic()
@@ -187,6 +194,15 @@ class FallbackLLMProvider:
             _attempt_succeeded(attempt, result)
             return result
         raise _chain_error(task, failures)
+
+    def _options(self) -> dict[str, Any]:
+        if self._call_options is None:
+            return {}
+        try:
+            return dict(self._call_options() or {})
+        except Exception as exc:  # PA-432: sin ajustes, la llamada sigue igual
+            log.warning("llm_call_options_failed", action="llm_call", error=type(exc).__name__)
+            return {}
 
     def _observe(
         self, task: TaskType, provider: str, model: str | None, messages: list[Message]

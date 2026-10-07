@@ -36,7 +36,7 @@ import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
 import { EditPanel } from '../Edit/EditPanel.tsx'
-import { editedSummary, editedVersions } from '../Edit/editText.ts'
+import { editedSummary, editedVersions, editNoteMessage } from '../Edit/editText.ts'
 import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
@@ -52,6 +52,8 @@ export interface IterateScreenProps {
   onRestart: () => void
   /** *Revisar y aprobar*: abre el recibo con la revisión actual (UI.md §4.6). */
   onReview: (conversation: ConversationOut) => void
+  /** Se guardó una versión editada a mano: la lista de conversaciones se vuelve a leer («Versión N+1»). */
+  onEdited?: () => void
 }
 
 type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources' | 'cases' | 'coverage' | 'data' | 'strategy'
@@ -89,7 +91,7 @@ function suiteOf(content: unknown): TestSuite | undefined {
 
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
 // En QA es QA 3 · Iterar la suite (§6.3): la misma conversación y un panel con Casos, Cobertura, Datos y riesgos y Estrategia.
-export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview }: IterateScreenProps) {
+export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview, onEdited }: IterateScreenProps) {
   const [conversation, setConversation] = useState(initial)
   // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
   const [earlierFeedback] = useState(initial.feedback)
@@ -220,10 +222,11 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         return
       }
       const version = next.review?.version ?? proposalVersions(next).at(-1)?.version ?? selected
+      onEdited?.()
       setEditing(false)
       setSelected(version)
       setTab(firstTab)
-      setEntries((current) => [...current, ...(note?.trim() ? [{ kind: 'user' as const, text: note.trim() }] : []), { kind: 'assistant', version, animate: true }])
+      setEntries((current) => [...current, ...(note?.trim() ? [{ kind: 'user' as const, text: editNoteMessage(note) }] : []), { kind: 'assistant', version, animate: true }])
     } catch (cause) {
       fail(toApiError(cause), () => void saveEdit(content, note))
     } finally {
@@ -412,7 +415,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               <button
                 type="button"
                 className={styles.artifact}
-                aria-pressed={panelOpen && selected === item.version}
+                aria-pressed={!editing && panelOpen && selected === item.version}
                 onClick={() => {
                   setSelected(item.version)
                   setTab(firstTab)
@@ -423,7 +426,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                   {itemSuite ? 'Suite de pruebas' : 'Propuesta de HU'}, versión {item.version}
                 </span>
                 <span className={styles.meta}>
-                  {panelOpen && selected === item.version ? 'Abierta en el panel' : 'Abrir en el panel'}
+                  {!editing && panelOpen && selected === item.version ? 'Abierta en el panel' : 'Abrir en el panel'}
                   {itemSuite && ` · ${casesLabel(itemSuite.cases.length)}`}
                   {againstJira && ` · ${changesLabel(item.impact?.diffs.length ?? 0)}`}
                 </span>
@@ -435,7 +438,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                   Generado con {model} · {countLabel(sourceCount, 'fuente', 'fuentes')}{coverage && ` · ${coverage}`}
                 </span>
               )}
-              {index === lastAssistant && !iterating && (
+              {index === lastAssistant && !iterating && !editing && (
                 <ul className={styles.suggestions} aria-label="Cambios sugeridos">
                   {(qa ? QA_SUGGESTIONS : SUGGESTIONS).map((suggestion) => (
                     <li key={suggestion}>

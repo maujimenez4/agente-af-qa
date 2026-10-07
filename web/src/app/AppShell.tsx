@@ -255,6 +255,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
           <IterateScreen
             key={`${view.conversation.id}-${opened}`}
             conversation={view.conversation}
+            onEdited={reload}
             onDiscarded={() => {
               setCurrentId(undefined)
               setView({ name: 'home' })

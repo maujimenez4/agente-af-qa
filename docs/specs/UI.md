@@ -6,7 +6,7 @@
 
 Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de qué depende**. La implementación es el frontend en **React** de `web/` (T-56), que habla con el backend **solo a través de la API HTTP** de T-55 (`docs/api/openapi.yaml`, `docs/api/README.md`). Las decisiones de detalle (medidas, textos, accesibilidad, casos límite) están en `web/DESIGN-DECISIONS.md`; cuando el lienzo y este documento no coinciden, manda este documento. Lo que aún no existe se marca con su tarea o su propuesta (PA-XX).
 
-**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración. **Pendientes:** *Editar a mano* (§4.5 bis, diseño pendiente de validar), los arreglos de la prueba contra la API (PA-332 a PA-336, en desarrollo) y lo que §11 deja fuera de la entrega.
+**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración. **Pendientes:** *Editar a mano* (§4.5 bis; conectado para la HU en `t56-editar`, diseño pendiente de validar en PA-340) y lo que §11 deja fuera de la entrega. Los arreglos de la prueba contra la API están fusionados (PA-332 a PA-334 y PA-336); PA-335 (ventanas estrechas) llega con la PR #11.
 
 ---
 
@@ -144,13 +144,15 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 El aviso «CA sin fuente» (*Confirmar* · *Pedir fuente*) del lienzo queda aplazado: los CA no traen una cita propia (PA-315).
 
 ### 4.5 bis Editar a mano (RF-32) · diseño pendiente de validar (PA-340)
-El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por la principal; en la web, *Editar a mano* sigue como «disponible pronto» hasta que se conecte.
+El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por la principal (PA-340); en la web ya está conectado para la HU (parte B, rama `t56-editar`). En QA, *Editar a mano* sigue «disponible pronto».
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
 | Panel derecho | El editor de la HU **en lugar de la pestaña Propuesta** (540 px): Historia (título, «Como / Quiero / Para», descripción, objetivo, prioridad), Criterios de aceptación (título y «Dado / Cuando / Entonces», una línea por paso; *Subir*, *Bajar*, *Quitar*, *Añadir un criterio*), Reglas de negocio y «Más campos» plegado (alcance, supuestos, restricciones, dependencias…). La clave de Jira, las fuentes y los cambios frente a la anterior no se editan | Editar | — |
 | Rechazo | Arriba, «No se guardó la edición.» y el motivo de la API tal cual | — | `review.error` |
-| Pie | Lo que falta antes de guardar, los avisos (no impiden guardar), nota opcional (como mucho 1.000 caracteres), *Cancelar* (con cambios, pide confirmación) y *Guardar la versión N+1* | `POST /conversations/{id}/edit` | Contrato §5 |
+| Pie | Lo que falta antes de guardar, los avisos (no impiden guardar), nota opcional (como mucho 1.000 caracteres; con menos de 1024 px útiles, plegada tras «Añadir una nota» si está vacía), *Cancelar* (con cambios, pide confirmación) y *Guardar la versión N+1* | `POST /conversations/{id}/edit` | Contrato §5 |
+| Mientras se edita | El foco va al primer campo; el compositor queda desactivado («Guarda o cancela la edición para pedir cambios»). Con el panel en capa (PA-335), Esc, el velo y *Cerrar* piden «¿Descartar los cambios?» si hay cambios sin guardar | — | — |
+| Tras guardar | El panel vuelve a la propuesta con la versión nueva; en la conversación, «Versión N guardada: editada a mano, sin llamar al modelo», «Editada a mano · N fuentes» y, si la hay, «Nota de la edición: …»; la lista pasa a «Versión N»; en el historial del recibo, «Versión N editada a mano» | — | `VersionOut.edited` |
 
 **El backend decide:** *Guardar* solo se bloquea con lo que la API rechaza seguro (título vacío, ningún CA, identificadores mal formados o repetidos, CA sin título o sin pasos, RN sin descripción, sin cambios, nota de más de 1.000 caracteres); lo demás es un aviso. **Editar la suite de QA** a mano queda fuera por ahora (pregunta abierta en PA-340).
 
@@ -351,7 +353,7 @@ La web solo depende de la API (`docs/api/openapi.yaml`); los tipos y los ejemplo
 | Sesión y permisos | Todas | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
 | Proyectos y búsqueda en Jira | Inicio, Elegir en Jira | `GET /projects`, `POST /projects/choose`, `GET /projects/{project}/epics`, `GET /projects/{project}/search`, `GET /epics/{key}/stories`, `GET /issues/{key}` |
 | Arranque guiado y fuentes | Inicio, Origen, QA 1 | `POST /start/propose`, `POST /start/sources` |
-| Conversaciones | Lista, Generando, Iterar, recibo, Resultado | `GET /conversations`, `POST /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/events` (SSE), `POST /iterate`, `/approve`, `/discard`, `/cancel`, `/retry`; `/edit` (pendiente: Editar a mano, PA-340) |
+| Conversaciones | Lista, Generando, Iterar, recibo, Resultado | `GET /conversations`, `POST /conversations`, `GET /conversations/{id}`, `GET /conversations/{id}/events` (SSE), `POST /iterate`, `/approve`, `/discard`, `/cancel`, `/retry`; `/edit` (Editar a mano de la HU, §4.5 bis; diseño pendiente de validar en PA-340) |
 | Memoria | Memoria, Resultado | `GET /memories`, `GET /memories/{key}` |
 | Ajustes y consumo | Carril, Resultado, Administración | `GET /settings`, `GET /settings/usage`, `POST /admin/connections/test`, `GET /admin/models` |
 | Revisar la calidad | Mixta 5, lista de conversaciones | `POST /quality-reviews`, `GET /quality-reviews`, `GET /quality-reviews/{id}` |

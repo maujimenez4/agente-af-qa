@@ -19,3 +19,8 @@ export function editedSummary(story: UserStory, version: number, impact: ImpactA
 export function editedVersions(versions: readonly { version: number; edited?: boolean }[]): ReadonlySet<number> {
   return new Set(versions.filter((item) => item.edited).map((item) => item.version))
 }
+
+/** La nota de una edición en la conversación: etiquetada, para que no parezca un cambio pedido al modelo. */
+export function editNoteMessage(note: string): string {
+  return `Nota de la edición: ${note.trim()}`
+}

@@ -187,3 +187,15 @@ textarea.input {
   font-size: var(--text-2xs);
   color: var(--color-warn-text);
 }
+
+/* Nota plegada en ventanas estrechas: un enlace que la despliega. */
+.addNote {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}

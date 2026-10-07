@@ -1,5 +1,7 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Button } from '../../components/Button/index.ts'
+import { NARROW_QUERY } from '../../components/ConversationList/ConversationList.tsx'
+import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { countLabel } from '../../text/plural.ts'
 import styles from './Editor.module.css'
 import { LIST_FIELDS, LIST_LABELS, PRIORITIES, type Priority } from './storyDraft.ts'
@@ -231,6 +233,15 @@ export function StoryEditorActions({
   }
   const noteId = useId()
   const summaryId = useId()
+  // En ventanas estrechas (menos de 1024 px útiles, como PA-335) el pie ocupa media altura: la nota opcional se pliega
+  // tras «Añadir una nota», salvo que ya tenga texto. Al desplegarla, el foco va a la nota.
+  const narrow = useMediaQuery(NARROW_QUERY)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const foldNote = narrow && !noteOpen && editor.note.length === 0
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (noteOpen) noteRef.current?.focus()
+  }, [noteOpen])
   const { errors, warnings } = editor.check
   const blocking = errors.filter((item) => item.path !== 'unchanged')
   const unchanged = errors.some((item) => item.path === 'unchanged')
@@ -277,22 +288,29 @@ export function StoryEditorActions({
           </div>
         )}
       </div>
-      <div className={styles.field}>
-        <label htmlFor={noteId} className={styles.label}>
-          Nota de la edición (opcional)
-        </label>
-        <textarea
-          id={noteId}
-          className={styles.input}
-          rows={2}
-          value={editor.note}
-          aria-invalid={editor.note.trim().length > NOTE_MAX ? true : undefined}
-          onChange={(event) => editor.setNote(event.target.value)}
-        />
-        <span className={`${styles.hint} tabular-nums`}>
-          {editor.note.trim().length} de {NOTE_MAX}
-        </span>
-      </div>
+      {foldNote ? (
+        <button type="button" className={styles.addNote} onClick={() => setNoteOpen(true)}>
+          Añadir una nota
+        </button>
+      ) : (
+        <div className={styles.field}>
+          <label htmlFor={noteId} className={styles.label}>
+            Nota de la edición (opcional)
+          </label>
+          <textarea
+            ref={noteRef}
+            id={noteId}
+            className={styles.input}
+            rows={2}
+            value={editor.note}
+            aria-invalid={editor.note.trim().length > NOTE_MAX ? true : undefined}
+            onChange={(event) => editor.setNote(event.target.value)}
+          />
+          <span className={`${styles.hint} tabular-nums`}>
+            {editor.note.trim().length} de {NOTE_MAX}
+          </span>
+        </div>
+      )}
       <span className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => (editor.dirty ? setConfirming(true) : onCancel())}>
           Cancelar

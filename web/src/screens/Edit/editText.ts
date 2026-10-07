@@ -20,6 +20,9 @@ export function editedVersions(versions: readonly { version: number; edited?: bo
   return new Set(versions.filter((item) => item.edited).map((item) => item.version))
 }
 
+/** Solo hay nota: la API no guarda una versión sin cambios en la HU, ni siquiera con nota (PA-435). */
+export const NOTE_ONLY_HINT = 'Cambia algún campo para guardar una versión nueva; la nota acompaña al cambio.'
+
 /** La nota de una edición en la conversación: etiquetada, para que no parezca un cambio pedido al modelo. */
 export function editNoteMessage(note: string): string {
   return `Nota de la edición: ${note.trim()}`

@@ -35,7 +35,7 @@ import { ErrorCard, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
-import { EditPanel } from '../Edit/EditPanel.tsx'
+import { EditPanel, type EditCloseGuard } from '../Edit/EditPanel.tsx'
 import { editedSummary, editedVersions, editNoteMessage } from '../Edit/editText.ts'
 import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
@@ -124,7 +124,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const [editing, setEditing] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const closeGuardRef = useRef<(() => boolean) | null>(null)
+  const closeGuardRef = useRef<EditCloseGuard | null>(null)
+  const saveRef = useRef<(() => boolean) | null>(null)
   const edited = editedVersions(conversation.versions)
   // Solo la HU: editar la suite de QA queda para un bloque aparte (PA-340).
   const canEdit = !qa && !iterating && Boolean(conversation.review)
@@ -168,8 +169,27 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
     }
   }
 
-  // «Actualizar» (not_in_review, operation_failed…): vuelve a leer el estado de la conversación.
-  const refresh = async () => {
+  // Con el editor abierto, lo que lo cierra o lo cambia pasa antes por «¿Descartar los cambios?» (PA-344). Sin cambios
+  // sin guardar sigue en el acto; `exit` sale además del editor (abrir otra versión), si no se queda abierto.
+  const guarded = (then: () => void, { exit }: { exit: boolean }) => {
+    // El editor deja `closeGuardRef` a null al cerrarse: así no depende del `editing` de un render anterior (*Reintentar*).
+    const guard = closeGuardRef.current
+    if (!guard) return then()
+    if (!guard(then)) {
+      setPanelOpen(true) // la pregunta va en el pie del editor: que se vea aunque el panel estuviera plegado
+      return
+    }
+    if (exit) {
+      setEditing(false)
+      setEditError(null)
+    }
+    then()
+  }
+
+  // «Actualizar» (not_in_review, operation_failed…): vuelve a leer el estado de la conversación. El editor sigue abierto
+  // si la versión en revisión no cambió; con una más nueva se abre sobre ella (`key` del panel).
+  const refresh = () => guarded(() => void reload(), { exit: false })
+  const reload = async () => {
     setError(undefined)
     try {
       const next = await api.conversation(conversation.id)
@@ -180,7 +200,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       setConversation(next)
       setSelected(proposalVersions(next).at(-1)?.version ?? selected)
     } catch (cause) {
-      fail(toApiError(cause), () => void refresh())
+      fail(toApiError(cause), refresh)
     }
   }
 
@@ -190,7 +210,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       case 'restart':
         return onRestart
       case 'refresh':
-        return () => void refresh()
+        return refresh
       case 'login':
         return () => void logout()
       case 'regenerate':
@@ -229,7 +249,10 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       setTab(firstTab)
       setEntries((current) => [...current, ...(note?.trim() ? [{ kind: 'user' as const, text: editNoteMessage(note) }] : []), { kind: 'assistant', version, animate: true }])
     } catch (cause) {
-      fail(toApiError(cause), () => void saveEdit(content, note))
+      // *Reintentar* guarda lo que haya entonces en el editor, no esta copia (PA-344); fuera del editor, solo se cierra.
+      fail(toApiError(cause), () => {
+        if (!saveRef.current?.()) setError(undefined)
+      })
     } finally {
       setSaving(false)
     }
@@ -284,6 +307,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         setEditError(null)
       }}
       closeGuardRef={closeGuardRef}
+      saveRef={saveRef}
       onClosePanel={() => setPanelOpen(false)}
     />
   ) : shown && (
@@ -417,11 +441,17 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 type="button"
                 className={styles.artifact}
                 aria-pressed={!editing && panelOpen && selected === item.version}
-                onClick={() => {
-                  setSelected(item.version)
-                  setTab(firstTab)
-                  setPanelOpen(true)
-                }}
+                onClick={() =>
+                  // Mientras se edita, abrir una versión sale del editor (PA-344): con cambios, tras confirmarlo.
+                  guarded(
+                    () => {
+                      setSelected(item.version)
+                      setTab(firstTab)
+                      setPanelOpen(true)
+                    },
+                    { exit: true },
+                  )
+                }
               >
                 <span className={styles.artifactTitle}>
                   {itemSuite ? 'Suite de pruebas' : 'Propuesta de HU'}, versión {item.version}
@@ -474,7 +504,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 setIterating(undefined)
                 setStopping(false)
                 // En error (también `cancelled`) se repite con /retry; si no, se vuelve a leer el estado.
-                fail(failure, retryable ? () => void retryIteration() : () => void refresh())
+                fail(failure, retryable ? () => void retryIteration() : refresh)
               }}
             />
           </AssistantMessage>
@@ -485,7 +515,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
             <ErrorCard
               key={`${error.code}-${error.message}`}
               error={error}
-              onAction={errorAction(error)}
+              // Se elige al pulsar: *Actualizar* puede leer la pregunta del editor (`closeGuardRef`, PA-344).
+              onAction={() => errorAction(error)()}
             />
           </AssistantMessage>
         )}

@@ -3,6 +3,7 @@ import { Button } from '../../components/Button/index.ts'
 import { NARROW_QUERY } from '../../components/ConversationList/ConversationList.tsx'
 import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { countLabel } from '../../text/plural.ts'
+import { NOTE_ONLY_HINT } from './editText.ts'
 import styles from './Editor.module.css'
 import { LIST_FIELDS, LIST_LABELS, PRIORITIES, type Priority } from './storyDraft.ts'
 import { NOTE_MAX, type EditIssue } from './storyValidation.ts'
@@ -242,6 +243,14 @@ export function StoryEditorActions({
   useEffect(() => {
     if (noteOpen) noteRef.current?.focus()
   }, [noteOpen])
+  // «¿Descartar los cambios?» sustituye al pie (y a *Cancelar*, que tenía el foco) o llega desde fuera (Esc, Actualizar,
+  // otra versión: PA-344): el foco va a *Seguir editando*, la opción que no pierde nada. En una microtarea, para ir
+  // después de `useLayer`, que al abrir la capa enfoca su primer control.
+  const confirmRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!confirming) return
+    queueMicrotask(() => confirmRef.current?.querySelector<HTMLElement>('button:last-child')?.focus())
+  }, [confirming])
   const { errors, warnings } = editor.check
   const blocking = errors.filter((item) => item.path !== 'unchanged')
   const unchanged = errors.some((item) => item.path === 'unchanged')
@@ -251,7 +260,7 @@ export function StoryEditorActions({
     return (
       <div className={styles.confirm} role="group" aria-label="Descartar los cambios">
         <span>¿Descartar los cambios? La versión {version} se queda como está.</span>
-        <span className={styles.actions}>
+        <span ref={confirmRef} className={styles.actions}>
           <Button variant="danger" size="md" onClick={onCancel}>
             Sí, descartar
           </Button>
@@ -276,7 +285,8 @@ export function StoryEditorActions({
             </ul>
           </div>
         )}
-        {blocking.length === 0 && unchanged && <p className={styles.hint}>Aún no has cambiado nada.</p>}
+        {/* PA-435: la API rechaza una edición sin cambios en la HU, también con nota; se explica antes de intentarlo. */}
+        {blocking.length === 0 && unchanged && <p className={styles.hint}>{note ? NOTE_ONLY_HINT : 'Aún no has cambiado nada.'}</p>}
         {warnings.length > 0 && (
           <div className={styles.warnings}>
             <b>Revisa también</b> (no impide guardar):

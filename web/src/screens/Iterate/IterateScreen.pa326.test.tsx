@@ -146,7 +146,8 @@ describe('Iterar la suite · cobertura (PA-326)', () => {
     mockDb.forceCoverage = 'gaps'
     await openSuiteForDemo3()
     await iterateOnce()
-    expect(within(suitePanel()).getByText('1 CA y 1 RN sin caso')).toBeInTheDocument()
+    // Al iterar, la API simulada cubre el CA que faltaba; RN-03 sigue sin caso (sigue habiendo huecos).
+    expect(within(suitePanel()).getByText('1 RN sin caso')).toBeInTheDocument()
     await userEvent.click(within(within(suitePanel()).getByRole('group', { name: 'Versiones' })).getByRole('button', { name: 'Versión 1' }))
     expect(within(suitePanel()).queryByText(/sin caso$/)).toBeNull()
     expect(within(suitePanel()).queryByText(ALL_COVERED)).toBeNull()
@@ -192,7 +193,8 @@ describe('Iterar la suite · tarjeta del asistente con coverageNote (PA-326)', (
     await iterateOnce()
     const [v1, v2] = cards()
     expect(v1).toMatch(/^Generado con .+ · 1 fuentes?$/)
-    expect(v2).toMatch(/ · 1 CA y 1 RN sin caso$/)
+    // La v2 cubre el CA que faltaba (API simulada); RN-03 sigue sin caso.
+    expect(v2).toMatch(/ · 1 RN sin caso$/)
   })
 })
 

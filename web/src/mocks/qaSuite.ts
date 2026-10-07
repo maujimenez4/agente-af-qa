@@ -68,7 +68,12 @@ function requestedType(feedback: string): TestSuite['cases'][number]['type'] {
   return 'positivo'
 }
 
-/** Versión siguiente de la suite simulada: añade un caso con lo pedido (la API real lo genera con el LLM). */
+/**
+ * Versión siguiente de la suite simulada: añade un caso con lo pedido (la API real lo genera con el LLM). Si la anterior
+ * tenía CA sin caso (`?simular=sin-cubrir`), el caso nuevo los verifica y `uncovered.criteria` queda vacío, como lo
+ * recalcularía la API: así se ve el recorrido completo (aviso, pedir el caso, aviso resuelto y aprobar). Las RN sin
+ * caso se mantienen (avisan sin bloquear).
+ */
 export function nextSuiteVersion(previous: ConversationOut, feedback: string): ConversationOut {
   const next = structuredClone(previous)
   const review = next.review
@@ -76,12 +81,13 @@ export function nextSuiteVersion(previous: ConversationOut, feedback: string): C
   const version = review.version + 1
   const suite = review.artifact.content as TestSuite
   const id = `CP-${String(suite.cases.length + 1).padStart(2, '0')}`
+  const missing = review.uncovered?.criteria ?? []
   suite.cases.push({
     internal_id: id,
     title: feedback.trim().slice(0, 80) || 'Caso nuevo',
     type: requestedType(feedback),
     priority: 'Should',
-    criterion_ids: ['CA-02'],
+    criterion_ids: missing.length > 0 ? [...missing] : ['CA-02'],
     rule_ids: ['RN-02'],
     preconditions: ['Datos ficticios de la suite'],
     steps: [{ action: 'Repetir la renovación con los datos del caso', expected: 'El resultado coincide con lo pedido' }],
@@ -92,6 +98,8 @@ export function nextSuiteVersion(previous: ConversationOut, feedback: string): C
   review.artifact = { ...review.artifact, version, content: suite }
   review.plan = review.plan.map((item) => (item.op === 'publish_suite' ? { ...item, cases: String(suite.cases.length) } : item))
   review.coverage_md = mockCoverageMd(suite)
+  if (review.uncovered) review.uncovered = { criteria: [], rules: review.uncovered.rules }
+  review.error = null
   next.versions = [...previous.versions, { artifact: review.artifact, created_at: new Date().toISOString(), edited: false, version }]
   return next
 }

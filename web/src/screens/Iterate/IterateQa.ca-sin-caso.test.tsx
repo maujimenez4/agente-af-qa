@@ -5,7 +5,8 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { mockDb } from '../../mocks/node.ts'
-import { MOCK_UNCOVERED } from '../../mocks/qaSuite.ts'
+import { MOCK_UNCOVERED, mockSuiteConversation, nextSuiteVersion } from '../../mocks/qaSuite.ts'
+import type { TestSuite } from '../../api/types.ts'
 import { openSuiteInReview } from '../../test/qaFlow.tsx'
 import { addCasesSuggestion, MISSING_CASES_ITERATE_REASON, QA_SUGGESTIONS } from './iterateText.ts'
 
@@ -49,6 +50,63 @@ describe('QA 3 · un CA sin caso', () => {
     await openSuiteInReview()
     expect(within(panel()).queryByRole('note')).not.toBeInTheDocument()
     expect(within(suggestions()).getAllByRole('button')).toHaveLength(QA_SUGGESTIONS.length)
+  })
+})
+
+describe('QA 3 · recorrido completo con ?simular=sin-cubrir', () => {
+  it('test_asking_for_missing_case_resolves_notice_and_suite_can_be_approved', async () => {
+    // Aviso → pedir el caso (sugerencia) → la v2 lo cubre y el aviso desaparece → el recibo deja aprobar.
+    mockDb.forceCoverage = 'gaps'
+    await openSuiteInReview()
+    expect(within(panel()).getByRole('note')).toHaveTextContent('Falta un caso para CA-03.')
+    await userEvent.click(within(suggestions()).getByRole('button', { name: 'Añade un caso para CA-03' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(await within(panel()).findByRole('tab', { name: 'Casos (5)' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(panel()).queryByRole('note')).not.toBeInTheDocument()
+    // La RN sin caso sigue avisando, sin bloquear.
+    expect(within(panel()).getByText('1 RN sin caso')).toBeInTheDocument()
+    expect(within(panel()).getByText('Nuevo en v2').closest('li')).toHaveTextContent('Verifica CA-03')
+    // La última tarjeta ya no sugiere pedir el caso.
+    expect(within(suggestions()).getAllByRole('button').map((item) => item.textContent)).toEqual([...QA_SUGGESTIONS])
+    const review = within(panel()).getByRole('button', { name: 'Revisar y aprobar' })
+    expect(review).not.toHaveAttribute('aria-describedby')
+
+    await userEvent.click(review)
+    const operations = await screen.findByRole('group', { name: /Qué se hará en Jira/ })
+    expect(screen.queryByText(/Falta un caso para/)).not.toBeInTheDocument()
+    await userEvent.click(within(operations).getByRole('checkbox'))
+    const approve = screen.getByRole('button', { name: 'Aprobar y publicar' })
+    expect(approve).toBeEnabled()
+    await userEvent.click(approve)
+    // El Resultado de la suite (simulado): ya no queda el recibo.
+    expect((await screen.findAllByText(/simulada/i)).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Aprobar y publicar' })).not.toBeInTheDocument()
+  })
+})
+
+describe('API simulada · nextSuiteVersion con CA sin caso', () => {
+  it('test_next_suite_version_covers_missing_criteria_and_keeps_uncovered_rules', () => {
+    const previous = mockSuiteConversation('DEMO-3', 'gaps')
+    const next = nextSuiteVersion(previous, 'Añade un caso para CA-03')
+    const added = (next.review?.artifact.content as TestSuite).cases.at(-1)
+    expect(added?.criterion_ids).toEqual(['CA-03'])
+    expect(next.review?.uncovered).toEqual({ criteria: [], rules: ['RN-03'] })
+    expect(next.review?.version).toBe(2)
+    // Sin tocar la versión anterior.
+    expect(previous.review?.uncovered).toEqual(MOCK_UNCOVERED)
+  })
+
+  it('test_next_suite_version_any_request_covers_missing_criteria', () => {
+    const next = nextSuiteVersion(mockSuiteConversation('DEMO-3', 'gaps'), 'Añade un caso de excepción')
+    expect((next.review?.artifact.content as TestSuite).cases.at(-1)?.criterion_ids).toEqual(['CA-03'])
+    expect(next.review?.uncovered?.criteria).toEqual([])
+  })
+
+  it('test_next_suite_version_keeps_unknown_and_complete_coverage', () => {
+    expect(nextSuiteVersion(mockSuiteConversation('DEMO-3', 'unknown'), 'Añade un caso').review?.uncovered).toBeNull()
+    const complete = nextSuiteVersion(mockSuiteConversation('DEMO-3'), 'Añade un caso')
+    expect(complete.review?.uncovered).toEqual({ criteria: [], rules: [] })
+    expect((complete.review?.artifact.content as TestSuite).cases.at(-1)?.criterion_ids).toEqual(['CA-02'])
   })
 })
 

@@ -6,14 +6,14 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { ApproveIn } from '../../api/types.ts'
 import { mockDb, mockServer } from '../../mocks/node.ts'
-import { openSuiteForDemo3 } from '../../test/qaFlow.tsx'
+import { openSuiteInReview } from '../../test/qaFlow.tsx'
 import { approvedLine, QA_OUTCOME_TEXTS } from './resultText.ts'
 
 /** Huella de la suite en revisión del ejemplo del contrato (ConversationQaInReview). */
 const QA_FINGERPRINT = '7c'.repeat(32)
 
 async function approveSuite() {
-  await openSuiteForDemo3()
+  await openSuiteInReview()
   await userEvent.click(await screen.findByRole('button', { name: 'Revisar y aprobar' }))
   const receipt = await screen.findByRole('region', { name: 'Suite, versión 1 lista para revisar' })
   return receipt

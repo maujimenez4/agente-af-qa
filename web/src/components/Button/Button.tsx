@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ComponentPropsWithRef, ReactNode } from 'react'
 import { safeHref } from '../../security/safeHref.ts'
 import { Icon, type IconName } from '../Icon/index.ts'
 import styles from './Button.module.css'
@@ -6,7 +6,8 @@ import styles from './Button.module.css'
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 export type ButtonSize = 'lg' | 'md' | 'sm'
 
-type NativeProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>
+// Con `ref` (PA-343): en React 19 es una prop más y llega al <button> con el resto.
+type NativeProps = Omit<ComponentPropsWithRef<'button'>, 'children'>
 
 export interface ButtonProps extends NativeProps {
   variant?: ButtonVariant

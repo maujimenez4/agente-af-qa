@@ -27,6 +27,13 @@ export const NARROW_QUERY = '(max-width: 1023.98px)'
 
 // Lista de conversaciones de 248 px (UI.md §2, T-52): nueva, buscador y conversaciones por día. En ventanas
 // estrechas (PA-335) se pliega en una franja con el botón «Conversaciones» y se abre como capa sobre la pantalla.
+/** Los elementos que siguen a `element` en su contenedor (sin el velo, que va antes de la lista). */
+function followingSiblings(element: Element | null): Element[] {
+  const out: Element[] = []
+  for (let next = element?.nextElementSibling; next; next = next.nextElementSibling) out.push(next)
+  return out
+}
+
 export function ConversationList({ id, conversations, currentId, onNew, onSelect, now, error, onRetry }: ConversationListProps) {
   const [query, setQuery] = useState('')
   const searchId = useId()
@@ -40,7 +47,14 @@ export function ConversationList({ id, conversations, currentId, onNew, onSelect
   const layer = narrow && open
   const listRef = useRef<HTMLElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
-  const onLayerKeyDown = useLayer({ open: layer, layer: listRef, opener: () => toggleRef.current, onClose: () => setOpen(false) })
+  const onLayerKeyDown = useLayer({
+    open: layer,
+    layer: listRef,
+    opener: () => toggleRef.current,
+    onClose: () => setOpen(false),
+    // PA-343: el área de trabajo, a la derecha y bajo el velo (lo que sigue a la lista en el marco).
+    inertBehind: () => followingSiblings(listRef.current),
+  })
   // Al ensancharse la ventana la lista vuelve a su sitio; si se estrecha otra vez, empieza plegada.
   const [narrowSeen, setNarrowSeen] = useState(narrow)
   if (narrow !== narrowSeen) {

@@ -17,6 +17,7 @@ export function useLayer({
   opener,
   onClose,
   onFocusLeave,
+  inertBehind,
 }: {
   /** Capa abierta (y en modo capa: fuera de él no hace nada). */
   open: boolean
@@ -26,15 +27,35 @@ export function useLayer({
   onClose: () => void
   /** Si el foco sale de la capa (por defecto, `onClose`). Plegar sin preguntar: la capa solo se oculta, no se pierde nada. */
   onFocusLeave?: () => void
+  /**
+   * Lo que queda tapado por el velo mientras la capa está abierta (PA-343): se marca `inert`, así el modo exploración
+   * de los lectores de pantalla no lo recorre y no se puede tocar. El velo, el botón que abre la capa y lo que queda
+   * fuera del velo (el carril, la franja) no se tocan: un clic ahí sigue cerrando la capa.
+   */
+  inertBehind?: () => readonly (Element | null | undefined)[]
 }) {
   const wasOpen = useRef(false)
   // El último `opener` sin volver a ejecutar el efecto en cada render (el foco solo se mueve al abrir y al cerrar).
   const openerRef = useRef(opener)
   const onFocusLeaveRef = useRef(onFocusLeave ?? onClose)
+  const inertBehindRef = useRef(inertBehind)
   useEffect(() => {
     openerRef.current = opener
     onFocusLeaveRef.current = onFocusLeave ?? onClose
+    inertBehindRef.current = inertBehind
   })
+
+  // Al cerrar, se quita antes de devolver el foco al botón (la limpieza va antes que el efecto de cierre de abajo).
+  useEffect(() => {
+    if (!open) return
+    const marked = (inertBehindRef.current?.() ?? []).filter(
+      (element): element is Element => element instanceof Element && !element.hasAttribute('inert') && !element.contains(layer.current),
+    )
+    for (const element of marked) element.setAttribute('inert', '')
+    return () => {
+      for (const element of marked) element.removeAttribute('inert')
+    }
+  }, [open, layer])
 
   useEffect(() => {
     if (open) {

@@ -1,7 +1,7 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-07
 
 **Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, parte 1 en `t56-pulido` (#16) y parte 2 en `t56-pulido-2`.
-**PR abiertas:** la PR 2 del pulido final, `t56-pulido-2 → PreProduccion` (pasos 6 a 9). Fusionadas: de la #2 a la #16.
+**PR abiertas:** [#17](https://github.com/maujimenez4/agente-af-qa/pull/17) `t56-pulido-2 → PreProduccion` (pulido final, parte 2: pasos 6 a 9). Fusionadas: de la #2 a la #16.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
@@ -85,7 +85,7 @@
 
 ## Ramas
 - **Ya no hay cadena de ramas** ni bloqueos de otras sesiones en `web/`: `ses-web-fixes`, `ses-web-admin`, `ses-web-pulido` y las ramas `t56-*` anteriores están fusionadas. Cada bloque nuevo: `git switch -c <rama> origin/PreProduccion` (salvo la PR 2 del pulido, que sale de `t56-pulido`).
-- **Limpieza (2026-10-07):** borradas en local y en `origin` las ramas del responsable ya fusionadas en `PreProduccion` (la lista, en el registro diario del Kanban).
+- **Limpieza (2026-10-07 y 08):** borradas en local y en `origin` las ramas del responsable ya fusionadas en `PreProduccion` (la lista, en el registro diario del Kanban), también `t56-anchos` y su *worktree* de una sesión anterior. Solo quedan `t56-pulido` (fusionada, #16) y `t56-pulido-2` (#17).
 
 ## Reglas de trabajo
 - **Responder siempre en español** (también los resúmenes, los informes y lo que se prepara para GitHub).
@@ -122,7 +122,7 @@
 - **Cerradas en el pulido final:** PA-131, PA-342, PA-343, PA-344, PA-346, PA-347 y PA-435.
 
 ## Siguiente
-1. Revisión y fusión de la PR 2 (`t56-pulido-2`).
+1. Revisión y fusión de la #17 (`t56-pulido-2`).
 2. Cuando la principal confirme el bloqueo por un CA sin caso contra la API real: comprobarlo en la web (el rechazo llega en `review.error`) y actualizar DEMO.md (variante B).
 3. T-57: la decisión entre React y Streamlit, con la demo (DEMO.md).
 

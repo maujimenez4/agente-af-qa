@@ -17,6 +17,7 @@ import pytest
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
+import core.graph.nodes as nodes
 from adapters.base import Message, TaskType
 from adapters.errors import ExternalServiceError
 from core.artifact_state import InMemoryArtifactStateStore
@@ -699,8 +700,27 @@ def test_qa_live_flow_after_iteration_publishes_latest_suite(tmp_path: Path) -> 
     assert len(_calls_for(container, "structure_story")) == 1
 
 
-def test_failed_first_generation_leaves_no_orphan_baseline(tmp_path: Path) -> None:
-    """D-1 de PA-61: si la primera versión falla, no queda versión de partida guardada."""
+def _shared_ids(monkeypatch: pytest.MonkeyPatch) -> list[str | None]:
+    """PA-432: anota los ids de la estructura compartida que calcula `_baseline`."""
+    ids: list[str | None] = []
+    original = nodes._shared_baseline_id
+
+    def spy(issue_key: str | None, origin_only: StoryContext) -> str | None:
+        ids.append(original(issue_key, origin_only))
+        return ids[-1]
+
+    monkeypatch.setattr(nodes, "_shared_baseline_id", spy)
+    return ids
+
+
+def test_failed_first_generation_leaves_no_orphan_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-1 de PA-61: si la primera versión falla, no queda versión de partida guardada.
+
+    PA-432: la estructura compartida de la HU no es de la conversación; puede quedar además.
+    """
+    shared = _shared_ids(monkeypatch)
     llm = FakeLLMProvider()
     uncovered = renewal_test_suite().model_copy(
         update={"cases": renewal_test_suite().cases[:1]}  # CA-02 sin casos
@@ -719,9 +739,11 @@ def test_failed_first_generation_leaves_no_orphan_baseline(tmp_path: Path) -> No
     store = container.state_store
     assert isinstance(store, InMemoryArtifactStateStore)
     # Ningún intento deja su versión de partida; solo queda la de la conversación (PA-339),
-    # una sola, para que el siguiente reintento no vuelva a estructurar.
+    # una sola, para que el siguiente reintento no vuelva a estructurar, y la compartida de la
+    # HU (PA-432), la misma en los dos intentos.
     keys = {key for key, s in store.states.items() if "baseline" in s}
-    assert keys == {_pending_baseline_key(config)}
+    assert len(set(shared)) == 1 and None not in shared
+    assert keys == {_pending_baseline_key(config), *shared}
 
 
 def test_initial_feedback_reaches_first_generate_tests(tmp_path: Path) -> None:
@@ -749,9 +771,12 @@ def test_initial_feedback_reaches_first_evolution(tmp_path: Path) -> None:
     assert evolve and hint in _user(evolve[0])
 
 
-def test_failed_first_evolution_leaves_no_orphan_baseline(tmp_path: Path) -> None:
+def test_failed_first_evolution_leaves_no_orphan_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """La limpieza de la versión de partida vale también para evolucionar una HU; solo queda la
-    de la conversación (PA-339)."""
+    de la conversación (PA-339) y la estructura compartida de la HU (PA-432)."""
+    shared = _shared_ids(monkeypatch)
     llm = FakeLLMProvider()
     container = fake_container(tmp_path, llm=llm)
     graph = build_graph(container)
@@ -772,4 +797,5 @@ def test_failed_first_evolution_leaves_no_orphan_baseline(tmp_path: Path) -> Non
     store = container.state_store
     assert isinstance(store, InMemoryArtifactStateStore)
     keys = {key for key, s in store.states.items() if "baseline" in s}
-    assert keys == {_pending_baseline_key(config)}
+    assert len(shared) == 1 and shared[0] is not None
+    assert keys == {_pending_baseline_key(config), shared[0]}

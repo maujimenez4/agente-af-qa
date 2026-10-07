@@ -20,12 +20,13 @@ from pydantic import BaseModel, ValidationError
 from adapters.base import Chunk, IssueDetail
 from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
+from core.artifact_state import structure_cache_id
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
 from core.context.budget import PromptLimits, default_prompt_limits
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
-from core.functional.context import StoryContext
+from core.functional.context import StoryContext, render_context
 from core.functional.writer import StoryDraft, StoryWriter
 from core.graph.state import AgentState, Decision
 from core.handoff import HandoffStore, load_taken_handoff
@@ -35,6 +36,7 @@ from core.logging import get_logger
 from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
 from core.qa.validation import missing_criteria
 from core.qa.writer import SuiteDraft, TestWriter
+from core.rag.prompts import load_prompt
 from core.state_machine import transition
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType
@@ -415,7 +417,12 @@ class GraphNodes:
         baseline = self._pending_baseline(pending, source)
         if baseline is None:
             origin_only = replace(ctx, jira=origin_issue, rag=[], feedback=[], need="")
-            baseline = writer.structure(origin_only).story
+            # PA-432: la misma HU de Jira sin cambios se estructura una sola vez para todas.
+            shared = _shared_baseline_id(ctx.origin_key, origin_only)
+            baseline = self._shared_baseline(shared, ctx.origin_key)
+            if baseline is None:
+                baseline = writer.structure(origin_only).story
+                self._save_shared_baseline(shared, ctx.origin_key, baseline)
             if pending is not None:
                 self.c.state_store.save(
                     pending, {"baseline": baseline.model_dump(mode="json"), "source": source}
@@ -423,6 +430,44 @@ class GraphNodes:
         state["baseline"] = baseline.model_dump(mode="json")
         self.c.state_store.save(artifact_id, state)
         return baseline
+
+    def _shared_baseline(self, shared: str | None, issue_key: str | None) -> UserStory | None:
+        """PA-432: la estructura compartida de esta HU (misma clave y contenido), o `None`.
+
+        Es solo un ahorro: si no está, no cuadra o el almacén falla, se estructura de nuevo.
+        """
+        if shared is None:
+            return None
+        try:
+            saved = self.c.state_store.load(shared) or {}
+            if saved.get("issue_key") != issue_key or not saved.get("baseline"):
+                return None
+            story = UserStory.model_validate(saved["baseline"])
+        except Exception as exc:
+            log.warning(
+                "estructura compartida sin leer", action="structure_story", error=type(exc).__name__
+            )
+            return None
+        if story.jira_key != issue_key:
+            return None
+        log.info("estructura compartida reutilizada", action="structure_story")
+        return story
+
+    def _save_shared_baseline(
+        self, shared: str | None, issue_key: str | None, baseline: UserStory
+    ) -> None:
+        if shared is None:
+            return
+        try:
+            self.c.state_store.save(
+                shared, {"issue_key": issue_key, "baseline": baseline.model_dump(mode="json")}
+            )
+        except Exception as exc:  # solo un ahorro: la conversación sigue con su estructura
+            log.warning(
+                "estructura compartida sin guardar",
+                action="structure_story",
+                error=type(exc).__name__,
+            )
 
     def _pending_baseline(self, pending: str | None, source: str) -> UserStory | None:
         """La versión de partida de un intento anterior de esta conversación, si la incidencia
@@ -1116,6 +1161,21 @@ def _pending_baseline_key(config: RunnableConfig | None) -> str | None:
     if not thread_id or not THREAD_ID.fullmatch(str(thread_id)):
         return None
     return str(uuid5(_PENDING_BASELINE_NS, f"baseline:{thread_id}"))
+
+
+# PA-432: si cambia la forma de estructurar (código, no el prompt), se sube y no se reutiliza.
+STRUCTURE_CACHE_VERSION = 1
+
+
+def _shared_baseline_id(issue_key: str | None, origin_only: StoryContext) -> str | None:
+    """PA-432: entrada compartida por clave y huella de **lo que recibe el modelo** al
+    estructurar (la incidencia de origen tal como se le envía) y de la versión del prompt."""
+    if not issue_key:
+        return None
+    prompt_version = load_prompt("structure_story").version
+    payload = f"{STRUCTURE_CACHE_VERSION}\n{prompt_version}\n{render_context(origin_only)}"
+    fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return structure_cache_id(issue_key, fingerprint)
 
 
 def _issue_fingerprint(issues: list[IssueDetail]) -> str:

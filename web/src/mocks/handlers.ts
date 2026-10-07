@@ -105,7 +105,7 @@ const GENERATION_NODES: ReadonlySet<ProgressStep['node']> = new Set(GENERATION_S
 function mockTitle(body: ConversationCreateIn): string {
   const { kind, key, project } = body.origin
   const flow =
-    body.flow === 'tests' ? 'Preparar pruebas de' : kind === 'story' ? 'Evolucionar' : kind === 'epic' ? 'Nueva HU en' : 'Nueva necesidad'
+    body.flow === 'tests' ? 'Preparar pruebas de' : kind === 'story' ? 'Evolucionar' : kind === 'epic' ? 'HU nueva en la épica' : 'Nueva necesidad'
   return key ? `${flow} ${key}` : `${flow} · ${project}`
 }
 

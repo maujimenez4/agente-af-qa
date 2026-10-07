@@ -34,7 +34,8 @@ export function qualityReviewView(review: QualityReviewSummary): ConversationSum
   }
 }
 
-// La API titula «Nueva HU en DEMO-1» la HU nueva dentro de una épica (core/conversations.py, PA-317).
+// Antes de PA-317 la API titulaba «Nueva HU en DEMO-1» la HU nueva dentro de una épica; hoy da «HU nueva en la épica
+// DEMO-1» (core/conversations.py), pero las conversaciones ya guardadas no se migraron: se normalizan al mostrarlas.
 const EPIC_TITLE = /^Nueva HU en (\S+)$/
 
 /** Título que se muestra: el de la API, salvo la HU nueva en una épica («HU nueva en la épica DEMO-1»). */

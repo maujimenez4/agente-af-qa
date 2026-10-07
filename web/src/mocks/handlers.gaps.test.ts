@@ -233,7 +233,7 @@ describe('API simulada: 404 para lo que aún no simula', () => {
 describe('API simulada: título de la conversación como conversation_title() de core/conversations.py (PA-317)', () => {
   it.each([
     ['evolve', { kind: 'story', key: 'DEMO-3', project: 'DEMO' }, 'Evolucionar DEMO-3'],
-    ['need', { kind: 'epic', key: 'DEMO-1', project: 'DEMO' }, 'Nueva HU en DEMO-1'],
+    ['need', { kind: 'epic', key: 'DEMO-1', project: 'DEMO' }, 'HU nueva en la épica DEMO-1'],
     ['need', { kind: 'need', key: null, text: 'Necesidad ficticia', project: 'DEMO' }, 'Nueva necesidad · DEMO'],
     ['tests', { kind: 'story', key: 'DEMO-3', project: 'DEMO' }, 'Preparar pruebas de DEMO-3'],
   ] as const)('test_create_%s_%j_titles_like_backend', async (flow, origin, title) => {

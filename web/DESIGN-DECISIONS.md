@@ -258,7 +258,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 Salen de `ConversationSummary` (`mode`, `origin_kind`, `origin_key`, `status`, `version`) con el formato «flujo · estado» del lienzo.
 
 - **Flujo:** `qa` → «Pruebas de DEMO-3»; `functional` con origen `story` → «Evolucionar DEMO-3»; con `epic` → «HU nueva en la épica DEMO-1»; con `need` → «Nueva necesidad».
-- **Título:** el de la API, salvo «Nueva HU en DEMO-1» (`core/conversations.py`), que se muestra como «HU nueva en la épica DEMO-1» en la cabecera, el evento, la lista y el buscador (`conversationTitle`, PA-317).
+- **Título:** el de la API. Desde PA-317 la API ya da «HU nueva en la épica DEMO-1» (`core/conversations.py`), pero las conversaciones guardadas antes con «Nueva HU en DEMO-1» no se migraron: esas se siguen mostrando como «HU nueva en la épica DEMO-1» en la cabecera, el evento, la lista y el buscador (`conversationTitle`). Revisado en el pulido (2026-10-07): la normalización se queda mientras haya filas sin migrar; la API simulada ya titula como la API actual.
 - **Estado:**
   - `in_review` → «Versión N»;
   - `simulated` → «Simulado»;

@@ -1,10 +1,16 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-06
 
-**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9) y `ses-web-fixes` (PA-332 a PA-336). **Bloque en curso: Editar a mano, parte B**, en `t56-editar` (la parte A ya está en la rama).
-**PR abiertas:** [#10](https://github.com/maujimenez4/agente-af-qa/pull/10) `t56-sondeo → PreProduccion` (PA-406, tope del sondeo de Revisar la calidad), [#11](https://github.com/maujimenez4/agente-af-qa/pull/11) `t56-anchos → PreProduccion` (PA-335, escalado de Windows) y [#12](https://github.com/maujimenez4/agente-af-qa/pull/12) `t56-editar → PreProduccion` (Editar a mano, parte B; **trae la #11 y se fusiona después de ella**). Fusionadas: la #2, la #3, la #4, la #6, la #7, la #8 y la #9.
+**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11) y PA-330 web (#13). **Bloque en curso: Editar a mano, parte B**, en `t56-editar`; después, **PA-127** en `t56-pruebas`.
+**PR abiertas:** [#12](https://github.com/maujimenez4/agente-af-qa/pull/12) `t56-editar → PreProduccion` (Editar a mano, parte B; ya trae `PreProduccion` con las cuatro anteriores). Fusionadas: de la #2 a la #11, la #13 y la #14.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
+
+## Novedades de la principal (2026-10-07)
+- **Fusionadas juntas** la #14, la #10, la #11 y la #13, en ese orden. Con las cuatro: lint, `tsc` y `api:check` limpios, y Vitest 2191/2192.
+- **PR #12** (`t56-editar`) chocaba en `web/HANDOFF.md` y `docs/KANBAN.md`: hecho el `git merge` de `PreProduccion` conservando ambos lados, Vitest 2375/2375 y push.
+- **`ResultScreen.pa325.test.tsx`** (de la #9) era la única que fallaba con todo junto, y a veces en `PreProduccion` (`test_simulated_story_has_no_keys_nor_links` y `test_published_suite_subtasks_are_text_when_browse_url_null`); sola pasaba siempre. Hay que hacerla determinista: entra en **PA-127**.
+- **Causa encontrada (PA-127):** con MSW 3 algunas peticiones se saltan la interceptación y salen a la red real (`fetch failed`); si le toca a `/auth/me`, la prueba arranca en el login. No es lentitud. Arreglo y plan en `t56-pruebas` (aviso en el issue #5 antes de tocar `package.json` y el setup de las pruebas).
 
 ## Novedades de la principal (2026-10-06)
 - **PA-331 hecha en la API:** iterar una suite aplica el cambio pedido y conserva los IDs de los casos que no cambian.

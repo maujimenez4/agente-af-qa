@@ -35,3 +35,6 @@ export const SUGGESTIONS = ['Añade un criterio de error', 'Aclara el alcance', 
 
 /** Sugerencias de cambio de la suite (QA 3; los mismos textos que Streamlit, `app/qa.py`). */
 export const QA_SUGGESTIONS = ['Añade un caso negativo con datos no válidos', 'Cubre también las reglas de negocio', 'Añade un caso de excepción'] as const
+
+/** Indicador mientras se genera la versión nueva tras pedir un cambio (PA-430). */
+export const ITERATING_LABEL = 'Generando una nueva versión…'

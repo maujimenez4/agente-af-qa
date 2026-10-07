@@ -163,7 +163,7 @@ export function QualityScreen({ request, reviewId, onBack, onChanged, onEvolve }
         <UserMessage>Revisa la calidad de {key}.</UserMessage>
         {review.state === 'running' && !stale && (
           <AssistantMessage>
-            <LoadingState title={`Revisando la calidad de ${key}…`} events={[]} />
+            <LoadingState title={`Revisando la calidad de ${key}…`} events={[]} running />
             <p className={styles.muted}>{RUNNING_NOTE}</p>
             {error && <ErrorCard key={attempt} error={error} onAction={retryLoad} />}
           </AssistantMessage>

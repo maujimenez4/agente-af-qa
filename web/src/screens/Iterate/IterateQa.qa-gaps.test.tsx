@@ -98,7 +98,7 @@ describe('QA 3 · pestañas de la suite con el teclado', () => {
 
 describe('QA 3 · mientras se itera y versiones', () => {
   it('test_while_iterating_composer_and_review_are_disabled_and_panel_says_generating', async () => {
-    // UI.md §6.3 (indicador «Escribiendo la respuesta») y §6.2: compositor desactivado con su texto de la suite.
+    // UI.md §6.3 (indicador «Generando una nueva versión…», PA-430) y §6.2: compositor desactivado con su texto de la suite.
     await openSuiteInReview()
     mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await userEvent.click(screen.getByRole('button', { name: 'Añade un caso de excepción' }))

@@ -27,6 +27,10 @@ export const PUBLISH_LIVE_TEXT = 'Al aprobar, se escribe en Jira lo que la perso
 export const DOCUMENTS_TITLE = 'Añadir documentos a la base de conocimiento'
 export const DOCUMENTS_TEXT = 'PDF, DOCX, MD o TXT. Se clasifican y se indexan para usarlos como fuentes.'
 export const USERS_TITLE = 'Usuarios y roles'
+/** PA-431: distintivo visible y motivo breve de lo que aún no está. */
+export const SOON_BADGE = 'Disponible pronto'
+export const DOCUMENTS_SOON = 'La carga de documentos llegará en una versión posterior.'
+export const USERS_SOON = 'Los usuarios se gestionan hoy desde el servidor.'
 export const USERS_TEXT = 'Las cuentas de la demo se configuran en el servidor.'
 export const SOON_ADMIN_TEXT = 'Disponible pronto: usuarios, documentos e historial llegan después del punto de control de la demo.'
 

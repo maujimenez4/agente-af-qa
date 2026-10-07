@@ -10,14 +10,16 @@ export interface LoadingStateProps {
   events: readonly ProgressEvent[]
   /** Llegó `review_ready`: la Q se completa. */
   reviewReady?: boolean
+  /** En curso sin eventos de pasos (p. ej. la revisión de calidad, que no tiene SSE): la Q late (PA-427). */
+  running?: boolean
 }
 
 // Estado «cargando» de la generación (UI.md §4.4 y §6.2): Q por procesos y lista de pasos.
-export function LoadingState({ title, events, reviewReady = false }: LoadingStateProps) {
+export function LoadingState({ title, events, reviewReady = false, running = false }: LoadingStateProps) {
   const progress = loadingProgress(events, reviewReady)
   return (
     <div className={styles.loading} role="status" aria-busy={!reviewReady}>
-      <LoadingQ done={progress.done} running={progress.running} />
+      <LoadingQ done={progress.done} running={progress.running || (running && !reviewReady)} />
       <h2 className={styles.title}>{title}</h2>
       <ProcessSteps steps={latestSteps(events)} />
     </div>

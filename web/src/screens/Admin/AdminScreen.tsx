@@ -14,12 +14,15 @@ import {
   CONNECTIONS_IDLE,
   CONNECTIONS_TESTING,
   CONNECTIONS_TITLE,
+  DOCUMENTS_SOON,
   DOCUMENTS_TEXT,
   DOCUMENTS_TITLE,
   durationLabel,
   EMBEDDINGS_LABEL,
   MODELS_NOTE,
   MODELS_TITLE,
+  SOON_BADGE,
+  USERS_SOON,
   modelName,
   NO_FALLBACK,
   PUBLISH_LIVE_TEXT,
@@ -278,16 +281,20 @@ function SoonCard() {
   return (
     <section className={`${styles.card} ${styles.soon}`} aria-labelledby="admin-soon">
       <h2 id="admin-soon" className={styles.cardTitle}>
-        {DOCUMENTS_TITLE}
+        {DOCUMENTS_TITLE} <Badge tone="neutral">{SOON_BADGE}</Badge>
       </h2>
       <p className={styles.muted}>{DOCUMENTS_TEXT}</p>
+      <p className={styles.soonNote}>{DOCUMENTS_SOON}</p>
       <div className={styles.cardActions}>
-        <SoonButton label="Elegir archivos" note={SOON_ADMIN_TEXT} />
+        <SoonButton label="Elegir archivos" note={`${SOON_BADGE}: ${DOCUMENTS_SOON}`} />
       </div>
-      <h3 className={styles.soonSubtitle}>{USERS_TITLE}</h3>
+      <h3 className={styles.soonSubtitle}>
+        {USERS_TITLE} <Badge tone="neutral">{SOON_BADGE}</Badge>
+      </h3>
       <p className={styles.muted}>{USERS_TEXT}</p>
+      <p className={styles.soonNote}>{USERS_SOON}</p>
       <div className={styles.cardActions}>
-        <SoonButton label="Gestionar usuarios" note={SOON_ADMIN_TEXT} />
+        <SoonButton label="Gestionar usuarios" note={`${SOON_BADGE}: ${USERS_SOON}`} />
       </div>
       <p className={styles.soonNote}>{SOON_ADMIN_TEXT}</p>
     </section>

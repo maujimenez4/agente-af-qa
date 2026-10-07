@@ -41,7 +41,7 @@ import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { ITERATING_LABEL, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
 import { countLabel } from '../../text/plural.ts'
 
 export interface IterateScreenProps {
@@ -81,7 +81,8 @@ function Iterating({
     // Solo al cambiar de estado: los manejadores cambian en cada render del padre.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
-  return <TypingIndicator label={stopping ? 'Deteniendo la generación…' : undefined} />
+  // PA-430: al iterar se genera una versión nueva; el texto por defecto («Escribiendo…») es de otros usos.
+  return <TypingIndicator label={stopping ? 'Deteniendo la generación…' : ITERATING_LABEL} />
 }
 
 /** La suite de una versión de QA, si el contenido lo es (trae `cases`); si no, `undefined` y se pinta como HU. */

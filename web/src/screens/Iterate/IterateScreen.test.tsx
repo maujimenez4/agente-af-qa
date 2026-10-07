@@ -78,7 +78,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     mockServer.events.removeAllListeners()
   })
 
-  it('mientras se itera, el compositor espera y aparece «Escribiendo la respuesta»', async () => {
+  it('mientras se itera, el compositor espera y aparece «Generando una nueva versión…» (PA-430)', async () => {
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })))
     mockServer.use(
       http.get(`/api/v1/conversations/${EXAMPLE_ID}`, () =>
@@ -88,7 +88,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     await openFromList()
     await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Aclara el alcance')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
-    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Escribiendo la respuesta')
+    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Generando una nueva versión…')
     expect(screen.getByRole('textbox', { name: 'Espera a la propuesta para pedir cambios' })).toBeDisabled()
     expect(within(panel()).getByRole('button', { name: 'Descartar' })).toBeDisabled()
   })

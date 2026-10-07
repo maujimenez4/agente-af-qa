@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion.ts'
 import { offsetFor, QUARTER } from './qGeometry.ts'
 import { QShape, type QMotion } from './QShape.tsx'
 
@@ -15,11 +16,13 @@ export interface LoadingQProps {
 // Q de carga por procesos (UI.md §8, n.º 2): cada cuarto se llena al terminar su proceso.
 export function LoadingQ({ done, running = false, size = 48, label }: LoadingQProps) {
   const [shown, setShown] = useState({ done, from: done })
+  // «Reducir movimiento»: la Q no late (además, base.css anula cualquier animación).
+  const reducedMotion = usePrefersReducedMotion()
   if (shown.done !== done) setShown({ done, from: shown.done })
 
   const offset = offsetFor(done)
   let motion: QMotion = { kind: 'none' }
-  if (running && done < 4) motion = { kind: 'pulse', to: offset - QUARTER }
+  if (running && done < 4 && !reducedMotion) motion = { kind: 'pulse', to: offset - QUARTER }
   else if (shown.from !== done) motion = { kind: 'fill', from: offsetFor(shown.from), duration: 0.42, delay: 0 }
 
   const shape = (

@@ -37,7 +37,7 @@ export async function openSuiteInReview(): Promise<void> {
   const csrf = 'csrf-ficticio'
   mockDb.session = { username: 'qa-demo', role: 'qa', csrf }
   const body: ConversationCreateIn = {
-    origin: { kind: 'story', key: 'DEMO-3', project: 'DEMO' },
+    origin: { kind: 'story', key: 'DEMO-3', project: 'DEMO', text: null },
     flow: 'tests',
     excluded_sources: [],
     feedback: qaFeedback(new Set(CASE_TYPES.map((item) => item.id)), new Set(EXTRAS.map((item) => item.id))),

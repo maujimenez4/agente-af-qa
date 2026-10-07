@@ -1,5 +1,5 @@
 // Detener (POST /cancel, PA-314) y Reintentar (POST /retry, PA-276) en Generando e Iterar. Datos sintéticos.
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -55,6 +55,26 @@ describe('Generando · Detener y Reintentar', () => {
     expect(alert).toHaveTextContent(CANCELLED_MESSAGE)
     expect(calls).toContain('cancel')
     expect(screen.queryByRole('button', { name: /Detener/ })).toBeNull()
+  })
+
+  it('test_stopping_state_holds_while_event_stream_is_retained_after_cancel_answered', async () => {
+    /** PA-127 criterio 1: con el SSE retenido, «Deteniendo…» sigue tras responder /cancel y sin tarjeta de error. */
+    let cancelAnswered = false
+    mockServer.events.on('response:mocked', ({ request }) => {
+      if (request.method === 'POST' && request.url.endsWith('/cancel')) cancelAnswered = true
+    })
+    const release = await generateFromHome()
+    await userEvent.click(screen.getByRole('button', { name: 'Detener la generación' }))
+    await expect.poll(() => cancelAnswered).toBe(true)
+    // Se deja que React aplique la respuesta de /cancel antes de mirar.
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Deteniendo la generación…' })).toBeDisabled()
+    expect(screen.getByText('Deteniendo la generación…', { selector: '*:not(button)' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ver la propuesta' })).toBeNull()
+    release()
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: 'Generación detenida' })).toBeInTheDocument()
   })
 
   it('«Reintentar» tras detener llama a /retry y la generación llega a la propuesta', async () => {

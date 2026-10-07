@@ -1,10 +1,23 @@
-# Traspaso de T-56 (frontend React, área B) · 2026-10-06
+# Traspaso de T-56 (frontend React, área B) · 2026-10-07
 
-**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11) y PA-330 web (#13). **Bloque en curso: Editar a mano, parte B**, en `t56-editar`; después, **PA-127** en `t56-pruebas`.
-**PR abiertas:** [#12](https://github.com/maujimenez4/agente-af-qa/pull/12) `t56-editar → PreProduccion` (Editar a mano, parte B; ya trae `PreProduccion` con las cuatro anteriores). Fusionadas: de la #2 a la #11, la #13 y la #14.
+**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, en `t56-pulido`.
+**PR abiertas:** ninguna. Fusionadas: de la #2 a la #15.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
+
+## Novedades de la principal (2026-10-07, tarde)
+- **Ronda de la sesión UI (`ses-web-pulido`) en `PreProduccion`:**
+  - PA-427: la Q se anima en Revisar la calidad;
+  - PA-428: extractos de las fuentes con formato (`MarkdownBlocks`, sin «»);
+  - PA-429: el chat empieza abajo y solo baja solo si la persona seguía el final (`useStickToBottom` en `Workspace`);
+  - PA-430: «Generando una nueva versión…» al iterar;
+  - PA-431: «Disponible pronto» en Documentos y en Usuarios y roles de Ajustes.
+
+  Tocó `components/Markdown/`, `Proposal/ProposalViews.tsx`, `Workspace/` (con `useStickToBottom.ts`), `Chat/Chat.tsx`, `States/LoadingState.tsx` y `QMark/LoadingQ.tsx`.
+- **PA-435 decidida:** la regla del backend se mantiene (no hay nota sin cambio); la web lo explica junto a *Guardar*.
+- **Un CA sin caso bloquea la aprobación de la suite** (una RN sin caso sigue avisando sin bloquear). El backend lo hace otra sesión y el contrato no cambia.
+- **Pulido final** en `t56-pulido`, desde `origin/PreProduccion` (`6c15438`). Al empezar: Vitest 2404/2404, lint, build y `api:check` en verde. A `origin/t56-editar` solo le quedaba sin fusionar un commit del HANDOFF ya desfasado (`498e9c5`): se borra al cerrar el pulido.
 
 ## Novedades de la principal (2026-10-07)
 - **Fusionadas juntas** la #14, la #10, la #11 y la #13, en ese orden. Con las cuatro: lint, `tsc` y `api:check` limpios, y Vitest 2191/2192.

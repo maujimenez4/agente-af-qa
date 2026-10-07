@@ -26,7 +26,8 @@ function isSeparator(line: string): boolean {
 }
 
 export function markdownBlocks(markdown: string): MarkdownBlock[] {
-  const lines = markdown.split('\n').map((line) => line.trim())
+  // \r y los separadores de línea Unicode también parten líneas: ninguna expresión de línea los cruza.
+  const lines = markdown.split(/\r\n|[\n\r\u2028\u2029]/).map((line) => line.trim())
   const blocks: MarkdownBlock[] = []
   let paragraph: string[] = []
   const flush = () => {

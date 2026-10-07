@@ -49,6 +49,14 @@ describe('markdownBlocks: bloques de un extracto (PA-428)', () => {
     expect(markdownBlocks('')).toEqual([])
   })
 
+  it('\\r y los separadores de línea Unicode parten líneas (sin títulos que crucen líneas)', () => {
+    expect(markdownBlocks('# Plazos\r\nTexto\u2028- uno')).toEqual([
+      { kind: 'heading', text: 'Plazos' },
+      { kind: 'paragraph', text: 'Texto' },
+      { kind: 'list', ordered: false, items: ['uno'] },
+    ])
+  })
+
   it('una cabecera sin filas sigue siendo una tabla (el extracto se cortó tras el separador)', () => {
     expect(markdownBlocks('| Plazo | Renovaciones |\n|---|---|')).toEqual([{ kind: 'table', header: ['Plazo', 'Renovaciones'], rows: [] }])
   })

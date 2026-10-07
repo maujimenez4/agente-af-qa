@@ -28,10 +28,15 @@ export function useStickToBottom(scrollRef: RefObject<HTMLElement | null>, conte
     if (!scroller || !content || typeof MutationObserver === 'undefined') return
 
     let nearBottom = true
+    // Bajando por nuestra cuenta (animación suave): los `scroll` intermedios no son la persona subiendo.
+    let following = false
     const onScroll = () => {
-      nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= NEAR_BOTTOM_PX
+      const near = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= NEAR_BOTTOM_PX
+      if (near) following = false
+      nearBottom = near || following
     }
     const toBottom = () => {
+      following = true
       const top = scroller.scrollHeight
       if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ top, behavior: reducedMotion() ? 'auto' : 'smooth' })
       else scroller.scrollTop = top

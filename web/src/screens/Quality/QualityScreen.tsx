@@ -387,7 +387,7 @@ function ReportPanel({
               <li key={`${source.kind}-${source.ref}`} className={styles.source}>
                 <Badge tone="cite">{SOURCE_KINDS[source.kind]}</Badge>
                 <span className={styles.sourceRef}>{source.ref}</span>
-                {source.excerpt && <MarkdownBlocks className={styles.muted} text={source.excerpt} />}
+                {source.excerpt && <MarkdownBlocks className={`${styles.muted} ${styles.sourceExcerpt}`} text={source.excerpt} />}
               </li>
             ))}
           </ul>

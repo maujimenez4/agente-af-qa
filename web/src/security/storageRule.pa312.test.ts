@@ -87,7 +87,7 @@ describe('PA-312 · sin falsos positivos', () => {
     ['leer window.location.href', 'void window.location.href'],
     ['const { title } = document', 'const { title } = document\n  void title'],
     ['self.addEventListener', "self.addEventListener('message', () => undefined)"],
-    ['desestructurar cookie de otro objeto', "const { cookie } = { cookie: 'valor-ficticio' }\n  void cookie"],
+    // «desestructurar cookie de otro objeto» da error desde PA-342 (precio aceptado; storageRule.pa342.test.ts).
     ['asignar desestructurando title de document', 'let title: string\n  ;({ title } = document)\n  void title'],
   ])('test_storage_rule_no_error_on_%s', async (_name, body) => {
     /** PA-312: lo que no es almacenamiento del navegador no da error de almacenamiento. */

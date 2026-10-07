@@ -12,6 +12,7 @@ const HTML_INJECTION = 'El contenido de la API se muestra como texto: no se inse
 const UNSAFE_LINK = 'Un enlace construido con datos pasa por safeHref() (src/security/safeHref.ts, PA-308): nunca javascript: ni data:.'
 const DOWNLOAD = 'Para descargar un texto, usa downloadText() (src/security/download.ts).'
 const BROWSER_STORAGE = 'No se usa el almacenamiento del navegador: la sesión va como diga el contrato de T-55.'
+const GLOBAL_ALIAS = 'Sin alias ni resto de window, document, self o globalThis: ESLint no los sigue (PA-342).'
 
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'mock-public', 'src/api/schema.d.ts', 'tools']),
@@ -63,16 +64,44 @@ export default defineConfig([
         },
         { selector: "CallExpression[callee.computed=true][callee.property.value=/^setAttribute(NS)?$/]", message: `${UNSAFE_LINK} ${DOWNLOAD}` },
         { selector: "CallExpression[callee.property.name='createObjectURL']", message: DOWNLOAD },
-        // PA-312: almacenamiento del navegador por desestructuración (`const { cookie } = document`).
+        // PA-312 y PA-342: almacenamiento del navegador por desestructuración, venga de donde venga: `const { cookie } =
+        // document`, anidada (`const { document: { cookie } } = window`), de `globalThis.window`, en un parámetro
+        // (`({ cookie }: Document)`) o con la clave entre comillas.
         {
-          selector:
-            "VariableDeclarator[init.name=/^(document|window|self|globalThis)$/] > ObjectPattern > Property[key.name=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
+          selector: "ObjectPattern > Property[key.name=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
           message: BROWSER_STORAGE,
         },
         {
-          selector:
-            "AssignmentExpression[right.name=/^(document|window|self|globalThis)$/] > ObjectPattern > Property[key.name=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
+          selector: "ObjectPattern > Property[key.value=/^(cookie|localStorage|sessionStorage|indexedDB|caches)$/]",
           message: BROWSER_STORAGE,
+        },
+        // PA-342: un alias (`const w = window; w.localStorage`) o el resto (`const { ...rest } = window`) esconden el acceso
+        // a ESLint: no se permiten sobre los objetos globales.
+        {
+          selector: "VariableDeclarator[id.type='Identifier'][init.type='Identifier'][init.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "AssignmentExpression[left.type='Identifier'][right.type='Identifier'][right.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector:
+            "VariableDeclarator[id.type='Identifier'][init.type='MemberExpression'][init.object.name=/^(window|self|globalThis)$/][init.property.name=/^(document|window|self|globalThis)$/]",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "VariableDeclarator[init.name=/^(document|window|self|globalThis)$/] > ObjectPattern > RestElement",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector:
+            "VariableDeclarator[init.object.name=/^(window|self|globalThis)$/][init.property.name=/^(document|window|self|globalThis)$/] > ObjectPattern > RestElement",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
+        },
+        {
+          selector: "AssignmentExpression[right.name=/^(document|window|self|globalThis)$/] > ObjectPattern > RestElement",
+          message: `${BROWSER_STORAGE} ${GLOBAL_ALIAS}`,
         },
         { selector: "CallExpression[callee.computed=true][callee.property.value='createObjectURL']", message: DOWNLOAD },
         { selector: "VariableDeclarator > ObjectPattern > Property[key.name='createObjectURL']", message: DOWNLOAD },

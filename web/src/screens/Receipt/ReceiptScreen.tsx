@@ -13,6 +13,7 @@ import { useGeneration } from '../Generating/useGeneration.ts'
 import { modelLabel, proposalVersions } from '../Iterate/iterateText.ts'
 import styles from './Receipt.module.css'
 import { aiNotice, receiptOperations, reviewedCounter } from './receiptText.ts'
+import { editedVersions } from '../Edit/editText.ts'
 
 export interface ReceiptScreenProps {
   conversation: ConversationOut
@@ -176,19 +177,23 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   const versions = proposalVersions(conversation)
   // La hora de cada versión está en `VersionOut`; la que está en revisión puede no estar aún en la lista.
   const createdAt = new Map(conversation.versions.map((item) => [item.version, item.created_at]))
+  // Editar a mano (RF-32): la versión editada no la escribió el modelo; no se cita modelo ni versión del prompt.
+  const edited = editedVersions(conversation.versions)
   const history = (
     <SidePanel title={suite ? 'Historial de la suite' : 'Historial de la HU'} subtitle={`${title} · en revisión`}>
       <ol className={styles.history} aria-label={suite ? 'Versiones de la suite' : 'Versiones de la propuesta'}>
         {[...versions].reverse().map((item) => (
           <li key={item.version} className={styles.historyItem}>
-            <b>Versión {item.version} generada</b>
+            <b>
+              Versión {item.version} {edited.has(item.version) ? 'editada a mano' : 'generada'}
+            </b>
             <span className={styles.muted}>
               {[
                 suite
                   ? casesOf(item.artifact.content, item.version === conversation.review?.version ? suiteCoverage(conversation.review.uncovered) : UNKNOWN_COVERAGE)
                   : undefined,
-                modelLabel(item.artifact.model_used),
-                item.artifact.prompt_version ? `prompt v${item.artifact.prompt_version}` : undefined,
+                edited.has(item.version) ? undefined : modelLabel(item.artifact.model_used),
+                !edited.has(item.version) && item.artifact.prompt_version ? `prompt v${item.artifact.prompt_version}` : undefined,
                 timeOf(createdAt.get(item.version) ?? ''),
               ]
                 .filter(Boolean)

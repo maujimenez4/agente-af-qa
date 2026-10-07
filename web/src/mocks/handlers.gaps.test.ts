@@ -208,7 +208,6 @@ describe('API simulada: sesión y CSRF', () => {
 
 describe('API simulada: 404 para lo que aún no simula', () => {
   it.each([
-    ['POST', '/conversations/x/edit'],
     ['PUT', '/settings/models/generate_story'],
     ['DELETE', '/settings/models/generate_story'],
   ])('test_%s_%s_is_not_simulated', async (method, path) => {
@@ -218,6 +217,15 @@ describe('API simulada: 404 para lo que aún no simula', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'not_found', message: 'Aún no está en la API simulada del frontend.', retry_after: null },
+    })
+  })
+  it('test_POST_edit_is_simulated_and_looks_up_the_conversation', async () => {
+    /** Editar a mano, parte B: `/edit` ya está en `createHandlers` y busca la conversación con `runFor` (una que no existe, su 404). */
+    const csrf = await csrfOf()
+    const response = await send('POST', '/conversations/x/edit', csrf)
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: { code: 'not_found', message: 'No existe esa conversación o no es tuya.', retry_after: null },
     })
   })
 })

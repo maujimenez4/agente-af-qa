@@ -18,6 +18,11 @@ export interface WorkspaceProps {
   /** Panel abierto o plegado, si lo controla la pantalla (p. ej. «Abrir en el panel» lo vuelve a abrir). */
   panelOpen?: boolean
   onPanelOpenChange?: (open: boolean) => void
+  /**
+   * En capa (PA-335), antes de plegar el panel con Esc, el velo o *Cerrar*: devuelve `false` para impedirlo (p. ej. el
+   * editor con cambios pide confirmación). Que el foco salga de la capa lo pliega sin preguntar: solo se oculta.
+   */
+  onPanelCloseRequest?: () => boolean
 }
 
 /** PA-335: por debajo de este ancho del área de trabajo (conversación 360 + panel 320), el panel pasa a capa. */
@@ -66,7 +71,7 @@ function useNarrowArea(ref: RefObject<HTMLElement | null>, onChange: (narrow: bo
 // Pantalla de trabajo (UI.md §2): cabecera con la Q de fase, conversación, compositor y panel derecho.
 // El botón para plegar el panel va siempre en el mismo sitio, arriba a la derecha y con texto
 // (DESIGN-DECISIONS.md §4 bis): plegado, el panel se oculta sin desmontarse y conserva su estado.
-export function Workspace({ title, phase, phaseName, children, composer, panel, panelOpen, onPanelOpenChange }: WorkspaceProps) {
+export function Workspace({ title, phase, phaseName, children, composer, panel, panelOpen, onPanelOpenChange, onPanelCloseRequest }: WorkspaceProps) {
   const [ownOpen, setOwnOpen] = useState(true)
   const open = panelOpen ?? ownOpen
   const setOpen = (next: boolean) => {
@@ -91,12 +96,18 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
   })
   const layer = Boolean(panel) && narrowArea
   const panelRef = useRef<HTMLElement>(null)
+  // Esc, el velo y *Cerrar* de la capa: la pantalla puede pedir antes una confirmación (`onPanelCloseRequest`).
+  const requestClose = () => {
+    if (onPanelCloseRequest && !onPanelCloseRequest()) return
+    setOpen(false)
+  }
   const onPanelKeyDown = useLayer({
     open: layer && open,
     layer: panelRef,
     // El botón de la cabecera (`Button` no reenvía `ref`): el que controla este panel.
     opener: () => workspaceRef.current?.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(panelId)}"]`),
-    onClose: () => setOpen(false),
+    onClose: () => requestClose(),
+    onFocusLeave: () => setOpen(false),
   })
 
   return (
@@ -135,9 +146,9 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
         {composer && <div className={styles.composer}>{composer}</div>}
       </section>
       {/* Velo de la capa: un clic fuera del panel lo pliega (con el teclado, Esc). */}
-      {panel && layer && open && <div className={styles.layerBackdrop} aria-hidden="true" onClick={() => setOpen(false)} />}
+      {panel && layer && open && <div className={styles.layerBackdrop} aria-hidden="true" onClick={() => requestClose()} />}
       {panel && (
-        <PanelContext.Provider value={{ id: panelId, open, layer, ref: panelRef, onKeyDown: onPanelKeyDown, close: () => setOpen(false) }}>{panel}</PanelContext.Provider>
+        <PanelContext.Provider value={{ id: panelId, open, layer, ref: panelRef, onKeyDown: onPanelKeyDown, close: () => requestClose() }}>{panel}</PanelContext.Provider>
       )}
     </div>
   )

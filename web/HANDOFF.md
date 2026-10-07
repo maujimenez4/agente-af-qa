@@ -1,10 +1,16 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-06
 
-**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP). Pendientes de fusionar: `ses-web-fixes` (PA-332 a PA-336), Editar a mano (`t56-editar`, parte A; la B espera a `ses-web-fixes`), UI.md v2.0 (#8) y PA-325/PA-312 (#9).
-**PR abiertas:** [#8](https://github.com/maujimenez4/agente-af-qa/pull/8) `t56-uimd → PreProduccion` (UI.md v2.0, PA-300) y [#9](https://github.com/maujimenez4/agente-af-qa/pull/9) `t56-pa325 → PreProduccion` (claves de Jira enlazadas, PA-325, y regla de ESLint del almacenamiento, PA-312). Fusionadas: la #2, la #3, la #4, la #6 y la #7.
+**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11) y PA-330 web (#13). **Bloque en curso: Editar a mano, parte B**, en `t56-editar`; después, **PA-127** en `t56-pruebas`.
+**PR abiertas:** [#12](https://github.com/maujimenez4/agente-af-qa/pull/12) `t56-editar → PreProduccion` (Editar a mano, parte B; ya trae `PreProduccion` con las cuatro anteriores). Fusionadas: de la #2 a la #11, la #13 y la #14.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
+
+## Novedades de la principal (2026-10-07)
+- **Fusionadas juntas** la #14, la #10, la #11 y la #13, en ese orden. Con las cuatro: lint, `tsc` y `api:check` limpios, y Vitest 2191/2192.
+- **PR #12** (`t56-editar`) chocaba en `web/HANDOFF.md` y `docs/KANBAN.md`: hecho el `git merge` de `PreProduccion` conservando ambos lados, Vitest 2375/2375 y push.
+- **`ResultScreen.pa325.test.tsx`** (de la #9) era la única que fallaba con todo junto, y a veces en `PreProduccion` (`test_simulated_story_has_no_keys_nor_links` y `test_published_suite_subtasks_are_text_when_browse_url_null`); sola pasaba siempre. Hay que hacerla determinista: entra en **PA-127**.
+- **Causa encontrada (PA-127):** con MSW 3 algunas peticiones se saltan la interceptación y salen a la red real (`fetch failed`); si le toca a `/auth/me`, la prueba arranca en el login. No es lentitud. Arreglo y plan en `t56-pruebas` (aviso en el issue #5 antes de tocar `package.json` y el setup de las pruebas).
 
 ## Novedades de la principal (2026-10-06)
 - **PA-331 hecha en la API:** iterar una suite aplica el cambio pedido y conserva los IDs de los casos que no cambian.
@@ -20,6 +26,7 @@
 **Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.
 
 ## Pulido final
+- **Prioritaria: PA-344** (Editar a mano): con el editor abierto, *Actualizar* o *Reintentar* tras un error al guardar pueden hacer perder los cambios sin avisar. Pasar antes por la confirmación del editor (`closeGuardRef`) o hacer *Actualizar* en lugar de reintentar tras un error de red; y la tarjeta «Abrir en el panel» mientras se edita.
 - **UI.md v2.0** (`docs/specs/UI.md`, PA-300, 2026-10-06) describe la web en React tal como está fusionada (ya con Revisar la calidad y PA-341). Hay que **actualizarla** cuando se fusionen:
   - **`ses-web-fixes`** (PA-332 a PA-336): 401 común (§7), «Aprobando y publicando…», Estrategia con formato (§6.3), alto de la app y `/start/sources` durante la generación;
   - **Editar a mano**: la parte A (`t56-editar`), la parte B y la **validación de PA-340**: §4.5 bis deja de ser «pendiente de validar» (y la pregunta de la suite de QA), y `/edit` en §9;
@@ -48,24 +55,31 @@
 - **Seguridad:** `safeHref` y su regla de ESLint (PA-308).
 - **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página ni títulos cortados; lista de conversaciones larga con scroll interno.
 - **Pruebas:** no dependen del reloj (SSE de prueba abierto, sondeo disparado por la prueba) y Vitest usa la mitad de los núcleos.
-- **Disponible pronto:** *Editar a mano*, auditoría, historial, *Ver la memoria*, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
+- **Disponible pronto:** *Editar a mano* (parte B en curso), auditoría, historial, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
 
 ## API real
-La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md), la guía única (`API-LOCAL.md` solo enlaza a ella). En este equipo no se monta el backend. Quiere probar el flujo de QA contra su API antes de fusionar la PR del bloque 5.
+**Hecha** por la sesión MCP (rama `ses-web`) el 2026-10-05 y 06: la web funciona contra la API real de punta a punta (HU, QA y Memoria). Informe y hallazgos en `docs/pruebas/WEB-API-2026-10-05.md` (PA-330 a PA-339). La guía sigue en [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md). En este equipo no se monta el backend.
 
 ## Sistema de entregas (confirmado por la principal, 2026-10-05)
-- **Una rama propia por bloque mientras la PR anterior siga abierta.** No hacer push a `area-b` mientras la #6 esté abierta: cualquier commit se añadiría a ella. El bloque siguiente va en `t56-qa-cobertura`; su PR se abre (`t56-qa-cobertura → PreProduccion`) cuando la #6 esté fusionada, o antes si la principal lo pide.
-- **Una PR pequeña por bloque terminado**, `area-b → PreProduccion`. **Antes de abrirla**, todo en verde:
+- **Cada bloque nuevo sale de `origin/PreProduccion` en su propia rama** (desde el 2026-10-06; ya no se encadenan ramas). Nunca push a una rama con PR abierta.
+- **Una PR pequeña por bloque terminado**, `<rama del bloque> → PreProduccion`. **Antes de abrirla**, todo en verde:
   - test-writer, spec-checker (CONFORME) y security-reviewer (APTO);
   - Vitest (la suite completa, sin otras sesiones cargando el equipo), lint, build y `npm run api:check`.
 - **Al cerrar cada bloque:** push y se prepara la PR (se abre la página en el navegador y la descripción va al portapapeles).
 - **Lo que no sea de una entrega va al issue #5:** fallos de la prueba con la API real, preguntas sobre PA y avisos de componentes compartidos.
 - **Al leer comentarios con la API de GitHub**, revisar el issue #5 y la última PR.
 
-## Cadena de ramas (mientras la PR #6 siga abierta)
-`area-b` (PR #6 → `PreProduccion`) → `t56-qa-cobertura` (contrato de QA, PR preparada) → `t56-memoria` (Memoria, cerrado; su PR se prepara cuando se fusione la de `t56-qa-cobertura`). Cada rama sale de la anterior y solo se hace push de la rama en curso.
-- **Al fusionarse una PR:** traer `origin/PreProduccion` a la siguiente rama de la cadena (`git merge`, nunca rebase), comprobar Vitest, lint, build y `api:check`, y preparar su PR (`<rama> → PreProduccion`).
-- **Si hay correcciones en una rama anterior** (p. ej. fallos de la #6 que pide la principal, que se corrigen en `area-b`): hacerlas allí y traerlas a las siguientes con `git merge`, por orden (`area-b` → `t56-qa-cobertura` → `t56-memoria`).
+## Ramas y reparto (confirmado por la principal, 2026-10-06)
+- **Ya no hay cadena de ramas.** `area-b`, `t56-qa-cobertura` y `t56-memoria` están fusionadas. Cada bloque nuevo: `git switch -c <rama> origin/PreProduccion`.
+- **Mío (responsable del área B):**
+  - **Editar a mano** (`POST /conversations/{id}/edit`; «Reglas para el frontend» de `docs/api/README.md`), rama `t56-editar`;
+  - la **parte web de PA-330** (presupuesto de Origen) cuando llegue la de la API (sesión Modelos);
+  - **revisar `ses-web-fixes`** antes de que se fusione;
+  - **PA-300** (UI.md al día).
+- **Sesión UI** (`ses-web-fixes`): PA-332 a PA-336. **No tocar mientras tanto:** `useGeneration`, `SessionProvider`, `client.ts` (401 y `signal`), `suiteText`/`SuiteViews`, Origen y el CSS de Iterar.
+- **Sesión MCP** (`ses-web-admin`): Administración mínima y después Revisar la calidad. **No tocar mientras tanto:** el final de `client.ts`, `types.ts`, `client.contract.ts`, `AppShell`, `screens/Admin/`, `App.test.tsx`, `AppShell.memoria.test.tsx` y `Rail.gaps.test.tsx`.
+- **Sesión Modelos** (`ses-qa-iterar`): PA-331 (iterar en QA aplica el cambio pedido) y la parte de la API de PA-330.
+- **`IterateScreen`:** no tocarlo hasta que se fusione `ses-web-fixes`, o avisar antes a la principal.
 
 ## Reglas de trabajo
 - **Responder siempre en español** (también los resúmenes, los informes y lo que se prepara para GitHub).
@@ -76,9 +90,9 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 
 ## Coordinación con otras sesiones (2026-10-05)
 - **Antes de tocar un componente compartido**, avisar a la persona responsable para que avise a la principal: `Composer`, `AppShell`, el panel y la cabecera (`Workspace`), los estados (`States`), la lista de conversaciones, los botones, y las pantallas que comparten la HU y QA (Inicio, Origen, Generando, Iterar, Recibo y Resultado).
-- **`client.ts` y `types.ts`** (y el resto de `web/src/api/`) los coordina **la sesión MCP** (rama `ses-web`). No tocarlos sin avisar antes.
+- **`client.ts` y `types.ts`** (y el resto de `web/src/api/`) los coordina **la sesión MCP**: ahora añade al final de `client.ts` los métodos de Administración y Calidad (`ses-web-admin`), y la sesión UI toca el 401 y `signal` (`ses-web-fixes`). No tocarlos sin avisar antes (ver «Ramas y reparto»).
 
-## Bloque «contrato de QA en la web» (hecho, rama `t56-qa-cobertura`)
+## Bloque «contrato de QA en la web» (fusionado en `PreProduccion`)
 - **PA-326 en Cobertura:** `uncovered` con `null` (o sin el campo) = «no se sabe»: sin distintivo, sin «Todos los CA cubiertos» y sin «cobertura validada». Listas vacías = «Todos los CA cubiertos». Con elementos = «1 CA y 1 RN sin caso», el aviso «Sin ningún caso: …» y filas «· Sin caso». Solo para la versión en revisión. Detalle en `DESIGN-DECISIONS.md` (QA 3).
 - **`coverage_md`:** botón *Descargar la matriz* (`matriz-<CLAVE>.md`); con `null`, no aparece. **Pieza reutilizable para Memoria:** `DownloadButton` (`src/components/Download/`) sobre `downloadText` (`src/security/download.ts`, nombres solo ASCII). ESLint prohíbe `createObjectURL` y asignar `href` fuera de ese archivo.
 - **PA-118:** `generate.mjs` copia `components.examples` a `examples.json` (`components.examples.<Nombre>`). El MSW usa `ConversationQaInReview` y los 4 pasos de QA; `qaSuite.ts` solo simula otra clave, iterar y publicar.
@@ -86,9 +100,9 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **PA-328:** recuentos con `countLabel` (`src/text/plural.ts`), también «1 fuente» en el modo HU de Iterar (cambio menor, en la descripción de la PR).
 - `?simular=sin-cubrir` y `?simular=cobertura-desconocida` en `web/README.md`.
 - **Issue #5:** avisado el cambio de `examples.json`.
-- **PR preparada** en el scratchpad de la sesión (`pr-descripcion-cobertura.md`): `t56-qa-cobertura → PreProduccion`. Se abre cuando se fusione la #6: antes, `git merge origin/PreProduccion` en `t56-qa-cobertura`, Vitest, lint, build y `api:check`.
+- Sin PR propia: entró con la fusión de `ses-web`.
 
-## Bloque Memoria (hecho, rama `t56-memoria`)
+## Bloque Memoria (fusionado en `PreProduccion`)
 - **Zona Memoria** en el carril para los tres roles (icono nuevo; admin sigue entrando en Ajustes). Lista con proyecto, búsqueda (300 ms) y `limit=200`, sin «Mostrar más»; detalle por secciones como texto, en el orden del `.md`, con *Descargar la memoria* (`DownloadButton`) e «Indexada»/«No indexada». Trabajo sigue montado (oculto) mientras se mira Memoria.
 - **Cliente** (`web/src/api/`, solo añadiendo, commits aparte y avisado en el issue #5): `api.memories`, `api.memory` (rechaza «.» y «..»), `MemorySummary`, `MemoryOut`.
 - ***Ver la memoria*** en el Resultado de la HU publicada (o en parte) abre Memoria con la clave; un 404 sale como su tarjeta de error.
@@ -109,12 +123,14 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
    - `publish_mode` de `GET /settings` en solo lectura, con el aviso «Simulación: no se escribe nada en Jira»;
    - usuarios, documentos e historial como «disponible pronto»;
    - diseño de la parte de Ajustes de «Propuesta v2» del lienzo, adaptada al estilo de la «Propuesta mixta».
-4. **Editar a mano.**
+4. **Editar a mano:** del responsable, en `t56-editar` (en curso).
 
 **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución) y el selector de modelo funcional.
 
 ## PA abiertas
-- **Adoptadas en `t56-qa-cobertura`:** PA-326, PA-327 (en la API simulada), PA-118 y PA-328.
+- **Adoptadas y fusionadas:** PA-326, PA-327 (en la API simulada), PA-118 y PA-328.
+- **De la prueba contra la API** (`docs/pruebas/WEB-API-2026-10-05.md`): PA-332 a PA-336 en la sesión UI; PA-331 y PA-330 (API) en la sesión Modelos; PA-330 (web), PA-337 a PA-339 sin asignar al área B.
+- **PA-329** (diseño de Memoria): pendiente de validar por la principal (notas enviadas en el issue #5).
 - **Del área B:**
   - PA-304 (lienzo: foco, Q con reducir movimiento y la fase de la suite en parte);
   - PA-310, PA-312 y PA-325.
@@ -123,7 +139,11 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 ## Siguiente
 **Tras PA-406 (`t56-sondeo`), el siguiente bloque es PA-335 ampliada:** el panel derecho se corta (con barra horizontal en el área de trabajo) cuando quedan menos de 1024 px útiles: 1024 al 125 %, y 1280 y 1440 al 150 %. Hay que corregir el diseño para que funcione con el escalado habitual de Windows. Medido el 2026-10-06 en Iterar (QA) con la API simulada; el hueco en blanco original no se reprodujo.
 
-1. **Cuando se fusione la #6:** traer `origin/PreProduccion` a `t56-qa-cobertura` y abrir su PR con la descripción preparada (se enseña y se copia al portapapeles). Después, lo mismo con `t56-memoria` (su PR, cuando se fusione la de `t56-qa-cobertura`).
-2. Después, por este orden: **Revisar la calidad**, **Administración mínima** y **Editar a mano** (detalle en «Alcance y orden tras el bloque 5»), cada bloque en su propia rama mientras haya PR abiertas.
+1. **Editar a mano** (`t56-editar`), en dos partes:
+   - **A, ya:** solo archivos nuevos (editor, validación, textos, handler del MSW y pruebas);
+   - **B, cuando se fusione `ses-web-fixes`:** conectarlo a `IterateScreen` y al cliente (`api.edit`, `EditIn`, `client.contract.ts`), registrar `editHandlers` en `createHandlers` con `runFor`, y «Editada a mano» en el historial del recibo.
+   - **Parte A hecha** (archivos nuevos): `src/screens/Edit/` (borrador, validación, hook y editor), `src/mocks/editHandler.ts` y `/?catalogo&editor`. PA-340 (diseño y pregunta de la suite) y PA-341 (formato de los diffs) para la principal.
+   - **Parte B hecha** (`t56-editar`, que trae `t56-anchos`: su PR va **después de la #11**): `api.edit` y `EditIn`, `editHandlers` con `runFor`, el editor en Iterar (también con el panel en capa: Esc y *Cerrar* piden confirmación con cambios), «Nota de la edición: …», lista recargada al guardar (`onEdited`) y «Versión N editada a mano» en el recibo. Pendiente: que la principal valide el diseño (PA-340) y decida si la suite de QA se edita a mano.
+2. Revisar `ses-web-fixes` cuando la sesión UI lo pida; la parte web de PA-330 cuando llegue la de la API; PA-300.
 
-Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. Esperar la confirmación del responsable antes de empezar Memoria.
+Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. No empezar ningún bloque sin la confirmación del responsable.

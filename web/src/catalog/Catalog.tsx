@@ -2,6 +2,7 @@ import { Icon, ICON_NAMES } from '../components/Icon/index.ts'
 import styles from './Catalog.module.css'
 import { CATALOG_SECTIONS, COLOR_GROUPS, LAYOUT, RADII, SPACES, TYPE_SCALE } from './catalogTokens.ts'
 import { ComponentsDemo } from './ComponentsDemo.tsx'
+import { EditorDemo } from './EditorDemo.tsx'
 import { QDemo } from './QDemo.tsx'
 import { ShellDemo } from './ShellDemo.tsx'
 import { StatesDemo } from './StatesDemo.tsx'
@@ -130,6 +131,8 @@ function IconsSection() {
 
 // Catálogo del sistema de diseño (T-56): revisión visual de todas las piezas, con datos sintéticos.
 export function Catalog() {
+  // `?catalogo&editor`: solo el editor de Editar a mano, a tamaño real (PA-340).
+  if (new URLSearchParams(window.location.search).has('editor')) return <EditorDemo />
   return (
     <main className={styles.page}>
       <header className={styles.header}>

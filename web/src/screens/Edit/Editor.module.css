@@ -1,0 +1,201 @@
+/* Editar a mano (PA-340): el formulario ocupa el cuerpo del panel derecho (se desplaza por dentro) y las acciones,
+   el pie del panel. Campos con el estilo de TextField: 44 px, borde fuerte, radio de botón. */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.fixed,
+.hint {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
+.rejected {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-error-border);
+  border-radius: var(--radius-md);
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  font-size: var(--text-xs);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.group > button {
+  align-self: flex-start;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--control-md);
+  padding: 8px var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  transition: border-color var(--dur-base) var(--ease);
+}
+
+textarea.input {
+  resize: vertical;
+}
+
+.input:hover {
+  border-color: var(--color-primary);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.issue {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-error-text);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.itemId {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.tools {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.more {
+  border-top: var(--border-width) solid var(--color-border-soft);
+  padding-top: var(--space-3);
+}
+
+.moreSummary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.moreBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Lo que falta y los avisos: como mucho unas líneas a la vista; el resto se desplaza. */
+.summary {
+  max-height: 96px;
+  overflow-y: auto;
+  font-size: var(--text-2xs);
+}
+
+.summary:empty {
+  display: none;
+}
+
+.summary ul {
+  margin: 2px 0 0;
+  padding-left: var(--space-4);
+}
+
+.blocking {
+  color: var(--color-error-text);
+}
+
+.warnings {
+  color: var(--color-warn-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.warning {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--color-warn-text);
+}
+
+/* Nota plegada en ventanas estrechas: un enlace que la despliega. */
+.addNote {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -18,6 +18,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from adapters.base import Message, TaskType
+from adapters.errors import ExternalServiceError
 from core.artifact_state import InMemoryArtifactStateStore
 from core.audit import InMemoryAuditTrail
 from core.container import Container
@@ -26,6 +27,7 @@ from core.functional.context import StoryContext
 from core.graph import Origin, build_graph, initial_state
 from core.graph.nodes import _pending_baseline_key
 from core.qa.validation import CoverageError
+from core.qa.writer import MissingCases
 from core.rag.prompts import load_prompt
 from schemas.artifact import Artifact
 from schemas.common import ArtifactStatus, ArtifactType, SourceRef
@@ -439,12 +441,24 @@ def test_publish_qa_partial_failure_keeps_baseline(tmp_path: Path) -> None:
 # --- 5 · CoverageError ------------------------------------------------------------------------
 
 
+def _uncovering_suite_without_negative(_messages: list[Message]) -> TestSuite:
+    """Suite con solo el caso positivo sobre CA-01: falta CA-02 y falta un caso negativo.
+
+    PA-426: el caso negativo que falta es un error que bloquea (reintento completo); el CA sin
+    caso, por sí solo, ya no lo es.
+    """
+    positive = renewal_test_suite().cases[0]
+    cited = [SourceRef(kind="jira", ref="DEMO-3")]
+    return renewal_test_suite().model_copy(update={"cases": [positive], "sources": cited})
+
+
 def test_generate_qa_raises_coverage_error_after_retry_without_offer_or_audit(
     tmp_path: Path,
 ) -> None:
-    """PA-61 · RF-24: sin cubrir un CA tras el reintento, `CoverageError` sale de `generate`."""
+    """PA-61 · RF-24 · PA-426: si tras el reintento de siempre sigue faltando un caso negativo (y
+    un CA), `CoverageError` sale de `generate`, sin reintento dirigido ni nada ofrecido."""
     llm = FakeLLMProvider()
-    llm.builders[TestSuite] = _uncovering_suite
+    llm.builders[TestSuite] = _uncovering_suite_without_negative
     container = fake_container(tmp_path, llm=llm)
     graph = build_graph(container)
     config = _config()
@@ -458,21 +472,48 @@ def test_generate_qa_raises_coverage_error_after_retry_without_offer_or_audit(
     assert tasks == [
         (UserStory, TaskType.EVOLVE_STORY),
         (TestSuite, TaskType.GENERATE_TESTS),
-        (TestSuite, TaskType.GENERATE_TESTS),  # reintento con tests_retry
+        (TestSuite, TaskType.GENERATE_TESTS),  # reintento con tests_retry (sin dirigido)
     ]
     retry_messages = llm.calls[-1]["messages"]
     assert retry_messages[-1].role == "user"
     assert "CA-02" in retry_messages[-1].content
+    assert "negativo" in retry_messages[-1].content
     _assert_nothing_offered_or_audited(container)
     state = graph.get_state(config)
     assert state.values.get("artifact") is None
     assert state.next == ("generate",)
 
 
-def test_generate_qa_recovers_when_retry_covers_story(tmp_path: Path) -> None:
-    """PA-61 · RF-24 (límite): si el reintento sí cubre la HU, se ofrece la suite corregida."""
+def test_generate_qa_only_missing_criterion_reaches_review_without_full_retry(
+    tmp_path: Path,
+) -> None:
+    """PA-426: si lo único que falla es un CA sin caso, no hay reintento completo ni
+    `CoverageError`: un reintento dirigido y, si no lo cubre, la suite llega a revisión."""
     llm = FakeLLMProvider()
-    responses = iter([_uncovering_suite, llm.builders[TestSuite]])  # el segundo, el del fake
+    llm.builders[TestSuite] = _uncovering_suite
+
+    def provider_down(_messages: list[Message]) -> TestSuite:
+        raise ExternalServiceError("Proveedor ficticio no disponible.", service="llm")
+
+    llm.builders[MissingCases] = provider_down
+    container = fake_container(tmp_path, llm=llm)
+    graph = build_graph(container)
+    config = _config()
+
+    payload = _payload(_start(graph, config))
+
+    assert [c["schema"] for c in llm.calls] == [UserStory, TestSuite, MissingCases]
+    assert len(_calls_for(container, "generate_tests")) == 1
+    assert payload["artifact"]["type"] == ArtifactType.TEST_SUITE.value
+    assert [e.action for e in _audit(container).recorded] == ["create"]
+
+
+def test_generate_qa_recovers_when_retry_covers_story(tmp_path: Path) -> None:
+    """PA-61 · RF-24 (límite): si el reintento sí cubre la HU, se ofrece la suite corregida
+    (PA-426: el primer intento falla también por no tener caso negativo)."""
+    llm = FakeLLMProvider()
+    # el segundo, el del fake
+    responses = iter([_uncovering_suite_without_negative, llm.builders[TestSuite]])
     llm.builders[TestSuite] = lambda m: next(responses)(m)
     container = fake_container(tmp_path, llm=llm)
     graph = build_graph(container)
@@ -485,6 +526,8 @@ def test_generate_qa_recovers_when_retry_covers_story(tmp_path: Path) -> None:
         "CP-01",
         "CP-02",
     }
+    # Cubierta tras el reintento de siempre: no hace falta el dirigido.
+    assert [c["schema"] for c in llm.calls] == [UserStory, TestSuite, TestSuite]
     actions = [e.action for e in _audit(container).recorded]
     assert actions == ["create"]
 

@@ -19,8 +19,16 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from adapters.base import LLMProvider, Message, TaskType
-from core.context.budget import ContextOverflowError, PromptLimits, default_prompt_limits
+from pydantic import BaseModel, Field
+
+from adapters.base import LLMProvider, Message, StructuredResult, TaskType
+from adapters.errors import ExternalServiceError
+from core.context.budget import (
+    ContextOverflowError,
+    PromptLimits,
+    default_prompt_limits,
+    estimate_messages,
+)
 from core.functional.citations import (
     CitationError,
     allowed_refs_text,
@@ -32,7 +40,13 @@ from core.functional.citations import (
 from core.functional.context import CitableSource, StoryContext, render_context
 from core.functional.writer import PromptLoader, fill_placeholders, fit_context
 from core.logging import get_logger
-from core.qa.validation import CoverageError, suite_errors
+from core.qa.validation import (
+    CoverageError,
+    blocking_errors,
+    missing_criteria,
+    personal_data_errors,
+    suite_errors,
+)
 from core.rag.prompts import load_prompt
 from core.text import escape_data  # PA-227
 from schemas.test_case import TestCase, TestSuite
@@ -54,6 +68,21 @@ class SuiteDraft:
     coverage_md: str = field(default="")
     previous_summarized: bool = False  # PA-331: la suite anterior no cabía y entró resumida
     previous_partial: bool = False  # PA-331: entró sin estrategia, datos ni fuentes
+    # PA-426: CA que siguen sin caso tras el reintento dirigido; la suite pasa a revisión con el
+    # aviso (`uncovered`) y el grafo no deja aprobarla hasta que se cubran.
+    uncovered_criteria: tuple[str, ...] = ()
+    targeted_retry: bool = False  # PA-426: se pidió el caso de los CA que faltaban
+
+
+MAX_CASES_PER_MISSING = 3  # PA-426: casos del reintento dirigido que se aceptan por CA
+
+
+class MissingCases(BaseModel):
+    """PA-426: salida del reintento dirigido: solo los casos nuevos."""
+
+    __test__ = False
+
+    cases: list[TestCase] = Field(min_length=1)
 
 
 # T-54: HU aprobada en simulación (sin clave de Jira). No tiene forma de clave, así que nunca se
@@ -131,8 +160,8 @@ class TestWriter:
         suite = keep_case_ids(_cited(_with_key(result.content, story_key), sources), previous_suite)
         input_tokens, output_tokens = result.input_tokens, result.output_tokens
 
-        errors = suite_errors(suite, story, sources)
-        if errors:
+        # PA-426: si lo único que falla es que faltan CA, no se regenera la suite entera.
+        if blocking_errors(suite, story, sources):
             retry_text = self._load("tests_retry").text
             suite_json = json.dumps(suite.model_dump(mode="json"), ensure_ascii=False)
             first = suite
@@ -178,11 +207,25 @@ class TestWriter:
                 raise CitationError(
                     f"La suite {problem}. Vuelve a generarla o revisa las fuentes disponibles."
                 )
-            if suite_errors(suite, story, sources):
+            if blocking_errors(suite, story, sources):
                 raise CoverageError(
                     "La suite de pruebas no cubre la HU: algún criterio no tiene casos, "
                     "faltan casos positivos o negativos, se referencian CA/RN inexistentes "
                     "o hay datos que parecen personales. Vuelve a generarla."
+                )
+        targeted = False
+        if missing := missing_criteria(suite, story):
+            filled = self._fill_missing(suite, story, missing, sources)
+            if filled is not None:
+                suite, extra = filled
+                targeted = True
+                input_tokens += extra.input_tokens
+                output_tokens += extra.output_tokens
+            if missing := missing_criteria(suite, story):
+                log.warning(
+                    "suite con criterios sin caso: pasa a revisión con el aviso",
+                    action="generate_tests",
+                    criteria=missing,  # solo IDs (CA-NN)
                 )
         suite = with_real_excerpts(suite, sources)
         return SuiteDraft(
@@ -195,7 +238,45 @@ class TestWriter:
             coverage_md=suite.coverage_md(),
             previous_summarized=level >= SUMMARY_LEVEL,
             previous_partial=level == PARTIAL_LEVEL,
+            uncovered_criteria=tuple(missing),
+            targeted_retry=targeted,
         )
+
+    def _fill_missing(
+        self,
+        suite: TestSuite,
+        story: UserStory,
+        missing: list[str],
+        sources: list[CitableSource],
+    ) -> tuple[TestSuite, StructuredResult[MissingCases]] | None:
+        """PA-426: reintento dirigido. Pide solo los casos de los CA que faltan y los añade a la
+        suite, numerados a continuación. `None` si no se pudo (no cabe o el proveedor falla): la
+        suite sigue a revisión con el aviso, sin perder el trabajo."""
+        prompt = self._load("tests_missing")
+        messages = [
+            Message(role="system", content=prompt.text),
+            Message(role="user", content=_missing_data(suite, story, missing)),
+        ]
+        if estimate_messages(messages) > self.limits.available(TaskType.GENERATE_TESTS):
+            log.warning("reintento dirigido omitido: no cabe", action="generate_tests_missing")
+            return None
+        try:
+            result = self._llm.generate_structured(messages, MissingCases, TaskType.GENERATE_TESTS)
+        except ExternalServiceError as exc:  # la cancelación (otro AgentError) sí se propaga
+            log.warning(
+                "reintento dirigido sin respuesta",
+                action="generate_tests_missing",
+                error=type(exc).__name__,
+            )
+            return None
+        accepted = [c for c in result.content.cases if _acceptable(c, suite, story, missing)]
+        accepted = accepted[: MAX_CASES_PER_MISSING * len(missing)]  # tope de casos añadidos
+        merged = _append_cases(suite, accepted)
+        # Se valida la suite completa: si algo fallara al fusionar, se queda la de antes.
+        if blocking_errors(merged, story, sources):
+            log.warning("reintento dirigido descartado", action="generate_tests_missing")
+            return suite, result
+        return merged, result
 
     def _request(self, ctx: StoryContext, previous: TestSuite | None) -> list[Message]:
         """PA-331: al iterar, la última petición repetida al final (como dato, escapada)."""
@@ -314,6 +395,59 @@ def _signature(case: TestCase) -> str:
 def _number(case_id: str) -> int:
     match = re.fullmatch(r"CP-(\d+)", case_id)
     return int(match.group(1)) if match else 0
+
+
+# --- Reintento dirigido (PA-426) ---------------------------------------------------------------
+
+
+def _missing_data(suite: TestSuite, story: UserStory, missing: list[str]) -> str:
+    """Datos del reintento dirigido: el texto de los CA que faltan, las RN y los IDs usados."""
+    wanted = [c for c in story.acceptance_criteria if c.id in missing]
+    criteria = "\n".join(
+        escape_data(
+            f"- {c.id}: {c.title}. Dado {'; '.join(c.given)}. Cuando {'; '.join(c.when)}. "
+            f"Entonces {'; '.join(c.then)}."
+        )
+        for c in wanted
+    )
+    rules = "\n".join(f"- {r.id}: {escape_data(r.description)}" for r in story.business_rules)
+    used = ", ".join(case.internal_id for case in suite.cases)
+    return (
+        f"<criterios_sin_caso>\n{criteria}\n</criterios_sin_caso>\n\n"
+        f"<reglas>\n{rules or '—'}\n</reglas>\n\n"
+        f"<ids_usados>\n{used}\n</ids_usados>"
+    )
+
+
+def _acceptable(case: TestCase, suite: TestSuite, story: UserStory, missing: list[str]) -> bool:
+    """Solo casos que verifican algún CA de los que faltan, sin IDs inventados ni datos que
+    parecen personales (el resto de la suite ya se validó)."""
+    criteria = {c.id for c in story.acceptance_criteria}
+    rules = {r.id for r in story.business_rules}
+    if not set(case.criterion_ids) <= criteria or not set(case.rule_ids) <= rules:
+        return False
+    if not set(case.criterion_ids) & set(missing):
+        return False
+    alone = suite.model_copy(
+        update={
+            "cases": [case],
+            "synthetic_data": [],
+            "risks": [],
+            "dependencies": [],
+            "impact_areas": [],
+            "strategy_md": "",
+        }
+    )
+    return not personal_data_errors(alone)
+
+
+def _append_cases(suite: TestSuite, cases: list[TestCase]) -> TestSuite:
+    """Añade los casos al final, numerados a continuación por código (sin fiarse del modelo)."""
+    next_number = max((_number(c.internal_id) for c in suite.cases), default=0) + 1
+    added = []
+    for offset, case in enumerate(cases):
+        added.append(case.model_copy(update={"internal_id": f"CP-{next_number + offset:02d}"}))
+    return suite.model_copy(update={"cases": [*suite.cases, *added]})
 
 
 def _cited(suite: TestSuite, sources: list[CitableSource]) -> TestSuite:

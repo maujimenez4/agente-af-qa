@@ -33,6 +33,7 @@ from core.impact.analysis import ImpactAnalyzer
 from core.impact.diff import diff_stories
 from core.logging import get_logger
 from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
+from core.qa.validation import missing_criteria
 from core.qa.writer import SuiteDraft, TestWriter
 from core.state_machine import transition
 from schemas.artifact import Artifact
@@ -44,6 +45,9 @@ from schemas.user_story import UserStory
 DECISIONS: tuple[Decision, ...] = ("iterate", "edit", "approve", "discard")
 # Respuestas rechazadas que una misma pausa de revisión admite antes de fallar (T-51).
 MAX_REVIEW_REJECTIONS = 20
+# PA-426: los bloqueos por cobertura no cuentan para el tope anterior, pero tienen el suyo, más
+# generoso: cada reanudación se repite entera al volver a reanudar (el historial no crece sin fin).
+MAX_COVERAGE_BLOCKS = 50
 # Campos que la edición manual no puede cambiar: atan el artefacto a su origen (trazabilidad).
 FIXED_ON_EDIT: dict[ArtifactType, tuple[str, ...]] = {
     ArtifactType.USER_STORY: ("jira_key", "internal_id"),
@@ -60,12 +64,21 @@ JIRA_KEY = ISSUE_KEY
 log = get_logger("core.graph")
 
 
+# PA-426: una suite de QA con algún CA sin caso llega a revisión, pero no se puede aprobar.
+MISSING_CASES = "Falta al menos un caso para {criteria}: pídeselo al agente antes de aprobar."
+COVERAGE_UNKNOWN = "No se puede comprobar la cobertura de esta suite; vuelve a generarla."
+
+
 class ReviewRejectedError(ValueError):
     """La respuesta de la persona no es válida; se le muestra el motivo y puede corregirla.
 
     Solo se lanza al validar la propia respuesta (decisión, huella, contenido editado), antes
     de cualquier efecto: al repetirse en la reanudación vuelve a fallar igual.
     """
+
+
+class CoverageBlockedError(ReviewRejectedError):
+    """PA-426: aprobar una suite con algún CA sin caso; no cuenta para `MAX_REVIEW_REJECTIONS`."""
 
 
 # T-54: en simulación la HU encadenada no tiene clave; sus casos no se pueden publicar.
@@ -492,10 +505,15 @@ class GraphNodes:
         # fallar sin efectos (se validan antes de registrar nada) y se llega a la nueva.
         # El registro de aprobaciones (ApprovalError) y cualquier otro fallo no se reintentan:
         # fallan cerrados.
-        for _ in range(MAX_REVIEW_REJECTIONS + 1):
+        # PA-426: en QA, si falta algún CA, aprobar se bloquea (iterar y editar, no).
+        coverage_block = self._coverage_block(state, config, artifact)
+        rejections = blocks = 0
+        while True:
             answer = interrupt(payload)
             try:
-                return self._apply_review(state, artifact, target, fingerprint, answer)
+                return self._apply_review(
+                    state, artifact, target, fingerprint, answer, coverage_block
+                )
             except ReviewRejectedError as exc:
                 payload = payload | {"error": str(exc)}
                 log.info(
@@ -504,10 +522,42 @@ class GraphNodes:
                     action="review_rejected",
                     artifact_id=str(artifact.id),
                 )
-        raise ValueError(
-            "Demasiadas respuestas rechazadas en esta revisión; descarta la conversación y "
-            "empieza de nuevo."
-        )
+                # PA-426: pulsar «Aprobar» con un CA sin caso no es un intento indebido: no
+                # cuenta para el tope, que protege de respuestas inválidas repetidas.
+                if isinstance(exc, CoverageBlockedError):
+                    blocks += 1
+                else:
+                    rejections += 1
+                if rejections > MAX_REVIEW_REJECTIONS or blocks > MAX_COVERAGE_BLOCKS:
+                    raise ValueError(
+                        "Demasiadas respuestas rechazadas en esta revisión; descarta la "
+                        "conversación y empieza de nuevo."
+                    ) from None
+
+    def _coverage_block(
+        self, state: AgentState, config: RunnableConfig | None, artifact: Artifact
+    ) -> str | None:
+        """PA-426: motivo por el que no se puede aprobar la suite (un CA sin caso), o `None`.
+
+        La HU de origen es la que el grafo ya tiene: la de la entrega (QA encadenada) o la versión
+        de partida guardada. Si no se puede leer, se bloquea igualmente (falla cerrado).
+        """
+        suite = artifact.content
+        if state["mode"] != "qa" or not isinstance(suite, TestSuite):
+            return None
+        try:
+            story = self._chained_story(state, config)
+            if story is None:
+                saved = (self.c.state_store.load(str(artifact.id)) or {}).get("baseline")
+                story = UserStory.model_validate(saved) if saved else None
+        except Exception as exc:  # cualquier fallo al leerla: no se aprueba sin comprobar
+            log.warning("cobertura sin comprobar", action="review", error=type(exc).__name__)
+            story = None
+        if story is None:
+            return COVERAGE_UNKNOWN
+        if missing := missing_criteria(suite, story):
+            return MISSING_CASES.format(criteria=", ".join(missing))
+        return None
 
     def _apply_review(
         self,
@@ -516,6 +566,7 @@ class GraphNodes:
         target: PublishTarget,
         fingerprint: str,
         answer: object,
+        coverage_block: str | None = None,
     ) -> dict[str, Any]:
         """Aplica la decisión de la persona; `ValueError` si no es válida (se le muestra)."""
         if not isinstance(answer, dict):
@@ -532,6 +583,8 @@ class GraphNodes:
             )
         if decision == "approve" and target.mode == "qa" and not target.origin_key:
             raise ReviewRejectedError(UNPUBLISHED_STORY)  # T-54: nada se registra
+        if decision == "approve" and coverage_block:
+            raise CoverageBlockedError(coverage_block)  # PA-426: nada se registra
         if decision == "edit":
             if answer.get("fingerprint") != fingerprint:
                 raise ReviewRejectedError(

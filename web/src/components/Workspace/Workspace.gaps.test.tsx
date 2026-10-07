@@ -13,15 +13,16 @@ function renderWorkspace() {
 }
 
 describe('Plegar el panel derecho: huecos (DESIGN-DECISIONS.md §4 bis)', () => {
-  it('el botón cambia de texto y no lleva aria-pressed ni aria-expanded', async () => {
+  // PA-335 (decisión del responsable del área B, 2026-10-06): el botón lleva `aria-expanded`, también fuera de la capa.
+  it('el botón cambia de texto, lleva aria-expanded y no aria-pressed', async () => {
     renderWorkspace()
     const toggle = screen.getByRole('button', { name: 'Ocultar el panel' })
     expect(toggle).not.toHaveAttribute('aria-pressed')
-    expect(toggle).not.toHaveAttribute('aria-expanded')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
     await userEvent.click(toggle)
     expect(toggle).toHaveAccessibleName('Mostrar el panel')
     expect(toggle).not.toHaveAttribute('aria-pressed')
-    expect(toggle).not.toHaveAttribute('aria-expanded')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('el botón va en la cabecera a la derecha de la Q de fase, y no hay otro en la cabecera del panel', () => {

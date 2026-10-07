@@ -68,6 +68,7 @@ La prueba la hace **la principal en su equipo** con [PRUEBA-API-REAL.md](PRUEBA-
 - **Si hay correcciones en una rama anterior** (p. ej. fallos de la #6 que pide la principal, que se corrigen en `area-b`): hacerlas allí y traerlas a las siguientes con `git merge`, por orden (`area-b` → `t56-qa-cobertura` → `t56-memoria`).
 
 ## Reglas de trabajo
+- **Responder siempre en español** (también los resúmenes, los informes y lo que se prepara para GitHub).
 - `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.
 - Commits `T-56: … [RNF-15]`. Parada para revisión visual en cada pantalla; revisiones al cerrar cada bloque. Kanban: solo mis filas y el registro diario. No tocar `app/`.
 - Cada PR, issue o comentario se enseña antes y se copia al portapapeles (UTF-8).

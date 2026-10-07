@@ -35,6 +35,13 @@ Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de 
 
 Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar** (generar e iterar) · **3 Revisión** (recibo, aprobada) · **4 Publicado**.
 
+**Ventanas estrechas (PA-335).** Con menos de 1024 px CSS útiles (el escalado habitual de Windows: 1024 al 125 %, y 1280 y 1440 al 150 %), no hay barra horizontal ni controles cortados:
+- La **lista de conversaciones** se pliega en una franja de 48 px con el botón «Conversaciones» (solo icono, con su nombre accesible y su tooltip) y se abre como capa junto a ella.
+- Si el área de trabajo mide menos de 680 px (p. ej. 1024 al 150 %), el **panel derecho** se abre como capa sobre la conversación, con *Mostrar el panel* y un botón *Cerrar* (×) en su cabecera.
+- Las dos capas se comportan como un diálogo: el foco entra al abrirlas y vuelve al botón al cerrarlas; se cierran con Esc, con un clic fuera o si el foco sale de ellas (así nunca quedan dos abiertas); Tab no sale de ellas. Los botones llevan `aria-expanded`.
+- Un título recortado con «…» se ve completo al pasar el ratón.
+- Por encima de 1024 px, nada cambia.
+
 ### 2.1 Inicio de sesión (PA-311)
 Pantalla mínima con las piezas del sistema (no está en el lienzo; se mantiene por decisión de la principal).
 

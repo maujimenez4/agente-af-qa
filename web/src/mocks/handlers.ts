@@ -51,9 +51,28 @@ const API = '/api/v1'
 export const MOCK_BUDGET_LIMIT = 6000
 const MOCK_TOKENS: Record<SourcePreview['kind'], number> = { jira: 900, rag: 450, memory: 550 }
 
-function mockBudget(sources: readonly SourcePreview[]): SourcesOut['budget'] {
-  const used = sources.reduce((total, source) => total + (MOCK_TOKENS[source.kind] ?? 400), 0)
-  return { used: Math.min(used, MOCK_BUDGET_LIMIT), limit: MOCK_BUDGET_LIMIT, dropped_sources: 0, truncated_sources: 0 }
+/** PA-330: tokens estimados de cada fuente, como `SourcePreview.tokens` (por tipo en la API simulada). */
+const tokensOf = (source: SourcePreview) => MOCK_TOKENS[source.kind] ?? 400
+
+/**
+ * PA-330: al excluir un documento del RAG, otro relacionado «rellena su hueco» (como el RAG real): la confirmación ya no
+ * coincide con la estimación de la web. Pesa menos que el excluido, así que el uso sigue bajando.
+ */
+export const MOCK_REFILL_TOKENS = 200
+
+/** PA-330: lo que ocupa el texto de una necesidad nueva aparte de las fuentes (`fixed`); `total = fixed + limit`. */
+export const MOCK_NEED_FIXED_TOKENS = 300
+
+function mockBudget(sources: readonly SourcePreview[], refill = 0, fixed = 0): SourcesOut['budget'] {
+  const used = sources.reduce((total, source) => total + tokensOf(source), 0) + refill
+  return {
+    used: Math.min(used, MOCK_BUDGET_LIMIT),
+    limit: MOCK_BUDGET_LIMIT,
+    dropped_sources: 0,
+    truncated_sources: 0,
+    fixed,
+    total: fixed + MOCK_BUDGET_LIMIT,
+  }
 }
 
 const MOCK_SOURCES: SourcePreview[] = [
@@ -383,8 +402,14 @@ export function createHandlers(db: MockDb) {
             ]
           : []
         // Como core/guided_start.py: las excluidas no se reúnen (ni salen ni cuentan en el presupuesto).
-        const sources = [...required, ...MOCK_SOURCES].filter((source) => source.required || !excluded.includes(source.ref))
-        const body: SourcesOut = { sources, budget: mockBudget(sources) }
+        const sources = [...required, ...MOCK_SOURCES]
+          .filter((source) => source.required || !excluded.includes(source.ref))
+          .map((source) => ({ ...source, tokens: tokensOf(source) }))
+        const refill = MOCK_SOURCES.some((source) => source.kind === 'rag' && excluded.includes(source.ref)) ? MOCK_REFILL_TOKENS : 0
+        const fixed = origin.kind === 'need' ? MOCK_NEED_FIXED_TOKENS : 0
+        // Con exclusiones, la consulta tarda un poco (con la API real, 17–35 s): se ve la estimación antes de la confirmación.
+        if (excluded.length > 0 && db.stepDelayMs > 0) await delay(db.stepDelayMs)
+        const body: SourcesOut = { sources, budget: mockBudget(sources, refill, fixed) }
         return HttpResponse.json(body as JsonBodyType)
       }),
     ),

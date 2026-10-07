@@ -44,7 +44,8 @@ export function Rail({ userRole, username, active, onNavigate, onLogout, usage }
       <div className={styles.spacer} />
 
       {view && (
-        <div className={styles.usage} role="img" aria-label={view.label}>
+        // El `title` repite el nombre accesible: al pasar el ratón se lee qué mide (decisión 17).
+        <div className={styles.usage} role="img" aria-label={view.label} title={view.label}>
           <svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true" focusable="false">
             <circle className={styles.usageTrack} cx="18" cy="18" r={USAGE_RADIUS} fill="none" strokeWidth="4" />
             <circle
@@ -62,7 +63,7 @@ export function Rail({ userRole, username, active, onNavigate, onLogout, usage }
           </svg>
           <span className={`${styles.usageText} tabular-nums`} aria-hidden="true">
             {view.percent}&nbsp;%
-            <span className={styles.usageScope}>instalación</span>
+            <span className={styles.usageScope}>consumo total</span>
           </span>
         </div>
       )}

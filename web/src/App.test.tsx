@@ -26,10 +26,10 @@ describe('App', () => {
     expect(await within(list).findByRole('button', { name: /Evolucionar DEMO-3/ })).toBeInTheDocument()
   })
 
-  it('el carril muestra el consumo de hoy de la instalación', async () => {
+  it('el carril muestra el consumo total de hoy', async () => {
     signIn('af-demo', 'functional')
     render(<App />)
-    expect(await screen.findByRole('img', { name: /Consumo de tokens de hoy de toda la instalación: 42.000 de 180.000/ })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000/ })).toBeInTheDocument()
   })
 
   it('admin ve los Ajustes (Administración mínima) y no tiene lista de conversaciones', async () => {

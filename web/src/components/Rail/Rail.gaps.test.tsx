@@ -9,7 +9,7 @@ import { mockDb } from '../../mocks/node.ts'
 import { Rail } from './Rail.tsx'
 import { usageView } from './railItems.ts'
 
-const RING = /Consumo de tokens de hoy de toda la instalación/
+const RING = /Consumo de tokens de hoy de todas las personas que usan el agente/
 
 function signIn(role: 'functional' | 'qa' | 'admin') {
   const username = { functional: 'af-demo', qa: 'qa-demo', admin: 'admin-demo' }[role]
@@ -21,14 +21,17 @@ afterEach(() => {
 })
 
 describe('Rail en la app: anillo de consumo (decisión 17, PA-305)', () => {
-  it('test_ring_name_says_whole_installation_not_person', async () => {
-    /** Criterio 5: el nombre accesible y el texto visible hablan de la instalación, no de la persona. */
+  it('test_ring_name_says_everyone_not_own_consumption', async () => {
+    /** Criterio 5: el nombre accesible y el texto visible hablan del consumo de todas las personas, no del propio. */
     signIn('qa')
     render(<App />)
     const ring = await screen.findByRole('img', { name: RING })
-    expect(ring).toHaveAccessibleName('Consumo de tokens de hoy de toda la instalación: 42.000 de 180.000, 23 % del umbral de aviso')
-    expect(ring).toHaveTextContent('instalación')
-    expect(ring.getAttribute('aria-label')).not.toMatch(/\btu\b|\btuyo\b|persona|usuario/i)
+    expect(ring).toHaveAccessibleName('Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso')
+    expect(ring).toHaveTextContent('consumo total')
+    // El tooltip (`title`) dice lo mismo que el nombre accesible.
+    expect(ring).toHaveAttribute('title', 'Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso')
+    // «todas las personas» sí; nada que suene al consumo propio («tu», «tus», «tuyo», «persona», «usuario»).
+    expect(ring.getAttribute('aria-label')).not.toMatch(/\btus?\b|\btuyo\b|\bpersona\b|\busuario\b/i)
   })
 
   it('test_ring_warns_at_threshold_from_api', async () => {

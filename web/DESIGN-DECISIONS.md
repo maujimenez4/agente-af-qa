@@ -24,7 +24,7 @@ Decidido el 2 de octubre de 2026.
 | 14 | Fuentes | Solo DM Sans. IBM Plex Mono no se usa. Cifras con `font-variant-numeric: tabular-nums` |
 | 15 | Casillas | Naranja (`accent-color`) para elegir fuentes y tipos de caso. Verde para confirmar operaciones del recibo |
 | 16 | Historial en el carril | **Solo `admin`**, como dice UI.md §3 (PA-62), aunque el lienzo lo muestre a todos. Confirmado por la principal (PA-302): en el carril aparece como **«disponible pronto»**, porque T-45 es Could y no está en el contrato |
-| 17 | Anillo de consumo de tokens del carril | Dato de `GET /api/v1/settings/usage` (`tokens_today`, `warning_threshold`, `scope: "global"`, PA-305). Es el consumo **de toda la instalación** en el día, no de la persona: el texto visible («24 %» con «instalación» debajo) y el nombre accesible («Consumo de tokens de hoy de toda la instalación: …») lo dicen (§4 bis). Aviso desde `warning_threshold`. Con 503 u otro error, o sin dato, el anillo no se pinta |
+| 17 | Anillo de consumo de tokens del carril | Dato de `GET /api/v1/settings/usage` (`tokens_today`, `warning_threshold`, `scope: "global"`, PA-305). Es el consumo **de toda la instalación** en el día (de todas las personas que usan el agente), no el de quien mira: el texto visible («24 %» con «consumo total» debajo; «instalación» resultaba ambiguo, decisión del responsable del 2026-10-07) y el nombre accesible, repetido como tooltip (`title`), («Consumo de tokens de hoy de todas las personas que usan el agente: …») lo dicen (§4 bis). Aviso desde `warning_threshold`. Con 503 u otro error, o sin dato, el anillo no se pinta |
 
 ## 2. Otras decisiones
 
@@ -249,8 +249,8 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Selector de modelo del compositor:** solo lectura («Modelo automático» o el que fije la sesión) hasta Iterar.
 - **Compositor** (Inicio, Origen, Generando, Iterar y, cuando llegue, QA): Intro envía, igual que la flecha; Mayús + Intro hace un salto de línea; Ctrl/Cmd + Intro siguen enviando. No envía con el texto vacío o solo con espacios, desactivado, con «Detener» a la vista ni durante una composición (`isComposing` o `keyCode` 229: acentos e IME). Un envío por pulsación: Intro repetido o un doble clic no envían dos veces; si nada cambia (p. ej. falló el envío), vuelve a enviar pasado 1 s. La ayuda «Intro para enviar, Mayús+Intro para nueva línea» se ve bajo el cuadro (en el margen que ya había, sin cambiar la altura) y forma parte del nombre accesible; desactivado, no se muestra.
 - **Anillo de consumo:**
-  - en el carril, «24 %» y debajo «instalación». El porcentaje es `tokens_today / warning_threshold`, acotado a 100;
-  - nombre accesible: «Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 25 % del umbral de aviso».
+  - en el carril, «24 %» y debajo «consumo total» (una línea: 67 px de los 72 útiles del carril, también al 125 y al 150 %). El porcentaje es `tokens_today / warning_threshold`, acotado a 100;
+  - nombre accesible, y el mismo texto como tooltip (`title`): «Consumo de tokens de hoy de todas las personas que usan el agente: 12.345 de 50.000, 25 % del umbral de aviso».
   - se vuelve a pedir al cargar y cada 60 s (`USAGE_REFRESH_MS`): el consumo cambia despacio y no hace falta más precisión.
 
 ## 5. Textos de la lista de conversaciones

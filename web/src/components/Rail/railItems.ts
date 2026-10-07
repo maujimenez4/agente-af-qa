@@ -62,7 +62,7 @@ export function usageView(usage: UsageToday | undefined): UsageView | undefined 
   return {
     percent,
     warning: tokens >= threshold,
-    label: `Consumo de tokens de hoy de toda la instalación: ${formatNumber(Math.max(tokens, 0))} de ${formatNumber(threshold)}, ${percent} % del umbral de aviso`,
+    label: `Consumo de tokens de hoy de todas las personas que usan el agente: ${formatNumber(Math.max(tokens, 0))} de ${formatNumber(threshold)}, ${percent} % del umbral de aviso`,
   }
 }
 

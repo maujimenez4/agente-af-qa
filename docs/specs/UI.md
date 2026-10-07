@@ -133,7 +133,7 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 |---|---|---|---|
 | Resumen del asistente | Compuesto en la web, sin LLM: «Versión 2 lista. CA-02: … Afecta también a DEMO-2 (…)» y, si las hay, «Quedan N preguntas abiertas» | — | `changes_from_previous`, `impact`, `open_questions` |
 | Mensaje de cambio | El usuario pide un cambio (RF-20) | Enviar | `POST /iterate` (202) |
-| Indicador | **«Escribiendo la respuesta»** con la Q animada; la respuesta se escribe letra a letra | — | SSE |
+| Indicador | **«Generando una nueva versión…»** con la Q animada mientras se genera (PA-430; «Deteniendo la generación…» tras *Detener*); después, el resumen se escribe letra a letra | — | SSE |
 | Aviso de modelo usado | «Generado con local · qwen3:4b-instruct · 2 fuentes» | — | `Artifact.model_used`. El motivo de un cambio de proveedor no lo expone el backend (PA-67) |
 | Sugerencias | Chips: «Añade un criterio de error», «Aclara el alcance», «Revisa INVEST» | Rellenar el compositor | — |
 | Panel · Versiones | *Jira* (solo al evolucionar) · *v1* · *v2* … | Ver una versión | `ConversationOut.versions`, `jira_baseline` (PA-316) |
@@ -257,7 +257,7 @@ Panel «Suite de pruebas» (540 px).
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Conversación | Resumen sin LLM («Suite lista: 4 casos y todos los CA cubiertos. Riesgo: …»), peticiones de cambio, «Escribiendo la respuesta», sugerencias | `POST /iterate` | RF-20 (que la v2 aplique el cambio pedido es PA-331) |
+| Conversación | Resumen sin LLM («Suite lista: 4 casos y todos los CA cubiertos. Riesgo: …»), peticiones de cambio, «Generando una nueva versión…», sugerencias | `POST /iterate` | RF-20 (que la v2 aplique el cambio pedido es PA-331) |
 | Panel · Estado | Versiones *v1*, *v2*; distintivo de cobertura (abajo) | — | `ReviewPayload.uncovered` (PA-326) |
 | Pestaña **Casos** | Por caso: id, título, tipo, prioridad, «Verifica CA-01, RN-01», precondiciones, pasos, marca «Nuevo en v2» y su **Gherkin** desplegable | — | `TestSuite` (RF-23) |
 | Pestaña **Cobertura** | Matriz CA/RN × CP (RF-24) «se adjunta como matriz-DEMO-3.md» y *Descargar la matriz* (si la API trae `coverage_md`) | Descargar | `coverage_md`, `uncovered` (PA-326) |
@@ -309,7 +309,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 | Vacío | Sin conversaciones | Lista vacía con «Nueva conversación» | — |
 | Vacío | Memoria | §4.9 | — |
 | Cargando | Generando, QA 2 | Q de carga por pasos (§8) | — |
-| Cargando | Iterar | «Escribiendo la respuesta» (§8) | — |
+| Cargando | Iterar | «Generando una nueva versión…» (§8) | — |
 
 **Errores:** tarjeta con un título según `ErrorBody.code` y el **mensaje de la API tal cual**. La lista completa (28 códigos, con su tono y su acción) está en `web/DESIGN-DECISIONS.md` §6; un código desconocido usa «No se pudo completar la acción». Los más frecuentes:
 
@@ -338,7 +338,7 @@ Todas responden a una acción o a un proceso real, duran ≤ 0,42 s salvo la car
 |---|---|---|---|---|
 | 1 | **Q de fase** | La Q de la cabecera sube un cuarto al pasar de fase (0,42 s); al bajar de fase, anima desde la anterior | SVG con `clipPath` y transición CSS | Q rellena hasta la fase, sin transición |
 | 2 | **Q de carga por pasos** | Durante la generación: llena un cuarto con `load_origin`, otro con `retrieve_context` y el tercero con `generate`; mientras `generate` está en curso, se anima **dentro** del tercer cuarto; `review_ready` la llena | SVG que sigue los eventos `progress` del SSE | Los cuartos hechos, sin movimiento; la lista marca el paso en curso |
-| 3 | **Q de «escribiendo»** | Mientras llega la respuesta en el chat | SVG + CSS con «Escribiendo la respuesta» (`role="status"`) | Texto sin animación |
+| 3 | **Q de «generando»** | Mientras se genera la versión nueva tras pedir un cambio | SVG + CSS con «Generando una nueva versión…» (`role="status"`, PA-430) | Texto sin animación |
 | 4 | **Escritura de la respuesta** | La respuesta (completa, sin streaming) se escribe letra a letra, como mucho 1,5 s | Solo visual (`aria-hidden`); el texto completo se anuncia una vez | Texto completo de inmediato |
 | 5 | **Entrada escalonada de la versión nueva** | Los CA entran con un pequeño retardo y el cambiado se resalta | CSS con `animation-delay` | Marcas «Cambiado en vN» / «Nueva» sin animación |
 | 6 | **Recibo con casillas** | Cada casilla confirma su operación; el botón se activa al completar | Casillas nativas y transición de color | Igual, sin transición |

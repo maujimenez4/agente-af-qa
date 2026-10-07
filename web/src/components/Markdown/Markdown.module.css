@@ -39,6 +39,10 @@
   border: var(--border-width) solid var(--color-border-soft);
   text-align: left;
   vertical-align: top;
+  /* PA-131: `anywhere` (de .blocks) deja que la columna encoja hasta una letra y parte «Renovaci/ones» en ventanas
+     estrechas; con `break-word` la columna mide al menos su palabra más larga y la tabla se desplaza en .tableWrap. Mismo
+     criterio que la tabla de Datos y riesgos a 1024. */
+  overflow-wrap: break-word;
 }
 
 .table th {

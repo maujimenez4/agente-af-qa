@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
@@ -12,7 +12,7 @@ import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useGeneration } from '../Generating/useGeneration.ts'
 import { modelLabel, proposalVersions } from '../Iterate/iterateText.ts'
 import styles from './Receipt.module.css'
-import { aiNotice, receiptOperations, reviewedCounter } from './receiptText.ts'
+import { aiNotice, MISSING_CASES_REASON, missingCasesLabel, receiptOperations, reviewedCounter } from './receiptText.ts'
 import { editedVersions } from '../Edit/editText.ts'
 
 export interface ReceiptScreenProps {
@@ -83,6 +83,11 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   const story = suite ? undefined : (review?.artifact.content as UserStory | undefined)
   const operations = review && (story || suite) ? receiptOperations(review.plan, review.version, story?.title ?? '', review.impact) : []
   const allChecked = operations.length > 0 && operations.every((operation) => checked.has(operation.id))
+  // Un CA sin caso bloquea la aprobación de la suite (las RN sin caso solo avisan, en Cobertura y el historial).
+  // Lo decide el backend: si se aprueba igualmente, su rechazo llega en `review.error` y se muestra tal cual.
+  const coverage = suite && review ? suiteCoverage(review.uncovered) : UNKNOWN_COVERAGE
+  const missingCases = coverage.kind === 'gaps' ? missingCasesLabel(coverage.criteria) : undefined
+  const missingId = useId()
   const title = suite ? qaHeaderTitle(conversationTitle(conversation.title)) : conversationTitle(conversation.title)
 
   const toggle = (id: string) =>
@@ -115,7 +120,7 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
   }
 
   const approve = async () => {
-    if (!review || !allChecked || busy) return
+    if (!review || !allChecked || busy || missingCases) return
     // `busy` se pinta en el acto: un segundo clic ya encuentra el botón desactivado (un solo POST /approve).
     flushSync(() => {
       setError(undefined)
@@ -248,6 +253,14 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
           </fieldset>
         )}
 
+        {missingCases && (
+          <div id={missingId}>
+            <Notice>
+              <b>{missingCases}.</b> {MISSING_CASES_REASON}
+            </Notice>
+          </div>
+        )}
+
         <p className={styles.notice}>{aiNotice((suite ?? story)?.sources.length ?? 0, Boolean(suite))}</p>
 
         {publishing && <Publishing key={publishing.id} conversation={publishing} onSettled={settle} onFailed={publishFailed} />}
@@ -274,7 +287,12 @@ export function ReceiptScreen({ conversation: initial, onBack, onDone, onDiscard
               {suite ? 'Volver a la suite' : 'Volver a la propuesta'}
             </Button>
             <span className={styles.spacer} />
-            <Button variant="primary" disabled={!allChecked || busy || failed || Boolean(publishing)} onClick={() => void approve()}>
+            <Button
+              variant="primary"
+              disabled={!allChecked || busy || failed || Boolean(missingCases) || Boolean(publishing)}
+              aria-describedby={missingCases ? missingId : undefined}
+              onClick={() => void approve()}
+            >
               Aprobar y publicar
             </Button>
           </div>

@@ -281,11 +281,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const shownCoverage = shown ? coverageOf(shown.version) : UNKNOWN_COVERAGE
   const shownCoverageMd = conversation.review && shown?.version === conversation.review.version ? conversation.review.coverage_md : null
   const badge = coverageBadge(shownCoverage)
-  // Un CA sin caso bloquea la aprobación en el recibo; aquí se avisa (versión en revisión) y se sugiere pedirlo.
+  // Un CA sin caso bloquea la aprobación en el recibo; aquí se avisa (de la versión en revisión) y se sugiere pedirlo.
   // *Revisar y aprobar* sigue activo: el recibo explica el bloqueo (decisión del responsable, 2026-10-07).
   const reviewCoverage = conversation.review ? coverageOf(conversation.review.version) : UNKNOWN_COVERAGE
   const missingCriteria = reviewCoverage.kind === 'gaps' ? reviewCoverage.criteria : []
-  const shownMissing = shownCoverage.kind === 'gaps' ? missingCasesLabel(shownCoverage.criteria) : undefined
+  // Del CA sin caso de la versión en revisión, que es la que se aprueba, aunque se esté mirando otra (security-reviewer).
+  const shownMissing = missingCasesLabel(missingCriteria)
   const missingId = useId()
   const qaSuggestions = [addCasesSuggestion(missingCriteria), ...QA_SUGGESTIONS].filter((item): item is string => Boolean(item))
   const tabs: { id: PanelTab; label: string }[] = suite

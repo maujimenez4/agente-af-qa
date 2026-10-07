@@ -3,8 +3,9 @@
 // provocan. Datos sintéticos (DEMO-3, qa-demo, CA-03 y RN-03 ficticios).
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { mockDb } from '../../mocks/node.ts'
+import { mockDb, mockServer } from '../../mocks/node.ts'
 import { MOCK_UNCOVERED, mockSuiteConversation, nextSuiteVersion } from '../../mocks/qaSuite.ts'
 import type { TestSuite } from '../../api/types.ts'
 import { openSuiteInReview } from '../../test/qaFlow.tsx'
@@ -81,6 +82,38 @@ describe('QA 3 · recorrido completo con ?simular=sin-cubrir', () => {
     // El Resultado de la suite (simulado): ya no queda el recibo.
     expect((await screen.findAllByText(/simulada/i)).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Aprobar y publicar' })).not.toBeInTheDocument()
+  })
+})
+
+describe('QA 3 · el aviso es de la versión en revisión (security-reviewer)', () => {
+  it('test_notice_stays_while_viewing_an_earlier_version_when_review_has_missing_case', async () => {
+    // La v2 llega con CA-03 sin caso (el siguiente SSE se sustituye); al mirar la v1, el aviso y la descripción de
+    // *Revisar y aprobar* siguen: el botón aprueba la versión en revisión, no la que se mira.
+    mockDb.forceCoverage = 'gaps'
+    await openSuiteInReview()
+    mockServer.use(
+      http.get(
+        '/api/v1/conversations/:id/events',
+        () => {
+          const run = [...mockDb.runs.values()].find((item) => item.conversation.mode === 'qa')
+          if (!run?.previous) throw new Error('No hay una iteración de QA en curso')
+          const next = nextSuiteVersion(run.previous, 'Añade un caso de excepción')
+          if (next.review) next.review.uncovered = { criteria: ['CA-03'], rules: [] }
+          run.previous = undefined
+          run.script = []
+          run.conversation = { ...next, state: 'in_review' }
+          return new HttpResponse(`event: review_ready\ndata: ${JSON.stringify(run.conversation)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } })
+        },
+        { once: true },
+      ),
+    )
+    await userEvent.click(within(suggestions()).getByRole('button', { name: 'Añade un caso de excepción' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(await within(panel()).findByRole('tab', { name: 'Casos (5)' })).toBeInTheDocument()
+    await userEvent.click(within(within(panel()).getByRole('group', { name: 'Versiones' })).getByRole('button', { name: 'Versión 1' }))
+    expect(within(panel()).getByRole('tab', { name: 'Casos (4)' })).toBeInTheDocument()
+    expect(within(panel()).getByRole('note')).toHaveTextContent(NOTICE)
+    expect(within(panel()).getByRole('button', { name: 'Revisar y aprobar' })).toHaveAccessibleDescription(NOTICE)
   })
 })
 

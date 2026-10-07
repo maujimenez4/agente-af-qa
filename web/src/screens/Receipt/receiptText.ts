@@ -101,6 +101,6 @@ export function missingCasesLabel(criteria: readonly string[]): string | undefin
   return criteria.length === 1 ? `Falta un caso para ${criteria[0]}` : `Faltan casos para ${LIST.format(criteria)}`
 }
 
-/** Por qué no se puede aprobar: va visible junto a los botones y como descripción de *Aprobar y publicar*. */
+/** Por qué no se puede aprobar: va visible bajo las operaciones y como descripción de *Aprobar y publicar*. */
 export const MISSING_CASES_REASON =
   'Cada CA de la HU necesita al menos un caso para aprobar la suite. Vuelve a la suite y pide un caso que lo verifique.'

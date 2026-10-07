@@ -41,6 +41,8 @@ afterEach(() => {
 afterAll(async () => {
   const limit = Date.now() + DRAIN_LIMIT_MS
   while (inFlight > 0 && Date.now() < limit) await new Promise((resolve) => setTimeout(resolve, 10))
+  // Que no pase sin verse: lo que siga en curso al cerrar MSW podría salir a la red.
+  if (inFlight > 0) console.warn(`PA-127: ${inFlight} petición(es) aún en curso al cerrar la API simulada`)
   if (interceptedFetch) globalThis.fetch = interceptedFetch
   mockServer.close()
 })

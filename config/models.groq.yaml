@@ -36,14 +36,14 @@ limits:
   # PA-229: 6000 con la estimación antigua (/4) eran ~24 000 caracteres; con /3 (PA-114), 8000.
   # PA-441: 2000. El nivel gratuito de Groq admite 8000 tokens por minuto (TPM) en gpt-oss-120b y
   # rechaza con 413 una petición mayor: la de una suite pedía 8394 con 3103 de contexto.
-  context_token_budget: 1500
+  context_token_budget: 2000
   # PA-229: valor PRUDENTE, sin verificar contra los modelos de la cadena (gpt-oss tiene
   # 131 072 en Groq; los de qwen y gemma no se han comprobado). La guarda de PA-114 es global,
   # así que vale el menor de la cadena. Hoy solo se usan modelos locales; Groq es alternativa.
   context_window: 32768
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
   # PA-441: Groq reserva entrada + salida posible contra sus 8000 TPM; sin tope, la suite pedía
-  # ~8390 y daba 413; con 3000, 8293 (entrada ~5300). Con 2500 y contexto 1500, ~7400. Solo la suite.
+  # ~8390 y daba 413; con 3000, 8293 (entrada ~5300). Con 2500 y contexto 2000, ~7800. Solo la suite. No bajar de 2000: con 1500 se recorta la propia HU de origen (PA-442).
   max_output_tokens:
     generate_tests: 2500
 

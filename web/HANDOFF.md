@@ -1,10 +1,16 @@
 # Traspaso de T-56 (frontend React, área B) · 2026-10-07
 
 **Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, parte 1 en `t56-pulido` (#16) y parte 2 en `t56-pulido-2`.
-**PR abiertas:** [#16](https://github.com/maujimenez4/agente-af-qa/pull/16) `t56-pulido → PreProduccion` (pulido final, parte 1: pasos 1 a 5). La parte 2 sigue en `t56-pulido-2` (sale de `t56-pulido`); su PR, cuando se fusione la #16. Fusionadas: de la #2 a la #15.
+**PR abiertas:** la PR 2 del pulido final, `t56-pulido-2 → PreProduccion` (pasos 6 a 9). Fusionadas: de la #2 a la #16.
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
+
+## Novedades de la principal (2026-10-08)
+- **La #16 está fusionada** (pulido final, parte 1). La PR 2 sale de `t56-pulido-2`, al día con `PreProduccion` (`06abb2e`).
+- **El bloqueo de PA-426 llega como rechazo de revisión, no como error HTTP:** el motivo en «No se aprobó» es «Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.». Es el caso que la web ya pinta tal cual (`review.error`).
+- **La prueba del CA sin caso contra la API real la hará la principal** después del cambio de modelo y pasará el resultado. **Hasta entonces, la variante B de [DEMO.md](DEMO.md) no enseña el bloqueo** (solo la variante A, con `?simular=sin-cubrir`).
+- **PA-345** (ejemplo `task: functional` del contrato) la toma la principal.
 
 ## Novedades de la principal (2026-10-07, noche)
 - **PA-426 en `PreProduccion`** (sesión Modelos, `ses-qa-cobertura`): **el backend bloquea la aprobación de una suite con un CA sin caso** y devuelve `review.error` «Falta al menos un caso para CA-02: pídeselo al agente antes de aprobar.» (no cuenta para el tope de rechazos; tiene su propio tope de 50). **Al generar**, si lo único que falla es que faltan CA, hace un **reintento dirigido** solo con esos CA (`prompts/tests_missing.md`); si aun así falta alguno, la suite pasa a revisión con `uncovered` en lugar de `coverage_failed`. Las RN siguen sin bloquear. El contrato no cambia. Es lo que la web ya pinta (recibo e Iterar).
@@ -40,7 +46,7 @@
 - **PR 1 · [#16](https://github.com/maujimenez4/agente-af-qa/pull/16)** (`t56-pulido`, pasos 1 a 5): PA-344 y PA-435 (Editar a mano), un CA sin caso bloquea la aprobación de la suite (recibo e Iterar, con `?simular=sin-cubrir` y el recorrido completo en la API simulada), PA-131, la revisión general (accesibilidad y tamaños), el anillo «consumo total», PA-346 y UI.md v2.1. spec-checker CONFORME y security-reviewer APTO.
 - **PR 2** (`t56-pulido-2`, sale de `t56-pulido`; se abrirá cuando se fusione la #16, tras traer `origin/PreProduccion`): PA-343, PA-342, PA-347, PA-304 (propuesta en `docs/diseno/CORRECCIONES-LIENZO.md`), el título provisional (se queda), la API simulada con huellas de 64 hexadecimales (editar tras iterar daba 422), el guion de la demo ([DEMO.md](DEMO.md)), este HANDOFF y el README.
 - **Componentes compartidos tocados** (avisados en la descripción de la #16): `ChatLog` (`role="log"` en un contenedor), `SidePanel` (`bodyLabel`), la clave de la lista de conversaciones, `.id` de Proposal, Markdown, el anillo del carril; en la PR 2, además, `Button` (acepta `ref`), `useLayer` (`inertBehind`), `Workspace` y la lista de conversaciones (`inert` bajo el velo).
-- **Pendiente de la principal:** confirmar el bloqueo por un CA sin caso contra la API real (y entonces actualizar DEMO.md, variante B) y PA-345 (ejemplo `task: functional` del contrato, comentada en el issue #5).
+- **Pendiente de la principal:** confirmar el bloqueo por un CA sin caso contra la API real tras el cambio de modelo (y entonces actualizar DEMO.md, variante B) y PA-345 (ejemplo `task: functional` del contrato), que ha tomado ella.
 - **PA-310** sigue bloqueada: `eslint-plugin-jsx-a11y` 6.10.2 solo admite ESLint hasta la 9 (comprobado el 2026-10-07).
 
 ## T-57: punto de control
@@ -116,7 +122,7 @@
 - **Cerradas en el pulido final:** PA-131, PA-342, PA-343, PA-344, PA-346, PA-347 y PA-435.
 
 ## Siguiente
-1. Cuando se fusione la #16: `git merge origin/PreProduccion` en `t56-pulido-2`, Vitest, lint, build y `api:check`, y preparar la PR 2.
+1. Revisión y fusión de la PR 2 (`t56-pulido-2`).
 2. Cuando la principal confirme el bloqueo por un CA sin caso contra la API real: comprobarlo en la web (el rechazo llega en `review.error`) y actualizar DEMO.md (variante B).
 3. T-57: la decisión entre React y Streamlit, con la demo (DEMO.md).
 

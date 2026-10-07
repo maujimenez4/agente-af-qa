@@ -99,7 +99,7 @@ Cierra sesión y entra como `qa-demo`. En A, con `http://localhost:5173/?simular
 
 **3.3 · Pedir el caso.** *Volver a la suite*, la primera sugerencia «Añade un caso para CA-03» y *Enviar*. En la versión nueva desaparece el aviso del CA (queda «1 RN sin caso») y el recibo ya deja *Aprobar y publicar*.
 
-**En B:** retoma la suite preparada. Lo esperable es ver **RN sin caso que avisan sin bloquear**. El bloqueo por un CA sin caso aún no se ha comprobado contra la API real (pendiente de la principal), así que en B no se promete: se enseña en A.
+**En B:** retoma la suite preparada. Lo esperable es ver **RN sin caso que avisan sin bloquear**. El bloqueo por un CA sin caso (en el backend con PA-426: «Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.») aún no se ha comprobado contra la API real: la principal lo probará tras el cambio de modelo. Hasta entonces, en B no se enseña: se enseña en A.
 
 **3.4 · Opcional:** *Cobertura* (la matriz CA/RN × caso, *Descargar la matriz*), *Datos y riesgos* (datos sintéticos) y *Estrategia*.
 

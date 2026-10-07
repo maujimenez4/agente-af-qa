@@ -89,3 +89,18 @@ export function aiNotice(sources: number, qa = false): string {
     ? `Generado con IA a partir de la HU y ${from}. Revisa cada operación antes de aprobar. Si una subtarea falla, las demás se mantienen.`
     : `Generado con IA a partir de ${from}. Revisa cada operación antes de aprobar.`
 }
+
+const LIST = new Intl.ListFormat('es', { style: 'long', type: 'conjunction' })
+
+/**
+ * Un CA sin caso bloquea la aprobación de la suite (las RN sin caso solo avisan): «Falta un caso para CA-02» o
+ * «Faltan casos para CA-02 y CA-03». Sin CA pendientes, nada.
+ */
+export function missingCasesLabel(criteria: readonly string[]): string | undefined {
+  if (criteria.length === 0) return undefined
+  return criteria.length === 1 ? `Falta un caso para ${criteria[0]}` : `Faltan casos para ${LIST.format(criteria)}`
+}
+
+/** Por qué no se puede aprobar: va visible bajo las operaciones y como descripción de *Aprobar y publicar*. */
+export const MISSING_CASES_REASON =
+  'Cada CA de la HU necesita al menos un caso para aprobar la suite. Vuelve a la suite y pide un caso que lo verifique.'

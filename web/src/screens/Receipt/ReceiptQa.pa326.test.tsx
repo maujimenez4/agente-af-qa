@@ -43,7 +43,8 @@ describe('Recibo · historial de la suite con coverageNote (PA-326)', () => {
 
   it.each([
     ['completa', undefined, '5 casos · cobertura validada'],
-    ['con huecos', 'gaps', '5 casos · 1 CA y 1 RN sin caso'],
+    // Al iterar, la API simulada cubre el CA que faltaba; RN-03 sigue sin caso.
+    ['con huecos', 'gaps', '5 casos · 1 RN sin caso'],
   ] as const)('test_history_earlier_version_has_no_note_when_review_is_%s', (_name, forced, latest) => {
     const conversation = nextSuiteVersion(mockSuiteConversation('DEMO-3', forced), 'Añade un caso negativo')
     const [v2, v1] = renderReceipt(conversation)

@@ -8,14 +8,36 @@ export type InlinePart = { kind: 'text' | 'strong' | 'em' | 'code'; text: string
 const TOKEN =
   /`([^`\n]+)`|\*\*(?=\S)(.+?)\*\*|__(?=\S)(.+?)__|\*(?=[^\s*])([^*\n]+?)\*|(?<![\p{L}\p{N}])_(?=[^\s_])([^_\n]+?)_(?![\p{L}\p{N}])|\[([^\]\n]+)\]\((?:[^()\n]|\([^()\n]*\))*\)|\\([\\`*_{}[\]()#+\-.!|>])/gu
 
+/**
+ * Una línea más larga se pinta como texto, sin buscar marcas (PA-131): el análisis crece con el cuadrado de la línea
+ * (con miles de `[` sin cerrar, 80 ms a 16.000 caracteres) y el texto del modelo no es de fiar. Ninguna marca cruza
+ * un salto de línea, así que cortar por líneas no cambia lo que se reconoce.
+ */
+export const INLINE_MAX_LINE = 4000
+
+type Push = (kind: InlinePart['kind'], value: string) => void
+
 export function inlineParts(text: string): InlinePart[] {
   const parts: InlinePart[] = []
-  const push = (kind: InlinePart['kind'], value: string) => {
+  const push: Push = (kind, value) => {
     if (!value) return
     const last = parts.at(-1)
     if (kind === 'text' && last?.kind === 'text') last.text += value
     else parts.push({ kind, text: value })
   }
+  if (text.length <= INLINE_MAX_LINE) {
+    parseLine(text, push)
+    return parts
+  }
+  text.split('\n').forEach((line, index) => {
+    if (index > 0) push('text', '\n')
+    if (line.length > INLINE_MAX_LINE) push('text', line)
+    else parseLine(line, push)
+  })
+  return parts
+}
+
+function parseLine(text: string, push: Push): void {
   let cursor = 0
   for (const match of text.matchAll(TOKEN)) {
     const index = match.index ?? 0
@@ -29,7 +51,6 @@ export function inlineParts(text: string): InlinePart[] {
     cursor = index + match[0].length
   }
   push('text', text.slice(cursor))
-  return parts
 }
 
 /** Quita las barras de escape de Markdown dentro de un trozo ya reconocido. */

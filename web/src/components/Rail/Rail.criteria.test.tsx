@@ -16,7 +16,7 @@ function renderRail(props: Partial<RailProps> = {}) {
 }
 
 function ring(): HTMLElement {
-  return screen.getByRole('img', { name: /Consumo de tokens de hoy de toda la instalación/ })
+  return screen.getByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan el agente/ })
 }
 
 describe('railItemsFor (decisión 16)', () => {
@@ -112,7 +112,7 @@ describe('Rail: zonas y zona activa', () => {
   })
 })
 
-describe('Rail: anillo con el consumo de hoy de la instalación (decisión 17, PA-305)', () => {
+describe('Rail: anillo con el consumo total de hoy (decisión 17, PA-305)', () => {
   const usage = (tokens_today: number, warning_threshold = 1000) => ({ tokens_today, warning_threshold })
 
   it('el porcentaje es tokens_today / warning_threshold, redondeado', () => {
@@ -145,10 +145,10 @@ describe('Rail: anillo con el consumo de hoy de la instalación (decisión 17, P
     expect(ring()).toHaveTextContent('0 %')
   })
 
-  it('el nombre accesible dice que es el consumo de toda la instalación, con cifras en español', () => {
+  it('el nombre accesible dice que es el consumo de todas las personas que usan el agente, con cifras en español', () => {
     renderRail({ usage: { tokens_today: 12345, warning_threshold: 50000 } })
     expect(ring()).toHaveAccessibleName(
-      'Consumo de tokens de hoy de toda la instalación: 12.345 de 50.000, 25 % del umbral de aviso',
+      'Consumo de tokens de hoy de todas las personas que usan el agente: 12.345 de 50.000, 25 % del umbral de aviso',
     )
   })
 
@@ -162,7 +162,7 @@ describe('Rail: anillo con el consumo de hoy de la instalación (decisión 17, P
     const text = within(ring()).getByText(/24/)
     expect(text).toHaveAttribute('aria-hidden', 'true')
     expect(text).toHaveClass('tabular-nums')
-    expect(text).toHaveTextContent('instalación')
+    expect(text).toHaveTextContent('consumo total')
   })
 
   it('usageDash acota fuera de 0–100', () => {

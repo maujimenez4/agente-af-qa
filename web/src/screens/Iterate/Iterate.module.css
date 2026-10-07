@@ -47,6 +47,18 @@
   flex-grow: 1;
 }
 
+/* PA-346: línea propia encima de los botones del pie, con el distintivo y el motivo. */
+.soonNote {
+  flex-basis: 100%;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 .confirm {
   display: flex;
   flex-direction: column;
@@ -82,4 +94,8 @@
 /* QA 3: distintivo de cobertura encima de las pestañas de la suite. */
 .covered {
   margin: 0 0 var(--space-2);
+}
+
+.missing {
+  margin: 0 0 var(--space-3);
 }

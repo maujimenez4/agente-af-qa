@@ -76,10 +76,10 @@ npm run dev                          # http://localhost:5173, proxy de /api a 12
 - [ ] Reiniciar la API a mitad de sesión: «Sesión caducada» → *Iniciar sesión* → la conversación sigue ahí.
 
 **Otros roles** (solo comprobar que no fallan)
-- [ ] `qa-demo`: Inicio con «Preparar pruebas»; el flujo de QA sale como «disponible pronto».
-- [ ] `admin-demo`: la pantalla de administración sale como «disponible pronto».
+- [ ] `qa-demo`: Inicio con «Preparar pruebas»; el flujo de QA (QA 1 a QA 5) funciona de punta a punta, y *Editar a mano* de la suite sale con el distintivo «Disponible pronto» y su motivo.
+- [ ] `admin-demo`: Ajustes (probar conexiones, modelos por tarea y modo de publicación); documentos y usuarios, «Disponible pronto».
 
-**«Disponible pronto» a propósito** (no son fallos): Revisar la calidad, el flujo de QA, administración, *Editar a mano*, historial (admin), *Ver la memoria* y *Pedir sus pruebas a QA*.
+**«Disponible pronto» a propósito** (no son fallos): *Editar a mano* de la suite de QA, historial (admin), el registro de auditoría, documentos y usuarios en Ajustes, *Pedir sus pruebas a QA* y *Registrar la ejecución* (QA 6).
 
 ## 6. Si algo falla, qué anotar
 Un comentario en la PR por fallo, con:

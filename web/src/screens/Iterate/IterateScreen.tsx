@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
@@ -31,17 +31,19 @@ import {
   UNKNOWN_COVERAGE,
   type SuiteCoverage,
 } from '../../components/Suite/index.ts'
-import { ErrorCard, presentError } from '../../components/States/index.ts'
+import { ErrorCard, Notice, presentError } from '../../components/States/index.ts'
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
-import { EditPanel } from '../Edit/EditPanel.tsx'
+import { EditPanel, type EditCloseGuard } from '../Edit/EditPanel.tsx'
 import { editedSummary, editedVersions, editNoteMessage } from '../Edit/editText.ts'
 import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { ITERATING_LABEL, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_EDIT_SOON, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { SOON_BADGE } from '../Admin/adminText.ts'
+import { missingCasesLabel } from '../Receipt/receiptText.ts'
 import { countLabel } from '../../text/plural.ts'
 
 export interface IterateScreenProps {
@@ -124,7 +126,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const [editing, setEditing] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const closeGuardRef = useRef<(() => boolean) | null>(null)
+  const closeGuardRef = useRef<EditCloseGuard | null>(null)
+  const saveRef = useRef<(() => boolean) | null>(null)
   const edited = editedVersions(conversation.versions)
   // Solo la HU: editar la suite de QA queda para un bloque aparte (PA-340).
   const canEdit = !qa && !iterating && Boolean(conversation.review)
@@ -168,8 +171,27 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
     }
   }
 
-  // «Actualizar» (not_in_review, operation_failed…): vuelve a leer el estado de la conversación.
-  const refresh = async () => {
+  // Con el editor abierto, lo que lo cierra o lo cambia pasa antes por «¿Descartar los cambios?» (PA-344). Sin cambios
+  // sin guardar sigue en el acto; `exit` sale además del editor (abrir otra versión), si no se queda abierto.
+  const guarded = (then: () => void, { exit }: { exit: boolean }) => {
+    // El editor deja `closeGuardRef` a null al cerrarse: así no depende del `editing` de un render anterior (*Reintentar*).
+    const guard = closeGuardRef.current
+    if (!guard) return then()
+    if (!guard(then)) {
+      setPanelOpen(true) // la pregunta va en el pie del editor: que se vea aunque el panel estuviera plegado
+      return
+    }
+    if (exit) {
+      setEditing(false)
+      setEditError(null)
+    }
+    then()
+  }
+
+  // «Actualizar» (not_in_review, operation_failed…): vuelve a leer el estado de la conversación. El editor sigue abierto
+  // si la versión en revisión no cambió; con una más nueva se abre sobre ella (`key` del panel).
+  const refresh = () => guarded(() => void reload(), { exit: false })
+  const reload = async () => {
     setError(undefined)
     try {
       const next = await api.conversation(conversation.id)
@@ -180,7 +202,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       setConversation(next)
       setSelected(proposalVersions(next).at(-1)?.version ?? selected)
     } catch (cause) {
-      fail(toApiError(cause), () => void refresh())
+      fail(toApiError(cause), refresh)
     }
   }
 
@@ -190,7 +212,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       case 'restart':
         return onRestart
       case 'refresh':
-        return () => void refresh()
+        return refresh
       case 'login':
         return () => void logout()
       case 'regenerate':
@@ -229,7 +251,10 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
       setTab(firstTab)
       setEntries((current) => [...current, ...(note?.trim() ? [{ kind: 'user' as const, text: editNoteMessage(note) }] : []), { kind: 'assistant', version, animate: true }])
     } catch (cause) {
-      fail(toApiError(cause), () => void saveEdit(content, note))
+      // *Reintentar* guarda lo que haya entonces en el editor, no esta copia (PA-344); fuera del editor, solo se cierra.
+      fail(toApiError(cause), () => {
+        if (!saveRef.current?.()) setError(undefined)
+      })
     } finally {
       setSaving(false)
     }
@@ -256,6 +281,14 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const shownCoverage = shown ? coverageOf(shown.version) : UNKNOWN_COVERAGE
   const shownCoverageMd = conversation.review && shown?.version === conversation.review.version ? conversation.review.coverage_md : null
   const badge = coverageBadge(shownCoverage)
+  // Un CA sin caso bloquea la aprobación en el recibo; aquí se avisa (de la versión en revisión) y se sugiere pedirlo.
+  // *Revisar y aprobar* sigue activo: el recibo explica el bloqueo (decisión del responsable, 2026-10-07).
+  const reviewCoverage = conversation.review ? coverageOf(conversation.review.version) : UNKNOWN_COVERAGE
+  const missingCriteria = reviewCoverage.kind === 'gaps' ? reviewCoverage.criteria : []
+  // Del CA sin caso de la versión en revisión, que es la que se aprueba, aunque se esté mirando otra (security-reviewer).
+  const shownMissing = missingCasesLabel(missingCriteria)
+  const missingId = useId()
+  const qaSuggestions = [addCasesSuggestion(missingCriteria), ...QA_SUGGESTIONS].filter((item): item is string => Boolean(item))
   const tabs: { id: PanelTab; label: string }[] = suite
     ? [
         { id: 'cases', label: `Casos (${suite.cases.length})` },
@@ -284,6 +317,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         setEditError(null)
       }}
       closeGuardRef={closeGuardRef}
+      saveRef={saveRef}
       onClosePanel={() => setPanelOpen(false)}
     />
   ) : shown && (
@@ -309,8 +343,14 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           </div>
         ) : (
           <div className={styles.footer}>
+            {qa && (
+              // PA-346: el motivo se ve (no solo lo oyen los lectores de pantalla), con el distintivo de Ajustes (PA-431).
+              <p className={styles.soonNote}>
+                <Badge tone="neutral">{SOON_BADGE}</Badge> {QA_EDIT_SOON}
+              </p>
+            )}
             {qa ? (
-              <SoonButton label="Editar a mano" />
+              <SoonButton label="Editar a mano" note={`${SOON_BADGE}: ${QA_EDIT_SOON}`} />
             ) : (
               <Button variant="secondary" disabled={!canEdit} onClick={startEditing}>
                 Editar a mano
@@ -320,7 +360,12 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               Descartar
             </Button>
             <span className={styles.spacer} />
-            <Button variant="primary" disabled={Boolean(iterating) || !conversation.review} onClick={() => onReview(conversation)}>
+            <Button
+              variant="primary"
+              disabled={Boolean(iterating) || !conversation.review}
+              aria-describedby={suite && shownMissing ? missingId : undefined}
+              onClick={() => onReview(conversation)}
+            >
               Revisar y aprobar
             </Button>
           </div>
@@ -340,6 +385,13 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 {badge.text}
               </Badge>
             </p>
+          )}
+          {suite && shownMissing && (
+            <div id={missingId} className={styles.missing}>
+              <Notice>
+                <b>{shownMissing}.</b> {MISSING_CASES_ITERATE_REASON}
+              </Notice>
+            </div>
           )}
           {suite && tab === 'cases' && (
             <CasesView key={shown.version} suite={suite} version={shown.version} previous={previousSuite && suiteOf(previousSuite.artifact.content)} />
@@ -417,11 +469,17 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 type="button"
                 className={styles.artifact}
                 aria-pressed={!editing && panelOpen && selected === item.version}
-                onClick={() => {
-                  setSelected(item.version)
-                  setTab(firstTab)
-                  setPanelOpen(true)
-                }}
+                onClick={() =>
+                  // Mientras se edita, abrir una versión sale del editor (PA-344): con cambios, tras confirmarlo.
+                  guarded(
+                    () => {
+                      setSelected(item.version)
+                      setTab(firstTab)
+                      setPanelOpen(true)
+                    },
+                    { exit: true },
+                  )
+                }
               >
                 <span className={styles.artifactTitle}>
                   {itemSuite ? 'Suite de pruebas' : 'Propuesta de HU'}, versión {item.version}
@@ -441,7 +499,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
               )}
               {index === lastAssistant && !iterating && !editing && (
                 <ul className={styles.suggestions} aria-label="Cambios sugeridos">
-                  {(qa ? QA_SUGGESTIONS : SUGGESTIONS).map((suggestion) => (
+                  {(qa ? qaSuggestions : SUGGESTIONS).map((suggestion) => (
                     <li key={suggestion}>
                       <Chip onClick={() => setDraft(suggestion)}>{suggestion}</Chip>
                     </li>
@@ -474,7 +532,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
                 setIterating(undefined)
                 setStopping(false)
                 // En error (también `cancelled`) se repite con /retry; si no, se vuelve a leer el estado.
-                fail(failure, retryable ? () => void retryIteration() : () => void refresh())
+                fail(failure, retryable ? () => void retryIteration() : refresh)
               }}
             />
           </AssistantMessage>
@@ -485,7 +543,8 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
             <ErrorCard
               key={`${error.code}-${error.message}`}
               error={error}
-              onAction={errorAction(error)}
+              // Se elige al pulsar: *Actualizar* puede leer la pregunta del editor (`closeGuardRef`, PA-344).
+              onAction={() => errorAction(error)()}
             />
           </AssistantMessage>
         )}

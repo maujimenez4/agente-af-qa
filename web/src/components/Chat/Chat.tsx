@@ -7,9 +7,10 @@ import styles from './Chat.module.css'
 // (DESIGN-DECISIONS.md §3). Los textos de la API se pintan como texto.
 export function ChatLog({ label = 'Conversación', children }: { label?: string; children: ReactNode }) {
   return (
-    <ol className={styles.log} role="log" aria-label={label}>
-      {children}
-    </ol>
+    // El `role="log"` va en el contenedor: en el propio <ol> anulaba la lista y sus <li> quedaban sueltos (axe listitem).
+    <div role="log" aria-label={label}>
+      <ol className={styles.log}>{children}</ol>
+    </div>
   )
 }
 

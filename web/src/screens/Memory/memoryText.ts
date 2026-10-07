@@ -1,4 +1,4 @@
-// Textos de Memoria (PA-329, sin pantalla en el lienzo ni en UI.md): lista de `GET /memories` y detalle de
+// Textos de Memoria (PA-329, sin pantalla en el lienzo; descrita en UI.md §4.9): lista de `GET /memories` y detalle de
 // `GET /memories/{key}`. Lo que escribió el LLM (`memory`) se pinta como texto; el `.md` solo se descarga.
 import type { MemoryOut } from '../../api/types.ts'
 

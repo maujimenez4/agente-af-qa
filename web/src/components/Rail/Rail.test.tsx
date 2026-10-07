@@ -72,12 +72,13 @@ describe('Rail', () => {
     expect(screen.queryByRole('img', { name: /Consumo de tokens de hoy/ })).toBeNull()
   })
 
-  it('con dato pinta el consumo de toda la instalación respecto al umbral de aviso', () => {
+  it('con dato pinta el consumo total de hoy respecto al umbral de aviso, con el mismo title que el nombre', () => {
     renderRail({ usage: { tokens_today: 42000, warning_threshold: 180000 } })
     const ring = screen.getByRole('img', {
-      name: 'Consumo de tokens de hoy de toda la instalación: 42.000 de 180.000, 23 % del umbral de aviso',
+      name: 'Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso',
     })
-    expect(ring).toHaveTextContent('23 %instalación')
+    expect(ring).toHaveTextContent('23 %consumo total')
+    expect(ring.getAttribute('title')).toBe(ring.getAttribute('aria-label'))
     expect(ring.querySelector('[data-warning]')).toBeNull()
   })
 

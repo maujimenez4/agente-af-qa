@@ -166,6 +166,14 @@ export const PARTIAL_ERROR = 'No se pudo vincular DEMO-3 con DEMO-2: Jira respon
 export const FINGERPRINT_MISMATCH = 'La aprobación no corresponde a la versión revisada; vuelve a revisar el artefacto.'
 
 /**
+ * Rechazo de una suite con algún CA sin caso (las RN sin caso no bloquean). Texto ficticio de la API simulada: el de la
+ * API real lo escribe el backend y la web lo muestra tal cual, venga como venga.
+ */
+export function uncoveredCriteriaRejection(criteria: readonly string[]): string {
+  return `No se puede aprobar la suite: ${criteria.join(', ')} no tiene ningún caso que lo verifique (mensaje ficticio).`
+}
+
+/**
  * Final de la aprobación simulada: con la huella exacta, `simulated` (o `published` en `live`) con su
  * `PublishOutcome`; si no casa, vuelve a la revisión con `review.error` y la misma huella.
  */
@@ -178,6 +186,12 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, part
   const review = reviewing.review
   if (!review || fingerprint !== review.fingerprint) {
     run.conversation = { ...reviewing, review: review ? { ...review, error: FINGERPRINT_MISMATCH } : null, state: 'in_review' }
+    return run.conversation
+  }
+  // Un CA sin caso: la revisión sigue con `review.error`, como una huella que no casa (no es un error HTTP).
+  const uncoveredCriteria = review.artifact.type === 'test_suite' ? (review.uncovered?.criteria ?? []) : []
+  if (uncoveredCriteria.length > 0) {
+    run.conversation = { ...reviewing, review: { ...review, error: uncoveredCriteriaRejection(uncoveredCriteria) }, state: 'in_review' }
     return run.conversation
   }
   const key = review.plan.find((item) => item.op === 'update_story')?.key

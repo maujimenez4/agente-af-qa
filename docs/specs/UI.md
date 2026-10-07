@@ -103,7 +103,7 @@ Fase 1 de 4. Conversación a la izquierda y panel «Antes de generar» a la dere
 | Panel · Operación | Operación y origen; «Se puede cambiar solo antes de generar.» | *Cambiar* (vuelve a Inicio) | — |
 | Panel · Restricciones | Texto opcional | Escribir | Necesidad nueva: se añaden al texto del origen. Evolucionar: van como primer `feedback` |
 | Panel · Fuentes | Lista con **casillas**: título, `DOC-NN` o clave y categoría; la de origen es obligatoria; una fuente desmarcada indica «No influirá en la propuesta»; la memoria aparece como «prioritaria» | Marcar / desmarcar | `POST /start/sources` (`excluded_sources`, T-51) |
-| Panel · Presupuesto | «Contexto · 2.350 de 6.000 tokens» con barra; aviso desde el 90 % o si hay fuentes que no caben | — | `budget` de `POST /start/sources` (PA-102). Recalcularlo más rápido es PA-330 |
+| Panel · Presupuesto | «Contexto · 2.350 de 6.000 tokens» con barra; aviso desde el 90 % o si hay fuentes que no caben. Al marcar o desmarcar, estimación al instante («Contexto · ≈ 2.350 de 6.000 tokens · estimación», barra más clara) hasta la confirmación, que es la que cuenta; si la cambia, «Al quitar un documento puede entrar otro relacionado en su lugar: la cifra confirmada es la que cuenta.». En una necesidad nueva, lo que ocupa su texto aparte («… del total de 6.300»). Al lector de pantalla solo llega lo confirmado | — | `budget` de `POST /start/sources` (PA-102); `sources[].tokens`, `budget.fixed` y `budget.total` (PA-330) |
 | Panel · Pie | *Generar propuesta* · «Una llamada al modelo. Después itera conversando.» | `POST /conversations` (202) | — |
 
 ### 4.4 Mixta 2b · Generando

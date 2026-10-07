@@ -28,15 +28,15 @@ function plural(count: number, one: string, many: string): string {
 
 /**
  * PA-330: estimación al instante del uso de las fuentes marcadas (las obligatorias siempre cuentan), sumando
- * `SourcePreview.tokens`. Sin `tokens` en alguna fuente (API anterior), `undefined`: se espera a la respuesta.
+ * `SourcePreview.tokens`. Sin `tokens` válidos en alguna fuente (API anterior, negativos o no finitos), `undefined`: se espera a la respuesta.
  */
 export function estimateUsed(sources: readonly SourcePreview[], excluded: readonly string[]): number | undefined {
-  if (sources.length === 0 || !sources.every((source) => typeof source.tokens === 'number' && Number.isFinite(source.tokens))) return undefined
+  if (sources.length === 0 || !sources.every((source) => typeof source.tokens === 'number' && Number.isFinite(source.tokens) && source.tokens >= 0)) return undefined
   return sources.filter((source) => source.required || !excluded.includes(source.ref)).reduce((total, source) => total + (source.tokens ?? 0), 0)
 }
 
 /** La nota que explica por qué la confirmación no coincide con la estimación (el RAG rellena el hueco). */
-export const REFILL_NOTE = 'Al quitar un documento puede entrar otro relacionado en su lugar: manda el número confirmado.'
+export const REFILL_NOTE = 'Al quitar un documento puede entrar otro relacionado en su lugar: la cifra confirmada es la que cuenta.'
 
 /**
  * La confirmación cambia la estimación de forma visible: más de un 1 % del límite (redondeos aparte). Solo entonces sale

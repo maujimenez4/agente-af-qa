@@ -12,6 +12,7 @@
   ni cuerpos de respuesta.
 """
 
+import copy
 import json
 import re
 import time
@@ -90,6 +91,18 @@ class OpenAICompatibleProvider:
         self._max_output_tokens = dict(max_output_tokens or {})
         # Opciones del modelo en `config/models.yaml` (p. ej. `think: false`, T-58).
         self._extra_body = dict(extra_body or {})
+        # PA-432: muestreo de una llamada concreta (temperatura y semilla), por `with_options`.
+        self._sampling: dict[str, Any] = {}
+
+    def with_options(self, *, temperature: float | None = None, seed: int | None = None) -> Self:
+        """PA-432: una copia que hace sus llamadas con esa temperatura y semilla."""
+        clone = copy.copy(self)
+        clone._sampling = {
+            name: value
+            for name, value in (("temperature", temperature), ("seed", seed))
+            if value is not None
+        }
+        return clone
 
     @classmethod
     def create(
@@ -265,6 +278,7 @@ class OpenAICompatibleProvider:
             extra["max_tokens"] = max_tokens
         if self._extra_body:
             extra["extra_body"] = self._extra_body
+        extra.update(self._sampling)
         attempt = 0
         while True:
             try:

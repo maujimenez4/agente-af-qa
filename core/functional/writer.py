@@ -21,6 +21,8 @@ from core.functional.citations import (
     without_forced_citations,
 )
 from core.functional.context import StoryContext, render_context
+from core.functional.determinism import deterministic
+from core.functional.literal_criteria import literal_criteria
 from core.rag.prompts import Prompt, load_prompt
 from schemas.user_story import UserStory
 
@@ -116,10 +118,14 @@ class StoryWriter:
         """
         if ctx.origin_kind != "story" or not ctx.origin_key:
             raise ValueError("Solo se estructura una HU que ya existe en Jira.")
-        draft = self._run(ctx, "structure_story", TaskType.EVOLVE_STORY)
-        story = draft.story.model_copy(
-            update={"jira_key": ctx.origin_key, "changes_from_previous": []}
-        )
+        with deterministic():  # PA-432: la misma HU sale igual cada vez
+            draft = self._run(ctx, "structure_story", TaskType.EVOLVE_STORY)
+        update: dict[str, object] = {"jira_key": ctx.origin_key, "changes_from_previous": []}
+        # PA-432: si la HU trae sus CA y RN con formato, se usan tal cual (todos o ninguno).
+        origin = next((i for i in ctx.jira if i.key == ctx.origin_key), None)
+        if origin is not None and (literal := literal_criteria(origin.description_text)):
+            update["acceptance_criteria"], update["business_rules"] = literal
+        story = draft.story.model_copy(update=update)
         return replace(draft, story=story)
 
     def review(self, ctx: StoryContext) -> StoryDraft:

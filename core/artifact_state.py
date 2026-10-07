@@ -8,12 +8,16 @@ con `replace_ledger`, una escritura condicional que solo toca esa clave y falla 
 escribió antes. Además, `save` (la escritura completa que usan otros nodos para la versión de
 partida o el registro de la ejecución) nunca devuelve el registro a una revisión anterior: un
 cambio de otro proceso, como `consumed=True`, no se pierde.
+
+PA-432: también guarda la versión estructurada compartida de una HU de Jira, por clave y huella
+de su contenido (`structure_cache_id`), para que todas las conversaciones sobre la misma HU sin
+cambios partan de la misma estructura.
 """
 
 import json
 import threading
 from typing import Any, Protocol
-from uuid import UUID
+from uuid import UUID, uuid5
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
@@ -49,6 +53,19 @@ class ArtifactStateStore(Protocol):
         compatibilidad con dobles de prueba antiguos: no son seguros entre procesos.
         """
         ...
+
+
+# PA-432: espacio de nombres de las entradas compartidas de estructura (no son artefactos).
+_STRUCTURE_NS = UUID("0b8c4f3e-6d2a-4e71-9a5c-7f1e2d3c4b5a")
+
+
+def structure_cache_id(issue_key: str, fingerprint: str) -> str:
+    """Identificador de la versión estructurada compartida de una HU de Jira (PA-432).
+
+    Depende de la clave y de la huella de lo que se estructura: otra clave, otro proyecto u otro
+    contenido dan otra entrada.
+    """
+    return str(uuid5(_STRUCTURE_NS, f"estructura:{issue_key}:{fingerprint}"))
 
 
 def ledger_revision(state: object) -> int:

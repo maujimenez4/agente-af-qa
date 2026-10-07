@@ -24,7 +24,7 @@ services:
     image: ollama/ollama:0.35.0@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01
     profiles: ["local-llm"]      # docker compose --profile local-llm up -d
     environment:
-      OLLAMA_CONTEXT_LENGTH: "8192"   # instrucciones + contexto + salida (ver limits en models.yaml)
+      OLLAMA_CONTEXT_LENGTH: "10240"  # PA-440 · instrucciones + contexto + salida (ver limits en models.yaml)
       # PA-275: el modelo sigue cargado tras la última llamada (la app no envía keep_alive).
       # 30 min y no 2 h: con 2 h la memoria no se libera y hubo OOM en el e2e (2026-10-02).
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}

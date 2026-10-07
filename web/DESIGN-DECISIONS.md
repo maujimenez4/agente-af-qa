@@ -158,7 +158,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - **Lo que el contrato no da:** el aviso «CA sin fuente», porque los CA no traen cita propia (PA-315).
   - **Pie del panel:**
     - *Descartar* pide confirmación y llama a `POST /discard`;
-    - *Editar a mano* abre el editor de la HU en revisión (parte B, más abajo); en QA sigue «disponible pronto»;
+    - *Editar a mano* abre el editor de la HU en revisión (parte B, más abajo); en QA sigue «disponible pronto», con el distintivo «Disponible pronto» y su motivo a la vista encima de los botones («Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.», PA-346, como Ajustes en PA-431), que es también la descripción del botón;
     - *Revisar y aprobar* abre el recibo con la revisión actual (desactivado mientras se itera).
   - **Modelo:** «Generado con local · qwen3:4b-instruct» sale de `Artifact.model_used`. El selector del compositor sigue en solo lectura («Modelo automático»): elegir modelo por petición (RF-42) llega con los ajustes, después de T-57.
   - **Editar a mano:** conectado en la parte B (viñeta «Editar a mano», más abajo).

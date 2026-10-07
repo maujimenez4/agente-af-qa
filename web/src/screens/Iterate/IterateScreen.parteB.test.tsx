@@ -10,6 +10,7 @@ import { SOON_TEXT } from '../../components/Button/SoonButton.tsx'
 import { FINGERPRINT_MISMATCH } from '../../mocks/handlers.ts'
 import { mockDb, mockServer } from '../../mocks/node.ts'
 import { openSuiteForDemo3 } from '../../test/qaFlow.tsx'
+import { QA_EDIT_SOON } from './iterateText.ts'
 
 const EXAMPLE_ID = '8b0f3c2e-7d41-4a5e-9c6b-1e2f3a4b5c6d'
 const NEW_TITLE = 'Renovar un préstamo ficticio'
@@ -254,7 +255,9 @@ describe('Iterar QA · Editar a mano (parte B)', () => {
     const panel = screen.getByRole('complementary', { name: 'Suite de pruebas' })
     const button = within(panel).getByRole('button', { name: 'Editar a mano' })
     expect(button).toHaveAttribute('aria-disabled', 'true')
-    expect(button).toHaveAccessibleDescription(SOON_TEXT)
+    // PA-346: el motivo propio de la suite (también visible en el pie), no el genérico.
+    expect(button).toHaveAccessibleDescription(`Disponible pronto: ${QA_EDIT_SOON}`)
+    expect(button).not.toHaveAccessibleDescription(SOON_TEXT)
     await userEvent.click(button)
     expect(screen.queryByRole('complementary', { name: 'Editar a mano' })).toBeNull()
     expect(screen.getByRole('complementary', { name: 'Suite de pruebas' })).toBeInTheDocument()

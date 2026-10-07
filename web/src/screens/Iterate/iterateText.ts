@@ -50,5 +50,8 @@ export function addCasesSuggestion(criteria: readonly string[]): string | undefi
 /** Por qué importa en Iterar: *Revisar y aprobar* sigue activo, pero el recibo no dejará aprobar. */
 export const MISSING_CASES_ITERATE_REASON = 'Cada CA de la HU necesita al menos un caso para aprobar la suite: pídelo en la conversación.'
 
+/** Editar a mano la suite de QA aún no está (PA-158, PA-340): motivo visible junto al distintivo (PA-346, como PA-431). */
+export const QA_EDIT_SOON = 'Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.'
+
 /** Indicador mientras se genera la versión nueva tras pedir un cambio (PA-430). */
 export const ITERATING_LABEL = 'Generando una nueva versión…'

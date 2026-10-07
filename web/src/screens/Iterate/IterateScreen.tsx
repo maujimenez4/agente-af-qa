@@ -41,7 +41,8 @@ import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_EDIT_SOON, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
+import { SOON_BADGE } from '../Admin/adminText.ts'
 import { missingCasesLabel } from '../Receipt/receiptText.ts'
 import { countLabel } from '../../text/plural.ts'
 
@@ -341,8 +342,14 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           </div>
         ) : (
           <div className={styles.footer}>
+            {qa && (
+              // PA-346: el motivo se ve (no solo lo oyen los lectores de pantalla), con el distintivo de Ajustes (PA-431).
+              <p className={styles.soonNote}>
+                <Badge tone="neutral">{SOON_BADGE}</Badge> {QA_EDIT_SOON}
+              </p>
+            )}
             {qa ? (
-              <SoonButton label="Editar a mano" />
+              <SoonButton label="Editar a mano" note={`${SOON_BADGE}: ${QA_EDIT_SOON}`} />
             ) : (
               <Button variant="secondary" disabled={!canEdit} onClick={startEditing}>
                 Editar a mano

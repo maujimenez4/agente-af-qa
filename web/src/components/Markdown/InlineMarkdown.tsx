@@ -3,7 +3,9 @@ import { inlineParts } from './inlineMarkdown.ts'
 
 // Texto del modelo con Markdown en línea (PA-334): negrita, cursiva y código como elementos de React.
 // Nunca se inserta HTML: una etiqueta que escriba el modelo sale como texto.
-export function InlineMarkdown({ text }: { text: string }) {
+// Con `plain` (texto entero de más de INLINE_MAX_TOTAL, PA-347) sale tal cual, sin buscar marcas.
+export function InlineMarkdown({ text, plain = false }: { text: string; plain?: boolean }) {
+  if (plain) return <>{text}</>
   return (
     <>
       {inlineParts(text).map((part, index) => {

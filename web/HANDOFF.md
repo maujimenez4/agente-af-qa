@@ -6,6 +6,16 @@
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
 
+## Novedades de la principal (2026-10-06)
+- **PA-331 hecha en la API:** iterar una suite aplica el cambio pedido y conserva los IDs de los casos que no cambian.
+- **PA-330:** la parte de la API está en `PreProduccion` (`SourcePreview.tokens`, `budget.fixed` y `budget.total`; tipos regenerados en `c397c8a`). **La parte web es nuestra** y depende del `signal` de `api.sources` que trae `ses-web-fixes` (PA-336). El número que pinte la web es una **estimación**: al excluir un documento, el RAG rellena su hueco con otro, así que manda la confirmación del servidor (`POST /start/sources`).
+- **Guion de la demo:** con `qwen3:1.7b` las RN saldrán **sin caso** (el modelo no rellena `rule_ids`, PA-122). UI.md §6.3 (`t56-uimd`) ya dice que una RN sin caso se avisa en Cobertura pero no bloquea la aprobación.
+
+## Estado de las ramas (2026-10-06)
+- **PR #8** (`t56-uimd`, UI.md v2.0) y **PR #9** (`t56-pa325`, PA-325 y PA-312) abiertas. La #9 ya trae `origin/PreProduccion` (conflicto del registro diario resuelto conservando las dos filas).
+- **`ses-web-fixes`** (PA-333, PA-336, PA-332, PA-334, PA-407) revisada y comentada en el issue #5: antes de fusionarla hay que arreglar dos fallos (*Generar* aborta la lista de fuentes y Origen se queda sin ellas; un 401 que llega tarde tras volver a entrar).
+- **PR #10** (`t56-sondeo`, PA-406: tope del sondeo de Revisar la calidad) abierta.
+
 ## T-57: punto de control
 **Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo se escribirá al final.
 
@@ -121,6 +131,8 @@
 - **Cerradas o aplazadas** por la principal (2026-10-05): PA-311 validada (se mantiene el login mínimo), PA-315 aplazada (fuera de la entrega) y el ejemplo de `jira_baseline` corregido (el apaño del MSW ya está quitado).
 
 ## Siguiente
+**Tras PA-406 (`t56-sondeo`), el siguiente bloque es PA-335 ampliada:** el panel derecho se corta (con barra horizontal en el área de trabajo) cuando quedan menos de 1024 px útiles: 1024 al 125 %, y 1280 y 1440 al 150 %. Hay que corregir el diseño para que funcione con el escalado habitual de Windows. Medido el 2026-10-06 en Iterar (QA) con la API simulada; el hueco en blanco original no se reprodujo.
+
 1. **Editar a mano** (`t56-editar`), en dos partes:
    - **A, ya:** solo archivos nuevos (editor, validación, textos, handler del MSW y pruebas);
    - **B, cuando se fusione `ses-web-fixes`:** conectarlo a `IterateScreen` y al cliente (`api.edit`, `EditIn`, `client.contract.ts`), registrar `editHandlers` en `createHandlers` con `runFor`, y «Editada a mano» en el historial del recibo.

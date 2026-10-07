@@ -1,11 +1,38 @@
 // Textos de Revisar la calidad (UI.md §4.8 · Mixta 5; T-48). El informe lo escribe el LLM: se pinta campo a
 // campo como texto y el Markdown (`report_markdown`) es solo para descargarlo.
-import type { InvestCheck, IssueSummary, QualityFinding, QualityReport, QualityReviewOut, SourceRef } from '../../api/types.ts'
+import type { ApiError, InvestCheck, IssueSummary, QualityFinding, QualityReport, QualityReviewOut, SourceRef } from '../../api/types.ts'
 import { countLabel } from '../../text/plural.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 
-/** Cada cuánto se consulta una revisión en curso: la API no tiene SSE para la calidad. */
+/** Cada cuánto se consulta una revisión en curso los dos primeros minutos: la API no tiene SSE para la calidad. */
 export const QUALITY_POLL_MS = 2000
+/** PA-406: pasados QUALITY_FAST_FOR_MS, se consulta cada QUALITY_SLOW_POLL_MS. */
+export const QUALITY_FAST_FOR_MS = 2 * 60_000
+export const QUALITY_SLOW_POLL_MS = 10_000
+/** PA-406: tope de la espera. Una revisión que sigue `running` más tiempo es, casi seguro, huérfana (API reiniciada). */
+export const QUALITY_MAX_WAIT_MS = 30 * 60_000
+
+/** Espera hasta la siguiente consulta según lo que lleva en curso la revisión (o la ventana de *Volver a consultar*). */
+export function qualityPollDelay(elapsedMs: number): number {
+  return elapsedMs < QUALITY_FAST_FOR_MS ? QUALITY_POLL_MS : QUALITY_SLOW_POLL_MS
+}
+
+/**
+ * Desde cuándo cuenta el tope: `created_at` de la revisión; si no se puede leer, desde que se abrió la pantalla.
+ * Una fecha posterior a la apertura (reloj del servidor adelantado) cuenta desde la apertura: el tope no se alarga.
+ */
+export function reviewStartedAt(createdAt: string | undefined, openedAt: number): number {
+  const parsed = createdAt ? Date.parse(createdAt) : Number.NaN
+  return Number.isFinite(parsed) ? Math.min(parsed, openedAt) : openedAt
+}
+
+/** Tarjeta al pasar el tope (PA-406): el título de `provider_timeout`, con este mensaje. */
+export const STALE_REVIEW: ApiError = {
+  code: 'provider_timeout',
+  message: 'La revisión lleva más de 30 minutos en curso; puede que el modelo esté atascado o muy lento. Nada se ha escrito en Jira.',
+}
+export const RECHECK = 'Volver a consultar'
+export const REVIEW_AGAIN = 'Revisar de nuevo'
 
 export const QUALITY_TITLE = 'Revisar la calidad'
 export const READ_ONLY = 'Revisar la calidad · solo lectura'

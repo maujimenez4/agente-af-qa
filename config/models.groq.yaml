@@ -34,7 +34,9 @@ embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 limits:
   max_retries_on_429: 2
   # PA-229: 6000 con la estimación antigua (/4) eran ~24 000 caracteres; con /3 (PA-114), 8000.
-  context_token_budget: 8000
+  # PA-441: 3300, como el local. Con 8000, la petición de una suite (~10 000 tokens) supera el
+  # límite por minuto del nivel gratuito de Groq (8000 TPM en gpt-oss-120b) y la rechaza al instante.
+  context_token_budget: 3300
   # PA-229: valor PRUDENTE, sin verificar contra los modelos de la cadena (gpt-oss tiene
   # 131 072 en Groq; los de qwen y gemma no se han comprobado). La guarda de PA-114 es global,
   # así que vale el menor de la cadena. Hoy solo se usan modelos locales; Groq es alternativa.

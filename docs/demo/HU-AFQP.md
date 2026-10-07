@@ -70,6 +70,7 @@ Mensaje:
 | # | HU | Clave AFQP | Publicada |
 |---|---|---|---|
 | 1 | Préstamo de libros electrónicos | AFQP-27 | 2026-10-07 · generada con qwen3:1.7b y editada a mano |
+| 2b | Reservar un libro electrónico agotado (generada con Groq) | AFQP-28 | 2026-10-07 · gpt-oss-120b, retoques a mano |
 | 2 | Reservar un libro electrónico agotado | | |
 | 3 | Pagar las multas en línea | | |
 | 4 | Renovar un préstamo (evolución de HU-02) | | |

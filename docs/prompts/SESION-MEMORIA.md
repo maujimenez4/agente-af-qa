@@ -1,13 +1,13 @@
-# SESIÓN UI · Ronda 9: arreglos de la web tras la prueba con la API real (PA-333, PA-336, PA-332, PA-334 y PA-335)
+# SESIÓN UI · Ronda 10: arreglos de la web tras la prueba manual del usuario (PA-427…PA-431)
 
-> Encargo de la **sesión UI**. Tu ronda 8 (conversación en Origen) ya está fusionada. El responsable de `web/` está ausente: el usuario ha decidido terminar los pendientes con sesiones. En paralelo, la sesión MCP hace la pantalla de Administración (rama `ses-web-admin`).
+> Encargo de la **sesión UI**. Tu ronda 9 (`ses-web-fixes`) ya está fusionada. **Coordinado con el responsable de `web/`:** esta ronda es tuya y él no toca estos archivos mientras dure.
 
 Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
-```bash
+```powershell
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/ses-ui switch -C ses-web-fixes origin/PreProduccion
+git -C .claude/worktrees/ses-ui switch -C ses-web-pulido origin/PreProduccion
 cd .claude/worktrees/ses-ui/web
 npm ci
 npm test
@@ -15,33 +15,44 @@ npm test
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-web-fixes`**, creada desde `PreProduccion`. Tu ronda 8 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-web-pulido`**, creada desde `PreProduccion`. Tu ronda 9 ya está fusionada.
 
-**Contexto:** la prueba de la web contra la API real (`docs/pruebas/WEB-API-2026-10-05.md`) dejó fallos de la web en las filas **PA-332 a PA-336** de `docs/KANBAN.md`. Léelas, junto con `web/README.md`, `web/DESIGN-DECISIONS.md` y `web/HANDOFF.md`.
+**Contexto:** el usuario ha probado la web en React contra la API real y ha anotado cinco cosas. Lee:
+- `web/README.md`, `web/DESIGN-DECISIONS.md` y `web/HANDOFF.md` (lo último fusionado: el escalado de Windows, PA-335; Editar a mano, parte B; el presupuesto al instante, PA-330);
+- `docs/specs/UI.md`.
 
-## Tareas, por prioridad para la demo
-1. **PA-333 (alta, intermitente):** una vez, tras «Aprobar y publicar», la pantalla se quedó en «Aprobando y publicando…» sin abrir el SSE ni consultar el estado, aunque la conversación quedó `simulated`.
-   - Busca la carrera en `Publishing` / `useGeneration`, por ejemplo cuando la respuesta de `POST /approve` ya no está `generating`, o cuando el `result` llega antes de abrir el SSE.
-   - Que la pantalla consulte siempre el estado si no recibe eventos en unos segundos.
-   - Cúbrelo con una prueba que reproduzca la carrera de forma determinista.
-2. **PA-336 (media-alta):** `POST /start/sources` se sigue llamando durante la generación y compite por los embeddings: la cancelación tardó 26 s. Deja de pedir fuentes al pasar a Generando y aborta la petición en curso.
-3. **PA-332:** tratamiento global del 401. La tarjeta «Sesión caducada» debe llevar al inicio de sesión desde cualquier pantalla (el cliente avisa y `SessionProvider` pasa a anónimo), no solo desde Iterar.
-4. **PA-334:** la pestaña Estrategia (QA) muestra el Markdown en bruto. Píntalo con un subconjunto seguro (párrafos, negritas, listas y títulos), **sin HTML ni `dangerouslySetInnerHTML`**, o quita las marcas. Lo mismo donde aparezca otro Markdown del modelo.
-5. **PA-335:** el hueco en blanco bajo la app en Iterar (QA). El alto debe ocupar la ventana y los paneles desplazarse hasta abajo, a 1024×768, 1280×800 y 1440×900.
+## Tareas
+1. **PA-427 · Revisar la calidad: la Q no se anima mientras revisa.** En Generando, la Q de carga se anima mientras se genera. En la pantalla de calidad (`web/src/screens/Quality/`), mientras la revisión está `running` («Revisando la calidad de …»), la Q se queda quieta. Que se anime igual, con el mismo componente de `components/QMark/`, respetando «reducir movimiento».
+2. **PA-428 · El texto de las fuentes sale con las marcas de Markdown.** En el panel de fuentes de la propuesta (HU y QA, `components/Proposal/ProposalViews.tsx`) y en el informe de calidad (`screens/Quality/`), los extractos del RAG son fragmentos de documentos en Markdown y se ven con `**`, `#`, `-` y tablas en bruto: por ejemplo, DOC-12 es una tabla.
+   - Píntalos con el componente de Markdown seguro de PA-334 (`components/Markdown/`), **sin HTML ni `dangerouslySetInnerHTML`**.
+   - Amplíalo para **tablas sencillas** (cabecera y filas, como `<table>` de React) y listas numeradas, si no las tiene.
+   - Un extracto cortado a mitad de una tabla o de una marca no debe romper la pantalla: lo que no se reconozca, como texto.
+3. **PA-429 · Al final de Generando e Iterar, el último mensaje queda cortado.** El botón naranja «Ver la propuesta» del último mensaje se ve cortado abajo y hay que desplazar para verlo entero. Que el chat deje margen al final y, al llegar un mensaje nuevo, lo muestre **entero** (el desplazamiento hasta abajo tiene que incluir ese margen). Compruébalo a 1280×800 y a 1024 al 125 %.
+4. **PA-430 · Texto al iterar.** Mientras se genera una versión nueva tras pedir un cambio, el indicador dice «Escribiendo la respuesta» (`components/QMark/TypingIndicator.tsx`). Al iterar debe decir **«Generando una nueva versión…»**. Pásalo como `label` desde Iterar, sin cambiar el texto por defecto si se usa en otros sitios.
+5. **PA-431 · Administración: lo que no está disponible tiene que decirlo.** En Ajustes, «Añadir documentos» (Elegir archivos) y «Usuarios y roles» salen desactivados sin explicación visible. Añade en cada tarjeta un distintivo o texto visible **«Disponible pronto»**, con el estilo de los demás «disponible pronto» de la web, y una frase breve:
+   - documentos: «La carga de documentos llegará en una versión posterior.»;
+   - usuarios: «Los usuarios se gestionan hoy desde el servidor.».
+
+   No toques el resto de la pantalla: el responsable de `web/` la va a rehacer.
 
 ## Reglas
-- **Puedes tocar:** `web/` (pantallas, componentes, hooks y `web/src/api/client.ts` solo para el 401 de PA-332) y sus pruebas.
-  - **Coordinación con la sesión MCP**, que añade en paralelo los métodos de administración al final de `client.ts` y una zona nueva en el carril y en `AppShell`: tú no tocas el carril, y en `client.ts` y `AppShell` cambia lo mínimo. Así la fusión será sencilla.
-  - No toques `api/`, `core/` ni `app/`.
-- **Convenciones de `web/`:** componentes existentes, textos en español, enlaces por `safeHref`. Y avisa en tu mensaje final de cada componente compartido que hayas tocado.
-- **Pruebas (Vitest con MSW):** una por cada arreglo, **deterministas** (nada que dependa de cuánto dura un estado en pantalla; el SSE de prueba está en `web/src/test/sse.ts`).
-- **Verificación:** `npm run lint`, `npx tsc -b`, `npm test` (la suite completa, dos veces) y `npm run api:check` en verde. Los tamaños de ventana de PA-335, con Edge sin interfaz y un perfil nuevo (scripts en el scratchpad).
-- **No mates procesos globales.** Pídeselo también a los subagentes.
+- **Solo `web/`.** No toques `web/src/api/**`, `api/`, `core/` ni `app/`.
+- **Componentes compartidos que vas a tocar:** `components/Markdown/`, `components/Proposal/`, el chat (`components/Chat/` o `Workspace`) y `TypingIndicator`. Avísalo en tu mensaje final con la lista exacta.
+- **Pruebas (Vitest con MSW, deterministas, sin ampliar esperas):**
+  - la Q animada en una revisión en curso y quieta con «reducir movimiento»;
+  - extractos con negritas, títulos, listas, tablas y un `<script>` o `<img onerror>`, este último como texto;
+  - el mensaje final visible entero, comprobando la estructura y el desplazamiento;
+  - «Generando una nueva versión…» al iterar;
+  - los «Disponible pronto» de Administración.
+- **Verificación:**
+  - `npm run lint`, `npx tsc -b`, `npm test` (dos veces) y `npm run api:check`;
+  - Edge sin interfaz con un perfil nuevo, a 1280×800 y 1024 al 125 %, para PA-429 y PA-428.
+- **No mates procesos.** Pídeselo también a los subagentes.
 - **Kanban:**
-  - cierra cada PA con la fecha;
+  - añade PA-427…PA-431 como hechas con la fecha;
   - fila en el registro;
-  - propuestas en **PA-127…PA-139**.
+  - propuestas en **PA-131…PA-139**.
 - **Antes del commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
-- **Sin fusionar.** Haz `git push -u origin ses-web-fixes` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-web-pulido` y avísame.
 
-Empieza presentándome el plan (sobre todo la causa probable de PA-333 y cómo la reproduces) antes de escribir código.
+Empieza presentándome el plan antes de escribir código.

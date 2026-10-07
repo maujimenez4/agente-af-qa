@@ -6,6 +6,12 @@
 **Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
 **Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
 
+## Novedades de la principal (2026-10-07, noche)
+- **PA-426 en `PreProduccion`** (sesión Modelos, `ses-qa-cobertura`): **el backend bloquea la aprobación de una suite con un CA sin caso** y devuelve `review.error` «Falta al menos un caso para CA-02: pídeselo al agente antes de aprobar.» (no cuenta para el tope de rechazos; tiene su propio tope de 50). **Al generar**, si lo único que falla es que faltan CA, hace un **reintento dirigido** solo con esos CA (`prompts/tests_missing.md`); si aun así falta alguno, la suite pasa a revisión con `uncovered` en lugar de `coverage_failed`. Las RN siguen sin bloquear. El contrato no cambia. Es lo que la web ya pinta (recibo e Iterar).
+- **Falta confirmarlo contra la API real:** pedido a la principal en la #16 (aviso en Iterar, sugerencia, *Aprobar y publicar* desactivado y `review.error` si se intenta). Con su resultado, actualizar la variante B de [DEMO.md](DEMO.md).
+- **También en `PreProduccion`:** PA-432 (la misma HU de Jira sale igual cada vez: estructura compartida, temperatura 0 y CA/RN literales) y PA-440 (ventana del modelo local a 10.240 tokens).
+- **La #16 está al día con `PreProduccion`** (`130410a`, conflicto del registro diario resuelto conservando las dos partes) y `t56-pulido-2` la trae.
+
 ## Novedades de la principal (2026-10-07, tarde)
 - **Ronda de la sesión UI (`ses-web-pulido`) en `PreProduccion`:**
   - PA-427: la Q se anima en Revisar la calidad;
@@ -63,7 +69,7 @@
 **Hecha** por la sesión MCP (rama `ses-web`) el 2026-10-05 y 06: la web funciona contra la API real de punta a punta (HU, QA y Memoria). Informe y hallazgos en `docs/pruebas/WEB-API-2026-10-05.md` (PA-330 a PA-339). La guía sigue en [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md). En este equipo no se monta el backend.
 
 ## Sistema de entregas (confirmado por la principal, 2026-10-05)
-- **Cada bloque nuevo sale de `origin/PreProduccion` en su propia rama** (desde el 2026-10-06; ya no se encadenan ramas). Nunca push a una rama con PR abierta.
+- **Cada bloque nuevo sale de `origin/PreProduccion` en su propia rama** (desde el 2026-10-06; ya no se encadenan ramas). **No se añade trabajo nuevo a una rama con PR en revisión**; sí se puede traer `origin/PreProduccion` a esa rama (`git merge`) para resolver conflictos y subirlo (aclaración del responsable, 2026-10-07).
 - **Una PR pequeña por bloque terminado**, `<rama del bloque> → PreProduccion`. **Antes de abrirla**, todo en verde:
   - test-writer, spec-checker (CONFORME) y security-reviewer (APTO);
   - Vitest (la suite completa, sin otras sesiones cargando el equipo), lint, build y `npm run api:check`.

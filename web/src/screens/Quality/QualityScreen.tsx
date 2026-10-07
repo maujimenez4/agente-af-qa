@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, isAbortError, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, QualityReport, QualityReviewOut } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
@@ -19,16 +19,21 @@ import {
   NO_FINDINGS,
   NOT_FOUND,
   projectOf,
-  QUALITY_POLL_MS,
+  QUALITY_MAX_WAIT_MS,
+  qualityPollDelay,
   QUALITY_TITLE,
   qualityHeading,
   READ_ONLY,
+  RECHECK,
   REPORT_TITLE,
   reportFileName,
   reportSummary,
+  REVIEW_AGAIN,
   reviewCandidates,
+  reviewStartedAt,
   RUNNING_NOTE,
   SOURCE_KINDS,
+  STALE_REVIEW,
   VERDICT_LABELS,
 } from './qualityText.ts'
 
@@ -45,53 +50,81 @@ export interface QualityScreenProps {
 }
 
 // Mixta 5 · Revisar la calidad (UI.md §4.8; T-48): flujo propio y de solo lectura, sin restricciones ni conversación.
-// La API no tiene SSE para la calidad: una revisión `running` se consulta cada QUALITY_POLL_MS hasta `done` o `error`.
+// La API no tiene SSE para la calidad: una revisión `running` se consulta (2 s y después 10 s) hasta `done`, `error`
+// o el tope de 30 min (PA-406).
 export function QualityScreen({ request, reviewId, onBack, onChanged, onEvolve }: QualityScreenProps) {
   const [review, setReview] = useState<QualityReviewOut | undefined>()
   const [pending, setPending] = useState<string | undefined>(reviewId)
   const [error, setError] = useState<ApiError | undefined>()
   const [attempt, setAttempt] = useState(0)
   const [starting, setStarting] = useState(false)
+  // PA-406: el tope de 30 min cuenta desde `created_at` (o desde que se abrió la pantalla) o, tras *Volver a
+  // consultar*, desde ese clic. Al pasarlo, deja de consultar y sale la tarjeta `stale`.
+  const [openedAt] = useState(() => Date.now())
+  const [windowStart, setWindowStart] = useState<number | undefined>()
+  const [stale, setStale] = useState(false)
+  const recheckNow = useRef(false)
+  // Un solo POST aunque se pulse dos veces *Revisar* (el `disabled` llega con el siguiente render).
+  const startingNow = useRef(false)
 
-  // Consulta la revisión pendiente: al abrirla desde la lista y, mientras está en curso, cada QUALITY_POLL_MS.
+  // Consulta la revisión pendiente: al abrirla desde la lista y, mientras está en curso, cada 2 s los dos
+  // primeros minutos y después cada 10 s, hasta el tope.
   useEffect(() => {
-    if (!pending) return
+    if (!pending || stale) return
     const controller = new AbortController()
+    const since = (value: QualityReviewOut) => windowStart ?? reviewStartedAt(value.created_at, openedAt)
     const load = () =>
       api
         .qualityReview(pending, controller.signal)
         .then((value) => {
+          if (controller.signal.aborted) return
           setReview(value)
           setError(undefined)
           if (value.state !== 'running') {
             setPending(undefined)
             onChanged()
+          } else if (Date.now() - since(value) >= QUALITY_MAX_WAIT_MS) {
+            setStale(true)
           }
         })
         .catch((cause: unknown) => {
           if (!isAbortError(cause)) setError(toApiError(cause))
         })
-    const first = review?.state === 'running'
-    const timer = first ? window.setTimeout(() => void load(), QUALITY_POLL_MS) : undefined
+    const first = review?.state === 'running' && !recheckNow.current
+    recheckNow.current = false
+    const timer = first && review ? window.setTimeout(() => void load(), qualityPollDelay(Date.now() - since(review))) : undefined
     if (!first) void load()
     return () => {
       controller.abort()
       if (timer !== undefined) window.clearTimeout(timer)
     }
     // `review` cambia en cada consulta: vuelve a programar la siguiente mientras siga en curso.
-  }, [pending, review, attempt, onChanged])
+  }, [pending, review, attempt, onChanged, stale, windowStart, openedAt])
+
+  // *Volver a consultar*: una consulta ya y otra ventana de 30 min desde ahora.
+  const recheck = () => {
+    recheckNow.current = true
+    setWindowStart(Date.now())
+    setStale(false)
+  }
 
   const start = async (issueKey: string) => {
+    if (startingNow.current) return
+    startingNow.current = true
     setStarting(true)
     setError(undefined)
     try {
       const created = await api.startQualityReview({ issue_key: issueKey, excluded_sources: [] })
+      // Revisión nueva, ventana nueva: aunque su `created_at` no se pueda leer, no hereda la de la apertura.
+      setWindowStart(Date.now())
+      setStale(false)
       setReview(created)
       setPending(created.state === 'running' ? created.id : undefined)
       onChanged()
     } catch (cause) {
       setError(toApiError(cause))
     } finally {
+      startingNow.current = false
       setStarting(false)
     }
   }
@@ -128,11 +161,26 @@ export function QualityScreen({ request, reviewId, onBack, onChanged, onEvolve }
     >
       <ChatLog>
         <UserMessage>Revisa la calidad de {key}.</UserMessage>
-        {review.state === 'running' && (
+        {review.state === 'running' && !stale && (
           <AssistantMessage>
             <LoadingState title={`Revisando la calidad de ${key}…`} events={[]} />
             <p className={styles.muted}>{RUNNING_NOTE}</p>
             {error && <ErrorCard key={attempt} error={error} onAction={retryLoad} />}
+          </AssistantMessage>
+        )}
+        {review.state === 'running' && stale && (
+          <AssistantMessage>
+            {/* PA-406: pasado el tope ya no se consulta; la persona decide si esperar otra ventana o empezar otra. */}
+            <ErrorCard error={STALE_REVIEW} />
+            {error && <ErrorCard key={`start-${attempt}`} error={error} />}
+            <div className={styles.actions}>
+              <Button size="md" onClick={recheck}>
+                {RECHECK}
+              </Button>
+              <Button variant="primary" size="md" disabled={starting} onClick={() => void start(key)}>
+                {starting ? 'Empezando…' : REVIEW_AGAIN}
+              </Button>
+            </div>
           </AssistantMessage>
         )}
         {review.state === 'error' && (

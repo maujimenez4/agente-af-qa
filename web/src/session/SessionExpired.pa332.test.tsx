@@ -278,7 +278,8 @@ describe('401 que llegan tarde o a la vez (revisión de web/)', () => {
       http.get('/api/v1/issues/:key', first.respond, { once: true }),
       http.get('/api/v1/memories', second.respond, { once: true }),
     )
-    const requests = [api.issue('DEMO-3'), api.memories()]
+    // El rechazo de cada 401 se captura al crear la petición: si no, queda sin manejar hasta `settled` y Vitest acaba con código 1.
+    const requests = [api.issue('DEMO-3'), api.memories()].map((call) => call.catch((cause: unknown) => cause))
     await Promise.all([first.arrived, second.arrived])
 
     first.release()

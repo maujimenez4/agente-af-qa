@@ -34,11 +34,13 @@ const budgetBox = async () => (await within(panel()).findByText(/^Contexto ·/))
 afterEach(() => mockServer.events.removeAllListeners())
 
 describe('Origen · presupuesto en pantalla (bloque A)', () => {
-  it('el presupuesto se anuncia con aria-live="polite" y la barra es solo visual', async () => {
-    /** §4 bis: el presupuesto cambia al marcar casillas; un lector de pantalla lo oye sin perder el foco. */
+  it('el presupuesto confirmado se anuncia con aria-live="polite" y la barra es solo visual', async () => {
+    /** §4 bis y PA-330: un lector de pantalla oye el presupuesto confirmado sin perder el foco; la caja visible no es una región viva (las estimaciones no se anuncian). */
     await evolveDemo3()
     const box = await budgetBox()
-    expect(box).toHaveAttribute('aria-live', 'polite')
+    expect(box).not.toHaveAttribute('aria-live')
+    const live = within(panel()).getByText(/^Presupuesto confirmado:/)
+    expect(live).toHaveAttribute('aria-live', 'polite')
     const track = box.querySelector('[aria-hidden="true"]')
     expect(track).not.toBeNull()
   })

@@ -10,7 +10,7 @@ import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 import styles from './Origin.module.css'
 import { ProposalMessage, type ProposalMessageProps } from './ProposalMessage.tsx'
-import { BUDGET_DEBOUNCE_MS, BUDGET_FAILED, budgetView } from './budget.ts'
+import { BUDGET_DEBOUNCE_MS, BUDGET_FAILED, budgetView, differsFromEstimate, estimateUsed, fixedNote, REFILL_NOTE } from './budget.ts'
 import { NOTED, composerPlaceholder, detailsOf, latestProposal, type Turn } from './conversation.ts'
 import { createBody, fixedTitle, operationFromIssue, operationFromOption, sourceDetail, type Operation } from './operation.ts'
 import { CASE_TYPES, EXTRAS, extrasSummary, qaFeedback, REQUIRED_TYPES, type CaseTypeId, type ExtraId } from './qaOptions.ts'
@@ -65,6 +65,9 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   const [budget, setBudget] = useState<ContextBudget | undefined>()
   // Fuentes excluidas con las que se calculó `budget` (clave estable de la lista).
   const budgetFor = useRef('')
+  // PA-330: lo mismo para pintar (la estimación vale mientras la clave no coincide) y la estimación que había al confirmar.
+  const [confirmedFor, setConfirmedFor] = useState('')
+  const [estimateAtConfirm, setEstimateAtConfirm] = useState<number | undefined>()
   const [excluded, setExcluded] = useState<string[]>([])
   const [restrictions, setRestrictions] = useState('')
   const [draft, setDraft] = useState('')
@@ -112,6 +115,8 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
         setSources(value.sources)
         setBudget(value.budget)
         budgetFor.current = ''
+        setConfirmedFor('')
+        setEstimateAtConfirm(undefined)
         sourcesLoaded.current = true
       })
       .catch((cause: unknown) => {
@@ -141,6 +146,8 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
           if (cancelled) return
           budgetFor.current = key
           setBudget(value.budget)
+          setConfirmedFor(key)
+          setEstimateAtConfirm(estimateUsed(sources, excluded))
         })
         .catch(() => {
           // Abortada (PA-336): no es un fallo; el presupuesto que hubiera sigue valiendo.
@@ -156,9 +163,21 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       window.clearTimeout(timer)
       if (controller) untrack(pending, controller)
     }
-  }, [operation, excluded, generating])
+  }, [operation, excluded, generating, sources])
 
-  const budgetInfo = budgetView(budget)
+  // PA-330: al tocar una casilla, estimación al instante con `tokens` hasta que llega la confirmación, que manda. Al lector
+  // de pantalla solo llega lo confirmado (y la nota del RAG si la confirmación cambia la estimación), no cada estimación.
+  const pendingBudget = excluded.join('\n') !== confirmedFor
+  const estimate = pendingBudget ? estimateUsed(sources, excluded) : undefined
+  const budgetInfo = budgetView(budget, estimate)
+  const refilled = !pendingBudget && differsFromEstimate(budget, estimateAtConfirm)
+  const budgetFixed = fixedNote(budget)
+  const budgetAnnouncement =
+    budgetInfo && !pendingBudget
+      ? [`Presupuesto confirmado: ${budgetInfo.label.replace('Contexto · ', '')}.`, ...budgetInfo.notes, refilled ? REFILL_NOTE : undefined]
+          .filter(Boolean)
+          .join(' ')
+      : ''
 
   const toggle = (ref: string) =>
     setExcluded((current) => (current.includes(ref) ? current.filter((item) => item !== ref) : [...current, ref]))
@@ -350,7 +369,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
           </fieldset>
 
           {budgetInfo && (
-            <div className={styles.budget} data-warning={budgetInfo.warning ? '' : undefined} aria-live="polite">
+            <div className={styles.budget} data-warning={budgetInfo.warning ? '' : undefined} data-estimate={estimate !== undefined ? '' : undefined}>
               <span className={styles.budgetLabel}>{budgetInfo.label}</span>
               <span className={styles.budgetTrack} aria-hidden="true">
                 <span className={styles.budgetValue} style={{ width: `${budgetInfo.percent}%` }} />
@@ -360,8 +379,14 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
                   {note}
                 </span>
               ))}
+              {refilled && <span className={styles.budgetHint}>{REFILL_NOTE}</span>}
+              {budgetFixed && <span className={styles.budgetHint}>{budgetFixed}</span>}
             </div>
           )}
+          {/* Solo lo confirmado por el servidor, una vez: las estimaciones al marcar casillas no se anuncian (PA-330). */}
+          <span className="visually-hidden" aria-live="polite">
+            {budgetAnnouncement}
+          </span>
         </>
       )}
     </SidePanel>

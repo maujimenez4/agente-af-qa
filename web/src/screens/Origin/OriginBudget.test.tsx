@@ -72,8 +72,10 @@ describe('Origen · presupuesto de tokens (PA-102)', () => {
     await evolveDemo3()
     const before = usedOf((await within(panel()).findByText(/^Contexto ·/)).textContent)
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ }))
-    await waitFor(() => expect(usedOf(within(panel()).getByText(/^Contexto ·/).textContent)).toBeLessThan(before))
-    expect(bodies.at(-1)?.excluded_sources).toEqual(['DOC-01'])
+    // PA-330: primero la estimación («≈ …»); se espera a la confirmación del servidor, que es la que manda.
+    await waitFor(() => expect(bodies.at(-1)?.excluded_sources).toEqual(['DOC-01']))
+    await waitFor(() => expect(within(panel()).getByText(/^Contexto ·/).textContent).not.toMatch(/estimación/))
+    expect(usedOf(within(panel()).getByText(/^Contexto ·/).textContent)).toBeLessThan(before)
     expect(within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ })).not.toBeChecked()
 
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ }))
@@ -131,7 +133,9 @@ describe('Origen · presupuesto tras un fallo (H-5)', () => {
     const before = usedOf((await within(panel()).findByText(/^Contexto ·/)).textContent)
     const box = () => within(panel()).getByRole('checkbox', { name: /Reglamento de préstamo/ })
     await userEvent.click(box())
-    await waitFor(() => expect(usedOf(within(panel()).getByText(/^Contexto ·/).textContent)).toBeLessThan(before))
+    // PA-330: se espera a la confirmación (sin «estimación»), no a la estimación instantánea.
+    await waitFor(() => expect(within(panel()).getByText(/^Contexto ·/).textContent).not.toMatch(/estimación/))
+    expect(usedOf(within(panel()).getByText(/^Contexto ·/).textContent)).toBeLessThan(before)
     mockServer.use(
       http.post(
         '/api/v1/start/sources',

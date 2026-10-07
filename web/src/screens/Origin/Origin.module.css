@@ -154,6 +154,22 @@
   color: var(--color-warn-text);
 }
 
+/* PA-330: mientras llega la confirmación, la barra es una estimación (más clara) y el texto lo dice («≈ … · estimación»). */
+.budget[data-estimate] .budgetValue {
+  opacity: 0.55;
+}
+
+.budget[data-estimate] .budgetLabel {
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+/* Notas informativas (no avisos): por qué cambió la estimación y lo que ocupa el texto de la necesidad. */
+.budgetHint {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}
+
 /* QA 1: tipos de caso en dos columnas y «Incluir además» plegable. */
 .typeGrid {
   display: grid;

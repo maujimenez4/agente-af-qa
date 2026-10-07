@@ -16,7 +16,7 @@
 
   Tocó `components/Markdown/`, `Proposal/ProposalViews.tsx`, `Workspace/` (con `useStickToBottom.ts`), `Chat/Chat.tsx`, `States/LoadingState.tsx` y `QMark/LoadingQ.tsx`.
 - **PA-435 decidida:** la regla del backend se mantiene (no hay nota sin cambio); la web lo explica junto a *Guardar*.
-- **Un CA sin caso bloquea la aprobación de la suite** (una RN sin caso sigue avisando sin bloquear). El backend lo hace otra sesión y el contrato no cambia. **Web hecha** en `t56-pulido` (aviso «Falta un caso para CA-03» y *Aprobar y publicar* desactivado en el recibo; `?simular=sin-cubrir`). **Pendiente: comprobarlo contra la API real cuando la principal avise** (que el rechazo llega en `review.error` y se ve tal cual).
+- **Un CA sin caso bloquea la aprobación de la suite** (una RN sin caso sigue avisando sin bloquear). El backend lo hace otra sesión y el contrato no cambia. **Web hecha** en `t56-pulido` (aviso «Falta un caso para CA-03» y *Aprobar y publicar* desactivado en el recibo; `?simular=sin-cubrir`). **Pendiente: comprobarlo contra la API real cuando la principal avise** (que el rechazo llega en `review.error` y se ve tal cual). **Cuando lo confirme, actualizar `web/DEMO.md`** para enseñar también el bloqueo por un CA sin caso en la variante B (API real); hoy solo se enseña con la API simulada (§3).
 - **Pulido final** en `t56-pulido`, desde `origin/PreProduccion` (`6c15438`). Al empezar: Vitest 2404/2404, lint, build y `api:check` en verde. A `origin/t56-editar` solo le quedaba sin fusionar un commit del HANDOFF ya desfasado (`498e9c5`): se borra al cerrar el pulido.
 
 ## Novedades de la principal (2026-10-07)

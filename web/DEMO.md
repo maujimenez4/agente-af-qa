@@ -24,7 +24,7 @@ Los datos son siempre ficticios (proyecto `DEMO`, HU `DEMO-3`, usuarios `af-demo
 3. **Conversaciones preparadas**, porque cada generación tarda minutos:
    - `af-demo`: una **revisión de calidad terminada** de la HU de la demo, y una **evolución desde «Evolucionar con esto» ya iterada una vez** (en revisión, versión 2 o posterior). En directo se retoma desde la lista; la iteración solo se cuenta.
    - `qa-demo`: una **suite de la misma HU ya generada y en revisión**. Con `qwen3:1.7b`, sus RN saldrán **sin caso** (el modelo no rellena `rule_ids`).
-   - Opcional: una **memoria** ya existente (de una publicación real anterior) para enseñar en Memoria. En modo simulación no se genera ninguna.
+   - **Memorias de ejemplo** para enseñar en Memoria, porque en modo simulación no se genera ninguna. En el equipo de la principal, con `APP_ENV=development`: `uv run python -m core.memory.seed_demo` (o `--proyecto <CLAVE>` para otro proyecto). Crea dos memorias ficticias, `DEMO-9001` y `DEMO-9002`, que salen como **«No indexadas»**: no pasan por el RAG. Para quitarlas, se borran sus dos `.md` de `data/memory/`.
 4. **Plan B listo** (§7): `npx vite --mode mock --port 5174` en otra terminal y `http://localhost:5174/?simular=publicado` en **otro perfil** del navegador, sin entrar todavía.
 5. Comprobar el aviso «Modo de prueba» en Inicio y el anillo «consumo total» en el carril.
 
@@ -75,8 +75,9 @@ Si sobra tiempo: con solo la nota, el pie explica «Cambia algún campo para gua
 Marca las tres («Todo revisado») y pulsa *Aprobar y publicar* («Aprobando y publicando…»).
 
 **2.6 · Resultado y memoria.**
-- **A, con `?simular=publicado`:** «Publicado en Jira» (respuesta simulada: no sale nada del navegador) con las operaciones hechas. *Ver la memoria* abre la memoria de DEMO-3: «Indexada».
-- **A, sin `?simular=`, y B:** «Aprobada · simulada», con lo que se habría hecho. **Tras una simulación no aparece *Ver la memoria***, porque la memoria se genera al publicar de verdad. Abre *Memoria* en el carril y enseña una existente: DEMO-9001 en A, o la preparada en B. Si en B no hay ninguna, sáltate la memoria.
+- **A, con `?simular=publicado`:** «Publicado en Jira» con las operaciones hechas, y *Ver la memoria* abre la memoria de DEMO-3: «Indexada». **Dilo en voz alta:**
+  > «En la demo simulamos que la HU se ha publicado en Jira para poder enseñaros la memoria, que solo se genera al publicar. No se ha escrito nada en Jira.»
+- **A, sin `?simular=`, y B:** «Aprobada · simulada», con lo que se habría hecho. **Tras una simulación no aparece *Ver la memoria***, porque la memoria se genera al publicar de verdad. Abre *Memoria* en el carril y enseña una existente: DEMO-9001 en A, o una de las de ejemplo de `seed_demo` en B («No indexada»: explícalo como «aún no está en la base de conocimiento»). Si en B no hay ninguna, sáltate la memoria.
 
 > «Cada HU publicada deja una memoria sintética: objetivo, reglas, decisiones… *Indexada* quiere decir que ya está en la base de conocimiento, y el agente la usa como fuente prioritaria en las próximas propuestas.»
 

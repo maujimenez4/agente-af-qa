@@ -43,7 +43,7 @@ Esperado: la revisión señala que no hay importes, ni plazos, ni medios de pago
 > Las multas son de 0,20 € por día de retraso y libro, con un máximo de 6 € por libro. Se paga con tarjeta o con el monedero de la biblioteca. Si el pago falla, se muestra el motivo y la multa sigue pendiente. Mientras una persona tenga multas por más de 3 €, no puede tomar prestados libros.
 
 ## 4 · Evolucionar una HU existente: renovar un préstamo
-**Pantalla:** Evolucionar · **HU de partida:** HU-02 «Renovar un préstamo» (la sembrada en AFQP) · **Enseña:** comparación entre versiones e impacto en HU-01 «Reservar un libro disponible» (vínculo «relates to»).
+**Pantalla:** Evolucionar · **HU de partida:** AFQP-3, HU-02 «Renovar un préstamo» (la sembrada en AFQP) · **Enseña:** comparación entre versiones e impacto en HU-01 «Reservar un libro disponible» (vínculo «relates to»).
 
 Cambio que se pide:
 
@@ -69,7 +69,7 @@ Mensaje:
 
 | # | HU | Clave AFQP | Publicada |
 |---|---|---|---|
-| 1 | Préstamo de libros electrónicos | | |
+| 1 | Préstamo de libros electrónicos | AFQP-27 | 2026-10-07 · generada con qwen3:1.7b y editada a mano |
 | 2 | Reservar un libro electrónico agotado | | |
 | 3 | Pagar las multas en línea | | |
 | 4 | Renovar un préstamo (evolución de HU-02) | | |

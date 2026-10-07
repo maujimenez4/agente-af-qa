@@ -135,7 +135,8 @@ describe('ChangesView, ImpactView y SourcesView', () => {
   it('las fuentes citadas llevan su referencia, tipo y extracto', () => {
     render(<SourcesView sources={story.sources} />)
     expect(screen.getByText('DOC-01')).toBeInTheDocument()
-    expect(screen.getByText('«Cada préstamo admite hasta 2 renovaciones.»')).toBeInTheDocument()
+    // PA-428: el extracto se pinta como bloques de Markdown (sin «»: puede ser una tabla o una lista).
+    expect(screen.getByText('Cada préstamo admite hasta 2 renovaciones.')).toBeInTheDocument()
     expect(screen.getAllByText('Documento')).toHaveLength(1)
   })
 })

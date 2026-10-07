@@ -12,6 +12,7 @@ import {
 } from './proposalText.ts'
 import { useJiraBrowseUrl } from '../../hooks/useJiraBrowseUrl.ts'
 import { JiraKeyLink } from '../Jira/index.ts'
+import { MarkdownBlocks } from '../Markdown/index.ts'
 
 /** Valor de `selected` para la versión «Jira» (la HU tal como está en Jira, PA-316). */
 export const JIRA_VERSION = 0
@@ -231,7 +232,8 @@ export function SourcesView({ sources }: { sources: readonly SourceRef[] }) {
             <Badge tone="cite">{source.ref}</Badge>
             <span className={styles.muted}>{SOURCE_KIND[source.kind]}</span>
           </span>
-          {source.excerpt && <span className={styles.excerpt}>«{source.excerpt}»</span>}
+          {/* PA-428: el extracto es Markdown del documento; se pinta seguro, sin HTML. */}
+          {source.excerpt && <MarkdownBlocks className={styles.excerpt} text={source.excerpt} />}
         </li>
       ))}
     </ol>

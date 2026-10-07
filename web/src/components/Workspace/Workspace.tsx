@@ -3,6 +3,7 @@ import { useLayer } from '../../hooks/useLayer.ts'
 import { Button, IconButton } from '../Button/index.ts'
 import { PhaseQ, type Phase } from '../QMark/index.ts'
 import styles from './Workspace.module.css'
+import { useStickToBottom } from './useStickToBottom.ts'
 
 export interface WorkspaceProps {
   /** Título de la conversación (cabecera, H1). */
@@ -73,6 +74,10 @@ function useNarrowArea(ref: RefObject<HTMLElement | null>, onChange: (narrow: bo
 // (DESIGN-DECISIONS.md §4 bis): plegado, el panel se oculta sin desmontarse y conserva su estado.
 export function Workspace({ title, phase, phaseName, children, composer, panel, panelOpen, onPanelOpenChange, onPanelCloseRequest }: WorkspaceProps) {
   const [ownOpen, setOwnOpen] = useState(true)
+  // PA-429: la conversación baja sola al llegar un mensaje (si la persona seguía el final o el mensaje es suyo).
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const columnRef = useRef<HTMLDivElement>(null)
+  useStickToBottom(scrollRef, columnRef)
   const open = panelOpen ?? ownOpen
   const setOpen = (next: boolean) => {
     setOwnOpen(next)
@@ -140,8 +145,10 @@ export function Workspace({ title, phase, phaseName, children, composer, panel, 
             </Button>
           )}
         </header>
-        <div className={styles.scroll}>
-          <div className={styles.column}>{children}</div>
+        <div className={styles.scroll} ref={scrollRef} data-chat-scroll="">
+          <div className={styles.column} ref={columnRef}>
+            {children}
+          </div>
         </div>
         {composer && <div className={styles.composer}>{composer}</div>}
       </section>

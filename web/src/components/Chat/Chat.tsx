@@ -16,7 +16,7 @@ export function ChatLog({ label = 'Conversación', children }: { label?: string;
 /** Mensaje de la persona (burbuja a la derecha con forma Q). */
 export function UserMessage({ children }: { children: ReactNode }) {
   return (
-    <li className={styles.user}>
+    <li className={styles.user} data-author="user">
       <span className="visually-hidden">Tú: </span>
       {children}
     </li>

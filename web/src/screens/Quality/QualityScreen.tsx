@@ -7,6 +7,7 @@ import { AssistantMessage, ChatLog, FoundIssue, UserMessage } from '../../compon
 import { DownloadButton } from '../../components/Download/index.ts'
 import { ErrorCard, LoadingState, Skeleton } from '../../components/States/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
+import { MarkdownBlocks } from '../../components/Markdown/index.ts'
 import type { StartRequest } from '../Home/HomeScreen.tsx'
 import styles from './Quality.module.css'
 import {
@@ -163,7 +164,7 @@ export function QualityScreen({ request, reviewId, onBack, onChanged, onEvolve }
         <UserMessage>Revisa la calidad de {key}.</UserMessage>
         {review.state === 'running' && !stale && (
           <AssistantMessage>
-            <LoadingState title={`Revisando la calidad de ${key}…`} events={[]} />
+            <LoadingState title={`Revisando la calidad de ${key}…`} events={[]} running />
             <p className={styles.muted}>{RUNNING_NOTE}</p>
             {error && <ErrorCard key={attempt} error={error} onAction={retryLoad} />}
           </AssistantMessage>
@@ -386,7 +387,7 @@ function ReportPanel({
               <li key={`${source.kind}-${source.ref}`} className={styles.source}>
                 <Badge tone="cite">{SOURCE_KINDS[source.kind]}</Badge>
                 <span className={styles.sourceRef}>{source.ref}</span>
-                {source.excerpt && <span className={styles.muted}>{source.excerpt}</span>}
+                {source.excerpt && <MarkdownBlocks className={`${styles.muted} ${styles.sourceExcerpt}`} text={source.excerpt} />}
               </li>
             ))}
           </ul>

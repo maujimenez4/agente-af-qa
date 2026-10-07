@@ -19,7 +19,7 @@ export default defineConfig(({ command, mode }) => {
     },
     test: {
       environment: 'jsdom',
-      setupFiles: ['./src/test/setup.ts'],
+      setupFiles: ['./vitest.network.ts', './src/test/setup.ts'],
       css: true,
       restoreMocks: true,
       unstubGlobals: true,

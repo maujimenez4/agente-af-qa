@@ -1,12 +1,14 @@
 # UI · «Propuesta mixta» (T-23, T-56)
 
-**Versión:** 2.0 · **Fecha:** 2026-10-06 · **Tareas:** T-23 (diseño), T-56 (frontend en React) · **Trazabilidad:** RNF-15, D-04 (revisada), D-12, PA-44, PA-300
+**Versión:** 2.1 · **Fecha:** 2026-10-07 · **Tareas:** T-23 (diseño), T-56 (frontend en React) · **Trazabilidad:** RNF-15, D-04 (revisada), D-12, PA-44, PA-300
 **Diseño de referencia:** lienzo «Rediseño UI del agente AF y QA», página **Propuesta mixta** — https://claude.ai/artifact/PK7Mfx3z357t1x7e2hsSbB (copia en `docs/diseno/lienzo/`)
 **Decisión:** «Decisiones del día 6» de `docs/KANBAN.md` (la UI mixta sustituye al modelo de pestañas Contexto/Historia/QA) y D-04 revisada (frontend propio en React).
 
 Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de qué depende**. La implementación es el frontend en **React** de `web/` (T-56), que habla con el backend **solo a través de la API HTTP** de T-55 (`docs/api/openapi.yaml`, `docs/api/README.md`). Las decisiones de detalle (medidas, textos, accesibilidad, casos límite) están en `web/DESIGN-DECISIONS.md`; cuando el lienzo y este documento no coinciden, manda este documento. Lo que aún no existe se marca con su tarea o su propuesta (PA-XX).
 
-**Estado en la web** (2026-10-06): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración. **Pendientes:** *Editar a mano* (§4.5 bis; conectado para la HU en `t56-editar`, diseño pendiente de validar en PA-340) y lo que §11 deja fuera de la entrega. Los arreglos de la prueba contra la API están fusionados (PA-332 a PA-334 y PA-336); PA-335 (ventanas estrechas) llega con la PR #11.
+**Estado en la web** (2026-10-07): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, *Editar a mano* de la HU (§4.5 bis; diseño pendiente de validar en PA-340), el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración, con los arreglos de la prueba contra la API (PA-330 y PA-332 a PA-336), las ventanas estrechas (PA-335) y la ronda de pulido de la sesión UI (PA-427 a PA-431). En `t56-pulido`: PA-344, PA-435, un CA sin caso que bloquea la aprobación de la suite (§6.3 y §6.4), PA-346 y el anillo «consumo total». **Pendiente:** lo que §11 deja fuera de la entrega.
+
+**Cambios de la v2.1** (frente a la v2.0 del 2026-10-06): §2 (anillo «consumo total» y conversación que sigue el final), §4.3 (consultas de fuentes abortadas), §4.5 y §4.8 (extractos con formato), §4.5 bis (sin perder cambios y nota sola), §4.8 (Q animada), §6.3 y §6.4 (un CA sin caso bloquea; *Editar a mano* con su motivo a la vista), §7 (401 común) y §10 (distintivo «Disponible pronto»).
 
 ---
 
@@ -32,6 +34,7 @@ Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de 
 | Compositor | Cuadro de texto con ayuda según el flujo, «Elegir en Jira», selector de modelo **en solo lectura** («Modelo automático») y enviar. **Intro envía**, Mayús+Intro hace un salto de línea; mientras genera, el botón de enviar pasa a *Detener* | Enviar | Elegir modelo por petición (RF-42) queda fuera de la entrega |
 | Aviso de modo de prueba | En Inicio: «Modo de prueba: al aprobar verás lo que se haría en Jira, pero no se escribirá nada.» En el Resultado (HU y QA), solo tras una simulación: «Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.» | — | `publish_mode = simulation` |
 | Panel derecho | «Antes de generar» (420 px), propuesta o informe (480 px), suite de QA (540 px). Plegado, se oculta sin perder su estado | — | — |
+| Conversación | Al abrirla empieza por el final; con contenido nuevo baja sola si la persona seguía el final, y un mensaje propio baja siempre. Si ha subido a leer, no se la mueve (PA-429) | — | — |
 
 Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar** (generar e iterar) · **3 Revisión** (recibo, aprobada) · **4 Publicado**.
 
@@ -113,6 +116,8 @@ Fase 1 de 4. Conversación a la izquierda y panel «Antes de generar» a la dere
 | Panel · Presupuesto | «Contexto · 2.350 de 6.000 tokens» con barra; aviso desde el 90 % o si hay fuentes que no caben. Al marcar o desmarcar, estimación al instante («Contexto · ≈ 2.350 de 6.000 tokens · estimación», barra más clara) hasta la confirmación, que es la que cuenta; si la cambia, «Al quitar un documento puede entrar otro relacionado en su lugar: la cifra confirmada es la que cuenta.». En una necesidad nueva, lo que ocupa su texto aparte («… del total de 6.300»). Al lector de pantalla solo llega lo confirmado | — | `budget` de `POST /start/sources` (PA-102); `sources[].tokens`, `budget.fixed` y `budget.total` (PA-330) |
 | Panel · Pie | *Generar propuesta* · «Una llamada al modelo. Después itera conversando.» | `POST /conversations` (202) | — |
 
+Cada consulta de fuentes se aborta al cambiar otra casilla, al salir de la pantalla y al pulsar *Generar propuesta*; mientras se genera no sale ninguna, porque compiten con la generación por los embeddings (PA-336).
+
 ### 4.4 Mixta 2b · Generando
 Fase 2 de 4. La **Q de carga** avanza con los pasos (§8).
 
@@ -139,6 +144,7 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 | Panel · Versiones | *Jira* (solo al evolucionar) · *v1* · *v2* … | Ver una versión | `ConversationOut.versions`, `jira_baseline` (PA-316) |
 | Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira; los CA y RN se nombran `acceptance_criteria[CA-02]`, como en la API real y en el ejemplo del contrato, y la web acepta también `acceptance_criteria.CA-02`, PA-341), `impact.affected` |
 | Propuesta | «Como / quiero / para», CA y RN; marcas «Cambiado en vN» / «Nueva» frente a la versión anterior (en la v1, frente a Jira) | — | — |
+| Fuentes | Cada fuente con su extracto **con formato** (títulos en negrita, párrafos, listas y tablas sencillas) pintado como elementos de la página, nunca como HTML; lo que no se reconoce sale como texto. Una tabla más ancha que el panel se desplaza dentro de su caja (PA-428, PA-131) | — | `sources[].excerpt` |
 | Pie del panel | *Editar a mano* (§4.5 bis) · *Descartar* (con confirmación) · *Revisar y aprobar* | Editar / descartar / abrir el recibo | `POST /discard` · §4.6 |
 
 El aviso «CA sin fuente» (*Confirmar* · *Pedir fuente*) del lienzo queda aplazado: los CA no traen una cita propia (PA-315).
@@ -151,7 +157,8 @@ El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por 
 | Panel derecho | El editor de la HU **en lugar de la pestaña Propuesta** (540 px): Historia (título, «Como / Quiero / Para», descripción, objetivo, prioridad), Criterios de aceptación (título y «Dado / Cuando / Entonces», una línea por paso; *Subir*, *Bajar*, *Quitar*, *Añadir un criterio*), Reglas de negocio y «Más campos» plegado (alcance, supuestos, restricciones, dependencias…). La clave de Jira, las fuentes y los cambios frente a la anterior no se editan | Editar | — |
 | Rechazo | Arriba, «No se guardó la edición.» y el motivo de la API tal cual | — | `review.error` |
 | Pie | Lo que falta antes de guardar, los avisos (no impiden guardar), nota opcional (como mucho 1.000 caracteres; con menos de 1024 px útiles, plegada tras «Añadir una nota» si está vacía), *Cancelar* (con cambios, pide confirmación) y *Guardar la versión N+1* | `POST /conversations/{id}/edit` | Contrato §5 |
-| Mientras se edita | El foco va al primer campo; el compositor queda desactivado («Guarda o cancela la edición para pedir cambios»). Con el panel en capa (PA-335), Esc, el velo y *Cerrar* piden «¿Descartar los cambios?» si hay cambios sin guardar | — | — |
+| Mientras se edita | El foco va al primer campo; el compositor queda desactivado («Guarda o cancela la edición para pedir cambios»). Con cambios sin guardar, todo lo que cerraría el editor pide antes «¿Descartar los cambios? La versión N se queda como está.», con el foco en *Seguir editando*: *Cancelar*, Esc, el velo y *Cerrar* del panel en capa (PA-335), *Actualizar* de una tarjeta de error y la tarjeta de una versión en la conversación (PA-344; si el panel estaba plegado, se abre). *Reintentar* tras un error al guardar envía lo que hay entonces en el editor | — | — |
+| Solo una nota | Si no se ha cambiado ningún campo pero hay nota: «Cambia algún campo para guardar una versión nueva; la nota acompaña al cambio.» (la API no guarda una versión sin cambios, ni con nota; PA-435) | — | `_edit` |
 | Tras guardar | El panel vuelve a la propuesta con la versión nueva; en la conversación, «Versión N guardada: editada a mano, sin llamar al modelo», «Editada a mano · N fuentes» y, si la hay, «Nota de la edición: …»; la lista pasa a «Versión N»; en el historial del recibo, «Versión N editada a mano» | — | `VersionOut.edited` |
 
 **El backend decide:** *Guardar* solo se bloquea con lo que la API rechaza seguro (título vacío, ningún CA, identificadores mal formados o repetidos, CA sin título o sin pasos, RN sin descripción, sin cambios, nota de más de 1.000 caracteres); lo demás es un aviso. **Editar la suite de QA** a mano queda fuera por ahora (pregunta abierta en PA-340).
@@ -187,10 +194,10 @@ Flujo propio, **solo lectura: no publica** (decisión del día 6). Pantalla prop
 |---|---|---|---|
 | Elegir la HU | «Reviso la HU con INVEST y contra las fuentes, y te doy un informe. No cambio nada en Jira.» y una tarjeta por HU que se puede revisar: la elegida en Jira o, si no, las claves reconocidas y, sin ninguna, las parecidas (las épicas no se revisan). Sin ninguna, «No encuentro esa HU…» | *Revisar DEMO-4* (no se lanza el modelo sin confirmar) · *Volver al inicio* | `POST /start/propose` · `POST /quality-reviews` (202, `running`; `excluded_sources: []`, PA-403) |
 | Cabecera | «Calidad de DEMO-4» con «Revisar la calidad · solo lectura», **sin la Q de fases** | — | — |
-| En curso | «Revisando la calidad de DEMO-4…» y «Son dos llamadas al modelo: con el modelo local puede tardar unos minutos. No se escribe nada en Jira.» Sin pasos: la API no da el avance (PA-402) | — | `GET /quality-reviews/{id}` hasta `done` o `error` (sin SSE): cada 2 s los dos primeros minutos y después cada 10 s; tope de 30 min desde `created_at` (o desde que se abrió la pantalla): al pasarlo, tarjeta con *Volver a consultar* y *Revisar de nuevo* (PA-406) |
+| En curso | La Q animada (PA-427), «Revisando la calidad de DEMO-4…» y «Son dos llamadas al modelo: con el modelo local puede tardar unos minutos. No se escribe nada en Jira.» Sin pasos: la API no da el avance (PA-402) | — | `GET /quality-reviews/{id}` hasta `done` o `error` (sin SSE): cada 2 s los dos primeros minutos y después cada 10 s; tope de 30 min desde `created_at` (o desde que se abrió la pantalla): al pasarlo, tarjeta con *Volver a consultar* y *Revisar de nuevo* (PA-406) |
 | Error | La tarjeta de `quality_failed` (u otro `code`) con el mensaje tal cual y «Nada se ha escrito en Jira.» | *Reintentar* (empieza otra revisión) | `QualityReviewOut.error` |
 | Conversación | «He revisado DEMO-4 con INVEST y contra las fuentes.», el resumen del informe y «Hay 3 puntos a mejorar. No he cambiado nada en Jira.»; tarjeta «Informe de calidad de DEMO-4 · En el panel» | — | `report.summary` |
-| Panel «Informe de calidad» (480 px) | Bajo el título, un **resumen contado sin IA** a partir del veredicto («INVEST: 5 de 6 bien · 1 ambigüedad · 1 hueco», sin puntuaciones). Secciones: **INVEST** (las seis letras con su nombre y «Bien» / «Mejorable», en dos filas de tres), **Hallazgos** (tipo —Ambigüedad, Hueco, Sin fuente, INVEST, Incoherencia con las fuentes— con el CA o la RN afectados, explicación y propuesta; sin ninguno, «No hay hallazgos.»), **Preguntas para negocio** y **Fuentes**. Todo como texto | — | `report` (campo a campo) |
+| Panel «Informe de calidad» (480 px) | Bajo el título, un **resumen contado sin IA** a partir del veredicto («INVEST: 5 de 6 bien · 1 ambigüedad · 1 hueco», sin puntuaciones). Secciones: **INVEST** (las seis letras con su nombre y «Bien» / «Mejorable», en dos filas de tres), **Hallazgos** (tipo —Ambigüedad, Hueco, Sin fuente, INVEST, Incoherencia con las fuentes— con el CA o la RN afectados, explicación y propuesta; sin ninguno, «No hay hallazgos.»), **Preguntas para negocio** y **Fuentes** (con su extracto con formato, como en §4.5). Todo como texto, nunca HTML. El cuerpo se puede enfocar con Tab para desplazarlo con el teclado, porque no tiene controles | — | `report` (campo a campo) |
 | Pie del panel | *Descargar informe* (`calidad-DEMO-4.md`, solo para descargar) · *Evolucionar DEMO-4 con esto* (si hay mejoras); «Este flujo no publica en Jira. Evolucionar abre una conversación nueva con estas mejoras como punto de partida.» | Descargar · conversación nueva de evolución | `report_markdown` · `evolve_feedback` (el proyecto se deduce de la clave, PA-405) |
 | Lista de conversaciones | La revisión aparece junto a las conversaciones, por `updated_at`: «Revisar la calidad · Revisando / Informe listo / Con error»; al retomarla se abre esta pantalla | Retomar | `GET /quality-reviews` (PA-103, PA-272) |
 
@@ -262,14 +269,15 @@ Panel «Suite de pruebas» (540 px).
 | Pestaña **Casos** | Por caso: id, título, tipo, prioridad, «Verifica CA-01, RN-01», precondiciones, pasos, marca «Nuevo en v2» y su **Gherkin** desplegable | — | `TestSuite` (RF-23) |
 | Pestaña **Cobertura** | Matriz CA/RN × CP (RF-24) «se adjunta como matriz-DEMO-3.md» y *Descargar la matriz* (si la API trae `coverage_md`) | Descargar | `coverage_md`, `uncovered` (PA-326) |
 | Pestaña **Datos y riesgos** | Tabla de datos sintéticos (identificadores ficticios, RF-25) y riesgos, dependencias y áreas de impacto (RF-27) | — | `TestSuite` |
-| Pestaña **Estrategia** | = plan de pruebas (decisión del día 6): alcance, niveles, entornos, criterios de entrada y salida, prioridad; «se adjunta como estrategia-DEMO-3.md». Se muestra como texto (títulos y puntos); el formato de negritas y listas es PA-334 | — | `strategy_md` (RF-26) |
-| Pie | *Editar a mano* («disponible pronto»; editar la suite queda fuera por ahora, PA-340) · *Descartar* · *Revisar y aprobar* | — | §6.4 |
+| Pestaña **Estrategia** | = plan de pruebas (decisión del día 6): alcance, niveles, entornos, criterios de entrada y salida, prioridad; «se adjunta como estrategia-DEMO-3.md». Se muestra como texto (títulos y puntos), con negrita, cursiva y código pintados como elementos de la página, nunca como HTML (PA-334); una línea de más de 4.000 caracteres sale sin formato (PA-131) | — | `strategy_md` (RF-26) |
+| Pie | *Editar a mano* («disponible pronto»: encima de los botones, el distintivo «Disponible pronto» y «Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.», PA-346; editar la suite queda fuera por ahora, PA-340) · *Descartar* · *Revisar y aprobar* (siempre activo; con un CA sin caso, el recibo no deja aprobar) | — | §6.4 |
 
 **Cobertura** (`uncovered`, PA-326); `null` y listas vacías **no se tratan igual**:
 - **Listas vacías** («todo cubierto»): distintivo «Todos los CA cubiertos» y «Cada CA y cada RN de la HU tiene al menos un caso.».
 - **Con elementos:** distintivo «1 CA y 1 RN sin caso», el aviso «Sin ningún caso: CA-03, RN-03.» y una fila «· Sin caso» por cada uno en la matriz.
 - **`null` o sin el campo** («no se sabe»): sin distintivo ni ninguna afirmación de cobertura completa; nota «No se ha podido comprobar qué CA y RN de la HU quedan sin caso…».
-- **Una RN sin caso se avisa pero no bloquea la aprobación** (decisión de la principal, 2026-10-06, por el riesgo con el modelo local): la API solo exige un caso por CA (`coverage_failed`).
+- **Una RN sin caso se avisa pero no bloquea la aprobación** (decisión de la principal, 2026-10-06, por el riesgo con el modelo local).
+- **Un CA sin caso bloquea la aprobación** (decisión de la principal, 2026-10-07). En Iterar, bajo el distintivo y solo en la versión en revisión, «Falta un caso para CA-03. Cada CA de la HU necesita al menos un caso para aprobar la suite: pídelo en la conversación.» (también como descripción de *Revisar y aprobar*), y la primera sugerencia es «Añade un caso para CA-03» (o «Añade casos para CA-02 y CA-03»). Con `null` no se bloquea: decide el backend.
 
 ### 6.4 QA 4 · Recibo
 Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, versión N lista para revisar».
@@ -278,6 +286,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 |---|---|---|---|
 | «Qué se hará en Jira» | **Una casilla**, porque el plan trae una sola operación: «Crear N subtareas en DEMO-3 con la etiqueta «caso-prueba»», con el detalle de que adjunta `estrategia-DEMO-3.md` y `matriz-DEMO-3.md`; contador «0 de 1 revisada» → «Todo revisado» | Marcar | `publish_suite` en `review.plan` · `JiraNativeTests` (T-30, D-09) |
 | Aviso | «Generado con IA a partir de la HU y N fuentes. Revisa cada operación antes de aprobar. Si una subtarea falla, las demás se mantienen.» | — | RNF-13 |
+| CA sin caso | Con `review.uncovered.criteria` no vacío: aviso «Falta un caso para CA-03. Cada CA de la HU necesita al menos un caso para aprobar la suite. Vuelve a la suite y pide un caso que lo verifique.» y *Aprobar y publicar* desactivado aunque la casilla esté marcada (el aviso es su descripción). Las RN sin caso no bloquean. Si el backend rechaza la aprobación, el motivo sale tal cual en «No se aprobó» | — | `review.uncovered`, `review.error` |
 | Botones | *Descartar* · *Volver a la suite* · **Aprobar y publicar** | `POST /discard` · Iterar · `POST /approve` | Contrato §5 |
 | Historial de la suite | Versiones con «N casos · cobertura validada» (o los CA y RN sin caso, o solo los casos si no se sabe), modelo, `prompt_version` y hora | — | `ConversationOut.versions` |
 
@@ -328,7 +337,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 | `not_found` | No se encuentra | — |
 | `forbidden` | Sin permiso | — |
 
-Una publicación **parcial** no es un error: llega en `result.errors` y la pinta el Resultado. Los errores nunca muestran cabeceras, tokens ni cuerpos de respuesta (CLAUDE.md, principio 2). Un tratamiento común del 401 en todas las pantallas es PA-332.
+Una publicación **parcial** no es un error: llega en `result.errors` y la pinta el Resultado. Los errores nunca muestran cabeceras, tokens ni cuerpos de respuesta (CLAUDE.md, principio 2). Un 401 en cualquier pantalla lleva directamente al inicio de sesión con la tarjeta «Sesión caducada»; al volver a entrar la misma persona, se reabre la conversación en la que estaba (PA-332).
 
 ## 8. Animaciones
 
@@ -368,7 +377,7 @@ El diseño es el de Ajustes de la página «Propuesta v2» del lienzo, con las p
 | Conexiones | Al entrar, «Aún no has probado las conexiones. La prueba tarda unos segundos y se puede repetir cada 10 s.» (la API no guarda el último resultado y no se llama a servicios externos al abrir la pantalla). Tras probar, una fila por servicio (Jira, PostgreSQL, `Modelos · <proveedor>`, Embeddings) con «Conectado» / «Con problemas», el detalle de la API como texto y el tiempo | *Probar conexiones* (con CSRF; un 429 `rate_limited` trae la cuenta atrás de `retry_after`) | `POST /admin/connections/test` |
 | Modelos por tarea | Cadena de modelos por tarea (principal y respaldo) con el host de cada proveedor, el cambio de la sesión si lo hay y una fila de embeddings; «Solo lectura: los modelos se cambian en config/models.yaml.» | — | `GET /admin/models` |
 | Modo de publicación | «Simulación: no se escribe nada en Jira» o, en real, «Al aprobar, se escribe en Jira lo que la persona confirma.» | — | `publish_mode` de `GET /settings` |
-| Documentos, usuarios e historial | «Disponible pronto» | — | — |
+| Documentos, usuarios e historial | Documentos y usuarios, con el distintivo «Disponible pronto» y su motivo a la vista («La carga de documentos llegará en una versión posterior.», «Los usuarios se gestionan hoy desde el servidor.», PA-431); el historial, «disponible pronto» en el carril | — | — |
 | Pie | «Las claves se leen del .env y nunca se muestran. El administrador configura, pero no genera ni publica artefactos (D-01).» | — | — |
 
 **Diferencias con el lienzo** (PA-401): Conexiones sin estado al entrar; «Conectado» / «Con problemas» con el detalle de la API en lugar de «Falta la clave»; modelos con host, el cambio de la sesión y la fila de embeddings; la tarjeta «Modo de publicación» es nueva; documentos y usuarios, «disponible pronto». El archivo del lienzo (`AdministracionV2.dc.html`) aún no está copiado en el repositorio (PA-400).

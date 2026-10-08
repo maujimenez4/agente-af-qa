@@ -17,9 +17,11 @@ cobertura van como adjuntos `.md` de la HU.
 """
 
 import hashlib
+import json
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -144,34 +146,42 @@ class JiraNativeTests:
         if not JIRA_KEY_RE.fullmatch(story_key):
             shown = story_key[:_MAX_KEY_IN_MESSAGE]
             raise NotFoundError(f"«{shown}» no es una clave de Jira válida.", service=SERVICE)
+        try:
+            cases = [to_issue_summary(issue) for issue in self._search_cases(story_key)]
+        except MAPPING_ERRORS:
+            raise unexpected_format() from None
+        unique: dict[str, IssueSummary] = {}  # sin repetidas; la primera gana
+        for case in cases:
+            unique.setdefault(case.key, case)
+        return list(unique.values())[:MAX_CASES]
+
+    def _search_cases(self, story_key: str, extra_fields: str = "") -> list[dict[str, Any]]:
+        """Subtareas CP de la HU tal como las devuelve Jira (paginadas con `nextPageToken`)."""
         jql = cases_jql(story_key)
-        cases: list[IssueSummary] = []
+        fields = SEARCH_FIELDS + (f",{extra_fields}" if extra_fields else "")
+        cases: list[dict[str, Any]] = []
         token: str | None = None
         seen_tokens: set[str] = set()  # como en el tracker (PA-184): un token repetido para
         while len(cases) < MAX_CASES:
             params = {
                 "jql": jql,
                 "maxResults": str(min(PAGE_SIZE, MAX_CASES - len(cases))),
-                "fields": SEARCH_FIELDS,
+                "fields": fields,
             }
             if token:
                 params["nextPageToken"] = token
             page = self._http.get("/rest/api/3/search/jql", params=params, invalid="La consulta")
             issues = list_field(page, "issues")  # PA-189
-            try:
-                cases += [to_issue_summary(issue) for issue in issues]
-            except MAPPING_ERRORS:
-                raise unexpected_format() from None
+            if not all(isinstance(issue, dict) for issue in issues):
+                raise unexpected_format()
+            cases += issues
             token = page.get("nextPageToken")
             if not issues or not token or page.get("isLast", False):
                 break
             if not isinstance(token, str) or token in seen_tokens:
                 break
             seen_tokens.add(token)
-        unique: dict[str, IssueSummary] = {}  # sin repetidas; la primera gana
-        for case in cases:
-            unique.setdefault(case.key, case)
-        return list(unique.values())[:MAX_CASES]
+        return cases[:MAX_CASES]
 
     # --- ESCRITURA: solo desde el nodo publish -----------------------------------------------
 
@@ -179,7 +189,25 @@ class JiraNativeTests:
         started = time.perf_counter()
         story = _checked_key(suite.story_jira_key)
         project = story.rsplit("-", 1)[0]
+        label = suite_label(suite)
         existing = self._existing_cases(story)  # PA-05; si falla, no se escribe nada
+        # PA-450: un CP que ya existe en la HU solo se reutiliza si es de esta misma suite (mismo
+        # contenido aprobado: reintento tras una publicación parcial). Si es de otra suite o de
+        # antes de la huella, es un conflicto: no se escribe nada ni se da por publicado.
+        ids = {case.internal_id for case in suite.cases}
+        conflicts = sorted(
+            (case_id, key)
+            for case_id, (key, labels, _at) in existing.items()
+            if case_id in ids and label not in labels
+        )
+        if conflicts:
+            log.warning(
+                "casos de prueba en conflicto",
+                action="publish_suite",
+                jira_key=story,
+                conflicts=len(conflicts),
+            )
+            raise PublishError(conflict_message(story, conflicts))
         result = PublishResult()
         stopped = False
         handled: set[str] = set()  # PA-190: un CP repetido en la suite se trata una sola vez
@@ -188,18 +216,31 @@ class JiraNativeTests:
                 continue
             handled.add(case.internal_id)
             if case.internal_id in existing:
-                result.created.append(existing[case.internal_id])
+                result.created.append(existing[case.internal_id][0])
             elif stopped:
                 result.failed.append(case.internal_id)
             else:
                 try:
-                    result.created.append(self._create_case(case, story, project))
+                    result.created.append(self._create_case(case, story, project, label))
                 except (AuthenticationError, RateLimitError):
                     stopped = True
                     result.failed.append(case.internal_id)
                 except AgentError:
                     result.failed.append(case.internal_id)
-        self._attach_files(suite, story, result, stopped)
+        # PA-450: los adjuntos de esta suite son los subidos desde su primera subtarea.
+        since = min(
+            (at for _k, labels, at in existing.values() if label in labels and at), default=None
+        )
+        # Hasta la primera subtarea posterior de otra suite: sus adjuntos ya no son de esta.
+        until = min(
+            (
+                at
+                for _k, labels, at in existing.values()
+                if label not in labels and at and since is not None and at > since
+            ),
+            default=None,
+        )
+        self._attach_files(suite, story, result, stopped, since, until)
         log.info(
             "suite publicada en Jira",
             action="publish_suite",
@@ -211,21 +252,30 @@ class JiraNativeTests:
         )
         return result
 
-    def _existing_cases(self, story: str) -> dict[str, str]:
-        existing: dict[str, str] = {}
-        for issue in self.list_cases(story):
-            match = _CASE_PREFIX.match(issue.summary)
-            if match:
-                existing.setdefault(match.group(1), issue.key)  # la primera, por orden de clave
+    def _existing_cases(self, story: str) -> dict[str, tuple[str, set[str], datetime | None]]:
+        """CP ya publicados en la HU → (clave, etiquetas, creación); el primero, por clave."""
+        existing: dict[str, tuple[str, set[str], datetime | None]] = {}
+        try:
+            for issue in self._search_cases(story, "labels,created"):
+                summary = to_issue_summary(issue)
+                match = _CASE_PREFIX.match(summary.summary)
+                if match:
+                    fields = issue.get("fields") or {}
+                    raw = fields.get("labels") or []
+                    labels = {str(x) for x in raw} if isinstance(raw, list) else set()
+                    created = _jira_time(fields.get("created"))
+                    existing.setdefault(match.group(1), (summary.key, labels, created))
+        except MAPPING_ERRORS:
+            raise unexpected_format() from None
         return existing
 
-    def _create_case(self, case: TestCase, story: str, project: str) -> str:
+    def _create_case(self, case: TestCase, story: str, project: str, label: str) -> str:
         fields: dict[str, Any] = {
             "project": {"key": project},
             "parent": {"key": story},
             "issuetype": {"name": self._subtask_type},
             "summary": prefixed_summary(case.internal_id, case.title),
-            "labels": case_labels(case),
+            "labels": [*case_labels(case), label],
             "description": case_to_adf(case, story),
         }
         data = self._http.send("POST", "/rest/api/3/issue", {"fields": fields}, PublishError)
@@ -243,7 +293,13 @@ class JiraNativeTests:
         return key
 
     def _attach_files(
-        self, suite: TestSuite, story: str, result: PublishResult, stopped: bool
+        self,
+        suite: TestSuite,
+        story: str,
+        result: PublishResult,
+        stopped: bool,
+        since: datetime | None,
+        until: datetime | None = None,
     ) -> None:
         files = attachment_files(suite)
         if stopped:
@@ -255,7 +311,13 @@ class JiraNativeTests:
             result.failed += list(files)
             return
         for name, content in files.items():
-            if name in present:
+            # PA-450: con el mismo nombre puede estar el adjunto de otra suite. Solo cuenta como
+            # ya subido (reintento, PA-05) si es posterior a la primera subtarea de esta suite y
+            # anterior a la primera de otra suite publicada después; si no, se sube el nuevo
+            # (Jira conserva los dos y el último es el de esta suite).
+            if since is not None and any(
+                at >= since and (until is None or at < until) for at in present.get(name, [])
+            ):
                 continue
             if stopped:
                 result.failed.append(name)
@@ -395,14 +457,19 @@ class JiraNativeTests:
         )
         return False
 
-    def _attachment_names(self, story: str) -> set[str]:
+    def _attachment_names(self, story: str) -> dict[str, list[datetime]]:
+        """Adjuntos de la HU: nombre → fechas de subida (puede haber varios con el mismo)."""
         data = self._http.get(
             f"/rest/api/3/issue/{story}", params={"fields": "attachment"}, key=story
         )
         attachments = list_field(
             _fields(data), "attachment"
         )  # PA-188: forma inesperada → AgentError
-        return {str(a.get("filename")) for a in attachments if isinstance(a, dict)}
+        present: dict[str, list[datetime]] = {}
+        for item in attachments:
+            if isinstance(item, dict) and (at := _jira_time(item.get("created"))) is not None:
+                present.setdefault(str(item.get("filename")), []).append(at)
+        return present
 
 
 # --- Plantillas --------------------------------------------------------------------------------
@@ -415,6 +482,40 @@ def attachment_files(suite: TestSuite) -> dict[str, str]:
         f"estrategia-{key}.md": suite.strategy_md,
         f"matriz-{key}.md": suite.coverage_md(),
     }
+
+
+def _jira_time(raw: object) -> datetime | None:
+    """Fecha de Jira (`2026-10-08T10:00:00.000+0200`); `None` si falta o no tiene zona."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return value if value.tzinfo is not None else None
+
+
+SUITE_LABEL_PREFIX = "suite-"
+MAX_CONFLICTS_SHOWN = 5
+
+
+def suite_label(suite: TestSuite) -> str:
+    """PA-450: etiqueta con la huella de la suite aprobada; marca sus subtareas CP."""
+    canonical = json.dumps(
+        suite.model_dump(mode="json"), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"{SUITE_LABEL_PREFIX}{digest[:FINGERPRINT_CHARS]}"
+
+
+def conflict_message(story: str, conflicts: Sequence[tuple[str, str]]) -> str:
+    shown = ", ".join(f"{case_id} ({key})" for case_id, key in conflicts[:MAX_CONFLICTS_SHOWN])
+    rest = len(conflicts) - MAX_CONFLICTS_SHOWN
+    more = f" y {rest} más" if rest > 0 else ""
+    return (
+        f"{story} ya tiene casos con estos números y otro contenido: {shown}{more}. No se ha "
+        "publicado nada; vuelve a generar la suite para que continúe la numeración."
+    )
 
 
 def case_labels(case: TestCase) -> list[str]:

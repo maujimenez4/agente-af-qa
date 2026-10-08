@@ -113,6 +113,12 @@ HANDOFF_RELEASED = ApiError(
 )
 APPROVAL_REJECTED = "La aprobación no corresponde a la versión revisada; empieza de nuevo."
 RESTART = "Esta conversación no puede continuar. Empieza una nueva; nada se ha escrito en Jira."
+# PA-453: aprobada y sin publicación terminada (p. ej. tras reiniciar la API a mitad); lo que
+# llegó a escribirse en Jira consta en la auditoría.
+PUBLISH_UNFINISHED = (
+    "La publicación no terminó y puede haberse escrito parte en Jira: revisa la HU y la "
+    "auditoría antes de empezar una conversación nueva."
+)
 NEED_TEXT_REQUIRED = "Describe la necesidad antes de continuar."
 KEY_REQUIRED = "Escribe la clave de la HU de Jira, por ejemplo DEMO-3."
 
@@ -457,7 +463,8 @@ def retry(rt: Runtime, ws: Workspace, user: User, thread_id: str) -> Run:
         raise NOT_IN_ERROR
     snapshot = ws.graph.get_state(config)
     in_review = pending_payload(snapshot) is not None
-    if _state(run, row, in_review) != "error" or not snapshot.next:
+    pending = "publish" in (snapshot.next or ())
+    if _state(run, row, in_review, pending) != "error" or not snapshot.next:
         raise NOT_IN_ERROR
     if not set(snapshot.next) <= RETRYABLE_NODES:
         raise NOT_RETRYABLE
@@ -691,13 +698,23 @@ def _parse_time(raw: object) -> datetime:
     return datetime.now(UTC)
 
 
-def _state(run: Run | None, row: ConversationSummary | None, in_review: bool) -> ConversationState:
+def _state(
+    run: Run | None,
+    row: ConversationSummary | None,
+    in_review: bool,
+    publish_pending: bool = False,
+) -> ConversationState:
     if run is not None and run.running:
         return "generating"
     if run is not None and run.error is not None:
         return "error"
     if in_review:
         return "in_review"
+    if row is not None and row.status == "approved" and publish_pending:
+        # PA-453: aprobada y con `publish` aún pendiente en el grafo, sin operación en curso: la
+        # publicación no terminó (falló o se interrumpió, p. ej. al reiniciar la API). Una suite
+        # publicada en parte sí terminó `publish` y sigue `approved` con sus fallos (PA-324).
+        return "error"
     if row is not None and row.status in ENDED:
         return row.status  # type: ignore[return-value]
     return "error"
@@ -797,14 +814,16 @@ def describe(
     values: Mapping[str, Any] = snapshot.values or {}
     payload = pending_payload(snapshot)
     versions, plan = _versions(ws.graph.get_state_history(config))
-    state = _state(run, row, payload is not None)
+    publish_pending = "publish" in (snapshot.next or ())
+    state = _state(run, row, payload is not None, publish_pending)
     origin = values.get("origin") or {}
     mode = str(values.get("mode") or (row.mode if row else run.mode if run else "functional"))
     kind = str(origin.get("kind") or (row.origin_kind if row else "need"))
     project = str(origin.get("project") or (row.project_key if row else run.project if run else ""))
     error = run.error if run is not None else None
     if state == "error" and error is None:
-        error = ApiError(409, "restart", RESTART).body
+        unfinished = row is not None and row.status == "approved" and publish_pending
+        error = ApiError(409, "restart", PUBLISH_UNFINISHED if unfinished else RESTART).body
     updated = [t for t in (row.updated_at if row else None, run.updated_at if run else None) if t]
     return ConversationOut(
         id=str(config["configurable"]["thread_id"]),

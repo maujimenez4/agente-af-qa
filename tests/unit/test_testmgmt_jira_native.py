@@ -42,8 +42,10 @@ from adapters.testmgmt.jira_native import (
     attachment_files,
     case_labels,
     case_to_adf,
+    conflict_message,
     execution_comment,
     execution_fingerprint,
+    suite_label,
 )
 from schemas.common import Priority
 from schemas.test_case import TestCase, TestCaseType, TestStep, TestSuite
@@ -143,15 +145,28 @@ def make_suite(story: str = STORY, cases: list[TestCase] | None = None) -> TestS
     )
 
 
-def subtask(key: str, summary: str) -> dict[str, Any]:
+OLD = "2026-10-01T10:00:00.000+0000"  # antes de cualquier publicación de la prueba
+LATER = "2026-10-01T11:00:00.000+0000"  # después de las subtareas sembradas
+
+
+def subtask(
+    key: str, summary: str, labels: list[str] | None = None, created: str = OLD
+) -> dict[str, Any]:
     return {
         "key": key,
         "fields": {
             "summary": summary,
             "issuetype": {"name": SUBTASK_TYPE},
             "status": {"name": "Por hacer"},
+            "labels": labels or [],
+            "created": created,
         },
     }
+
+
+def ours(key: str, summary: str) -> dict[str, Any]:
+    """Subtarea publicada por la suite de `make_suite()` (con su etiqueta de huella, PA-450)."""
+    return subtask(key, summary, [CASE_LABEL, suite_label(make_suite())])
 
 
 def search_page(
@@ -181,6 +196,9 @@ class FakeJira:
 
     subtasks: list[dict[str, Any]] = field(default_factory=list)
     attachments: list[str] = field(default_factory=list)
+    # PA-450: fecha de subida de cada adjunto (en el orden de `attachments`; sin ella, LATER).
+    attachment_times: list[str] = field(default_factory=list)
+    clock: int = 0  # minutos tras OLD+1 h: cada creación o subida es posterior a la anterior
     case_replies: dict[str, Reply] = field(default_factory=dict)
     attach_replies: dict[str, Reply] = field(default_factory=dict)
     search_replies: list[Reply] = field(default_factory=list)
@@ -212,7 +230,11 @@ class FakeJira:
     def _attachments(self) -> httpx.Response:
         if self.attachments_replies:
             return _reply(self.attachments_replies.pop(0))
-        files = [{"id": str(i), "filename": name} for i, name in enumerate(self.attachments)]
+        times = self.attachment_times + [LATER] * len(self.attachments)
+        files = [
+            {"id": str(i), "filename": name, "created": times[i]}
+            for i, name in enumerate(self.attachments)
+        ]
         return httpx.Response(200, json={"key": STORY, "fields": {"attachment": files}})
 
     def _create(self, request: httpx.Request) -> httpx.Response:
@@ -224,16 +246,22 @@ class FakeJira:
             return httpx.Response(201, json=self.key_override[case_id])
         self.next_number += 1
         key = f"{PROJECT}-{self.next_number}"
-        self.subtasks.append(subtask(key, fields["summary"]))
+        self.subtasks.append(subtask(key, fields["summary"], fields["labels"], self._now()))
         return httpx.Response(201, json={"id": str(self.next_number), "key": key})
 
     def _upload(self, request: httpx.Request) -> httpx.Response:
         name = multipart_filename(request)
         if name in self.attach_replies:
             return _reply(self.attach_replies[name])
+        self.attachment_times += [LATER] * (len(self.attachments) - len(self.attachment_times))
         self.attachments.append(name)
+        self.attachment_times.append(self._now())
         self.uploads[name] = request.content
         return httpx.Response(200, json=[{"id": "900", "filename": name}])
+
+    def _now(self) -> str:
+        self.clock += 1
+        return f"2026-10-02T{10 + self.clock // 60:02d}:{self.clock % 60:02d}:00.000+0000"
 
     # --- Consultas de las peticiones registradas ---
 
@@ -649,10 +677,11 @@ def test_publish_suite_sends_exact_traceability_labels() -> None:
     """§6.2: etiquetas `caso-prueba`, CA, RN y `tipo-<valor>` en ese orden."""
     jira, tests, _ = jira_and_tests()
     tests.publish_suite(make_suite())
+    label = suite_label(make_suite())  # PA-450: huella de la suite, al final
     assert [fields_of(r)["labels"] for r in jira.creates()] == [
-        [CASE_LABEL, "CA-01", "RN-01", "tipo-positivo"],
-        [CASE_LABEL, "CA-02", "tipo-negativo"],
-        [CASE_LABEL, "CA-01", "CA-02", "RN-01", "tipo-excepcion"],
+        [CASE_LABEL, "CA-01", "RN-01", "tipo-positivo", label],
+        [CASE_LABEL, "CA-02", "tipo-negativo", label],
+        [CASE_LABEL, "CA-01", "CA-02", "RN-01", "tipo-excepcion", label],
     ]
 
 
@@ -887,7 +916,7 @@ def test_publish_suite_keeps_created_cases_when_later_case_gets_auth_or_rate_lim
 def test_publish_suite_still_reuses_existing_case_after_stopping() -> None:
     """PA-05 + RNF-13: tras un 401 un CP que ya existe sigue contando como publicado."""
     jira = FakeJira(
-        subtasks=[subtask("DEMO-15", "[CP-03] Fallo del servicio de préstamos")],
+        subtasks=[ours("DEMO-15", "[CP-03] Fallo del servicio de préstamos")],
         case_replies={"CP-01": error_response(401)},
     )
     jira, tests, _ = jira_and_tests(jira)
@@ -914,11 +943,11 @@ def test_publish_suite_skips_second_attachment_when_first_gets_auth_or_rate_limi
 
 
 def test_publish_suite_reuses_existing_cases_and_creates_only_missing() -> None:
-    """PA-05: las subtareas `[CP-01]` y `[CP-02]` existentes no se recrean; solo CP-03."""
+    """PA-05: las subtareas `[CP-01]` y `[CP-02]` de esta suite no se recrean; solo CP-03."""
     jira = FakeJira(
         subtasks=[
-            subtask("DEMO-11", "[CP-01] Renovar un préstamo sin reservas"),
-            subtask("DEMO-12", "[CP-02] Título antiguo"),
+            ours("DEMO-11", "[CP-01] Renovar un préstamo sin reservas"),
+            ours("DEMO-12", "[CP-02] Título antiguo"),
         ]
     )
     jira, tests, _ = jira_and_tests(jira)
@@ -930,9 +959,7 @@ def test_publish_suite_reuses_existing_cases_and_creates_only_missing() -> None:
 
 def test_publish_suite_uses_first_subtask_when_case_id_is_duplicated() -> None:
     """PA-05: con dos subtareas del mismo `[CP-XX]` se usa la primera (orden de clave)."""
-    jira = FakeJira(
-        subtasks=[subtask("DEMO-11", "[CP-01] Primera"), subtask("DEMO-14", "[CP-01] Copia")]
-    )
+    jira = FakeJira(subtasks=[ours("DEMO-11", "[CP-01] Primera"), ours("DEMO-14", "[CP-01] Copia")])
     jira, tests, _ = jira_and_tests(jira)
     result = tests.publish_suite(make_suite())
     assert result.created[0] == "DEMO-11"
@@ -960,8 +987,9 @@ def test_publish_suite_does_not_match_case_with_longer_id() -> None:
 
 
 def test_publish_suite_does_not_upload_attachment_already_present() -> None:
-    """PA-05: un adjunto con el mismo nombre no se vuelve a subir ni cuenta como fallido."""
-    jira, tests, _ = jira_and_tests(FakeJira(attachments=[STRATEGY_FILE, "otro.md"]))
+    """PA-05: un adjunto de esta suite (posterior a sus subtareas) no se vuelve a subir."""
+    jira = FakeJira(subtasks=[ours("DEMO-11", "[CP-01] A")], attachments=[STRATEGY_FILE, "otro.md"])
+    jira, tests, _ = jira_and_tests(jira)
     result = tests.publish_suite(make_suite())
     assert jira.uploaded_names() == [MATRIX_FILE]
     assert result.failed == []
@@ -971,9 +999,9 @@ def test_publish_suite_makes_no_write_when_everything_already_exists() -> None:
     """PA-05: si todos los CP y adjuntos existen, solo hay lecturas."""
     jira = FakeJira(
         subtasks=[
-            subtask("DEMO-11", "[CP-01] A"),
-            subtask("DEMO-12", "[CP-02] B"),
-            subtask("DEMO-13", "[CP-03] C"),
+            ours("DEMO-11", "[CP-01] A"),
+            ours("DEMO-12", "[CP-02] B"),
+            ours("DEMO-13", "[CP-03] C"),
         ],
         attachments=[STRATEGY_FILE, MATRIX_FILE],
     )
@@ -1019,6 +1047,122 @@ def test_publish_suite_twice_does_not_duplicate_anything() -> None:
     assert len(jira.creates()) == 3
     assert len(jira.upload_requests()) == 2
     assert jira.attachments == [STRATEGY_FILE, MATRIX_FILE]
+
+
+# --- PA-450: idempotencia por suite --------------------------------------------------------
+
+
+def _other_suite() -> TestSuite:
+    """Otra suite de la misma HU (otra conversación de QA): mismos CP, otro contenido."""
+    suite = make_suite()
+    cases = [c.model_copy(update={"title": f"{c.title} (otra suite)"}) for c in suite.cases]
+    return suite.model_copy(update={"cases": cases, "strategy_md": STRATEGY_MD + "\nOtra."})
+
+
+def test_suite_label_changes_with_content_and_is_stable() -> None:
+    assert suite_label(make_suite()) == suite_label(make_suite())
+    assert suite_label(make_suite()) != suite_label(_other_suite())
+    assert suite_label(make_suite()).startswith("suite-")
+
+
+def test_second_suite_with_same_case_ids_is_a_conflict_and_writes_nothing() -> None:
+    """PA-450: una suite nueva de la misma HU con CP-01… ya publicados por otra suite no se da
+    por publicada con las claves antiguas: conflicto visible y ninguna escritura."""
+    jira, tests, _ = jira_and_tests()
+    first = tests.publish_suite(make_suite())
+    jira.requests.clear()
+
+    with pytest.raises(PublishError) as exc:
+        tests.publish_suite(_other_suite())
+
+    message = str(exc.value)
+    assert "CP-01 (DEMO-21)" in message and "CP-03 (DEMO-23)" in message
+    assert "No se ha publicado nada" in message
+    assert jira.writes() == []
+    assert len(jira.subtasks) == len(first.created) == 3
+
+
+def test_legacy_subtasks_without_suite_label_are_a_conflict() -> None:
+    """PA-450: subtareas de antes de la huella (sin etiqueta `suite-…`) no cuentan como de esta
+    suite: si coinciden los números, conflicto."""
+    jira = FakeJira(subtasks=[subtask("DEMO-11", "[CP-01] Antigua", [CASE_LABEL])])
+    jira, tests, _ = jira_and_tests(jira)
+    with pytest.raises(PublishError, match=r"CP-01 \(DEMO-11\)"):
+        tests.publish_suite(make_suite())
+    assert jira.writes() == []
+
+
+def test_second_suite_with_new_case_ids_is_created_next_to_the_old_one() -> None:
+    """PA-450: con la numeración continuada (CP-04…) la suite nueva se crea entera y no toca
+    las subtareas de la anterior; sus adjuntos, con otro tamaño, se suben."""
+    jira, tests, _ = jira_and_tests()
+    tests.publish_suite(make_suite())
+    other = _other_suite()
+    renumbered = [
+        c.model_copy(update={"internal_id": f"CP-0{i}"}) for i, c in enumerate(other.cases, 4)
+    ]
+    second_suite = other.model_copy(update={"cases": renumbered})
+    jira.requests.clear()
+
+    second = tests.publish_suite(second_suite)
+
+    assert jira.created_case_ids() == ["CP-04", "CP-05", "CP-06"]
+    assert second.created == ["DEMO-24", "DEMO-25", "DEMO-26"]
+    assert second.failed == []
+    assert sorted(jira.uploaded_names()) == sorted([STRATEGY_FILE, MATRIX_FILE])
+
+
+def test_attachment_of_another_suite_is_uploaded_again() -> None:
+    """PA-450: un adjunto con el mismo nombre de antes de esta suite es de otra: se sube."""
+    jira = FakeJira(attachments=[STRATEGY_FILE], attachment_times=[OLD])
+    jira, tests, _ = jira_and_tests(jira)
+    tests.publish_suite(make_suite())
+    assert sorted(jira.uploaded_names()) == sorted([STRATEGY_FILE, MATRIX_FILE])
+
+
+def test_attachment_older_than_this_suite_is_uploaded_on_retry() -> None:
+    """PA-450: en un reintento, un adjunto anterior a la primera subtarea de la suite no cuenta;
+    uno posterior, sí."""
+    jira = FakeJira(
+        subtasks=[
+            ours(
+                "DEMO-11",
+                "[CP-01] A",
+            ),
+            ours("DEMO-12", "[CP-02] B"),
+        ],
+        attachments=[STRATEGY_FILE, MATRIX_FILE],
+        attachment_times=["2026-09-30T10:00:00.000+0000", LATER],
+    )
+    jira, tests, _ = jira_and_tests(jira)
+    tests.publish_suite(make_suite())
+    assert jira.uploaded_names() == [STRATEGY_FILE]
+
+
+def test_retry_does_not_take_attachments_of_a_later_suite_as_its_own() -> None:
+    """PA-450 (security-reviewer): la suite A falla en sus adjuntos, la B (renumerada) se publica
+    entera y luego A reintenta: los adjuntos de B no cuentan como de A; A sube los suyos."""
+    other_label = "suite-otrahuella00"
+    jira = FakeJira(
+        subtasks=[
+            ours("DEMO-11", "[CP-01] A"),
+            ours("DEMO-12", "[CP-02] B"),
+            ours("DEMO-13", "[CP-03] C"),
+            subtask("DEMO-14", "[CP-04] De B", [CASE_LABEL, other_label], created=LATER),
+        ],
+        attachments=[STRATEGY_FILE, MATRIX_FILE],
+        attachment_times=["2026-10-01T12:00:00.000+0000"] * 2,  # subidos por B, tras CP-04
+    )
+    jira, tests, _ = jira_and_tests(jira)
+    tests.publish_suite(make_suite())
+    assert sorted(jira.uploaded_names()) == sorted([STRATEGY_FILE, MATRIX_FILE])
+
+
+def test_conflict_message_lists_at_most_five() -> None:
+    conflicts = [(f"CP-0{i}", f"DEMO-{10 + i}") for i in range(1, 8)]
+    message = conflict_message("DEMO-3", conflicts)
+    assert "CP-05 (DEMO-15)" in message and "CP-06" not in message
+    assert "y 2 más" in message
 
 
 # --- Fallos de las lecturas previas ----------------------------------------------------------

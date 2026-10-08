@@ -1,0 +1,245 @@
+<title>Modelo local frente a Claude</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Una lámina por bloque: cifras clave, tiempo, coste, totales y método. Colores de Qaracter (azul marino y naranja). */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #1e2d3d;
+  --ink-2: #4a5866;
+  --ink-3: #6c7884;
+  --rule: #e2e6ea;
+  --grid: #edf0f2;
+  --brand: #ff7932;
+  --s-local: #eb6834;
+  --s-haiku: #1baf7a;
+  --s-sonnet: #2a78d6;
+  --s-opus: #eda100;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #95a0ab;
+    --rule: #2c3846; --grid: #243040; --brand: #ff8a4c;
+    --s-local: #d95926; --s-haiku: #199e70; --s-sonnet: #3987e5; --s-opus: #c98500;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #95a0ab;
+  --rule: #2c3846; --grid: #243040; --brand: #ff8a4c;
+  --s-local: #d95926; --s-haiku: #199e70; --s-sonnet: #3987e5; --s-opus: #c98500;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 28px 48px; }
+.page { max-width: 1040px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.eyebrow::before { content: ""; width: 18px; height: 3px; background: var(--brand); border-radius: 2px; }
+h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; margin: 0; text-wrap: balance; font-weight: 700; }
+.lede { margin: 0; color: var(--ink-2); max-width: 68ch; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px; display: grid; gap: 4px; }
+.tile .k { font-size: 13px; color: var(--ink-3); }
+.tile .v { font-family: var(--font-data); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tile .v .arrow { color: var(--ink-3); margin-inline: 6px; }
+.tile .note { font-size: 13px; color: var(--ink-2); }
+section.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 20px; display: grid; gap: 12px; min-width: 0; }
+h2 { font-size: 19px; margin: 0; text-wrap: balance; }
+.sub { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 75ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.chart text { font-family: var(--font-body); fill: var(--ink-2); font-size: 12px; }
+.chart .cat { fill: var(--ink); font-size: 13px; font-weight: 500; }
+.chart .val { font-family: var(--font-data); fill: var(--ink); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.chart .tick { fill: var(--ink-3); font-family: var(--font-data); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .axis { stroke: var(--rule); stroke-width: 1; }
+.chart rect.bar { cursor: default; }
+.chart rect.hit { fill: transparent; }
+.chart .hit:hover + rect.bar, .chart rect.bar.on { filter: brightness(1.08); }
+.foot { font-size: 12.5px; color: var(--ink-3); margin: 0; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+th, td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-size: 12px; color: var(--ink-3); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+td.num { font-family: var(--font-data); font-size: 13.5px; }
+tr.ours td { font-weight: 700; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 28px; }
+.method h3 { font-size: 14px; margin: 0 0 6px; }
+.method ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; display: grid; gap: 4px; }
+.method a { color: var(--ink); text-underline-offset: 2px; }
+.method a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 2px; }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12.5px; padding: 7px 10px; border-radius: 8px; line-height: 1.35; max-width: 240px; z-index: 10; }
+#tip b { font-weight: 700; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Agente de IA de AF y QA · coste y tiempos de los modelos</div>
+    <h1>De minutos a segundos, por céntimos</h1>
+    <p class="lede">Tiempos y tokens reales de 91 llamadas del agente (2–7 de octubre de 2026) con el modelo local gratuito <b>qwen3:1.7b</b> en CPU, frente a una estimación de las mismas operaciones con <b>Claude Haiku 4.5, Sonnet 5.5 y Opus 5.5</b>.</p>
+  </header>
+
+  <div class="tiles" aria-label="Cifras clave">
+    <div class="tile"><span class="k">Generar una suite de QA</span><span class="v">8,3 min<span class="arrow">→</span>~23 s</span><span class="note">Local (medido) frente a Sonnet 5.5 (estimado)</span></div>
+    <div class="tile"><span class="k">Coste de las 91 llamadas</span><span class="v">0 $<span class="arrow">→</span>~1,36 $</span><span class="note">Con Sonnet 5.5; ~0,03 $ por suite de QA</span></div>
+    <div class="tile"><span class="k">Tiempo total de modelo</span><span class="v">4 h 52 min<span class="arrow">→</span>~14 min</span><span class="note">Unas 20 veces más rápido</span></div>
+  </div>
+
+  <section class="card" aria-labelledby="t1">
+    <h2 id="t1">Tiempo por operación</h2>
+    <p class="sub">Segundos que espera la persona hasta tener la propuesta. Escala lineal: las barras de Claude son cortas porque los tiempos lo son.</p>
+    <div class="legend" id="lg1"></div>
+    <div class="chart" id="c-time" role="img" aria-label="Barras de tiempo por operación para los cuatro modelos; los valores están en la tabla de abajo"></div>
+  </section>
+
+  <section class="card" aria-labelledby="t2">
+    <h2 id="t2">Coste por operación</h2>
+    <p class="sub">Dólares por operación con los tokens reales medidos. El modelo local no tiene coste por uso.</p>
+    <div class="legend" id="lg2"></div>
+    <div class="chart" id="c-cost" role="img" aria-label="Barras de coste por operación para los cuatro modelos; los valores están en la tabla de abajo"></div>
+  </section>
+
+  <section class="card" aria-labelledby="t3">
+    <h2 id="t3">Las cifras</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Operación</th><th>Llamadas</th><th>Local</th><th>Haiku 4.5</th><th>Sonnet 5.5</th><th>Opus 5.5</th></tr></thead>
+        <tbody id="tbody"></tbody>
+        <tbody>
+          <tr class="ours"><td>Total de las 91 llamadas · tiempo</td><td class="num">91</td><td class="num">4 h 52 min</td><td class="num">~14 min</td><td class="num">~14 min</td><td class="num">~19 min</td></tr>
+          <tr class="ours"><td>Total de las 91 llamadas · coste</td><td class="num">91</td><td class="num">0 $</td><td class="num">~0,68 $</td><td class="num">~1,36 $</td><td class="num">~2,71 $</td></tr>
+          <tr><td>1000 operaciones al mes · coste estimado</td><td class="num">—</td><td class="num">0 $</td><td class="num">~15 $</td><td class="num">~30 $</td><td class="num">~60 $</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="foot">Aprobar y editar a mano no llaman al modelo: son instantáneos y no cuestan nada con ningún modelo.</p>
+  </section>
+
+  <section class="card" aria-labelledby="t4">
+    <h2 id="t4">Cómo se ha calculado</h2>
+    <div class="method">
+      <div>
+        <h3>Datos medidos (modelo local)</h3>
+        <ul>
+          <li>Tiempos por operación: trazas de Langfuse del agente (29 operaciones, 5–7 de octubre de 2026), mediana.</li>
+          <li>Tokens por tarea: registro de uso del agente en PostgreSQL (91 llamadas, 2–7 de octubre de 2026).</li>
+          <li>qwen3:1.7b con Ollama en CPU, ventana de 8192 tokens. Las suites incluyen los reintentos de validación reales.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Estimación (Claude)</h3>
+        <ul>
+          <li>Tiempo de cada llamada = primera respuesta + tokens de salida ÷ velocidad: Haiku 4.5 ~108 tokens/s y ~0,7 s; Sonnet 5.5 ~125 tokens/s y ~1,5 s; Opus 5.5 ~96 tokens/s y ~3 s.</li>
+          <li>Precio por millón de tokens (entrada / salida): Haiku 1 / 5 $, Sonnet 2 / 10 $, Opus 4 / 20 $.</li>
+          <li>Mismas llamadas que el local; un modelo más capaz probablemente necesitaría menos reintentos. Margen de ±20 % por la forma de contar tokens de cada modelo.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Fuentes</h3>
+        <ul>
+          <li><a href="https://artificialanalysis.ai/models/releases/comparisons/claude-sonnet-5-5-vs-claude-4-5-haiku">Artificial Analysis · Claude Sonnet 5.5 vs Claude 4.5 Haiku</a></li>
+          <li><a href="https://artificialanalysis.ai/models/releases/comparisons/claude-opus-5-5-vs-claude-4-5-haiku">Artificial Analysis · Claude Opus 5.5 vs Claude 4.5 Haiku</a></li>
+          <li><a href="https://artificialanalysis.ai/providers/anthropic">Artificial Analysis · Anthropic</a></li>
+          <li><a href="https://pecollective.com/tools/anthropic-api-pricing/">PE Collective · Anthropic API pricing 2026</a></li>
+          <li><a href="https://curlscape.com/blog/anthropic-claude-api-pricing-guide-2026">Curlscape · Claude API pricing guide 2026</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Para tener en cuenta</h3>
+        <ul>
+          <li>El proyecto usa solo modelos abiertos y gratuitos (decisión D-14): esto es una comparativa para decidir el futuro, no un cambio.</li>
+          <li>Con un proveedor en la nube los datos salen de la empresa: con datos reales hace falta un acuerdo de tratamiento de datos.</li>
+          <li>Precios y velocidades consultados en octubre de 2026 en comparadores; confirmar en la página oficial de Anthropic antes de decidir.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const MODELS = [
+  { key: "local", name: "Local · qwen3:1.7b", short: "Local", color: "var(--s-local)" },
+  { key: "haiku", name: "Claude Haiku 4.5", short: "Haiku 4.5", color: "var(--s-haiku)" },
+  { key: "sonnet", name: "Claude Sonnet 5.5", short: "Sonnet 5.5", color: "var(--s-sonnet)" },
+  { key: "opus", name: "Claude Opus 5.5", short: "Opus 5.5", color: "var(--s-opus)" },
+];
+const OPS = [
+  { op: "HU nueva", calls: 2, time: { local: 240, haiku: 19, sonnet: 18, opus: 26 }, cost: { local: 0, haiku: 0.012, sonnet: 0.025, opus: 0.049 } },
+  { op: "Evolucionar una HU", calls: 2, time: { local: 312, haiku: 17, sonnet: 17, opus: 24 }, cost: { local: 0, haiku: 0.013, sonnet: 0.027, opus: 0.054 } },
+  { op: "Suite de QA", calls: 3, time: { local: 498, haiku: 23, sonnet: 23, opus: 33 }, cost: { local: 0, haiku: 0.017, sonnet: 0.035, opus: 0.069 } },
+  { op: "Iterar una suite", calls: 1, time: { local: 318, haiku: 13, sonnet: 12, opus: 17 }, cost: { local: 0, haiku: 0.012, sonnet: 0.023, opus: 0.047 } },
+  { op: "Revisar la calidad", calls: 2, time: { local: 432, haiku: 17, sonnet: 17, opus: 24 }, cost: { local: 0, haiku: 0.015, sonnet: 0.030, opus: 0.060 } },
+];
+const nf = (n, d = 1) => n.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtTime = (s, m) => m === "local" ? `${nf(s / 60)} min` : `~${s} s`;
+const fmtCost = (c) => c === 0 ? "0 $" : `${nf(c, 3)} $`;
+
+function legend(id) {
+  document.getElementById(id).innerHTML = MODELS.map(m => `<span><i style="background:${m.color}"></i>${m.name}</span>`).join("");
+}
+
+const tip = document.getElementById("tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; moveTip(e); }
+function moveTip(e) { const x = Math.min(e.clientX + 14, window.innerWidth - 250); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+function hideTip() { tip.hidden = true; }
+
+function chart(id, field, max, ticks, fmt, tickFmt) {
+  const W = 900, labelW = 170, right = 70, barH = 12, gap = 2, groupPad = 18;
+  const groupH = MODELS.length * barH + (MODELS.length - 1) * gap;
+  const top = 8, axisH = 26;
+  const H = top + OPS.length * (groupH + groupPad) - groupPad + axisH + 6;
+  const plotW = W - labelW - right;
+  const x = v => labelW + (v / max) * plotW;
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  const baseY = top + OPS.length * (groupH + groupPad) - groupPad;
+  for (const t of ticks) {
+    s += `<line class="gridline" x1="${x(t)}" x2="${x(t)}" y1="${top - 4}" y2="${baseY}"/>`;
+    s += `<text class="tick" x="${x(t)}" y="${baseY + 18}" text-anchor="middle">${tickFmt(t)}</text>`;
+  }
+  s += `<line class="axis" x1="${labelW}" x2="${labelW}" y1="${top - 4}" y2="${baseY}"/>`;
+  OPS.forEach((o, i) => {
+    const gy = top + i * (groupH + groupPad);
+    s += `<text class="cat" x="${labelW - 12}" y="${gy + groupH / 2 + 4}" text-anchor="end">${o.op}</text>`;
+    MODELS.forEach((m, j) => {
+      const v = o[field][m.key];
+      const y = gy + j * (barH + gap);
+      const w = Math.max(v > 0 ? 3 : 0, x(v) - labelW);
+      const r = Math.min(4, w / 2);
+      const tipHtml = `<b>${o.op}</b><br>${m.name}: ${fmt(v, m.key)}<br>${o.calls} ${o.calls === 1 ? "llamada" : "llamadas"} al modelo`;
+      // Barra con extremo redondeado anclada al eje (sin redondear el lado del eje)
+      if (w > 0) {
+        s += `<path class="barshape" d="M${labelW},${y} H${labelW + w - r} Q${labelW + w},${y} ${labelW + w},${y + r} V${y + barH - r} Q${labelW + w},${y + barH} ${labelW + w - r},${y + barH} H${labelW} Z" fill="${m.color}"/>`;
+      }
+      s += `<text class="val" x="${labelW + w + 6}" y="${y + barH - 2}">${fmt(v, m.key)}</text>`;
+      s += `<rect class="hit" x="${labelW}" y="${y - 1}" width="${plotW + right}" height="${barH + gap}" data-tip="${tipHtml.replace(/"/g, "&quot;")}"/>`;
+    });
+  });
+  s += `</svg>`;
+  const el = document.getElementById(id);
+  el.innerHTML = s;
+  el.querySelectorAll("rect.hit").forEach(r => {
+    r.addEventListener("mouseenter", e => showTip(e, r.dataset.tip));
+    r.addEventListener("mousemove", moveTip);
+    r.addEventListener("mouseleave", hideTip);
+  });
+}
+
+legend("lg1"); legend("lg2");
+chart("c-time", "time", 540, [0, 60, 120, 180, 240, 300, 360, 420, 480, 540], fmtTime, t => `${t} s`);
+chart("c-cost", "cost", 0.075, [0, 0.025, 0.05, 0.075], (v) => fmtCost(v), t => t === 0 ? "0 $" : `${nf(t, 3)} $`);
+
+document.getElementById("tbody").innerHTML = OPS.map(o => `
+  <tr><td>${o.op} · tiempo</td><td class="num">${o.calls}</td>${MODELS.map(m => `<td class="num">${fmtTime(o.time[m.key], m.key)}</td>`).join("")}</tr>
+  <tr><td>${o.op} · coste</td><td class="num">${o.calls}</td>${MODELS.map(m => `<td class="num">${fmtCost(o.cost[m.key])}</td>`).join("")}</tr>`).join("");
+</script>

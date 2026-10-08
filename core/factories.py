@@ -262,6 +262,7 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
             timeout_s=limits.request_timeout_s,
             max_output_tokens=limits.max_output_tokens,
             extra_body=options.get((choice.provider, choice.model)),
+            context_window=limits.context_window,  # PA-457: guarda del reintento por formato
         )
 
     return create

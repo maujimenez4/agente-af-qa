@@ -640,16 +640,29 @@ def test_evolve_feedback_starts_graph_until_human_review(container: Container) -
 # --- 12 · Solo lectura ---------------------------------------------------------------------------
 
 
+def assert_only_shared_structure(container: Container, key: str = KEY) -> None:
+    """PA-456: el único estado que deja la revisión es la estructura compartida de la HU (como
+    el grafo, PA-432): una entrada con `issue_key` y `baseline`, sin artefactos ni registro."""
+    states = container.state_store.states  # type: ignore[attr-defined]
+    assert len(states) <= 1
+    for state in states.values():
+        assert set(state) == {"issue_key", "baseline"}
+        assert state["issue_key"] == key
+        assert state["baseline"]["jira_key"] == key
+
+
 def test_review_writes_nothing(container: Container, tmp_path: Path) -> None:
     """RF-18 · principio 1: cero escrituras en Jira y en QA, sin auditoría, sin artefactos en
-    aprobaciones ni en el estado, sin conversaciones y sin memoria."""
+    aprobaciones ni en el estado (solo la estructura compartida, PA-456), sin conversaciones y
+    sin memoria."""
     _review(container, excluded_sources=["DEMO-2"])
 
     assert _tracker(container).writes == []
     assert isinstance(container.test_management, FakeTestManagement)
     assert container.test_management.publish_calls == 0
     assert container.audit.recorded == []  # type: ignore[attr-defined]
-    assert container.state_store.states == {}  # type: ignore[attr-defined]
+    assert len(container.state_store.states) == 1  # type: ignore[attr-defined]
+    assert_only_shared_structure(container)
     # El registro de aprobaciones no expone un listado: se miran sus tablas internas.
     assert container.approvals._offers == {}
     assert container.approvals._approvals == {}
@@ -664,7 +677,8 @@ def test_review_writes_nothing(container: Container, tmp_path: Path) -> None:
 
 
 def test_review_failure_writes_nothing(container: Container) -> None:
-    """RF-18 · principio 1 (error): tampoco escribe nada cuando el informe no es válido."""
+    """RF-18 · principio 1 (error): tampoco escribe nada cuando el informe no es válido (solo
+    la estructura compartida de la HU, PA-456)."""
     _llm(container).builders[QualityReport] = _sequence(_with_bad_id())
 
     with pytest.raises(QualityReviewError):
@@ -672,7 +686,7 @@ def test_review_failure_writes_nothing(container: Container) -> None:
 
     assert _tracker(container).writes == []
     assert container.audit.recorded == []  # type: ignore[attr-defined]
-    assert container.state_store.states == {}  # type: ignore[attr-defined]
+    assert_only_shared_structure(container)
 
 
 # --- 13 · Log -----------------------------------------------------------------------------------

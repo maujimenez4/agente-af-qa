@@ -46,7 +46,7 @@ from adapters.llm.usage import (
     UsageRecord,
     usage_scope,
 )
-from schemas.quality import QualityReport
+from schemas.common import SourceRef
 from schemas.test_case import TestSuite
 from schemas.user_story import UserStory
 from tests.fakes import dataset
@@ -75,6 +75,13 @@ class Answer(BaseModel):
 
 
 VALID_ANSWER = '{"title": "Respuesta ficticia", "score": 7}'
+
+
+class UncitedWithSources(BaseModel):
+    """Esquema ficticio con `sources` que no está en `CITED_SCHEMAS`."""
+
+    summary: str
+    sources: list[SourceRef] = []
 
 
 # --- servidor falso ------------------------------------------------------------------------
@@ -359,15 +366,16 @@ def test_sent_schema_requires_sources_when_json_mode_retry() -> None:
 
 
 def test_sent_schema_does_not_force_sources_when_schema_not_cited() -> None:
-    """T-58 (límite): `QualityReport` tiene `sources` pero no se fuerza en el esquema enviado."""
+    """T-58 (límite): un esquema no citado con `sources` no la fuerza en el esquema enviado.
+    (PA-456: `QualityReport` ya es citado; se usa un esquema ficticio con `sources`.)"""
     built = build("local", completion("{no json"), completion("{no json"))
 
     with pytest.raises(StructuredOutputError):
-        built.provider.generate_structured(MESSAGES, QualityReport, TaskType.REVIEW_STORY)
+        built.provider.generate_structured(MESSAGES, UncitedWithSources, TaskType.REVIEW_STORY)
 
     sent = built.server.bodies()[0]["response_format"]["json_schema"]["schema"]
     assert "sources" not in sent.get("required", [])
-    assert sent == QualityReport.model_json_schema()
+    assert sent == UncitedWithSources.model_json_schema()
 
 
 def test_structured_accepts_suite_without_sources_when_model_omits_them() -> None:

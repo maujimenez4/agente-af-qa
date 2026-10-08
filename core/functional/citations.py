@@ -178,7 +178,7 @@ def citation_errors(story: CitedArtifact, sources: list[CitableSource]) -> list[
     return errors
 
 
-def without_forced_citations[T: (UserStory, TestSuite)](
+def without_forced_citations[T: (UserStory, TestSuite, QualityReport)](
     artifact: T, sources: list[CitableSource]
 ) -> T:
     """Sin fuentes en el contexto, las citas de la respuesta solo pueden ser inventadas: se quitan.

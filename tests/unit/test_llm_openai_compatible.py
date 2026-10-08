@@ -404,7 +404,9 @@ def test_structured_raises_external_error_when_json_mode_also_rejected() -> None
 
 
 def test_structured_retries_once_with_error_when_invalid_json() -> None:
-    """RNF-28: si la salida no es JSON válido, reintenta una vez con el error y suma tokens."""
+    """RNF-28 · PA-457: si la salida no es JSON válido, reintenta una vez con el error y suma
+    tokens. El reintento no lleva la respuesta fallida: la petición original y un mensaje `user`
+    con los errores."""
     bad = "esto no es JSON (ficticio)"
     setup = make_provider(
         completion(bad, prompt_tokens=10, completion_tokens=5),
@@ -418,14 +420,18 @@ def test_structured_retries_once_with_error_when_invalid_json() -> None:
     assert result.output_tokens == 11
     assert len(setup.server.requests) == 2
     first, second = setup.server.bodies()
-    assert second["messages"][: len(first["messages"])] == first["messages"]
-    assert second["messages"][-2] == {"role": "assistant", "content": bad}
-    assert second["messages"][-1]["role"] == "user"
-    assert second["messages"][-1]["content"].strip()
+    assert second["messages"][:-1] == first["messages"]
+    assert all(m["role"] != "assistant" for m in second["messages"])
+    last = second["messages"][-1]
+    assert last["role"] == "user"
+    assert last["content"].startswith("REINTENTO-FICTICIO\n")
+    assert "Invalid JSON" in last["content"]
+    assert bad not in json.dumps(second["messages"], ensure_ascii=False)
 
 
 def test_structured_retries_once_when_schema_validation_fails() -> None:
-    """RNF-28: un JSON que no valida con Pydantic también provoca un único reintento."""
+    """RNF-28 · PA-457: un JSON que no valida con Pydantic también provoca un único reintento,
+    con los errores (sin los valores) y sin la respuesta fallida."""
     invalid = '{"title": "Ficticio", "score": "no-es-un-numero"}'
     setup = make_provider(completion(invalid), completion(VALID_ANSWER))
 
@@ -434,8 +440,13 @@ def test_structured_retries_once_when_schema_validation_fails() -> None:
     assert result.content.score == 7
     assert len(setup.server.requests) == 2
     second = setup.server.bodies()[1]
-    assert second["messages"][-2] == {"role": "assistant", "content": invalid}
-    assert second["messages"][-1]["role"] == "user"
+    assert all(m["role"] != "assistant" for m in second["messages"])
+    last = second["messages"][-1]
+    assert last["role"] == "user"
+    assert "- score:" in last["content"]
+    sent = json.dumps(second["messages"], ensure_ascii=False)
+    assert "no-es-un-numero" not in sent
+    assert "Ficticio" not in sent
 
 
 def test_structured_raises_structured_output_error_when_invalid_twice() -> None:
@@ -1013,7 +1024,8 @@ def test_structured_repairs_ids_when_response_inside_json_fences() -> None:
 
 
 def test_structured_retries_with_repaired_version_and_remaining_errors_when_other_error() -> None:
-    """B · T-58: IDs inválidos + otro error → reintento con la versión reparada y solo el resto."""
+    """B · T-58 · PA-457: IDs inválidos + otro error → reintento solo con los errores que quedan
+    tras reparar (no los de patrón) y sin la respuesta, ni la original ni la reparada."""
     broken = _story_json(business_rules=RES_RULES, priority="Urgentísima")
     setup = make_provider(
         completion(broken, prompt_tokens=10, completion_tokens=5),
@@ -1024,11 +1036,12 @@ def test_structured_retries_with_repaired_version_and_remaining_errors_when_othe
 
     assert len(setup.server.requests) == 2
     assert (result.input_tokens, result.output_tokens) == (30, 12)
-    assistant, user = setup.server.bodies()[1]["messages"][-2:]
-    assert assistant["role"] == "assistant"
-    sent = json.loads(assistant["content"])
-    assert [rule["id"] for rule in sent["business_rules"]] == ["RN-01", "RN-02", "RN-03"]
-    assert sent["priority"] == "Urgentísima"  # lo no reparable, tal cual
+    first, second = setup.server.bodies()
+    assert second["messages"][:-1] == first["messages"]
+    assert all(m["role"] != "assistant" for m in second["messages"])
+    sent = json.dumps(second["messages"], ensure_ascii=False)
+    assert "Urgentísima" not in sent and "RN-RES" not in sent
+    user = second["messages"][-1]
     assert user["role"] == "user"
     assert user["content"].startswith("REINTENTO-FICTICIO\n")
     assert "priority" in user["content"]
@@ -1053,7 +1066,8 @@ def test_structured_repairs_retry_output_instead_of_raising_when_retry_has_bad_i
 
 
 def test_structured_retries_normally_with_original_when_json_invalid() -> None:
-    """B · T-58: un JSON roto no se repara: reintento normal con la salida original."""
+    """B · T-58 · PA-457: un JSON roto no se repara: reintento normal con el error de JSON, sin
+    la salida original."""
     bad = '```json\n{"title": "HU ficticia", \n```'
     setup = make_provider(completion(bad), completion(_story_json()))
 
@@ -1062,7 +1076,11 @@ def test_structured_retries_normally_with_original_when_json_invalid() -> None:
 
     assert result.content.title
     assert len(setup.server.requests) == 2
-    assert setup.server.bodies()[1]["messages"][-2] == {"role": "assistant", "content": bad}
+    retry = setup.server.bodies()[1]["messages"]
+    assert all(m["role"] != "assistant" for m in retry)
+    assert retry[-1]["role"] == "user"
+    assert "Invalid JSON" in retry[-1]["content"]
+    assert "HU ficticia" not in json.dumps(retry, ensure_ascii=False)
     assert "llm_output_repaired" not in _events(logs)
 
 

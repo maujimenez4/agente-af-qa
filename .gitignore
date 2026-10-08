@@ -28,7 +28,3 @@ data/uploads/
 .vscode/
 .idea/
 .DS_Store
-
-# Conversaciones preparadas de la demo (ids locales; eval/demo_prepare.py)
-docs/demo/preparadas.json
-docs/demo/preparadas.md

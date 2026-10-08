@@ -82,8 +82,20 @@ export function apiUrl(path: string): string {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-async function request<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+/**
+ * `repeatable`: la acción se puede repetir sin efectos (PA-461): tras un 403 por un token CSRF antiguo, se reintenta
+ * una vez con el nuevo. `recovered` (interno): ya es ese reintento; no se vuelve a recuperar (sin bucles).
+ */
+async function request<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  repeatable = false,
+  recovered = false,
+): Promise<T> {
   const startedIn = sessionNumber
+  const sentToken = csrfToken
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -108,6 +120,16 @@ async function request<T>(method: Method, path: string, body?: unknown, signal?:
     const error = (payload as { error?: ApiError } | undefined)?.error ?? { code: 'unexpected', message: BAD_RESPONSE_MESSAGE }
     // Un 401 de una petición lanzada en una sesión anterior (antes de volver a entrar) no echa a nadie.
     if (response.status === 401 && !SESSION_PATHS.has(path) && startedIn === sessionNumber) unauthenticatedHandler?.(error)
+    // PA-461: la API da el mismo 403 si falta el permiso que si el token CSRF es antiguo (se inició sesión en otra
+    // pestaña). Se comprueba la sesión una vez: si el token cambió, era eso.
+    // Solo con un token enviado: sin token (sesión cerrada) el 403 es lo esperado.
+    if (response.status === 403 && method !== 'GET' && sentToken !== null && !SESSION_PATHS.has(path) && !recovered && startedIn === sessionNumber) {
+      const outcome = await checkSessionAfterForbidden(sentToken)
+      if (outcome === 'renewed') {
+        if (repeatable) return request<T>(method, path, body, signal, repeatable, true)
+        throw new ApiRequestError(403, { code: 'operation_failed', message: SESSION_RENEWED_MESSAGE })
+      }
+    }
     throw new ApiRequestError(response.status, error)
   }
   return payload as T
@@ -120,6 +142,52 @@ const enc = encodeURIComponent
 const SESSION_PATHS = new Set(['/auth/me', '/auth/login', '/auth/logout'])
 let unauthenticatedHandler: ((error: ApiError) => void) | undefined
 let sessionNumber = 0
+
+/** PA-461: una acción que no se repite sola tras renovar el token: la persona la vuelve a pedir. */
+export const SESSION_RENEWED_MESSAGE = 'Tu sesión se renovó en otra pestaña. Vuelve a intentarlo.'
+
+/**
+ * Lo que dice `GET /auth/me` tras un 403 (PA-461):
+ * - `renewed`: la misma persona con otro token (se guarda el nuevo);
+ * - `unchanged`: el mismo token, así que el 403 es de permisos de verdad;
+ * - `switched`: otra persona inició sesión en otra pestaña (la sesión vuelve al inicio de sesión);
+ * - `failed`: no se pudo comprobar (un 401 lo trata la sesión, PA-332).
+ */
+type ForbiddenCheck = 'renewed' | 'unchanged' | 'switched' | 'failed'
+let sessionCheck: Promise<ForbiddenCheck> | undefined
+let sessionChangedHandler: ((session: SessionOut) => boolean) | undefined
+
+/**
+ * Registra quién decide si una sesión leída de `/auth/me` es de la misma persona (la sesión). Devuelve `true` si
+ * lo es; si no, la sesión ya ha vuelto al inicio de sesión. Devuelve la función para dejar de escucharlo.
+ */
+export function onSessionChecked(handler: (session: SessionOut) => boolean): () => void {
+  sessionChangedHandler = handler
+  return () => {
+    if (sessionChangedHandler === handler) sessionChangedHandler = undefined
+  }
+}
+
+/** Comprueba la sesión una sola vez aunque lleguen varios 403 a la vez (comparten la consulta). */
+async function checkSessionAfterForbidden(sentToken: string | null): Promise<ForbiddenCheck> {
+  // Otra petición ya renovó el token después de enviarse esta: no hace falta preguntar.
+  if (csrfToken !== null && csrfToken !== sentToken) return 'renewed'
+  sessionCheck ??= (async (): Promise<ForbiddenCheck> => {
+    try {
+      const session = await request<SessionOut>('GET', '/auth/me')
+      if (sessionChangedHandler && !sessionChangedHandler(session)) return 'switched'
+      if (session.csrf_token === sentToken) return 'unchanged'
+      csrfToken = session.csrf_token
+      return 'renewed'
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.status === 401) unauthenticatedHandler?.(cause.error)
+      return 'failed'
+    } finally {
+      sessionCheck = undefined
+    }
+  })()
+  return sessionCheck
+}
 
 /** Empieza una sesión nueva (cada inicio de sesión aceptado): los 401 de peticiones anteriores se ignoran. */
 export function startSession(): void {
@@ -157,16 +225,16 @@ export const api = {
   me: () => request<SessionOut>('GET', '/auth/me'),
 
   projects: () => request<ProjectsOut>('GET', '/projects'),
-  chooseProject: (project: string) => request<ChooseProjectOut>('POST', '/projects/choose', { project }),
+  chooseProject: (project: string) => request<ChooseProjectOut>('POST', '/projects/choose', { project }, undefined, true),
   epics: (project: string) => request<IssueSummary[]>('GET', `/projects/${enc(project)}/epics`),
   search: (project: string, q = '', signal?: AbortSignal) =>
     request<IssueSummary[]>('GET', `/projects/${enc(project)}/search${q ? `?q=${enc(q)}` : ''}`, undefined, signal),
   stories: (epicKey: string) => request<IssueSummary[]>('GET', `/epics/${enc(epicKey)}/stories`),
   issue: (key: string) => request<IssueCard>('GET', `/issues/${enc(key)}`),
 
-  propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body),
+  propose: (body: ProposeIn) => request<StartProposal>('POST', '/start/propose', body, undefined, true),
   sources: (origin: OriginIn, excluded: string[] = [], signal?: AbortSignal) =>
-    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn, signal),
+    request<SourcesOut>('POST', '/start/sources', { origin, excluded_sources: excluded } satisfies SourcesIn, signal, true),
 
   conversations: () => request<ConversationSummary[]>('GET', '/conversations'),
   createConversation: (body: ConversationCreateIn) => request<ConversationOut>('POST', '/conversations', body),
@@ -176,7 +244,7 @@ export const api = {
   discard: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/discard`),
   approve: (id: string, fingerprint: string) =>
     request<ConversationOut>('POST', `/conversations/${enc(id)}/approve`, { fingerprint } satisfies ApproveIn),
-  cancel: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/cancel`),
+  cancel: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/cancel`, undefined, undefined, true),
   retry: (id: string) => request<ConversationOut>('POST', `/conversations/${enc(id)}/retry`),
 
   // QA encadenada (T-54): el analista pasa la HU a QA; QA ve las pendientes y recoge una.
@@ -196,7 +264,7 @@ export const api = {
   usage: () => request<UsageTodayOut>('GET', '/settings/usage'),
 
   // Administración mínima (T-29): solo admin. Probar conexiones lleva CSRF y admite una prueba cada 10 s.
-  adminConnectionsTest: () => request<ConnectionsTestOut>('POST', '/admin/connections/test'),
+  adminConnectionsTest: () => request<ConnectionsTestOut>('POST', '/admin/connections/test', undefined, undefined, true),
   adminModels: (signal?: AbortSignal) => request<AdminModelsOut>('GET', '/admin/models', undefined, signal),
 
   // Revisar la calidad (T-48, Mixta 5): solo lectura, no publica. Responde 202 en `running`; el avance, consultando la revisión.

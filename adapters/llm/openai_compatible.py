@@ -36,6 +36,13 @@ log = structlog.get_logger(__name__)
 _LOCAL_PLACEHOLDER_KEY = "sin-clave"
 _DEFAULT_TIMEOUT_S = 60.0
 _MAX_ERRORS_IN_FEEDBACK = 5
+# PA-457: el reintento lleva solo los errores, con un tope de caracteres (no la respuesta fallida).
+_MAX_RETRY_ERRORS_CHARS = 1500
+# PA-457: la guarda del reintento usa la medida conservadora del núcleo (PA-114): 3 caracteres
+# por token, 4 tokens por mensaje y un margen; aquí no se importa `core/` (SPEC-00 §2).
+_GUARD_CHARS_PER_TOKEN = 3
+_GUARD_MESSAGE_TOKENS = 4
+_GUARD_SAFETY_TOKENS = 256
 _CODE_FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 # Un 400 por la salida estructurada (PA-16): parámetro o mensaje que nombra el formato pedido.
 _RESPONSE_FORMAT_ERROR = re.compile(
@@ -83,6 +90,7 @@ class OpenAICompatibleProvider:
         sleep: Callable[[float], None] = time.sleep,
         max_output_tokens: Mapping[TaskType, int] | None = None,
         extra_body: Mapping[str, Any] | None = None,
+        context_window: int | None = None,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -96,6 +104,8 @@ class OpenAICompatibleProvider:
         self._max_output_tokens = dict(max_output_tokens or {})
         # Opciones del modelo en `config/models.yaml` (p. ej. `think: false`, T-58).
         self._extra_body = dict(extra_body or {})
+        # PA-457: ventana del modelo, para que el reintento por formato no la desborde.
+        self._context_window = context_window
         # PA-432: muestreo de una llamada concreta (temperatura y semilla), por `with_options`.
         self._sampling: dict[str, Any] = {}
 
@@ -157,14 +167,24 @@ class OpenAICompatibleProvider:
         content, input_tokens, output_tokens = self._complete_structured(
             payload, schema, max_tokens
         )
-        parsed, shown, errors = self._parse_or_repair(content, schema, task)
+        parsed, _shown, errors = self._parse_or_repair(content, schema, task)
         if parsed is None:
-            # Un único reintento con el error de validación (RNF-28), sobre la versión reparada.
-            retry_payload = [
-                *payload,
-                {"role": "assistant", "content": shown},
-                {"role": "user", "content": self._prompts.retry.replace("{errors}", errors)},
-            ]
+            # Un único reintento con los errores de validación (RNF-28). PA-457 (PA-440): sin la
+            # respuesta fallida entera (podía desbordar la ventana) y solo si cabe.
+            feedback = self._prompts.retry.replace("{errors}", errors[:_MAX_RETRY_ERRORS_CHARS])
+            retry_payload = [*payload, {"role": "user", "content": feedback}]
+            if not self._fits(retry_payload, schema, max_tokens):
+                raise with_spent_tokens(
+                    StructuredOutputError(
+                        f"El modelo {self.model} de {self.provider} no devolvió una respuesta "
+                        f"válida para «{schema.__name__}» y el reintento no cabe en su ventana "
+                        f"de contexto ({self._context_window} tokens). Prueba de nuevo, acorta "
+                        "la petición o elige otro modelo.",
+                        service=self.provider,
+                    ),
+                    input_tokens,
+                    output_tokens,
+                ) from None
             try:
                 content, extra_in, extra_out = self._complete_structured(
                     retry_payload, schema, max_tokens
@@ -195,6 +215,29 @@ class OpenAICompatibleProvider:
         )
 
     # --- Internos ------------------------------------------------------------------------
+
+    def _fits(
+        self, payload: list[dict[str, str]], schema: type[BaseModel], max_tokens: int | None
+    ) -> bool:
+        """PA-457: si la petición (y el tope de salida) cabe en la ventana del proveedor."""
+        if self._context_window is None:
+            return True
+        chars = sum(len(m["content"]) for m in payload)
+        if not self._json_schema_supported:  # el esquema va como texto en el modo JSON
+            chars += len(self._prompts.json_mode) + len(json.dumps(llm_json_schema(schema)))
+        estimated = -(-chars // _GUARD_CHARS_PER_TOKEN) + _GUARD_MESSAGE_TOKENS * len(payload)
+        needed = estimated + (max_tokens or 0) + _GUARD_SAFETY_TOKENS
+        if needed <= self._context_window:
+            return True
+        log.warning(
+            "llm_retry_does_not_fit",
+            action="llm_call",
+            provider=self.provider,
+            model=self.model,
+            estimated_tokens=needed,
+            context_window=self._context_window,
+        )
+        return False
 
     def _parse_or_repair[T: BaseModel](
         self, content: str, schema: type[T], task: TaskType

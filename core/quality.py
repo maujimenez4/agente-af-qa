@@ -30,7 +30,7 @@ from sqlalchemy.dialects import postgresql
 from adapters.base import Message, TaskType, User
 from adapters.errors import AgentError, ExternalServiceError
 from core.container import Container
-from core.context.budget import PromptLimits, default_prompt_limits
+from core.context.budget import PromptLimits, default_prompt_limits, providers_of
 from core.context.service import build_context_service, is_story
 from core.functional.citations import (
     CitationError,
@@ -38,8 +38,14 @@ from core.functional.citations import (
     citation_errors,
     repair_citations,
     with_real_excerpts,
+    without_forced_citations,
 )
 from core.functional.context import StoryContext, render_context
+from core.functional.shared_structure import (
+    load_shared_structure,
+    save_shared_structure,
+    shared_structure_id,
+)
 from core.functional.writer import PromptLoader, StoryWriter, fill_placeholders, fit_context
 from core.graph.state import normalize_excluded_sources
 from core.logging import get_logger
@@ -95,7 +101,8 @@ class QualityReviewer:
     def limits(self) -> PromptLimits:
         """Ventana y topes de salida de la configuración del contenedor (PA-114)."""
         if self.c.config is not None:
-            return PromptLimits.from_config(self.c.config)
+            # Con la cadena efectiva del LLM, como el grafo (incluido el modelo elegido en la UI).
+            return PromptLimits.from_config(self.c.config, providers_of(self.c.llm))
         return default_prompt_limits()
 
     def review(
@@ -123,9 +130,20 @@ class QualityReviewer:
         )
 
         origin_only = StoryContext(origin_kind="story", origin_key=key, jira=[issue])
-        writer = StoryWriter(self.c.llm, prompt_loader=self._load, limits=self.limits)
-        structured = writer.structure(origin_only)
-        story = structured.story
+        # PA-456: la misma estructura compartida que el grafo (PA-432): misma HU y mismos IDs, y
+        # una llamada al modelo menos si ya está guardada.
+        shared = shared_structure_id(key, origin_only, self._load("structure_story").version)
+        story = load_shared_structure(self.c.state_store, shared, key)
+        structure_in = structure_out = 0
+        if story is None:
+            writer = StoryWriter(self.c.llm, prompt_loader=self._load, limits=self.limits)
+            structured = writer.structure(origin_only)
+            story, structure_in, structure_out = (
+                structured.story,
+                structured.input_tokens,
+                structured.output_tokens,
+            )
+            save_shared_structure(self.c.state_store, shared, key, story)
         report, provider, model, version, tokens_in, tokens_out = self._report(ctx, story)
         log.info(
             "calidad revisada",
@@ -142,8 +160,8 @@ class QualityReviewer:
             provider=provider,
             model=model,
             prompt_version=version,
-            input_tokens=structured.input_tokens + tokens_in,
-            output_tokens=structured.output_tokens + tokens_out,
+            input_tokens=structure_in + tokens_in,
+            output_tokens=structure_out + tokens_out,
         )
 
     def _report(
@@ -170,7 +188,7 @@ class QualityReviewer:
         sources = review_ctx.sources()
         result = self.c.llm.generate_structured(messages, QualityReport, TaskType.REVIEW_STORY)
         # PA-282: como en la HU y la suite, las citas se reparan sin LLM antes de validarlas.
-        report = repair_citations(result.content, sources)[0]
+        report = repair_citations(without_forced_citations(result.content, sources), sources)[0]
         tokens_in, tokens_out = result.input_tokens, result.output_tokens
 
         errors = report_errors(report, story, sources)
@@ -207,7 +225,7 @@ class QualityReviewer:
             )
             sources = review_ctx.sources()
             result = self.c.llm.generate_structured(retry, QualityReport, TaskType.REVIEW_STORY)
-            report = repair_citations(result.content, sources)[0]
+            report = repair_citations(without_forced_citations(result.content, sources), sources)[0]
             tokens_in += result.input_tokens
             tokens_out += result.output_tokens
             if citation_errors(report, sources):

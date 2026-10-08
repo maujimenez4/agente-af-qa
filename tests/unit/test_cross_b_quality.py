@@ -32,6 +32,7 @@ from tests.unit.test_quality import (
     _origin_cited,
     _sequence,
     _with_bad_id,
+    assert_only_shared_structure,
 )
 
 PROVIDERS = ("prov-estructura", "prov-revision", "prov-reintento")
@@ -245,7 +246,7 @@ def test_retry_external_error_propagates_without_writes(
     tmp_path: Path, failure: ExternalServiceError
 ) -> None:
     """RF-18 (error) · principio 1: un error externo en el reintento se propaga tal cual y no
-    se escribe nada (Jira, auditoría, estado)."""
+    se escribe nada (Jira, auditoría; en el estado, solo la estructura compartida, PA-456)."""
     container = _container(tmp_path)
     llm = _llm(container)
     llm.builders[QualityReport] = _sequence(_with_bad_id(), _origin_cited())
@@ -258,7 +259,7 @@ def test_retry_external_error_propagates_without_writes(
     assert len(llm.calls) == 3
     assert _spy(container).writes == []
     assert container.audit.recorded == []  # type: ignore[attr-defined]
-    assert container.state_store.states == {}  # type: ignore[attr-defined]
+    assert_only_shared_structure(container)
 
 
 def test_structure_failure_skips_review_quality(tmp_path: Path) -> None:

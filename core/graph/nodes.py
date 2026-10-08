@@ -21,14 +21,19 @@ from pydantic import BaseModel, ValidationError
 from adapters.base import Chunk, IssueDetail, TaskType
 from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
-from core.artifact_state import structure_cache_id
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
 from core.context.budget import PromptLimits, default_prompt_limits, providers_of
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.citations import citation_errors
-from core.functional.context import StoryContext, render_context
+from core.functional.context import StoryContext
+from core.functional.shared_structure import (
+    STRUCTURE_CACHE_VERSION,
+    load_shared_structure,
+    save_shared_structure,
+    shared_structure_id,
+)
 from core.functional.writer import StoryDraft, StoryWriter, sensitive_errors
 from core.graph.state import AgentState, Decision
 from core.handoff import HandoffStore, load_taken_handoff
@@ -485,42 +490,13 @@ class GraphNodes:
         return baseline
 
     def _shared_baseline(self, shared: str | None, issue_key: str | None) -> UserStory | None:
-        """PA-432: la estructura compartida de esta HU (misma clave y contenido), o `None`.
-
-        Es solo un ahorro: si no está, no cuadra o el almacén falla, se estructura de nuevo.
-        """
-        if shared is None:
-            return None
-        try:
-            saved = self.c.state_store.load(shared) or {}
-            if saved.get("issue_key") != issue_key or not saved.get("baseline"):
-                return None
-            story = UserStory.model_validate(saved["baseline"])
-        except Exception as exc:
-            log.warning(
-                "estructura compartida sin leer", action="structure_story", error=type(exc).__name__
-            )
-            return None
-        if story.jira_key != issue_key:
-            return None
-        log.info("estructura compartida reutilizada", action="structure_story")
-        return story
+        """PA-432: la estructura compartida de esta HU (misma clave y contenido), o `None`."""
+        return load_shared_structure(self.c.state_store, shared, issue_key)
 
     def _save_shared_baseline(
         self, shared: str | None, issue_key: str | None, baseline: UserStory
     ) -> None:
-        if shared is None:
-            return
-        try:
-            self.c.state_store.save(
-                shared, {"issue_key": issue_key, "baseline": baseline.model_dump(mode="json")}
-            )
-        except Exception as exc:  # solo un ahorro: la conversación sigue con su estructura
-            log.warning(
-                "estructura compartida sin guardar",
-                action="structure_story",
-                error=type(exc).__name__,
-            )
+        save_shared_structure(self.c.state_store, shared, issue_key, baseline)
 
     def _pending_baseline(self, pending: str | None, source: str) -> UserStory | None:
         """La versión de partida de un intento anterior de esta conversación, si la incidencia
@@ -1250,11 +1226,6 @@ def _pending_baseline_key(config: RunnableConfig | None) -> str | None:
     return str(uuid5(_PENDING_BASELINE_NS, f"baseline:{thread_id}"))
 
 
-# PA-432: si cambia la forma de estructurar (código, no el prompt), se sube y no se reutiliza.
-# 2 (PA-442): las anteriores pudieron estructurarse con la HU de origen recortada.
-STRUCTURE_CACHE_VERSION = 2
-
-
 def _generation_task(state: AgentState) -> TaskType:
     """La tarea que usará el contexto reunido: la suite en QA; en una HU, evolucionar o crear."""
     if state["mode"] == "qa":
@@ -1266,13 +1237,12 @@ def _generation_task(state: AgentState) -> TaskType:
 
 def _shared_baseline_id(issue_key: str | None, origin_only: StoryContext) -> str | None:
     """PA-432: entrada compartida por clave y huella de **lo que recibe el modelo** al
-    estructurar (la incidencia de origen tal como se le envía) y de la versión del prompt."""
+    estructurar (la incidencia de origen tal como se le envía) y de la versión del prompt.
+    PA-456: el cálculo es común con la revisión de calidad (`core/functional/shared_structure`)."""
     if not issue_key:
         return None
     prompt_version = load_prompt("structure_story").version
-    payload = f"{STRUCTURE_CACHE_VERSION}\n{prompt_version}\n{render_context(origin_only)}"
-    fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    return structure_cache_id(issue_key, fingerprint)
+    return shared_structure_id(issue_key, origin_only, prompt_version, STRUCTURE_CACHE_VERSION)
 
 
 def _issue_fingerprint(issues: list[IssueDetail]) -> str:

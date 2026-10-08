@@ -75,6 +75,7 @@ Acordado con la sesión principal en la PR #2 (PA-303).
 - **Sesión:**
   - La cookie HttpOnly `afqa_session` la gestiona el navegador; el frontend no la ve.
   - El `csrf_token` de `POST /auth/login` se guarda **solo en memoria** y se envía en `X-CSRF-Token` en todo POST, PUT o DELETE.
+  - **Token antiguo tras iniciar sesión en otra pestaña** (PA-461): la API da el mismo 403 `forbidden` por permisos que por un token antiguo. Ante un 403 en POST, PUT o DELETE con token, el cliente pide `GET /auth/me` **una vez** (los 403 simultáneos comparten la consulta). Misma persona con otro token: lo guarda y **reintenta una vez** solo lo repetible (`propose`, `sources`, `chooseProject`, `cancel`, `adminConnectionsTest`); lo demás (aprobar, iterar, descartar, crear…) no se reenvía y avisa «Tu sesión se renovó en otra pestaña. Vuelve a intentarlo.». Mismo token: el 403 es de permisos y se muestra. Otra persona: inicio de sesión con «Se ha iniciado sesión con otra cuenta en otra pestaña». Sin bucles.
   - Al recargar, se pide de nuevo con `GET /auth/me`. Nunca en `localStorage` ni `sessionStorage` (ESLint lo impide).
 - **Mismo origen:** el frontend llama a rutas relativas `/api/v1/…`.
   - En desarrollo, un proxy de Vite reenvía `/api` a `http://127.0.0.1:8000` **sin `changeOrigin`**: la API compara `Origin` con `Host`. El destino va en una variable del servidor de Vite sin prefijo `VITE_`, así que no llega al navegador.
@@ -115,7 +116,8 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
 - **Login mínimo** con las piezas del sistema (PA-311, pendiente de validar por la principal).
   - **Logotipo completo** (PA-444): `QaracterLogo` (`src/components/QMark/`), solo en el inicio de sesión. Sale del Qaracter Design System, copiado en `docs/diseno/marca/` (`logo-qaracter-oscuro.svg` para fondo claro; `logo-qaracter-blanco.svg`, para fondo oscuro, no se usa). Va **dentro del código** como `QLogo`, sin archivos ni URL: los trazados de las letras, tal cual del original, están en `src/design/qaracterLogo.ts`, y la Q es `Q_PATH` (idéntica). La Q usa `--color-primary` (#FF7932, el del original); las letras, el `#233441` literal del original, que coincide hoy con `--color-text` pero no cambia con el tema. Reglas de marca: alto mínimo de 24 px (en el login, 40 px) y margen libre de media Q (20 px). Una prueba compara los trazados con el original (`vite.config.ts` permite leer solo `docs/diseno/marca`).
 - **Admin:** entra en **Ajustes** (Administración mínima, T-29): probar conexiones (solo con el botón, nunca al entrar; una cada 10 s), modelos por tarea y modo de publicación de solo lectura; usuarios, documentos e historial siguen «disponible pronto». Diseño: Ajustes de la «Propuesta v2» con las piezas de la Mixta.
-- **Elegir en Jira:** además de *Usar la épica* y *Usar DEMO-3* (UI.md §4.2), si solo se cambia de proyecto aparece **«Usar el proyecto X»**: el selector de proyecto de Inicio abre este diálogo (UI.md §4.1) y hace falta poder cambiarlo sin fijar un origen. El buscador espera 300 ms entre pulsaciones.
+- **Elegir en Jira:** además de *Usar la épica* y *Usar DEMO-3* (UI.md §4.2), si solo se cambia de proyecto aparece **«Usar el proyecto X»**: el selector de proyecto de Inicio abre este diálogo (UI.md §4.1) y hace falta poder cambiarlo sin fijar un origen. El buscador espera 300 ms entre pulsaciones y admite 200 caracteres (contrato).
+  - **Cargas** (PA-460): cada lista (proyectos, épicas, HU y búsqueda) tiene su estado. Mientras llega, «Cargando…» (`aria-busy`), nunca el texto de vacío; si falla, su tarjeta de error en su columna con su *Reintentar*, que vuelve a pedir solo esa lista (el de la búsqueda, una vez, en la columna de épicas). `Listbox` acepta `loadingText` y `error`.
 - **Lista de conversaciones con error:** si `GET /conversations` falla, la lista muestra la tarjeta de error con *Reintentar* (UI.md §7), no el estado vacío.
 - **Arranque guiado:** el aviso de `project_changed` e `ignored_projects` (T-53, PA-313) se hace en Origen y fuentes, donde se fija la operación. Con `project_changed`, el proyecto se fija una vez con `POST /projects/choose`.
 - **Origen y fuentes** (Mixta 2):
@@ -253,6 +255,7 @@ Decidido el 2 de octubre para llegar a la demo de T-57 (Inicio, Elegir en Jira, 
   - en el carril, «24 %» y debajo «consumo total» (una línea: 67 px de los 72 útiles del carril, también al 125 y al 150 %). El porcentaje es `tokens_today / warning_threshold`, acotado a 100;
   - nombre accesible, y el mismo texto como tooltip (`title`): «Consumo de tokens de hoy de todas las personas que usan el agente: 12.345 de 50.000, 25 % del umbral de aviso».
   - se vuelve a pedir al cargar y cada 60 s (`USAGE_REFRESH_MS`): el consumo cambia despacio y no hace falta más precisión.
+  - **No mantiene viva la sesión** (PA-459): cada consulta renueva la sesión en la API, así que no se pide con la pestaña oculta ni tras 5 minutos sin actividad (puntero, teclado, rueda o toque). Al volver, se pide en el acto.
 
 ## 5. Textos de la lista de conversaciones
 

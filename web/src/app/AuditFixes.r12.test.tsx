@@ -131,6 +131,17 @@ describe('Lista de conversaciones · abrir una (auditoría)', () => {
     expect(screen.queryByText('No se pudo abrir (ficticio).')).toBeNull()
   })
 
+  it('tras abrir una con éxito y fallar otra, «Reintentar» reabre la que falló, no la vieja', async () => {
+    const item = await home()
+    mockServer.use(http.get('/api/v1/conversations/:id', () => unavailable('No se pudo abrir (ficticio).'), { once: true }))
+    await userEvent.click(item)
+    await screen.findByRole('alert')
+    await userEvent.click(within(list()).getByRole('button', { name: 'Nueva conversación' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+    await userEvent.click(item) // ahora sí se abre
+    expect(await screen.findByRole('complementary', { name: 'Propuesta de HU' })).toBeInTheDocument()
+  })
+
   it('una respuesta que llega tarde de una conversación anterior se descarta', async () => {
     const item = await home()
     const late = hold('get', '/api/v1/conversations/:id')

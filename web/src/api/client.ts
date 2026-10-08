@@ -125,7 +125,8 @@ async function request<T>(
     // Solo con un token enviado: sin token (sesión cerrada) el 403 es lo esperado.
     if (response.status === 403 && method !== 'GET' && sentToken !== null && !SESSION_PATHS.has(path) && !recovered && startedIn === sessionNumber) {
       const outcome = await checkSessionAfterForbidden(sentToken)
-      if (outcome === 'renewed') {
+      // Mientras se comprobaba, en esta pestaña pudo cambiar la sesión (cerrar y entrar otra persona): sin reintento.
+      if (outcome === 'renewed' && startedIn === sessionNumber) {
         if (repeatable) return request<T>(method, path, body, signal, repeatable, true)
         throw new ApiRequestError(403, { code: 'operation_failed', message: SESSION_RENEWED_MESSAGE })
       }
@@ -175,7 +176,9 @@ async function checkSessionAfterForbidden(sentToken: string | null): Promise<For
   sessionCheck ??= (async (): Promise<ForbiddenCheck> => {
     try {
       const session = await request<SessionOut>('GET', '/auth/me')
-      if (sessionChangedHandler && !sessionChangedHandler(session)) return 'switched'
+      // Sin nadie que confirme que es la misma persona, no se acepta el token (falla de forma segura).
+      if (!sessionChangedHandler) return 'failed'
+      if (!sessionChangedHandler(session)) return 'switched'
       if (session.csrf_token === sentToken) return 'unchanged'
       csrfToken = session.csrf_token
       return 'renewed'

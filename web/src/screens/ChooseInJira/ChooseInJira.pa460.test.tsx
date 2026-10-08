@@ -7,7 +7,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../App.tsx'
 import { mockDb, mockServer } from '../../mocks/node.ts'
-import { SEARCH_MAX_LENGTH } from './ChooseInJira.tsx'
+import { ChooseInJira, SEARCH_MAX_LENGTH } from './ChooseInJira.tsx'
 
 /** Retiene la siguiente respuesta de `path` hasta `release()`; después responde la API simulada. */
 function hold(path: string) {
@@ -153,5 +153,45 @@ describe('Elegir en Jira · un error por cada carga (PA-460)', () => {
     expect(alert).toHaveTextContent('Jira ficticio caído (proyectos).')
     await userEvent.click(within(alert).getByRole('button', { name: 'Reintentar' }))
     expect(await within(dialog).findByRole('listbox', { name: 'Proyectos' })).toBeInTheDocument()
+  })
+})
+
+describe('Elegir en Jira · errores de la búsqueda y de «Usar…» (PA-460)', () => {
+  it('si falla la búsqueda: una sola tarjeta (en épicas) con su «Reintentar» y una nota en HU', async () => {
+    const dialog = await openDialog()
+    await within(dialog).findByRole('listbox', { name: 'Épicas de DEMO' })
+    mockServer.use(http.get('/api/v1/projects/:project/search', () => unavailable('Búsqueda ficticia caída.'), { once: true }))
+    await userEvent.type(within(dialog).getByRole('searchbox'), 'renovar')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent('Búsqueda ficticia caída.')
+    expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
+    expect(within(dialog).getByText('La búsqueda no se pudo hacer.')).toBeInTheDocument()
+    // La columna de proyectos no depende de la búsqueda en Jira: filtra sus proyectos (ninguno se llama «renovar»).
+    expect(within(dialog).getByText('Ningún proyecto coincide.')).toBeInTheDocument()
+
+    await userEvent.click(within(alert).getByRole('button', { name: 'Reintentar' }))
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull())
+    expect(within(dialog).queryByText('La búsqueda no se pudo hacer.')).toBeNull()
+  })
+
+  it('si falla «Usar el proyecto…», su error sale aparte y las listas siguen', async () => {
+    const dialog = await openDialog()
+    const projects = await within(dialog).findByRole('listbox', { name: 'Proyectos' })
+    await userEvent.click(within(projects).getByRole('option', { name: /SOCI/ }))
+    mockServer.use(http.post('/api/v1/projects/choose', () => unavailable('No se pudo fijar (ficticio).'), { once: true }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Usar el proyecto SOCI' }))
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent('No se pudo fijar (ficticio).')
+    expect(within(dialog).getByRole('listbox', { name: 'Proyectos' })).toBeInTheDocument()
+    expect(await within(dialog).findByRole('listbox', { name: 'Épicas de SOCI' })).toBeInTheDocument()
+  })
+
+  it('si fallan los proyectos sin proyecto de partida, las épicas no se quedan en «Cargando…»', async () => {
+    mockDb.session = { username: 'af-demo', role: 'functional', csrf: 'csrf-ficticio' }
+    mockServer.use(http.get('/api/v1/projects', () => unavailable('Proyectos ficticios caídos.'), { once: true }))
+    render(<ChooseInJira onCancel={() => undefined} onPick={() => undefined} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Elegir en Jira' })
+    await within(dialog).findByRole('alert')
+    expect(within(dialog).queryByText('Cargando épicas…')).toBeNull()
   })
 })

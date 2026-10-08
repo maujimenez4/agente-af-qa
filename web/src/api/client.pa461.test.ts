@@ -3,9 +3,9 @@
 // persona con otro token → guarda el nuevo y reintenta una vez solo lo que se puede repetir; el mismo token → el
 // 403 es de permisos y se muestra; nunca hay bucles. Datos sintéticos (af-demo, DEMO).
 import { http, HttpResponse } from 'msw'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mockDb, mockServer } from '../mocks/node.ts'
-import { api, ApiRequestError, onSessionChecked, SESSION_RENEWED_MESSAGE, setCsrfToken } from './client.ts'
+import { api, ApiRequestError, onSessionChecked, onUnauthenticated, SESSION_RENEWED_MESSAGE, setCsrfToken } from './client.ts'
 
 const OLD = 'csrf-ficticio-antiguo'
 const NEW = 'csrf-ficticio-nuevo'
@@ -26,7 +26,14 @@ function recordRequests() {
   return { seen, count }
 }
 
+// Como `SessionProvider` en la app: confirma que /auth/me es de la misma persona (af-demo).
+let stopCheck: () => void = () => undefined
+beforeEach(() => {
+  stopCheck = onSessionChecked((session) => session.user.username === 'af-demo')
+})
+
 afterEach(() => {
+  stopCheck()
   mockServer.events.removeAllListeners()
   setCsrfToken(null)
 })
@@ -100,6 +107,40 @@ describe('Tras un 403 por un token CSRF antiguo (PA-461)', () => {
     expect(checked).toEqual(['qa-demo'])
     expect(failure.status).toBe(403)
     expect(requests.count('POST /api/v1/projects/choose')).toBe(1)
+  })
+
+  it('sin nadie que confirme que es la misma persona, no se acepta el token ni se reintenta', async () => {
+    stopCheck()
+    staleTab()
+    const requests = recordRequests()
+    const failure = (await api.chooseProject('DEMO').catch((cause: unknown) => cause)) as ApiRequestError
+    expect(failure.status).toBe(403)
+    expect(requests.count('POST /api/v1/projects/choose')).toBe(1)
+    await api.projects() // sigue con el token antiguo: el siguiente POST tampoco lo llevaría nuevo
+    const again = (await api.chooseProject('DEMO').catch((cause: unknown) => cause)) as ApiRequestError
+    expect(requests.seen.filter((item) => item.call === 'POST /api/v1/projects/choose').map((item) => item.csrf)).toEqual([OLD, OLD])
+    expect(again.status).toBe(403)
+  })
+
+  it('si /auth/me no responde (503), se devuelve el 403 original sin reintentar', async () => {
+    staleTab()
+    mockServer.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ error: { code: 'service_unavailable', message: 'Caído (ficticio).' } }, { status: 503 }), { once: true }))
+    const requests = recordRequests()
+    const failure = (await api.chooseProject('DEMO').catch((cause: unknown) => cause)) as ApiRequestError
+    expect(failure.status).toBe(403)
+    expect(failure.error.code).toBe('forbidden')
+    expect(requests.count('POST /api/v1/projects/choose')).toBe(1)
+  })
+
+  it('si /auth/me da 401 (sesión caducada), avisa a la sesión y devuelve el 403 original', async () => {
+    staleTab()
+    mockServer.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ error: { code: 'unauthenticated', message: 'Caducada (ficticio).' } }, { status: 401 }), { once: true }))
+    const expired: string[] = []
+    const stop = onUnauthenticated((error) => expired.push(error.message))
+    const failure = (await api.chooseProject('DEMO').catch((cause: unknown) => cause)) as ApiRequestError
+    stop()
+    expect(expired).toEqual(['Caducada (ficticio).'])
+    expect(failure.status).toBe(403)
   })
 
   it('un GET con 403 no pregunta a /auth/me (solo los métodos que modifican)', async () => {

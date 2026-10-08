@@ -135,6 +135,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
     try {
       const conversation = await api.conversation(threadId)
       if (lastRequested.current !== threadId) return
+      setFailedId(undefined)
       showConversation(conversation)
     } catch (cause) {
       if (lastRequested.current !== threadId) return
@@ -174,6 +175,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         onNew={() => {
           lastRequested.current = undefined
           setOpenError(undefined)
+          setFailedId(undefined)
           setCurrentId(undefined)
           setPicked(undefined)
           setView({ name: 'home' })
@@ -185,6 +187,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
           remember(threadId, isReview ? 'quality' : 'conversation')
           if (isReview) {
             lastRequested.current = undefined // una conversación pedida antes ya no se abre
+            setFailedId(undefined)
             setOpenError(undefined)
             setOpened((count) => count + 1)
             setView({ name: 'quality', reviewId: threadId })

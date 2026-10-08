@@ -26,6 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  Reflect.deleteProperty(document, 'hidden') // vuelve la propiedad del prototipo
 })
 
 describe('useUsage · la consulta no mantiene viva la sesión (PA-459)', () => {

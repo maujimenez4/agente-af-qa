@@ -67,12 +67,18 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
         setProjects(value.projects)
         setProjectKey((current) => current ?? value.preselected ?? value.projects[0]?.key)
         setProjectsLoad(READY)
+        // Sin proyecto que elegir, no hay épicas que cargar.
+        if (!initialProject && !(value.preselected ?? value.projects[0]?.key)) setEpicsLoad(READY)
       })
-      .catch((cause: unknown) => !cancelled && setProjectsLoad(failed(cause)))
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setProjectsLoad(failed(cause))
+        if (!initialProject) setEpicsLoad(READY)
+      })
     return () => {
       cancelled = true
     }
-  }, [rounds.projects])
+  }, [rounds.projects, initialProject])
 
   useEffect(() => {
     if (!projectKey) return

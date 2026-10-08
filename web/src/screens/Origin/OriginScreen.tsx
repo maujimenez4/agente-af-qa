@@ -127,6 +127,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
         setEstimateAtConfirm(undefined)
         sourcesLoaded.current = true
         setSourcesLoading(false)
+        setSourcesFailed(false)
       })
       .catch((cause: unknown) => {
         if (cancelled || !(cause instanceof ApiRequestError)) return
@@ -218,6 +219,7 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   }
 
   const choose = (option: StartOption, optionProject: string) => {
+    setSourcesFailed(false)
     setSourcesLoading(true)
     setOperation(operationFromOption(option, optionProject))
   }

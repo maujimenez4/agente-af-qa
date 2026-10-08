@@ -1,52 +1,82 @@
-# Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos.
-# Desde el 2026-10-01 (decisión del usuario) solo se usan modelos LOCALES de Ollama en Docker: sin
-# cuota de Groq ni OpenRouter. La variante con Groq/OpenRouter está en config/models.groq.yaml
-# (activar con MODELS_CONFIG_PATH en el .env).
-# Levantar: docker compose --profile local-llm up -d ollama
-#           docker compose exec ollama ollama pull bge-m3
-#           docker compose exec ollama ollama pull qwen3:1.7b
-#           docker compose exec ollama ollama pull phi4-mini
-# Modelos (medidos el 2026-10-02 en CPU, docs/pruebas/salidas/generate_story-*-real.json):
-#   principal qwen3:1.7b (1,4 GB; 2,4 GB cargado): HU válida en 1 llamada, ~5,4 min, ~6,4 tok/s;
-#   respaldo  phi4-mini  (2,5 GB; 3,7 GB cargado): HU válida en 1 llamada, ~6,4 min, ~3,4 tok/s.
-#   Con bge-m3, los tres cargados ocupan ~6,7 GiB de los 7,6 GiB de Docker.
-# options.reasoning_effort: "none" desactiva el razonamiento por el endpoint OpenAI de Ollama
-# (qwen3 razona por defecto); `think: false` no tiene efecto por ese endpoint.
-# Sin respaldo en la nube: si Ollama no responde, la tarea falla (no se gasta cuota).
-# Ventana de contexto: OLLAMA_CONTEXT_LENGTH=10240 en el servicio `ollama` de docker-compose.yml.
-# Cada tarea es una CADENA ordenada (RF-44); cambiar de proveedor = añadirlo en `providers`.
-# Sin secretos: solo el nombre de la variable de entorno.
+# CONFIGURACIÓN MIXTA PARA LA DEMO (PA-443, decisión del usuario del 2026-10-08).
+# Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos
+# (`openai/gpt-oss-*` en el nivel gratuito de Groq y los locales de Ollama).
+# - Groq para crear y evolucionar HU (también estructurar), revisar la calidad, impacto, memoria,
+#   clasificar fuentes y lenguaje natural a JQL: de minutos a segundos y mejor calidad
+#   (docs/pruebas/medidas-groq-vs-local-2026-10-07.md). Todas con respaldo LOCAL (qwen3:1.7b).
+# - Local para QA (generate_tests): la suite no cabe en los 8000 tokens por minuto (TPM) del nivel
+#   gratuito de Groq (413) y su iteración tampoco.
+# Planes B: config/models.todo-local.yaml y config/models.groq.yaml (ver config/README.md).
+# Requiere GROQ_API_KEY en el .env; sin ella, las tareas de Groq usan directamente el respaldo
+# local. Levantar Ollama: docker compose --profile local-llm up -d ollama (y los `pull` de
+# bge-m3, qwen3:1.7b y phi4-mini).
+# Cada tarea es una CADENA ordenada (RF-44). Sin secretos: solo el nombre de la variable.
 providers:
-  local:      { type: openai_compatible, base_url: "http://127.0.0.1:11434/v1",      api_key_env: null }
+  groq:
+    type: openai_compatible
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+    # PA-443: límites propios. Contexto de 2000 por los 8000 TPM (entrada + salida prevista);
+    # sin topes de salida: gpt-oss razona y su razonamiento cuenta como salida (2854 en una HU).
+    # Ante un 429, espera el `Retry-After` (20-50 s en el nivel gratuito) hasta 60 s por intento:
+    # sale antes que pasar al local, que tarda minutos. Un 413 pasa al respaldo sin reintentar.
+    limits:
+      context_window: 131072
+      context_token_budget: 2000
+      max_output_tokens: {}
+      max_wait_s: 60
+      max_retries_on_429: 2
+      request_timeout_s: 120
+  local:
+    type: openai_compatible
+    base_url: "http://127.0.0.1:11434/v1"
+    api_key_env: null
+    # Ventana de 10240 (OLLAMA_CONTEXT_LENGTH en docker-compose.yml, PA-440) y topes de salida
+    # que dejan sitio al reintento. El contexto de QA (la única tarea local principal) es 3300.
+    limits:
+      context_window: 10240
+      context_token_budget: 3300
+      request_timeout_s: 900
+      max_output_tokens:
+        generate_story: 2500
+        evolve_story: 2500
+        review_story: 2000
+        generate_tests: 2500
+        analyze_impact: 800
+        synthesize_memory: 1200
+        classify_source: 200
+        nl_to_jql: 200
 
 tasks:
-  # Principal qwen3:1.7b y respaldo phi4-mini en todas las tareas (las options deben coincidir).
-  # Pesadas.
-  generate_story:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  evolve_story:      [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  review_story:      [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  # HU y calidad: gpt-oss-120b; si Groq no responde o no cabe, el local.
+  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  # QA: local, como hasta ahora.
   generate_tests:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  # Medias.
-  analyze_impact:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  synthesize_memory: [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  # Ligeras.
-  classify_source:   [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
-  nl_to_jql:         [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  # Medias y ligeras: gpt-oss-20b; respaldo local.
+  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  classify_source:   [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
 
-# Sin cambios respecto a models.yaml: cambiar el modelo de embeddings invalidaría el índice del RAG.
+# Sin cambios: cambiar el modelo de embeddings invalidaría el índice del RAG.
 embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 
+# Valores globales: los heredan los proveedores que no los cambian y los usos sin tarea (el panel
+# de fuentes y la revisión de calidad reúnen el contexto con este presupuesto: el de Groq).
 limits:
   max_retries_on_429: 2
-  context_token_budget: 3300     # PA-114: equivale a los 2500 medidos con /4 (cabe con margen en 10240)
-  context_window: 10240          # PA-114 y PA-440: ventana del modelo (subida de 8192 por el reintento al iterar)
+  context_token_budget: 2000
+  context_window: 10240
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
-  request_timeout_s: 900          # CPU: una HU tarda ~5-6,5 min; margen para evolución y suites
-  max_output_tokens:              # tope de salida por tarea (deja sitio al reintento en 10240)
+  request_timeout_s: 900
+  max_wait_s: 20
+  max_output_tokens:
     generate_story: 2500
     evolve_story: 2500
     review_story: 2000
-    generate_tests: 2500           # con 3000 el reintento de una suite no cabía en 8192
+    generate_tests: 2500
     analyze_impact: 800
     synthesize_memory: 1200
     classify_source: 200

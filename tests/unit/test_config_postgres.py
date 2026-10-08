@@ -84,9 +84,13 @@ def test_empty_database_url_falls_back_to_postgres_variables(
 
 
 def test_groq_models_file_keeps_its_prudent_context_window() -> None:
-    """PA-229: `models.groq.yaml` declara su ventana (32 768) y no hereda la de 8192."""
+    """PA-229 · PA-443: `models.groq.yaml` declara la ventana y el presupuesto de cada
+    proveedor: Groq (ventana de gpt-oss, contexto 2000 por los 8000 TPM) y su respaldo local
+    (la ventana de Ollama, 10 240), sin heredar la de 8192."""
     from core.config import ROOT_DIR, load_models_config
 
-    limits = load_models_config(ROOT_DIR / "config" / "models.groq.yaml").limits
-    assert limits.context_window == 32_768
-    assert limits.context_token_budget == 8000
+    models = load_models_config(ROOT_DIR / "config" / "models.groq.yaml")
+    groq, local = models.limits_for("groq"), models.limits_for("local")
+    assert (groq.context_window, groq.context_token_budget) == (131_072, 2000)
+    assert (local.context_window, local.context_token_budget) == (10_240, 3300)
+    assert models.limits.context_window != 8192

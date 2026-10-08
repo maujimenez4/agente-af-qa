@@ -16,14 +16,18 @@ from adapters.base import (
     IssueSummary,
     IssueTracker,
     RetrievedChunk,
+    TaskType,
     VectorStore,
 )
 from adapters.errors import NotFoundError
-from core.context.budget import BudgetReport, apply_budget, estimate_tokens
+from core.context.budget import BudgetReport, apply_budget, estimate_tokens, providers_of
 from core.context.jql import any_keyword_jql, keywords
+from core.logging import get_logger
 
 if TYPE_CHECKING:
     from core.container import Container
+
+log = get_logger(__name__)
 
 MEMORY_CATEGORY = "memoria"
 DEFAULT_TOKEN_BUDGET = 3300  # igual que `limits.context_token_budget` de models.yaml (PA-114)
@@ -258,17 +262,35 @@ class ContextService:
         return extra
 
 
-def build_context_service(container: "Container", project: str | None) -> ContextService:
-    """`ContextService` con la configuración del contenedor; lo usan el grafo y T-53."""
-    config = container.config
+def build_context_service(
+    container: "Container", project: str | None, task: TaskType | None = None
+) -> ContextService:
+    """`ContextService` con la configuración del contenedor; lo usan el grafo y T-53.
+
+    PA-443: con `task`, el presupuesto de contexto es el del proveedor que hará la tarea (el
+    primero de su cadena efectiva, también el modelo elegido en la UI); sin ella, el global.
+    """
     return ContextService(
         container.issue_tracker,
         container.embeddings,
         container.vector_store,
         top_k=container.top_k,
         memory_boost=container.memory_boost,
-        token_budget=(
-            config.models.limits.context_token_budget if config else DEFAULT_TOKEN_BUDGET
-        ),
+        token_budget=_token_budget(container, task),
         project_key=project,
     )
+
+
+def _token_budget(container: "Container", task: TaskType | None) -> int:
+    config = container.config
+    if config is None:
+        return DEFAULT_TOKEN_BUDGET
+    if task is None:
+        return config.models.limits.context_token_budget
+    providers: list[str] = []
+    if (resolver := providers_of(container.llm)) is not None:
+        try:
+            providers = list(resolver(task))
+        except Exception as exc:  # sin la cadena efectiva, la configurada
+            log.warning("cadena sin leer", action="context_budget", error=type(exc).__name__)
+    return config.models.context_budget_for(providers or config.models.task_providers(task))

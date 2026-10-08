@@ -1,0 +1,59 @@
+# PLAN B · TODO LOCAL (PA-443). Asignación de modelos por tarea (RF-41) · D-14: solo modelos
+# open-weight gratuitos. Todas las tareas con Ollama en Docker, sin cuota de Groq ni OpenRouter (la
+# configuración que se usó del 2026-10-01 al 2026-10-08). Activar con
+# MODELS_CONFIG_PATH=config/models.todo-local.yaml en el .env (ver config/README.md).
+# Levantar: docker compose --profile local-llm up -d ollama
+#           docker compose exec ollama ollama pull bge-m3
+#           docker compose exec ollama ollama pull qwen3:1.7b
+#           docker compose exec ollama ollama pull phi4-mini
+# Modelos (medidos el 2026-10-02 en CPU, docs/pruebas/salidas/generate_story-*-real.json):
+#   principal qwen3:1.7b (1,4 GB; 2,4 GB cargado): HU válida en 1 llamada, ~5,4 min, ~6,4 tok/s;
+#   respaldo  phi4-mini  (2,5 GB; 3,7 GB cargado): HU válida en 1 llamada, ~6,4 min, ~3,4 tok/s.
+#   Con bge-m3, los tres cargados ocupan ~6,7 GiB de los 7,6 GiB de Docker.
+# options.reasoning_effort: "none" desactiva el razonamiento por el endpoint OpenAI de Ollama
+# (qwen3 razona por defecto); `think: false` no tiene efecto por ese endpoint.
+# Sin respaldo en la nube: si Ollama no responde, la tarea falla (no se gasta cuota).
+# Ventana de contexto: OLLAMA_CONTEXT_LENGTH=10240 en el servicio `ollama` de docker-compose.yml.
+# Cada tarea es una CADENA ordenada (RF-44); cambiar de proveedor = añadirlo en `providers`.
+# Sin secretos: solo el nombre de la variable de entorno.
+providers:
+  local:      { type: openai_compatible, base_url: "http://127.0.0.1:11434/v1",      api_key_env: null }
+
+tasks:
+  # Principal qwen3:1.7b y respaldo phi4-mini en todas las tareas (las options deben coincidir).
+  # Pesadas.
+  generate_story:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  evolve_story:      [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  review_story:      [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  generate_tests:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  # Medias.
+  analyze_impact:    [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  synthesize_memory: [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  # Ligeras.
+  classify_source:   [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+  nl_to_jql:         [ { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } }, { provider: local, model: "phi4-mini", options: { reasoning_effort: "none" } } ]
+
+# Sin cambios respecto a models.yaml: cambiar el modelo de embeddings invalidaría el índice del RAG.
+embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
+
+limits:
+  max_retries_on_429: 2
+  context_token_budget: 3300     # PA-114: equivale a los 2500 medidos con /4 (cabe con margen en 10240)
+  context_window: 10240          # PA-114 y PA-440: ventana del modelo (subida de 8192 por el reintento al iterar)
+  daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
+  request_timeout_s: 900          # CPU: una HU tarda ~5-6,5 min; margen para evolución y suites
+  max_output_tokens:              # tope de salida por tarea (deja sitio al reintento en 10240)
+    generate_story: 2500
+    evolve_story: 2500
+    review_story: 2000
+    generate_tests: 2500           # con 3000 el reintento de una suite no cabía en 8192
+    analyze_impact: 800
+    synthesize_memory: 1200
+    classify_source: 200
+    nl_to_jql: 200
+
+rag:
+  chunk_tokens: 650
+  overlap_tokens: 80
+  top_k: 6
+  memory_boost: 1.3               # RF-51

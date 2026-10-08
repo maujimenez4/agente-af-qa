@@ -17,13 +17,13 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
-from adapters.base import Chunk, IssueDetail
+from adapters.base import Chunk, IssueDetail, TaskType
 from adapters.errors import ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.artifact_state import structure_cache_id
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
-from core.context.budget import PromptLimits, default_prompt_limits
+from core.context.budget import PromptLimits, default_prompt_limits, providers_of
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
 from core.functional.context import StoryContext, render_context
@@ -170,7 +170,9 @@ class GraphNodes:
 
     def _context_service(self, state: AgentState) -> ContextService:
         # El proyecto es el de la conversación (T-50).
-        return build_context_service(self.c, state["origin"].get("project"))
+        return build_context_service(  # PA-443: el presupuesto del proveedor de la tarea
+            self.c, state["origin"].get("project"), _generation_task(state)
+        )
 
     # --- 4 · generate ----------------------------------------------------------------------
 
@@ -287,7 +289,8 @@ class GraphNodes:
         """Ventana y topes de salida de la configuración del contenedor (PA-114, PA-228); sin
         configuración (contenedores de prueba), los de la aplicación."""
         if self.c.config is not None:
-            return PromptLimits.from_config(self.c.config)
+            # PA-443: con la cadena efectiva del LLM (incluido el modelo elegido en la UI).
+            return PromptLimits.from_config(self.c.config, providers_of(self.c.llm))
         return default_prompt_limits()
 
     def _write_story(
@@ -1164,7 +1167,17 @@ def _pending_baseline_key(config: RunnableConfig | None) -> str | None:
 
 
 # PA-432: si cambia la forma de estructurar (código, no el prompt), se sube y no se reutiliza.
-STRUCTURE_CACHE_VERSION = 1
+# 2 (PA-442): las anteriores pudieron estructurarse con la HU de origen recortada.
+STRUCTURE_CACHE_VERSION = 2
+
+
+def _generation_task(state: AgentState) -> TaskType:
+    """La tarea que usará el contexto reunido: la suite en QA; en una HU, evolucionar o crear."""
+    if state["mode"] == "qa":
+        return TaskType.GENERATE_TESTS
+    if state["origin"].get("kind") == "story":
+        return TaskType.EVOLVE_STORY
+    return TaskType.GENERATE_STORY
 
 
 def _shared_baseline_id(issue_key: str | None, origin_only: StoryContext) -> str | None:

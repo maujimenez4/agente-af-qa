@@ -17,7 +17,9 @@ from adapters.errors import AgentError
 from core.logging import get_logger
 
 if TYPE_CHECKING:
-    from core.config import AppConfig
+    from core.config import AppConfig, LimitsConfig, ModelsConfig
+
+ProvidersFor = Callable[[TaskType], Sequence[str]]
 
 # PA-114: en español, qwen3 mide ~3,2 caracteres por token (3,02 en el JSON de una HU); con 4
 # el contexto «de 4108 tokens» ocupaba ~5500 reales y Ollama truncaba en silencio.
@@ -116,8 +118,9 @@ def apply_budget(
 ) -> tuple[list[IssueDetail], list[RetrievedChunk], BudgetReport]:
     """Selecciona el contexto por prioridad sin superar `budget` tokens.
 
-    - `issues` llega ordenado por prioridad; la primera (el origen) entra siempre, recortada
-      si hace falta. El resto se recorta o se descarta según quede sitio.
+    - `issues` llega ordenado por prioridad; la primera (el origen) entra siempre y **entera**
+      (PA-442): nunca se recorta en silencio; si no cabe en la ventana del modelo, la guarda de
+      PA-114 da el error «no cabe». El resto se recorta o se descarta según quede sitio.
     - `chunks` llega ordenado por prioridad (memorias primero); se descartan los que no caben.
     - Jira puede usar hasta `jira_share` del presupuesto; lo que no use pasa al RAG.
     - `has_origin=False` (una necesidad, PA-167): no hay origen; todas son secundarias.
@@ -127,16 +130,19 @@ def apply_budget(
     selected_issues: list[IssueDetail] = []
     used = 0
     for position, issue in enumerate(issues):
-        is_origin = has_origin and position == 0
         cost = issue_tokens(issue)
-        room = (budget if is_origin else jira_cap) - used
+        if has_origin and position == 0:  # PA-442: el origen, siempre y entero
+            selected_issues.append(issue)
+            used += cost
+            continue
+        room = jira_cap - used
         if cost <= room:
             selected_issues.append(issue)
             used += cost
             continue
-        if is_origin or room >= 60:  # el origen siempre; el resto, si cabe algo útil
-            trimmed = truncate_issue(issue, min(room, jira_cap) if is_origin else room)
-            if is_origin or issue_tokens(trimmed) <= room:
+        if room >= 60:  # una fuente opcional, recortada si cabe algo útil
+            trimmed = truncate_issue(issue, room)
+            if issue_tokens(trimmed) <= room:
                 selected_issues.append(trimmed)
                 used += issue_tokens(trimmed)
                 report.truncated_issues += 1
@@ -172,21 +178,67 @@ class ContextOverflowError(AgentError):
 
 @dataclass(frozen=True)
 class PromptLimits:
-    """Ventana del modelo y tope de salida por tarea (`limits` de `config/models.yaml`)."""
+    """Ventana del modelo y tope de salida por tarea (`limits` de `config/models.yaml`).
+
+    PA-443: con `models`, cada proveedor puede tener sus límites, y lo que cabe en una tarea es lo
+    más restrictivo de su cadena **efectiva** (`providers_for`, la del router: incluye el modelo
+    elegido en la UI, RF-42), para que el prompt quepa también si se pasa al respaldo.
+    """
 
     context_window: int = DEFAULT_CONTEXT_WINDOW
     max_output_tokens: Mapping[TaskType, int] = field(default_factory=dict)
     default_output_tokens: int = 0  # reserva para las tareas sin tope configurado
+    models: "ModelsConfig | None" = None
+    providers_for: ProvidersFor | None = None
 
     def available(self, task: TaskType) -> int:
         """Tokens de entrada que caben: ventana − tope de salida de la tarea − margen."""
+        if self.models is not None and (names := self._providers(self.models, task)):
+            room = min(_room(self.models.limits_for(name), task) for name in names)
+            return room - SAFETY_TOKENS
         output = self.max_output_tokens.get(task, self.default_output_tokens)
         return self.context_window - output - SAFETY_TOKENS
 
+    def window(self, task: TaskType) -> int:
+        """Ventana del modelo que limita la tarea (el de menos sitio de su cadena), para el
+        mensaje de «no cabe»."""
+        if self.models is not None and (names := self._providers(self.models, task)):
+            models = self.models
+            tightest = min(names, key=lambda name: _room(models.limits_for(name), task))
+            return models.limits_for(tightest).context_window
+        return self.context_window
+
+    def _providers(self, models: "ModelsConfig", task: TaskType) -> list[str]:
+        names: list[str] = []
+        if self.providers_for is not None:
+            try:
+                names = list(self.providers_for(task))
+            except Exception as exc:  # sin la cadena efectiva, la configurada
+                log.warning("cadena sin leer", action="context_limits", error=type(exc).__name__)
+        return names or models.task_providers(task)
+
     @classmethod
-    def from_config(cls, config: "AppConfig") -> "PromptLimits":
+    def from_config(
+        cls, config: "AppConfig", providers_for: ProvidersFor | None = None
+    ) -> "PromptLimits":
         limits = config.models.limits
-        return cls(limits.context_window, dict(limits.max_output_tokens))
+        return cls(
+            limits.context_window,
+            dict(limits.max_output_tokens),
+            models=config.models,
+            providers_for=providers_for,
+        )
+
+
+def _room(limits: "LimitsConfig", task: TaskType) -> int:
+    return limits.context_window - limits.max_output_tokens.get(task, 0)
+
+
+def providers_of(llm: object) -> ProvidersFor | None:
+    """PA-443: la cadena efectiva de proveedores del LLM del contenedor (`FallbackLLMProvider`
+    la expone; las capas que lo envuelven la reenvían). `None` si no la tiene (dobles de prueba)."""
+    resolver = getattr(llm, "chain_providers", None)
+    return resolver if callable(resolver) else None
 
 
 def default_prompt_limits() -> PromptLimits:
@@ -273,7 +325,7 @@ def fit_messages(
             available_tokens=available,
         )
         raise ContextOverflowError(
-            f"La petición no cabe en la ventana del modelo ({limits.context_window} tokens): "
+            f"La petición no cabe en la ventana del modelo ({limits.window(task)} tokens): "
             f"ocupa unos {estimated} y caben {available} con el tope de salida de la tarea, "
             "incluso sin fuentes opcionales. Acorta la HU o el feedback, o usa un modelo con "
             "más contexto."

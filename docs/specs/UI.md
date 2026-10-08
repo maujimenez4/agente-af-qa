@@ -50,6 +50,7 @@ Pantalla mínima con las piezas del sistema (no está en el lienzo; se mantiene 
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
+| Cabecera | **Logotipo completo de Qaracter** (la Q naranja y las letras «qaracter»), 40 px de alto, encima del título «Agente AF y QA» (PA-444). Sale del Qaracter Design System (`docs/diseno/marca/logo-qaracter-oscuro.svg`, para fondo claro) y se anuncia como «Qaracter». El resto de la web (carril, Inicio, asistente) sigue con la Q sola | — | — |
 | Formulario | Usuario y contraseña | *Iniciar sesión* | `POST /auth/login` (cookie HttpOnly y `csrf_token` solo en memoria) |
 | Errores | `invalid_credentials` («No se pudo iniciar sesión»); `too_many_attempts` con la cuenta atrás de `retry_after` | Reintentar | — |
 | Al recargar | La sesión se recupera sin volver a entrar | — | `GET /auth/me` |

@@ -18,7 +18,13 @@ from adapters.base import IssueDetail, Message, StructuredResult, TaskType
 from adapters.errors import AgentError, ExternalServiceError, RateLimitError
 from core.container import Container
 from core.functional.context import StoryContext
-from core.quality import QualityReview, QualityReviewer, QualityReviewError, report_errors
+from core.quality import (
+    QualityReview,
+    QualityReviewer,
+    QualityReviewError,
+    report_errors,
+    with_proposed_targets,
+)
 from schemas.quality import QualityFinding, QualityReport
 from schemas.user_story import UserStory
 from tests.fakes import dataset
@@ -411,16 +417,29 @@ def test_report_errors_accepts_next_free_id_in_open_question() -> None:
 
 
 @pytest.mark.parametrize("field_name", ["explanation", "summary"])
-def test_report_errors_rejects_next_free_id_outside_proposals(field_name: str) -> None:
-    """PA-445 (negativa): fuera de propuestas y preguntas, un CA nuevo sigue siendo un error."""
-    text = "Revisar CA-03: no se entiende el plazo (ficticio)."
+def test_report_errors_accepts_next_free_id_outside_proposals(field_name: str) -> None:
+    """PA-445 · PA-467 (positiva): desde la ronda 18, un CA nuevo (siguiente libre) también se
+    admite en `explanation` y `summary`, no solo en propuestas y preguntas."""
+    text = "Falta CA-03: no se dice qué pasa con el carné caducado (ficticio)."
+    if field_name == "summary":
+        report = _origin_cited(summary=text)
+    else:
+        report = _origin_cited(findings=[_finding(explanation=text)])
+
+    assert report_errors(report, dataset.renewal_story(), _sources()) == []
+
+
+@pytest.mark.parametrize("field_name", ["explanation", "summary"])
+def test_report_errors_rejects_far_id_outside_proposals(field_name: str) -> None:
+    """PA-467 (negativa): en `explanation` y `summary`, un ID lejano (CA-99) sigue siendo error."""
+    text = "Revisar CA-99: no se entiende el plazo (ficticio)."
     if field_name == "summary":
         report = _origin_cited(summary=text)
     else:
         report = _origin_cited(findings=[_finding(explanation=text)])
 
     assert report_errors(report, dataset.renewal_story(), _sources()) == [
-        "«CA-03» se cita en el informe pero no existe en la HU"
+        "«CA-99» se cita en el informe pero no existe en la HU"
     ]
 
 
@@ -436,13 +455,23 @@ def test_report_errors_rejects_far_id_in_proposal() -> None:
     ]
 
 
-def test_report_errors_new_target_id_is_still_an_error() -> None:
-    """PA-445 (negativa): `target_id` señala lo que ya existe; un CA nuevo ahí es un error."""
-    report = _origin_cited(findings=[_finding(target_id="CA-03")])
+def test_report_errors_new_target_id_is_normalized_and_far_one_is_error() -> None:
+    """PA-445 · PA-467: un CA nuevo (CA-03) en `target_id` ya no es error: se normaliza a
+    propuesta («Nuevo CA-03: …», `target_id` vacío); un ID lejano (CA-99) sigue siendo error."""
+    story = dataset.renewal_story()
+    proposing = _origin_cited(findings=[_finding(target_id="CA-03")])
+    far = _origin_cited(findings=[_finding(target_id="CA-99")])
 
-    assert "«CA-03» no es un criterio ni una regla de la HU" in report_errors(
-        report, dataset.renewal_story(), _sources()
-    )
+    normalized = with_proposed_targets(proposing, story)
+
+    assert report_errors(proposing, story, _sources()) == []
+    (finding,) = normalized.findings
+    assert finding.target_id is None
+    assert finding.proposal == "Nuevo CA-03: Propuesta ficticia sin referencias."
+    assert report_errors(far, story, _sources()) == [
+        "«CA-99» no es un criterio ni una regla de la HU"
+    ]
+    assert with_proposed_targets(far, story).findings[0].target_id == "CA-99"
 
 
 def test_report_errors_story_without_criteria_accepts_ca01_in_proposal() -> None:

@@ -1,6 +1,6 @@
 # Traspaso de T-56 · Frontend React (área B) · 2026-10-08
 
-**Estado:** T-56 ✅ (PR #2 a #17 en `PreProduccion` y este traspaso en `t56-entrega`), con un pendiente de la principal: la prueba contra la API real del bloqueo por un CA sin caso (ver «Pendiente»).
+**Estado:** T-56 ✅ (PR #2 a #17 en `PreProduccion`; este traspaso y PA-412, en la [#18](https://github.com/maujimenez4/agente-af-qa/pull/18), `t56-entrega`), con un pendiente de la principal: la prueba contra la API real del bloqueo por un CA sin caso (ver «Pendiente»).
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»).
 **Siguiente paso del proyecto:** T-57, el punto de control en el que se decide si la demo se hace con React (`web/`) o con Streamlit (`app/`, plan B). El guion está en [DEMO.md](DEMO.md).
 

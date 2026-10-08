@@ -1,6 +1,12 @@
 import { createContext, useContext } from 'react'
 import type { ApiError, UserOut } from '../api/types.ts'
 
+/** PA-461: tras un 403, `/auth/me` dice que en otra pestaña inició sesión otra persona. */
+export const OTHER_ACCOUNT_ERROR: ApiError = {
+  code: 'unauthenticated',
+  message: 'Se ha iniciado sesión con otra cuenta en otra pestaña. Vuelve a entrar.',
+}
+
 /** Qué tenía abierto la persona: una conversación o una revisión de calidad (ids distintos en la API). */
 export type OpenKind = 'conversation' | 'quality'
 

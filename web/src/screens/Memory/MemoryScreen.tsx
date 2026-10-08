@@ -121,6 +121,7 @@ export function MemoryScreen({ openKey }: MemoryScreenProps) {
           id={searchId}
           type="search"
           className={styles.control}
+          maxLength={100} // `q` de GET /memories (contrato)
           placeholder="Buscar en las memorias"
           value={search}
           onChange={(event) => setSearch(event.target.value)}

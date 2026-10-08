@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
@@ -125,11 +125,21 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
       setView({ name: 'closed', conversation })
     }
   }
+  // La última conversación pedida: una respuesta que llega tarde de otra anterior se descarta.
+  const lastRequested = useRef<string | undefined>(undefined)
+  // La que no se pudo abrir: «Reintentar» del error la vuelve a pedir.
+  const [failedId, setFailedId] = useState<string | undefined>()
   const openConversation = async (threadId: string) => {
+    lastRequested.current = threadId
     setOpenError(undefined)
     try {
-      showConversation(await api.conversation(threadId))
+      const conversation = await api.conversation(threadId)
+      if (lastRequested.current !== threadId) return
+      setFailedId(undefined)
+      showConversation(conversation)
     } catch (cause) {
+      if (lastRequested.current !== threadId) return
+      setFailedId(threadId)
       setOpenError(toApiError(cause))
     }
   }
@@ -163,6 +173,9 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         onRetry={reload}
         currentId={currentId}
         onNew={() => {
+          lastRequested.current = undefined
+          setOpenError(undefined)
+          setFailedId(undefined)
           setCurrentId(undefined)
           setPicked(undefined)
           setView({ name: 'home' })
@@ -173,6 +186,8 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
           // PA-407: la sesión lo sabe antes de pedirlo; si esa petición da 401, se recuerda lo elegido con su tipo.
           remember(threadId, isReview ? 'quality' : 'conversation')
           if (isReview) {
+            lastRequested.current = undefined // una conversación pedida antes ya no se abre
+            setFailedId(undefined)
             setOpenError(undefined)
             setOpened((count) => count + 1)
             setView({ name: 'quality', reviewId: threadId })
@@ -184,7 +199,11 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
       <main className={styles.main}>
         {openError && (
           <div className={styles.banner}>
-            <ErrorCard key={`${openError.code}-${openError.message}`} error={openError} onAction={() => setOpenError(undefined)} />
+            <ErrorCard
+              key={`${openError.code}-${openError.message}`}
+              error={openError}
+              onAction={() => (failedId ? void openConversation(failedId) : setOpenError(undefined))}
+            />
           </div>
         )}
         {view.name === 'home' && (

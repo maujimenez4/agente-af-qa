@@ -221,7 +221,7 @@ function finishApproval(run: MockRun, approvedBy = 'af-demo', live = false, part
 }
 
 /** Mensaje de api/cancel.py (CANCELLED_MESSAGE). */
-export const CANCELLED_MESSAGE = 'Generación detenida a petición tuya. Puedes reintentarla o descartar la conversación.'
+export const CANCELLED_MESSAGE = 'Generación detenida a petición tuya. Puedes reintentarla o empezar una conversación nueva.'
 
 /** La generación se detuvo (POST /cancel): queda en error `cancelled`, que se puede reintentar. */
 function stopRun(run: MockRun) {

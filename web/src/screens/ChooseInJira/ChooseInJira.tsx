@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiRequestError, isAbortError } from '../../api/client.ts'
+import { api, ApiRequestError, isAbortError, toApiError } from '../../api/client.ts'
 import type { ApiError, IssueSummary, ProjectSummary } from '../../api/types.ts'
 import { Button } from '../../components/Button/index.ts'
 import { Listbox, type ListboxItem } from '../../components/Listbox/index.ts'
@@ -9,6 +9,8 @@ import styles from './ChooseInJira.module.css'
 
 /** Espera entre pulsaciones antes de buscar en Jira. */
 export const SEARCH_DEBOUNCE_MS = 300
+/** Largo máximo de la búsqueda (`q` de `GET /projects/{key}/search`, contrato). */
+export const SEARCH_MAX_LENGTH = 200
 
 export interface JiraPick {
   project: ProjectSummary
@@ -21,6 +23,15 @@ export interface ChooseInJiraProps {
   onCancel: () => void
   onPick: (pick: JiraPick) => void
 }
+
+/**
+ * PA-460: cada lista sabe si su carga está en curso, llegó o falló, para no decir «no tiene épicas» mientras Jira
+ * responde. `round` vuelve a pedirla (su «Reintentar»).
+ */
+type Load = { status: 'loading' } | { status: 'ready' } | { status: 'error'; error: ApiError }
+const LOADING: Load = { status: 'loading' }
+const READY: Load = { status: 'ready' }
+const failed = (cause: unknown): Load => ({ status: 'error', error: toApiError(cause) })
 
 const toItems = (issues: readonly IssueSummary[]): ListboxItem[] =>
   issues.map((issue) => ({ id: issue.key, itemKey: issue.key, label: issue.summary }))
@@ -35,14 +46,17 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
   const [storyKey, setStoryKey] = useState<string | undefined>()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<IssueSummary[] | undefined>()
-  const [error, setError] = useState<ApiError | undefined>()
+  // Estado de cada carga (PA-460) y la vuelta con la que se pidió (su «Reintentar»).
+  const [projectsLoad, setProjectsLoad] = useState<Load>(LOADING)
+  const [epicsLoad, setEpicsLoad] = useState<Load>(LOADING)
+  const [storiesLoad, setStoriesLoad] = useState<Load>(READY)
+  const [searchLoad, setSearchLoad] = useState<Load>(READY)
+  const [rounds, setRounds] = useState({ projects: 0, epics: 0, stories: 0, search: 0 })
+  // Error al fijar el proyecto con «Usar…» (no es de ninguna lista).
+  const [useError, setUseError] = useState<ApiError | undefined>()
   const [choosing, setChoosing] = useState(false)
-  // Reintentar (UI.md §7) vuelve a pedir lo que falló.
-  const [round, setRound] = useState(0)
 
-  const fail = (cause: unknown) => {
-    if (cause instanceof ApiRequestError) setError(cause.error)
-  }
+  const retry = (list: keyof typeof rounds) => setRounds((current) => ({ ...current, [list]: current[list] + 1 }))
 
   useEffect(() => {
     let cancelled = false
@@ -50,15 +64,21 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       .projects()
       .then((value) => {
         if (cancelled) return
-        setError(undefined)
         setProjects(value.projects)
         setProjectKey((current) => current ?? value.preselected ?? value.projects[0]?.key)
+        setProjectsLoad(READY)
+        // Sin proyecto que elegir, no hay épicas que cargar.
+        if (!initialProject && !(value.preselected ?? value.projects[0]?.key)) setEpicsLoad(READY)
       })
-      .catch((cause: unknown) => !cancelled && fail(cause))
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setProjectsLoad(failed(cause))
+        if (!initialProject) setEpicsLoad(READY)
+      })
     return () => {
       cancelled = true
     }
-  }, [round])
+  }, [rounds.projects, initialProject])
 
   useEffect(() => {
     if (!projectKey) return
@@ -67,14 +87,14 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       .epics(projectKey)
       .then((value) => {
         if (cancelled) return
-        setError(undefined)
         setEpics(value)
+        setEpicsLoad(READY)
       })
-      .catch((cause: unknown) => !cancelled && fail(cause))
+      .catch((cause: unknown) => !cancelled && setEpicsLoad(failed(cause)))
     return () => {
       cancelled = true
     }
-  }, [projectKey, round])
+  }, [projectKey, rounds.epics])
 
   useEffect(() => {
     if (!epicKey) return
@@ -83,14 +103,14 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       .stories(epicKey)
       .then((value) => {
         if (cancelled) return
-        setError(undefined)
         setStories(value)
+        setStoriesLoad(READY)
       })
-      .catch((cause: unknown) => !cancelled && fail(cause))
+      .catch((cause: unknown) => !cancelled && setStoriesLoad(failed(cause)))
     return () => {
       cancelled = true
     }
-  }, [epicKey, round])
+  }, [epicKey, rounds.stories])
 
   // Búsqueda por texto o clave en el proyecto, con espera entre pulsaciones.
   useEffect(() => {
@@ -101,18 +121,18 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
       api
         .search(projectKey, q, controller.signal)
         .then((items) => {
-          setError(undefined)
           setResults(items)
+          setSearchLoad(READY)
         })
         .catch((cause: unknown) => {
-          if (!isAbortError(cause)) fail(cause)
+          if (!isAbortError(cause)) setSearchLoad(failed(cause))
         })
     }, SEARCH_DEBOUNCE_MS)
     return () => {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [projectKey, query, round])
+  }, [projectKey, query, rounds.search])
 
   const searching = query.trim().length > 0
   const visibleProjects = searching
@@ -133,27 +153,62 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
     setEpics([])
     setStories([])
     setResults(undefined)
+    setEpicsLoad(LOADING)
+    setStoriesLoad(READY)
+    if (searching) setSearchLoad(LOADING)
   }
 
   const selectEpic = (key: string) => {
     if (key === epicKey) return
     setEpicKey(key)
     setStoryKey(undefined)
-    if (!searching) setStories([])
+    if (!searching) {
+      setStories([])
+      setStoriesLoad(LOADING)
+    }
+  }
+
+  const changeQuery = (value: string) => {
+    setQuery(value)
+    if (value.trim()) setSearchLoad(LOADING)
+    else {
+      setResults(undefined)
+      setSearchLoad(READY)
+    }
   }
 
   const use = async (origin?: IssueSummary) => {
     if (!project) return
     setChoosing(true)
+    setUseError(undefined)
     try {
       if (project.key !== initialProject) await api.chooseProject(project.key)
       onPick({ project, origin })
     } catch (cause) {
-      fail(cause)
+      if (cause instanceof ApiRequestError) setUseError(cause.error)
     } finally {
       setChoosing(false)
     }
   }
+
+  /** La tarjeta de error de una carga, con su «Reintentar» (vuelve a pedir solo esa lista). */
+  const loadError = (load: Load, list: keyof typeof rounds, onRetry?: () => void) =>
+    load.status === 'error' ? (
+      <ErrorCard
+        key={`${list}-${rounds[list]}-${load.error.code}`}
+        error={load.error}
+        onAction={() => {
+          onRetry?.()
+          retry(list)
+        }}
+      />
+    ) : undefined
+
+  // Con búsqueda, épicas y HU salen de la misma consulta: su carga y su error son los de la búsqueda.
+  const epicsShown = searching ? searchLoad : epicsLoad
+  const storiesShown = searching ? searchLoad : storiesLoad
+  const epicsList: keyof typeof rounds = searching ? 'search' : 'epics'
+  const storiesList: keyof typeof rounds = searching ? 'search' : 'stories'
 
   const selection = story ?? epic
   const footer = (
@@ -201,24 +256,15 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
           data-autofocus
           className={styles.searchInput}
           type="search"
+          maxLength={SEARCH_MAX_LENGTH}
           placeholder={`Buscar por texto o clave en el proyecto ${projectKey ?? ''}`.trim()}
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            if (!event.target.value.trim()) setResults(undefined)
-          }}
+          onChange={(event) => changeQuery(event.target.value)}
         />
       </div>
-      {error && (
+      {useError && (
         <div className={styles.error}>
-          <ErrorCard
-            key={`${error.code}-${error.message}`}
-            error={error}
-            onAction={() => {
-              setError(undefined)
-              setRound((current) => current + 1)
-            }}
-          />
+          <ErrorCard key={`${useError.code}-${useError.message}`} error={useError} onAction={() => setUseError(undefined)} />
         </div>
       )}
       <div className={styles.columns}>
@@ -229,6 +275,8 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
           selectedId={projectKey}
           onSelect={selectProject}
           emptyText="Ningún proyecto coincide."
+          loadingText={projectsLoad.status === 'loading' ? 'Cargando proyectos…' : undefined}
+          error={loadError(projectsLoad, 'projects', () => setProjectsLoad(LOADING))}
         />
         <Listbox
           label={searching ? `Épicas encontradas en ${projectKey}` : `Épicas de ${projectKey}`}
@@ -237,6 +285,8 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
           selectedId={epicKey}
           onSelect={selectEpic}
           emptyText={searching ? 'Ninguna épica coincide.' : 'Este proyecto no tiene épicas.'}
+          loadingText={epicsShown.status === 'loading' ? (searching ? 'Buscando…' : 'Cargando épicas…') : undefined}
+          error={loadError(epicsShown, epicsList, () => (searching ? setSearchLoad(LOADING) : setEpicsLoad(LOADING)))}
           note={<p className={styles.note}>Elegir la épica sirve para crear una HU nueva dentro de ella.</p>}
         />
         <Listbox
@@ -246,9 +296,19 @@ export function ChooseInJira({ initialProject, onCancel, onPick }: ChooseInJiraP
           selectedId={storyKey}
           onSelect={setStoryKey}
           emptyText={searching ? 'Ninguna HU coincide.' : epicKey ? 'Esta épica no tiene HU.' : 'Elige una épica para ver sus HU.'}
+          loadingText={storiesShown.status === 'loading' ? (searching ? 'Buscando…' : 'Cargando HU…') : undefined}
+          error={
+            // Una carga, un error: el de la búsqueda va (con su «Reintentar») en la columna de épicas.
+            searching && searchLoad.status === 'error' ? (
+              <p className={styles.note} role="status">
+                La búsqueda no se pudo hacer.
+              </p>
+            ) : (
+              loadError(storiesShown, storiesList, () => setStoriesLoad(LOADING))
+            )
+          }
         />
       </div>
     </Modal>
   )
 }
-

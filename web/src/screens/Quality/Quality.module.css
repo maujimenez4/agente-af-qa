@@ -183,3 +183,9 @@
 .sourceRef {
   font-weight: var(--weight-bold);
 }
+
+/* Revisión que no se encuentra o no se puede ver: la salida a Inicio, bajo la tarjeta. */
+.errorActions {
+  display: flex;
+  margin-top: var(--space-3);
+}

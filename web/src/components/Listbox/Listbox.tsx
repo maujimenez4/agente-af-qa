@@ -16,15 +16,19 @@ export interface ListboxProps {
   items: readonly ListboxItem[]
   selectedId?: string
   onSelect: (id: string) => void
-  /** Texto cuando no hay elementos (o mientras cargan). */
+  /** Texto cuando no hay elementos (con la respuesta ya recibida). */
   emptyText: string
+  /** PA-460: mientras llega la lista, este texto (con `aria-busy`) en lugar del vacío. */
+  loadingText?: string
+  /** PA-460: el error de esta carga (p. ej. su `ErrorCard`), en el sitio de la lista. */
+  error?: ReactNode
   /** Nota bajo la lista (p. ej. para qué sirve elegir una épica). */
   note?: ReactNode
 }
 
 // Lista de una sola selección con teclado (patrón listbox de WAI-ARIA con aria-activedescendant):
 // flechas, Inicio y Fin mueven y eligen; el texto de la API se pinta como texto.
-export function Listbox({ label, heading, items, selectedId, onSelect, emptyText, note }: ListboxProps) {
+export function Listbox({ label, heading, items, selectedId, onSelect, emptyText, loadingText, error, note }: ListboxProps) {
   const id = useId()
   const [active, setActive] = useState<string | undefined>()
   const activeId = items.some((item) => item.id === active) ? active : (selectedId ?? items[0]?.id)
@@ -59,7 +63,13 @@ export function Listbox({ label, heading, items, selectedId, onSelect, emptyText
       <span className={styles.heading} aria-hidden="true">
         {heading}
       </span>
-      {items.length === 0 ? (
+      {error ? (
+        <div className={styles.empty}>{error}</div>
+      ) : loadingText !== undefined ? (
+        <p className={styles.empty} role="status" aria-busy="true">
+          {loadingText}
+        </p>
+      ) : items.length === 0 ? (
         <p className={styles.empty} role="status">
           {emptyText}
         </p>

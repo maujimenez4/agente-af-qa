@@ -115,7 +115,7 @@
 |---|---|---|---|---|---|
 | T-34 | Prueba cruzada: la sesión A prueba el área B (con `test-writer` y `spec-checker`) | A | T-33 | RNF-19 | ✅ |
 | T-35 | Prueba cruzada: la sesión B prueba el área A | B | T-32 | RNF-19 | ✅ |
-| T-36 | README de instalación, ensayo de la demo y etiqueta `v1.0` | P | T-34, T-35 | — | ⬜ (parte 1 hecha en la rama `ses-demo` y **aparcada**: guion, lista y preparación se retoman con el sistema terminado; el README de instalación ya está fusionado) |
+| T-36 | README de instalación, ensayo de la demo y etiqueta `v1.0` | P | T-34, T-35 | — | 🔄 (2026-10-08: guion de la demo en `web/DEMO.md` y `docs/demo/HU-AFQP.md`; preparación de conversaciones `eval/demo_prepare.py` rescatada de `ses-demo` y adaptada a AFQP y a los modelos mixtos; dossier para dirección en `docs/presentacion/`. Falta el ensayo y la etiqueta `v1.0`) |
 
 **🔗 Sincronización:** **demo v1.0** con los dos flujos completos (AF y QA).
 

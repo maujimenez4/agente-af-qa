@@ -4,9 +4,9 @@ Para quien presenta la web en React (`web/`). Entre **5 y 10 minutos**: lo marca
 
 Hay dos variantes:
 - **A · API simulada** (`npm run dev:mock`): todo responde en segundos y se pueden forzar casos con `?simular=`. Es la más segura.
-- **B · API real** en modo simulación: más convincente, pero cada generación con los modelos locales tarda minutos. Se apoya en conversaciones preparadas de antemano, que se retoman desde la lista.
+- **B · API real** con la configuración mixta de modelos (PA-443, desde el 2026-10-08): HU, evolución y revisión de calidad con Groq **en segundos**; la suite de QA, con el modelo local, en **6–8 minutos**, así que se lleva preparada. Se hace sobre el proyecto sintético **AFQP** (Biblioteca de Villaficticia), que admite publicar de verdad (`docs/demo/HU-AFQP.md`).
 
-Los datos son siempre ficticios (proyecto `DEMO`, HU `DEMO-3`, usuarios `af-demo`, `qa-demo` y `admin-demo`). En ninguna de las dos variantes se escribe nada en Jira.
+Los datos son siempre ficticios: en A, proyecto `DEMO` y HU `DEMO-3`; en B, proyecto `AFQP`. Usuarios `af-demo`, `qa-demo` y `admin-demo`. En A nunca se escribe en Jira; en B solo se escribe en AFQP lo que se aprueba, si la API está en `JIRA_PUBLISH_MODE=live`.
 
 ---
 
@@ -18,13 +18,14 @@ Los datos son siempre ficticios (proyecto `DEMO`, HU `DEMO-3`, usuarios `af-demo
 3. Tener a mano `http://localhost:5173/?simular=sin-cubrir` para la parte de QA. Al cambiar la URL se recarga la página, se pierde la sesión simulada y se vuelve a entrar, esta vez como `qa-demo`.
 4. Saber que `?simular=publicado` hace que la API simulada responda como una **publicación real** («Publicado en Jira»), aunque nada sale del navegador. Es lo que permite enseñar *Ver la memoria*, que solo aparece tras publicar de verdad (ver la nota del paso 2.6).
 
-### Variante B · API real (modo simulación)
-1. **Backend:** `uv run python -m api` con PostgreSQL, las migraciones, el corpus indexado y `JIRA_PUBLISH_MODE=simulation`. Ollama tiene que estar arrancado y los modelos **ya cargados**: lanza una generación de prueba 10 minutos antes, para que la primera petición no espere a que carguen.
+### Variante B · API real (modelos mixtos, proyecto AFQP)
+1. **Backend:** `uv run python -m api` con PostgreSQL, las migraciones y el corpus indexado (arranque diario en el `README.md`). Con `config/models.yaml` (mixta) hace falta `GROQ_API_KEY` en el `.env`. `JIRA_PUBLISH_MODE=live` publica de verdad en AFQP; con `simulation` no se escribe nada. Comprueba en *Administración → Probar conexiones* que todo está en verde y lanza una suite de prueba 10 minutos antes, para que Ollama tenga el modelo cargado.
+   - **Ritmo de Groq:** su nivel gratuito admite 8000 tokens por minuto. Deja unos segundos entre una generación y la siguiente; si Groq pide esperar, el agente espera solo (hasta 60 s).
 2. **Web:** `cd web && npm run dev` y abrir `http://localhost:5173` (no `127.0.0.1`) en una ventana InPrivate. Usuarios `af-demo`, `qa-demo` y `admin-demo` con las contraseñas de `core.seed_users`, que no se enseñan en pantalla.
 3. **Conversaciones preparadas**, porque cada generación tarda minutos:
-   - `af-demo`: una **revisión de calidad terminada** de la HU de la demo, y una **evolución desde «Evolucionar con esto» ya iterada una vez** (en revisión, versión 2 o posterior). En directo se retoma desde la lista; la iteración solo se cuenta.
-   - `qa-demo`: una **suite de la misma HU ya generada y en revisión**. Con `qwen3:1.7b`, sus RN saldrán **sin caso** (el modelo no rellena `rule_ids`).
-   - **Memorias de ejemplo** para enseñar en Memoria, porque en modo simulación no se genera ninguna. En el equipo de la principal, con `APP_ENV=development`: `uv run python -m core.memory.seed_demo` (o `--proyecto <CLAVE>` para otro proyecto). Crea dos memorias ficticias, `DEMO-9001` y `DEMO-9002`, que salen como **«No indexadas»**: no pasan por el RAG. Para quitarlas, se borran sus dos `.md` de `data/memory/`.
+   - `af-demo`: con Groq, la revisión de calidad y la evolución salen en segundos y **se pueden hacer en directo**. Ten preparada igualmente una evolución ya iterada por si Groq no responde.
+   - `qa-demo`: una **suite ya generada y en revisión** de una HU de AFQP **que aún no tenga casos publicados** (por ejemplo AFQP-28). **No publiques una segunda suite de AFQP-27**, que ya tiene AFQP-29…34: es el hallazgo alto de la auditoría (PA-450). Con `qwen3:1.7b`, las RN saldrán **sin caso** (el modelo no rellena `rule_ids`).
+   - **Memorias reales:** AFQP-27 y AFQP-28 se publicaron de verdad el 2026-10-07 y sus memorias están **indexadas**. Si la API está en `simulation`, se enseñan desde *Memoria*; las de ejemplo de `core.memory.seed_demo` ya no hacen falta.
 4. **Plan B listo** (§7): `npx vite --mode mock --port 5174` en otra terminal y `http://localhost:5174/?simular=publicado` en **otro perfil** del navegador, sin entrar todavía.
 5. Comprobar el aviso «Modo de prueba» en Inicio y el anillo «consumo total» en el carril.
 
@@ -57,12 +58,12 @@ Enseña el resumen fijo («INVEST: 5 de 6 bien · 1 ambigüedad · 1 hueco»), c
 **2.2 · Evolucionar con esto.** *Evolucionar DEMO-3 con esto* abre una conversación de evolución con esas mejoras.
 > «La Q se llena con los pasos reales del proceso: cargar el origen, recuperar el contexto y generar.»
 
-Al terminar: «Propuesta lista · Versión N · M cambios frente a Jira» y *Ver la propuesta*. En B, en lugar de esperar, retoma desde la lista la evolución preparada.
+Al terminar: «Propuesta lista · Versión N · M cambios frente a Jira» y *Ver la propuesta*. En B, con Groq, sale en unos segundos; si tarda, retoma desde la lista la evolución preparada.
 
 **2.3 · Iterar una vez (opcional).** En A: la sugerencia «Añade un criterio de error» y *Enviar*. Sale «Generando una nueva versión…» y después el resumen de la versión nueva.
 > «Cada versión marca qué cambió frente a la anterior (“Cambiado en vN”, “Nueva”). La pestaña *Cambios* compara con Jira; *Impacto*, las HU afectadas; *Fuentes*, de dónde sale cada cosa.»
 
-En B, señala en el chat la petición que ya se hizo («la iteración tarda unos minutos con el modelo local; aquí está la de antes»).
+En B, la iteración de una HU con Groq también tarda segundos y se puede hacer en directo.
 
 **2.4 · Editar a mano con nota.** *Editar a mano*, cambia el título y escribe una nota, por ejemplo «Título acordado con negocio». Después *Guardar la versión N+1*.
 > «No todo pasa por el modelo: aquí se corrige a mano, con la misma validación que el backend. Se guarda como una versión nueva, sin llamar al modelo, y la nota queda en la conversación.»
@@ -99,7 +100,7 @@ Cierra sesión y entra como `qa-demo`. En A, con `http://localhost:5173/?simular
 
 **3.3 · Pedir el caso.** *Volver a la suite*, la primera sugerencia «Añade un caso para CA-03» y *Enviar*. En la versión nueva desaparece el aviso del CA (queda «1 RN sin caso») y el recibo ya deja *Aprobar y publicar*.
 
-**En B:** retoma la suite preparada. Lo esperable es ver **RN sin caso que avisan sin bloquear**. El bloqueo por un CA sin caso (en el backend con PA-426: «Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.») aún no se ha comprobado contra la API real: la principal lo probará tras el cambio de modelo. Hasta entonces, en B no se enseña: se enseña en A.
+**En B:** retoma la suite preparada. Lo esperable es ver **RN sin caso que avisan sin bloquear**. El bloqueo por un CA sin caso no se pudo provocar contra la API real (2026-10-08, AFQP-27 y AFQP-28): antes de enseñar la suite, el agente comprueba la cobertura y pide él mismo los casos de un CA que falte (PA-426), y con HU bien escritas los cubre. El bloqueo está verificado por las pruebas del backend (`tests/unit/test_qa_coverage_retry.py`) y en la web con la API simulada: **se enseña en A**. En B se puede contar: «si faltara un caso, el agente lo pide solo; y si aun así faltara, no deja aprobar».
 
 **3.4 · Opcional:** *Cobertura* (la matriz CA/RN × caso, *Descargar la matriz*), *Datos y riesgos* (datos sintéticos) y *Estrategia*.
 
@@ -135,9 +136,9 @@ Se puede ir contando a lo largo de la demo:
 ## 7. Plan B si algo falla en directo
 | Si… | Entonces |
 |---|---|
-| Una generación o iteración tarda demasiado (B) | No esperes: retoma la conversación preparada desde la lista. «Con el modelo local tarda unos minutos; aquí está la de antes.» |
+| Una generación o iteración tarda demasiado (B) | No esperes: retoma la conversación preparada desde la lista. En QA: «Con el modelo local tarda unos minutos; aquí está la de antes». Si es Groq, puede estar esperando su límite por minuto: unos segundos más y sigue. |
 | Sale una tarjeta de error | Léela: el título y el mensaje son del backend, y la acción (*Reintentar*, *Actualizar*) es la que corresponde. Es parte de la demo. Si se repite, pasa a la API simulada. |
-| La API real no responde, Ollama está caído o falla el inicio de sesión | Cambia al otro perfil del navegador, con la API simulada ya arrancada en `http://localhost:5174/?simular=publicado`, y sigue la variante A desde el paso en que ibas. «Os lo enseño con la API simulada, generada desde el mismo contrato.» |
+| La API real no responde, Ollama está caído o falla el inicio de sesión (varios fallos de contraseña seguidos bloquean a todos unos minutos, PA-455: reiniciar la API lo desbloquea) | Cambia al otro perfil del navegador, con la API simulada ya arrancada en `http://localhost:5174/?simular=publicado`, y sigue la variante A desde el paso en que ibas. «Os lo enseño con la API simulada, generada desde el mismo contrato.» |
 | La API simulada da «Error inesperado» | Es un Service Worker viejo: abre una ventana InPrivate nueva. |
 | Falla todo | Capturas de respaldo de cada pantalla, preparadas antes (las de la revisión general del pulido valen). |
 

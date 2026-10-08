@@ -1,6 +1,6 @@
 # Bienvenida al proyecto · Agente de IA de Análisis Funcional y QA
 
-*Estado a 2 de octubre de 2026.* Este documento te sitúa: qué hace el agente, cómo está construido, cómo trabajamos y en qué punto estamos. El detalle técnico está en los documentos de referencia que se citan al final.
+*Estado a 8 de octubre de 2026.* Este documento te sitúa: qué hace el agente, cómo está construido, cómo trabajamos y en qué punto estamos. El detalle técnico está en los documentos de referencia que se citan al final.
 
 ## 1. Qué es
 Un agente que **redacta y evoluciona Historias de Usuario (HU) y artefactos de QA** (casos de prueba, Gherkin, matriz de cobertura, estrategia) a partir de **Jira Cloud** y de una **base de conocimiento (RAG)** con la documentación funcional. Funciona así:
@@ -16,6 +16,7 @@ Tiene cuatro flujos, según el rol:
 | Evolucionar una HU | Analista funcional | Versión nueva de una HU de Jira, con diff y análisis de impacto |
 | Revisar la calidad | Analista funcional | Informe INVEST y hallazgos de una HU, **sin publicar** |
 | Preparar pruebas | QA | Suite de casos de una HU: Gherkin, matriz, datos y estrategia |
+| Memoria | Todos | Lo que el agente ha aprendido de las HU publicadas |
 
 ## 2. Arquitectura
 
@@ -25,11 +26,11 @@ flowchart LR
     qa(["QA"])
     admin(["Administrador"])
 
-    ui["Aplicación web<br/>(Streamlit)"]
+    ui["Aplicación web<br/>(React; Streamlit de plan B)"]
     agent["Agente<br/>(LangGraph)<br/>genera HU y suites de prueba"]
     review{{"Revisión humana<br/>iterar · editar · aprobar · descartar"}}
     rag[("Base de conocimiento<br/>RAG: documentos + memorias")]
-    llm["Modelos de IA<br/>open-weight y locales<br/>(Ollama: qwen3:4b-instruct · bge-m3)"]
+    llm["Modelos de IA open-weight<br/>Groq (gpt-oss) + Ollama local<br/>(qwen3:1.7b · phi4-mini · bge-m3)"]
     jira[("Jira Cloud")]
     db[("PostgreSQL + pgvector<br/>artefactos · auditoría · usuarios · conversaciones")]
 
@@ -50,7 +51,7 @@ flowchart LR
 - **Agente:** es un grafo de LangGraph con los nodos `load_origin → retrieve_context → generate → human_review → publish → memorize`. Reúne el contexto de Jira y del RAG, pide al modelo una **salida estructurada** (modelos pydantic de `schemas/`) y la valida antes de enseñarla: las citas solo pueden venir del contexto, se comprueba la cobertura de los CA y se buscan datos personales.
 - **Revisión humana:** la persona aprueba con la **huella** (SHA-256) de la versión que vio. Si el contenido cambia, la aprobación ya no vale.
 - **Publicación:** es el único nodo que escribe en Jira y exige una aprobación vigente. Por defecto trabaja en **modo simulación**: audita lo que haría y no escribe nada.
-- **Modelos:** desde el 1 de octubre, **solo modelos locales de Ollama** (sin cuota ni coste). En CPU son lentos: una HU completa puede tardar varios minutos.
+- **Modelos:** desde el 8 de octubre, configuración **mixta** (PA-443): Groq, en su nivel gratuito, para HU, evolución, calidad, impacto y memoria (segundos); Ollama local para QA (minutos en CPU) y como respaldo de todo. Todos son open-weight y gratuitos (D-14). `config/README.md` explica cómo pasar a todo local.
 
 Diagrama C4 más detallado: `docs/arquitectura-c4.md`. Contratos, nodos y tablas: `docs/specs/SPEC-00-fundacional.md`.
 
@@ -63,7 +64,7 @@ Diagrama C4 más detallado: `docs/arquitectura-c4.md`. Contratos, nodos y tablas
 6. **Sin alcance extra:** una mejora no pedida se anota como propuesta (`PA-XX`) en el Kanban y no se implementa.
 
 ## 4. Stack y mapa del repositorio
-Python 3.12 · uv · LangGraph · SDK de OpenAI (proveedores compatibles: Ollama) · PostgreSQL + pgvector · Alembic · Streamlit · httpx · pydantic v2 · structlog · pytest · ruff · Docker Compose.
+Python 3.12 · uv · LangGraph · FastAPI · SDK de OpenAI (proveedores compatibles: Groq y Ollama) · PostgreSQL + pgvector · Alembic · React + TypeScript + Vite · Streamlit (plan B) · httpx · pydantic v2 · structlog · Langfuse · pytest · Vitest · ruff · Docker Compose.
 
 | Carpeta | Contenido |
 |---|---|
@@ -71,7 +72,10 @@ Python 3.12 · uv · LangGraph · SDK de OpenAI (proveedores compatibles: Ollama
 | `adapters/` | Jira (lectura y escritura, ADF), casos de prueba en Jira, LLM, embeddings, pgvector, usuarios. `base.py` tiene los `Protocol` |
 | `core/` | Grafo, contexto, aprobaciones, auditoría, proyectos, conversaciones, arranque guiado, revisión de calidad y composición (`container.py`, `factories.py`) |
 | `prompts/` | Un prompt por tarea, con cabecera `version:` |
-| `app/` | La UI en Streamlit («Propuesta mixta», `docs/specs/UI.md`) |
+| `api/` | API HTTP (FastAPI) para la web; contrato en `docs/api/openapi.yaml` |
+| `web/` | La web en React («Propuesta mixta», `docs/specs/UI.md`), interfaz principal |
+| `app/` | La UI en Streamlit, plan B |
+| `mcp_server/` | Servidor MCP de solo lectura (Claude Desktop, Claude Code, VS Code) |
 | `data/seed/` | Corpus sintético del RAG (biblioteca de Villaficticia) y seed de Jira importable por CSV |
 | `eval/` | Evaluación de la recuperación y medición de tokens de la memoria |
 | `tests/` | `unit/` (con los fakes de `tests/fakes/`, sin servicios) e `integration/` (servicios reales, se saltan sin credenciales) |
@@ -80,11 +84,8 @@ Python 3.12 · uv · LangGraph · SDK de OpenAI (proveedores compatibles: Ollama
 ## 5. Cómo trabajamos
 - **Ramas:** `PreProduccion` es la rama de integración y nunca se fusiona directamente en `main`. El trabajo en paralelo va en **ramas propias** creadas desde `PreProduccion`. Una sesión principal revisa cada rama, ejecuta las pruebas sobre la fusión y la integra.
 - **Sesiones de Claude Code en paralelo:** cada línea de trabajo es una sesión con su worktree, su rama, sus carpetas y su prompt de arranque en `docs/prompts/SESION-*.md`. Ahora mismo hay estas:
-  - **principal**: integración y contratos;
-  - **UI**: `ses-ui`, que pasa a ser tuya (§8);
-  - **Jira**: `ses-jira`;
-  - **T-32**: `ses-memoria`;
-  - **Ollama**: la prueba de punta a punta.
+  - **principal**: integración, contratos y la presentación;
+  - **Jira** (`area-a`), **Modelos** (`area-b`), **Seguridad** (`ses-seguridad`) y **UI** (`ses-ui`): una ronda cada una con lo que encontró la auditoría del 2026-10-08 (`docs/auditorias/`).
 - **Kanban (`docs/KANBAN.md`):**
   - Cada tarea `T-XX` tiene su sesión, sus dependencias y su trazabilidad (RF, RNF, D).
   - Estados: ⬜ → 🔄 → 👀 → ✅.
@@ -102,36 +103,16 @@ Python 3.12 · uv · LangGraph · SDK de OpenAI (proveedores compatibles: Ollama
   9. commit `T-XX: descripción [RF-YY]`.
 - **Contratos congelados:** `schemas/`, `adapters/base.py`, `adapters/errors.py`, `core/config.py` y `core/container.py` solo los cambia la sesión principal. Si necesitas cambiarlos, se propone.
 
-## 6. Dónde estamos (2 de octubre de 2026)
-**Hecho y fusionado** (unas 3400 pruebas unitarias en verde):
-- **Cimientos:** esquemas, configuración, migraciones, fakes, autenticación local y roles, y auditoría.
-- **Jira:**
-  - lectura: búsqueda JQL paginada, proyectos, épicas, HU y ADF;
-  - **escritura:** crear y actualizar HU con el comentario del diff, vínculos «relates to», y casos de prueba como subtareas con adjuntos, con publicación parcial e idempotente.
-- **RAG:** ingesta, fragmentación, embeddings `bge-m3`, búsqueda híbrida y 7 categorías. Recall@6 0,90 y MRR 0,95.
-- **Agente:**
-  - HU nueva, evolución con diff e impacto, modo QA con cobertura validada y memoria tras publicar;
-  - revisión humana con huella, edición manual y decisiones `iterate`/`edit`/`approve`/`discard`;
-  - publicación en simulación.
-- **Backend de la UI:**
-  - proyecto por conversación;
-  - conversaciones persistentes en PostgreSQL, con control del dueño;
-  - arranque guiado sin IA (claves en el texto y HU parecida);
-  - revisión de calidad (INVEST).
-- **UI:** login, inicio, elegir en Jira, origen y fuentes, generación, iteración, edición y lista de conversaciones.
+## 6. Dónde estamos (8 de octubre de 2026)
+**Hecho y fusionado** en `PreProduccion` (unas 7200 pruebas de Python y 2580 de la web, en verde):
+- **Los flujos completos:** nueva necesidad, evolucionar con diff e impacto, revisar la calidad (INVEST), preparar pruebas con cobertura validada, registrar la ejecución (T-47), pasar una HU a QA (T-54) y memoria tras publicar.
+- **La web en React (T-56, entregada)** sobre la API HTTP (T-55); Streamlit queda como plan B. Accesible (WCAG 2.1 A/AA revisada con axe) y con el logo completo de Qaracter en el login.
+- **Jira real:** publicación validada en el proyecto sintético **AFQP**, que admite `JIRA_PUBLISH_MODE=live` (siempre con aprobación).
+- **Modelos mixtos** Groq + Ollama, con espera ante el límite por minuto y respaldo local (PA-443); medidas en `docs/pruebas/medidas-groq-vs-local-2026-10-07.md`.
+- **Observabilidad:** trazas en Langfuse Cloud. **MCP** de solo lectura.
+- **Auditoría completa** del repositorio (`docs/auditorias/AUDITORIA-2026-10-08.md`): sin escrituras en Jira sin aprobación; 1 hallazgo alto y 11 medios, repartidos en las sesiones (PA-450…PA-461).
 
-**En curso:**
-- **UI:** T-31 (recibo de aprobación y resultado), pantalla de revisar la calidad, T-28 (pantallas de QA) y pestaña Memoria.
-- **Jira:** validar la escritura real en el sandbox y después T-47 (registro de la ejecución de los casos).
-- **T-32:** contador de tokens y endurecimiento de reintentos, errores y logs del LLM.
-- **Ollama:** la **primera prueba real de punta a punta** con modelos locales. Midiendo tiempos: una llamada mínima tarda unos 22 s en frío.
-
-**Pendiente:**
-- `JIRA_PUBLISH_MODE=live`, que está bloqueado hasta validar la escritura;
-- T-29 (administración);
-- las pruebas cruzadas (T-34 y T-35);
-- el README y la demo `v1.0` (T-36);
-- la v1.1: T-39 a T-46 (Langfuse, lenguaje natural a JQL, ingesta automática, evaluación ampliada…).
+**Siguiente:** la presentación a dirección y la demo (T-36).
 
 ## 7. Puesta en marcha
 **Para el backend** (y para ejecutar la app completa) hace falta poder ejecutar Python, `uv` y Docker. **Para el frontend en React basta Node.js** y la API simulada (§8).
@@ -142,16 +123,24 @@ git switch PreProduccion
 uv sync
 cp .env.example .env                      # pide los valores al responsable del proyecto; nunca se versiona
 docker compose --profile local-llm up -d db ollama
+docker compose exec ollama ollama pull qwen3:1.7b
+docker compose exec ollama ollama pull phi4-mini
 docker compose exec ollama ollama pull bge-m3
-docker compose exec ollama ollama pull qwen3:4b-instruct
 uv run alembic upgrade head
 uv run pytest -m "not integration"        # debe salir en verde
 uv run python -m core.rag.indexing        # indexa el corpus sintético (solo embeddings, sin LLM)
 uv run python -m core.seed_users          # usuarios de demo; las contraseñas se muestran una sola vez
-uv run streamlit run app/main.py
+uv run python -m api                      # API en el puerto 8000
+cd web && npm ci && npm run dev           # web en http://localhost:5173 (otra terminal)
 ```
 
-## 8. Tu rol: responsable de producto y frontend (área B)
+El arranque diario, ya instalado, está en el `README.md`.
+
+## 8. Histórico: el rol de responsable del frontend (área B)
+
+> Plan de la ronda de T-56, que se entregó el 2026-10-08 (PR #2 a #18). Se conserva como referencia.
+
+### Rol original: responsable de producto y frontend (área B)
 No entras como una línea más: **eres el dueño del área B, «Conocimiento y UI»**, y tu entrega principal hasta la demo es **el frontend propio en React (T-56)**. Tiene que verse como el lienzo «Propuesta mixta» (decisión del 2 de octubre: D-04 revisada).
 
 ### Qué es tuyo

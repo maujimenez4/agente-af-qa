@@ -1,6 +1,6 @@
 # Arquitectura · Agente de IA de AF y QA
 
-Vista para explicar el sistema en pocos minutos (estado a 2026-10-05). El modelo C4, con más detalle, está en `docs/arquitectura-c4.md`; los contratos, en `docs/specs/SPEC-00-fundacional.md` (fuente de verdad).
+Vista para explicar el sistema en pocos minutos (estado a 2026-10-08). El modelo C4, con más detalle, está en `docs/arquitectura-c4.md`; los contratos, en `docs/specs/SPEC-00-fundacional.md` (fuente de verdad).
 
 **En una frase:** el agente redacta historias de usuario y casos de prueba con el contexto de Jira y de la documentación de la empresa; una persona revisa y aprueba, y solo entonces se publica en Jira. Lo publicado se convierte en memoria y mejora las siguientes propuestas.
 
@@ -33,7 +33,7 @@ flowchart LR
     subgraph S["🧩 Servicios"]
         direction TB
         jira[("Jira Cloud<br/>HU y casos de prueba")]
-        llm["Modelos de IA locales<br/>Ollama"]
+        llm["Modelos de IA open-weight<br/>Groq (nube) + Ollama (local)"]
         db[("PostgreSQL + pgvector<br/>conversaciones, auditoría<br/>y base de conocimiento")]
         lf["Langfuse<br/>trazas"]
     end
@@ -62,7 +62,7 @@ flowchart LR
 - **Agente:** el núcleo es un grafo de pasos. Reúne el contexto, pide al modelo una respuesta estructurada, la valida y espera a la persona.
 - **Servicios:**
   - Jira es el origen y el destino;
-  - los modelos son abiertos, gratuitos y locales;
+  - los modelos son abiertos (open-weight) y gratuitos. Desde el 2026-10-08 la configuración es **mixta** (PA-443): Groq (`gpt-oss-120b` y `gpt-oss-20b`, nivel gratuito) para crear y evolucionar HU, revisar la calidad, el impacto y la memoria; Ollama en el propio equipo para QA y como respaldo de todo. Con `config/models.todo-local.yaml` ninguna llamada sale del equipo;
   - PostgreSQL guarda el estado y, con pgvector, la base de conocimiento (RAG);
   - Langfuse recoge las trazas de cada operación.
 
@@ -95,7 +95,7 @@ flowchart LR
 2. **Contexto:** lo que el agente sabe antes de escribir: la HU y sus vínculos en Jira, los documentos relevantes del RAG y las memorias de HU ya publicadas, que tienen prioridad. Todo cabe en un presupuesto de tokens.
 3. **Generar:** el modelo devuelve una estructura fija (título, «Como / Quiero / Para», criterios de aceptación, reglas de negocio, citas a las fuentes), no texto libre. El agente comprueba los identificadores y las citas antes de enseñarla.
 4. **Revisión humana:** la persona pide cambios, edita o descarta. Al aprobar se guarda una huella de exactamente lo que vio.
-5. **Publicar:** solo con esa aprobación. Crea o actualiza la HU, los casos de prueba como subtareas, los adjuntos y los vínculos. Por defecto está en **simulación**: enseña lo que haría sin escribir nada.
+5. **Publicar:** solo con esa aprobación. Crea o actualiza la HU, los casos de prueba como subtareas, los adjuntos y los vínculos. Por defecto está en **simulación**: enseña lo que haría sin escribir nada. En el proyecto sintético AFQP se publica de verdad (`JIRA_PUBLISH_MODE=live`), siempre con aprobación.
 6. **Memoria:** tras una publicación real, un resumen de la HU vuelve a la base de conocimiento.
 
 Se puede **detener** una generación en curso y **reintentar** un paso que falló. Reintentar nunca repite una publicación.
@@ -138,7 +138,7 @@ Los tres roles ven la pestaña **Memoria**, con lo que el agente ha aprendido.
 - **Nada se escribe en Jira sin aprobación.** Hay un único paso que escribe y exige la huella de lo aprobado. El servidor MCP y la simulación no escriben nunca.
 - **Trazabilidad:** cada artefacto cita su origen (clave de Jira, criterios, reglas y casos), y cada decisión queda en la auditoría.
 - **Datos y secretos:** datos sintéticos en todo el proyecto; los secretos se leen de un `.env` y nunca aparecen en el código, los logs ni las trazas.
-- **Coste cero:** modelos abiertos y gratuitos ejecutados en local. Si un proveedor se satura, se pasa al siguiente de la cadena.
+- **Coste cero de modelos:** open-weight y gratuitos (D-14): Groq en su nivel gratuito y Ollama en local. Si Groq pide esperar, el agente espera hasta 60 s antes de pasar al modelo local; si la petición no cabe en su límite por minuto, pasa directamente al local. Con Groq, la HU y el contexto salen del equipo: solo se usa con el proyecto sintético AFQP (`config/README.md`).
 - **Observable:** cada operación deja una traza en Langfuse con sus pasos, tokens y tiempos. El texto completo solo se envía si se activa el interruptor.
 
 ## 6. Dónde corre
@@ -146,7 +146,8 @@ Los tres roles ven la pestaña **Memoria**, con lo que el agente ha aprendido.
 | Pieza | Dónde |
 |---|---|
 | PostgreSQL + pgvector y Ollama | Docker Compose en el equipo |
+| Groq | Servicio en la nube, nivel gratuito (8000 tokens por minuto en `gpt-oss-120b`) |
 | API, Streamlit y servidor MCP | Procesos de Python en el mismo equipo (la API también tiene imagen de Docker) |
 | Web en React | Servidor de desarrollo de Vite, que pasa `/api` a la API |
-| Jira | Jira Cloud, proyecto de pruebas |
+| Jira | Jira Cloud, proyecto sintético AFQP |
 | Langfuse | Langfuse Cloud, plan gratuito |

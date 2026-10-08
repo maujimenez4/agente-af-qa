@@ -5,9 +5,11 @@ Guion de las historias que se crean **a través del agente** en el proyecto sint
 El orden importa: la 2 aprovecha la memoria que deja la 1 al publicarse (ciclo de aprendizaje), y la 5 y la 6 trabajan sobre la 1.
 
 Antes de empezar:
-1. `JIRA_PUBLISH_MODE=live` en el `.env` (lo cambia el usuario) y reiniciar la API.
-2. Borrar en Jira las HU de prueba `[PRUEBA-AGENTE]` (AFQP-18, 19, 20, 23 y 25).
-3. Mejor con PA-432 fusionada: así la misma HU se estructura igual en el ensayo y en la demo.
+1. `JIRA_PUBLISH_MODE=live` en el `.env` (lo cambia el usuario) y reiniciar la API. ✅ Hecho el 2026-10-07.
+2. Borrar en Jira las HU de prueba `[PRUEBA-AGENTE]` (AFQP-18, 19, 20, 23 y 25). ✅ Hecho el 2026-10-07.
+3. PA-432 fusionada (la misma HU se estructura igual en el ensayo y en la demo). ✅
+4. Modelos mixtos (PA-443): HU, evolución y calidad con Groq (segundos); QA con el modelo local (6–8 min), así que la suite se lleva preparada.
+5. **No publicar una segunda suite de una HU que ya tiene casos** (AFQP-27 tiene AFQP-29…34) hasta cerrar PA-450: se daría por publicada sin llegar a Jira.
 
 Anota en la tabla final la clave que Jira asigne a cada una.
 

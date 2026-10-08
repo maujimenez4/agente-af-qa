@@ -1,6 +1,6 @@
 # Modelo C4 · Agente de IA de AF y QA
 
-Modelo C4 en tres niveles, más una vista dinámica (estado a 2026-10-05). La vista simple para explicarlo está en `docs/arquitectura.md`. La fuente de verdad es `docs/specs/SPEC-00-fundacional.md`, y el contrato de la API, `docs/api/openapi.yaml`.
+Modelo C4 en tres niveles, más una vista dinámica (estado a 2026-10-08). La vista simple para explicarlo está en `docs/arquitectura.md`. La fuente de verdad es `docs/specs/SPEC-00-fundacional.md`, y el contrato de la API, `docs/api/openapi.yaml`.
 
 **Cómo leer los diagramas:** cada nivel amplía una caja del anterior. Se dibujan como diagramas de flujo con la notación y los colores de C4 (el tipo `C4` de Mermaid coloca mal las cajas).
 
@@ -25,7 +25,8 @@ flowchart TB
     sys["<b>Agente de IA de AF y QA</b><br/>genera HU y artefactos de QA con el contexto de Jira<br/>y de la base de conocimiento, y publica solo lo aprobado"]
 
     jira["<b>Jira Cloud</b><br/>épicas, HU, casos de prueba como subtareas,<br/>adjuntos y vínculos<br/><i>sistema externo</i>"]
-    llm["<b>Modelos de IA</b><br/>abiertos y gratuitos, hoy Ollama local<br/><i>sistema externo</i>"]
+    groq["<b>Groq</b><br/>modelos open-weight en la nube, nivel gratuito<br/>(gpt-oss-120b, gpt-oss-20b)<br/><i>sistema externo</i>"]
+    llm["<b>Ollama</b><br/>modelos open-weight en el propio equipo<br/>(qwen3:1.7b, phi4-mini, bge-m3)<br/><i>sistema externo</i>"]
     lf["<b>Langfuse Cloud</b><br/>trazas, tokens y latencias<br/><i>sistema externo</i>"]
 
     af -- "genera y aprueba HU" --> sys
@@ -33,7 +34,8 @@ flowchart TB
     admin -- "comprueba y configura" --> sys
     asis -- "consulta (MCP, solo lectura)" --> sys
     sys -- "lee contexto y publica lo aprobado<br/>[REST v3]" --> jira
-    sys -- "pide salidas estructuradas y embeddings<br/>[API compatible con OpenAI]" --> llm
+    sys -- "HU, evolución, calidad, impacto y memoria<br/>[API compatible con OpenAI]" --> groq
+    sys -- "QA, embeddings y respaldo de todo<br/>[API compatible con OpenAI]" --> llm
     sys -. "envía trazas [HTTPS]" .-> lf
 
     classDef persona fill:#08427b,stroke:#052e56,color:#fff
@@ -41,8 +43,10 @@ flowchart TB
     classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
     class af,qa,admin persona
     class sys sistema
-    class asis,jira,llm,lf externo
+    class asis,jira,groq,llm,lf externo
 ```
+
+**Modelos (D-14, PA-443):** solo open-weight y gratuitos. La configuración por defecto es mixta; `config/models.todo-local.yaml` deja todo en Ollama y ninguna llamada sale del equipo (`config/README.md`).
 
 ## Nivel 2 · Contenedores
 
@@ -65,6 +69,7 @@ flowchart TB
     end
 
     jira["<b>Jira Cloud</b><br/><i>externo</i>"]
+    groq["<b>Groq</b><br/><i>externo</i><br/>gpt-oss-120b, gpt-oss-20b"]
     llm["<b>Ollama</b><br/>[Docker]<br/>qwen3:1.7b, phi4-mini, bge-m3"]
     lf["<b>Langfuse Cloud</b><br/><i>externo</i>"]
 
@@ -78,7 +83,8 @@ flowchart TB
     core -- "SQL y búsqueda híbrida" --> db
     core -- "ingesta y memorias" --> files
     core -- "lee, y escribe solo desde publish [REST v3]" --> jira
-    core -- "generación y embeddings [HTTP]" --> llm
+    core -- "generación (HU, calidad, memoria) [HTTPS]" --> groq
+    core -- "generación (QA, respaldo) y embeddings [HTTP]" --> llm
     core -. "trazas [OTLP/HTTPS]" .-> lf
 
     classDef persona fill:#08427b,stroke:#052e56,color:#fff
@@ -86,13 +92,14 @@ flowchart TB
     classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
     class user persona
     class web,st,api,mcp,core,db,files contenedor
-    class asis,jira,llm,lf externo
+    class asis,jira,groq,llm,lf externo
 ```
 
 - **Un solo proceso de Python por entrada:** la API, Streamlit y el servidor MCP cargan el núcleo como biblioteca. Se dibujan por separado porque tienen responsabilidades distintas.
 - **La web** solo habla con la API, nunca con Jira ni con los modelos.
 - **El servidor MCP** envuelve Jira con un proxy que solo deja pasar lecturas.
 - **Docker Compose** levanta PostgreSQL y Ollama; la API tiene además su propia imagen (perfil `full`).
+- **Cadena de modelos:** cada tarea tiene un modelo principal y un respaldo. Ante un 429 de Groq se espera hasta 60 s; si la petición no cabe en su límite por minuto (413), se pasa al local sin reintentar. Los límites (ventana, presupuesto de contexto y topes de salida) son por proveedor.
 
 ## Nivel 3 · Componentes del núcleo
 
@@ -139,6 +146,7 @@ flowchart TB
 
     db[("PostgreSQL + pgvector")]
     jira["Jira Cloud"]
+    groq["Groq"]
     llm["Ollama"]
     lf["Langfuse Cloud"]
 
@@ -151,7 +159,7 @@ flowchart TB
     exec --> appr
     ORQ & INT --> adapters
     CTL --> db
-    adapters --> db & jira & llm
+    adapters --> db & jira & groq & llm
     adapters -.-> lf
 
     classDef componente fill:#85bbf0,stroke:#5d82a8,color:#000
@@ -159,7 +167,7 @@ flowchart TB
     classDef externo fill:#6b6b6b,stroke:#4a4a4a,color:#fff
     class maingraph,exec,convs,ctx,writers,impact,mem,rag,appr,audit,trace,usage,comp,adapters componente
     class entradas,db contenedor
-    class jira,llm,lf externo
+    class jira,groq,llm,lf externo
 ```
 
 - **Orquestación:**
@@ -184,7 +192,7 @@ sequenceDiagram
     participant G as Grafo principal
     participant J as Jira Cloud
     participant R as RAG (pgvector)
-    participant M as Modelo (Ollama)
+    participant M as Modelo (Groq; Ollama de respaldo)
 
     AF->>W: elige la HU y pulsa «Generar»
     W->>A: POST /conversations

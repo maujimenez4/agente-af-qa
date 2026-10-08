@@ -22,7 +22,8 @@ cp .env.example .env
 #    JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY  → tu Jira de pruebas
 #    JIRA_PUBLISH_MODE=simulation                                → nada se escribe en Jira
 #    OLLAMA_BASE_URL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DATABASE_URL
-#    Sin claves de Groq ni OpenRouter: config/models.yaml usa solo modelos locales (D-14).
+#    GROQ_API_KEY (opcional): config/models.yaml es mixta, Groq + Ollama (PA-443, ver config/README.md).
+#    Sin clave de Groq: MODELS_CONFIG_PATH=config/models.todo-local.yaml (todo en local, D-14).
 
 # 3. Servicios: PostgreSQL + pgvector y Ollama (perfil local-llm)
 docker compose --profile local-llm up -d db ollama
@@ -41,9 +42,10 @@ uv run python -m core.rag.indexing
 # 7. Usuarios locales af-demo, qa-demo y admin-demo
 uv run python -m core.seed_users        # las contraseñas se muestran UNA vez: guárdalas
 
-# 8. Arrancar: API para el frontend (http://127.0.0.1:8000/api/v1) y/o la UI en Streamlit
+# 8. Arrancar: la API (http://127.0.0.1:8000/api/v1) y la web en React (http://localhost:5173)
 uv run python -m api                    # un solo proceso: las sesiones viven en memoria
-uv run streamlit run app/main.py        # http://localhost:8501
+cd web && npm ci && npm run dev         # en otra terminal
+uv run streamlit run app/main.py        # plan B: http://localhost:8501
 
 # 9. Pruebas
 uv run pytest -m "not integration"      # sin servicios externos
@@ -53,9 +55,21 @@ uv run ruff check . && uv run ruff format --check .
 
 - El proyecto de Jira se siembra a mano desde el navegador con `data/seed/jira/seed-villaficticia.csv` (ver su `README.md`); el agente nunca escribe en Jira salvo al publicar lo aprobado y solo en `JIRA_PUBLISH_MODE=live`.
 - Volver a ejecutar `core.seed_users` cambia las contraseñas de los usuarios de demo.
-- En CPU, una HU tarda unos 5–6 minutos con `qwen3:1.7b`. Para la demo hay conversaciones preparadas: `docs/demo/GUION.md`, `docs/demo/CHECKLIST.md` y `uv run python -m eval.demo_prepare`.
+- Tiempos (`docs/pruebas/medidas-groq-vs-local-2026-10-07.md`): con la configuración mixta, una HU nueva o una revisión de calidad tardan segundos (Groq); una suite de QA, unos 6–8 minutos en CPU con `qwen3:1.7b`. Guion de la demo: `web/DEMO.md`; HU sintéticas de AFQP: `docs/demo/HU-AFQP.md`.
 
 **Comprobado en un clon limpio sin `.env`** (2026-10-02, Windows 11): `uv sync`, la migración en modo offline (`uv run alembic upgrade head --sql`, llega a `0005_qa_handoffs`) y `uv run pytest -m "not integration"` en verde. Los pasos 3–8 necesitan Docker, Jira y Ollama con un `.env` propio y no se probaron en ese clon.
+
+### Arranque diario (ya instalado)
+Con Docker Desktop abierto, desde la carpeta del proyecto (PowerShell o bash):
+```bash
+docker start agente-af-qa-db-1 agente-af-qa-ollama-1   # base de datos y modelos locales
+uv run python -m api                                   # terminal 1 · API en el puerto 8000
+cd web && npm run dev                                  # terminal 2 · web en http://localhost:5173
+```
+- Para pararlo, `Ctrl+C` en cada terminal; los contenedores pueden seguir arrancados.
+- Usa `docker start` y no `docker compose up` desde las carpetas de las sesiones (`.claude/worktrees/`): Compose crearía otro proyecto con la base de datos vacía.
+- Para cambiar de configuración de modelos, define `MODELS_CONFIG_PATH` antes de arrancar la API (en PowerShell, `$env:MODELS_CONFIG_PATH = "config/models.todo-local.yaml"`).
+- Las conexiones se comprueban en la web: Administración → Conexiones → Probar conexiones.
 
 ### Ollama: modelos cargados (`keep_alive`)
 El servicio `ollama` de `docker-compose.yml` mantiene el modelo en memoria **30 minutos** después de la última llamada (`OLLAMA_KEEP_ALIVE`, PA-275); sin eso se descarga a los 5 minutos y la siguiente llamada paga la carga. Además limita a **dos modelos cargados** a la vez (`OLLAMA_MAX_LOADED_MODELS=2`): en el e2e del 2026-10-02 hubo OOM con 7,6 GiB para Docker. Se recomienda dar **10 GB a WSL2** (`%UserProfile%\.wslconfig` con `[wsl2]` y `memory=10GB`, y después `wsl --shutdown`). Para otros valores, añádelos a tu `.env`. **Se aplica al recrear el contenedor**, no en caliente:

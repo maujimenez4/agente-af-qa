@@ -27,6 +27,7 @@ from core.rag.chunking import (
     split_sections,
 )
 from core.rag.documents import IngestedDocument
+from tests.fixtures import MODELS_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 DOC_02 = ROOT / "data" / "seed" / "corpus" / "politicas" / "DOC-02-reglamento-reservas.md"
@@ -610,7 +611,7 @@ def test_chunk_with_config_uses_rag_settings_when_default_models_config(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
     """RF-09: chunk_with_config usa rag.chunk_tokens=650 y overlap_tokens=80 de models.yaml."""
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     assert config.models.rag.chunk_tokens == 650
     assert config.models.rag.overlap_tokens == 80
     doc = _make_doc(MULTI_SECTION_MD + "\n" + _paragraphs_text(paragraphs=30))
@@ -625,7 +626,7 @@ def test_chunk_with_config_follows_modified_rag_settings_when_config_changes(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
     """RF-09: si cambia la configuración rag, cambia la fragmentación."""
-    base: ModelsConfig = load_models_config()
+    base: ModelsConfig = load_models_config(MODELS_FIXTURE)
     models = base.model_copy(
         update={"rag": base.rag.model_copy(update={"chunk_tokens": 100, "overlap_tokens": 20})}
     )

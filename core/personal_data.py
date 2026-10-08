@@ -1,7 +1,9 @@
 """Detector común de datos que parecen personales (RF-25, CLAUDE.md principio 3; PA-142).
 
-Lo usan la validación de la suite (`core/qa/validation.py`), la memoria (`core/memory/`) y la
-evidencia de la ejecución (`core/graph/execution.py`). Tiempo lineal en la longitud del texto:
+Lo usan la validación de la suite (`core/qa/validation.py`), la memoria (`core/memory/`), la
+evidencia de la ejecución (`core/graph/execution.py`) y la HU (`core/functional/writer.py` y la
+edición manual, PA-451/PA-452). También el detector de secretos (`SECRET`), común a la memoria y
+a la HU desde PA-452. Tiempo lineal en la longitud del texto:
 el email se busca solo en cada `@` (un carácter de parte local justo antes y el dominio anclado
 justo después, sin recortarlo); recorrer el texto con `EMAIL` era cuadrático con tramos largos
 sin `@` o con dominios largos. DNI, NIE, IBAN y teléfono ya son lineales. Nunca devuelve el
@@ -62,3 +64,39 @@ def _has_real_email(text: str) -> bool:
             return True
         consumed = domain.end()
     return False
+
+
+# Formas habituales de secretos: no deben llegar a Jira ni a la memoria, que se reindexa en el RAG.
+# Se movió aquí desde `core/memory/generator.py` (PA-452) para que la HU use el mismo detector.
+SECRET = re.compile(
+    r"(?i)\bbearer\s+[\w.~+/-]{12,}"
+    r"|\bauthorization\s*:\s*basic\s+[A-Za-z0-9+/]{12,}={0,2}"  # PA-226
+    r"|\beyJ[\w-]{8,}\.[\w-]{8,}\."
+    r"|\b(?:sk|gsk|gh[pousr]|glpat|xox[abprs])[-_][\w-]{16,}"  # PA-226: GitHub, Slack…
+    r"|\bgithub_pat_\w{22,}|\bAIza[\w-]{30,}"  # PA-226: GitHub y Google
+    r"|\bAKIA[0-9A-Z]{16}\b"
+    r"|-----BEGIN [A-Z ]{0,40}PRIVATE KEY(?: BLOCK)?-----"  # PA-226 (también PGP)
+    r"|\b[a-z][\w+.-]*://[^\s:/@]+:[^\s@]+@"  # cadena de conexión con credenciales
+    r"|(?<![a-z0-9])pin\s*[:=]?\s*\d{4,12}\b"  # PA-226: «PIN: 1234», «PIN 4821»
+    # PA-218: tras «contraseña:» solo cuenta un valor que lo parezca: con dígitos o símbolos,
+    # con una mayúscula en medio (frase de paso, «CorrectoCaballo») o de 16 letras o más.
+    # «La contraseña: mínimo ocho caracteres» es una regla de negocio, no un secreto.
+    # PA-226: más palabras clave, también tras «_» («client_secret»). Lookahead y valor acotados
+    # a 64 caracteres: sin el tope, una entrada adversaria era cuadrática (ReDoS).
+    # Palabras de credencial fuerte: el guion también delata un secreto («correcto-caballo»).
+    r"|(?<![a-z0-9])(?:api[_ -]?key|(?:client|api)[_ -]?secret|clave[_ ]api|password|passwd"
+    r"|pwd|pass|contraseña|secreto|secret)\s*[:=]\s*"
+    r"(?:(?=\S{0,64}[\d_\-+/=@#$%&*!~])\S{6,64}|(?-i:(?=\S{0,64}[a-zà-ÿ][A-Z]))\S{6,64}"
+    r"|\w{16,64})"
+    # Palabras ambiguas en español («clave», «token», «credencial»): el guion no cuenta
+    # («Clave: identificador-del-carné» es texto de negocio).
+    r"|(?<![a-z0-9])(?:clave|token|credencial(?:es)?)\s*[:=]\s*"
+    r"(?:(?=\S{0,64}[\d_+/=@#$%&*!~])\S{6,64}|(?-i:(?=\S{0,64}[a-zà-ÿ][A-Z]))\S{6,64}"
+    r"|\w{16,64})"
+)
+
+
+def looks_like_secret(text: str) -> bool:
+    """Si el texto parece contener un secreto (token, clave, cadena de conexión…). Nunca devuelve
+    el valor encontrado."""
+    return SECRET.search(text) is not None

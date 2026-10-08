@@ -4,6 +4,7 @@ Las dependencias leen la cookie y las cabeceras de `Request` (no como parámetro
 que el contrato OpenAPI siga declarando la seguridad con sus `securitySchemes`.
 """
 
+import ipaddress
 import math
 import threading
 import time
@@ -123,6 +124,29 @@ def session_for(request: Request) -> Session:
 
 def client_ip(request: Request) -> str:
     return request.client.host if request.client else "desconocida"
+
+
+type ProxyNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+def _trusted(address: str, proxies: tuple[ProxyNetwork, ...]) -> bool:
+    try:
+        ip = ipaddress.ip_address(address.strip())
+    except ValueError:
+        return False  # «testclient», «desconocida»…: no es un proxy de confianza
+    return any(ip.version == net.version and ip in net for net in proxies)
+
+
+def login_ip(request: Request, proxies: tuple[ProxyNetwork, ...]) -> str | None:
+    """IP que cuenta en el límite de login (PA-455), o `None` si llega por un proxy de confianza.
+
+    Detrás del proxy (Vite, Docker) todas las peticiones comparten su IP: contarla bloqueaba a
+    todos. Tampoco se lee `X-Forwarded-For`: el proxy de Vite la reenvía tal como la manda el
+    navegador, así que cualquiera podría inventarse una IP en cada intento. Ahí cuenta solo el
+    usuario (PA-469: leer la IP real cuando el proxy la fije él).
+    """
+    peer = client_ip(request)
+    return None if _trusted(peer, proxies) else peer
 
 
 # --- Middleware -----------------------------------------------------------------------------

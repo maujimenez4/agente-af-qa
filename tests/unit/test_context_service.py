@@ -30,6 +30,7 @@ from tests.fakes.container import fake_container
 from tests.fakes.embeddings import FakeEmbeddingProvider
 from tests.fakes.issue_tracker import FakeIssueTracker
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 
 STORY_ORIGIN = {"kind": "story", "key": "DEMO-3"}
 EPIC_ORIGIN = {"kind": "epic", "key": "DEMO-1"}
@@ -546,9 +547,9 @@ def restore_logging() -> Iterator[None]:
 
 
 def _app_config(budget: int | None = None, groq_budget: int | None = None) -> AppConfig:
-    """`config/models.yaml` con el presupuesto global (`budget`) o el del proveedor `groq`
-    (`groq_budget`, PA-443: el de las tareas de HU) sustituidos."""
-    models = load_models_config()
+    """El fixture `tests/fixtures/models.yaml` (PA-458) con el presupuesto global (`budget`) o el
+    del proveedor `groq` (`groq_budget`, PA-443: el de las tareas de HU) sustituidos."""
+    models = load_models_config(MODELS_FIXTURE)
     if budget is not None:
         limits = models.limits.model_copy(update={"context_token_budget": budget})
         models = models.model_copy(update={"limits": limits})
@@ -584,7 +585,7 @@ def test_retrieve_context_node_respects_config_budget(
 def test_retrieve_context_node_default_config_keeps_full_context(
     tmp_path: Path, clean_env: pytest.MonkeyPatch, restore_logging: None
 ) -> None:
-    """PA-07 · PA-114 · PA-443: con el presupuesto de config/models.yaml para evolucionar una HU
+    """PA-07 · PA-114 · PA-443: con el presupuesto del fixture (PA-458) para evolucionar una HU
     (el de groq, 2000) entran las HU del fake."""
     config = _app_config()
     assert config.models.context_budget_for(["groq", "local"]) == 2000

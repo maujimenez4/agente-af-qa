@@ -48,6 +48,7 @@ from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.memory_generator import FakeMemoryGenerator
 from tests.fakes.test_management import FakeTestManagement
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 from tests.pg_temp import temporary_database, truncate_t25_tables
 
 AF_USER = "af-demo"
@@ -521,7 +522,7 @@ def test_build_container_uses_simulation_from_config_by_default(
 ) -> None:
     """RF-34: con AppConfig y sin JIRA_PUBLISH_MODE → simulation."""
     clean_env.delenv("JIRA_PUBLISH_MODE", raising=False)
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
 
     assert build_container(config, **_all_fakes()).publish_mode == "simulation"
 
@@ -529,7 +530,7 @@ def test_build_container_uses_simulation_from_config_by_default(
 def test_build_container_uses_live_from_env(clean_env: pytest.MonkeyPatch) -> None:
     """RF-34: JIRA_PUBLISH_MODE=live → el contenedor publica de verdad."""
     clean_env.setenv("JIRA_PUBLISH_MODE", "live")
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
 
     assert config.settings.jira_publish_mode == "live"
     assert build_container(config, **_all_fakes()).publish_mode == "live"

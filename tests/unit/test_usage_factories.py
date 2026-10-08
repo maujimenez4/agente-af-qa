@@ -10,9 +10,8 @@ import sqlalchemy as sa
 
 from adapters.llm.usage import SqlUsageRecorder
 from core import factories
-from core.config import ROOT_DIR, AppConfig, Settings, load_models_config
-
-MODELS_FIXTURE = ROOT_DIR / "tests" / "fixtures" / "models.yaml"
+from core.config import AppConfig, Settings, load_models_config
+from tests.fixtures import MODELS_FIXTURE
 
 
 def _config(**settings: Any) -> AppConfig:

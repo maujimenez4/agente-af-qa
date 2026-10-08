@@ -27,6 +27,7 @@ from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.memory_generator import FakeMemoryGenerator
 from tests.fakes.test_management import FakeTestManagement
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 
 # Valor sintético con forma de clave; no es una credencial real.
 FAKE_GROQ_KEY = "dummy-groq-key-0000-solo-pruebas"  # gitleaks:allow (valor ficticio)
@@ -56,7 +57,7 @@ def _all_fakes() -> dict[str, Any]:
 
 @pytest.fixture
 def app_config(clean_env: pytest.MonkeyPatch) -> AppConfig:
-    return AppConfig(Settings(_env_file=None), load_models_config())
+    return AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
 
 
 @pytest.fixture
@@ -138,7 +139,7 @@ def test_rag_defaults_without_config() -> None:
 
 
 def test_rag_values_come_from_app_config(app_config: AppConfig, restore_logging: None) -> None:
-    """RF-51: con AppConfig, top_k y memory_boost salen de config/models.yaml."""
+    """RF-51: con AppConfig, top_k y memory_boost salen de la configuración (el fixture, PA-458)."""
     built = build_container(app_config, **_all_fakes())
 
     assert built.config is app_config
@@ -198,7 +199,7 @@ def test_config_secret_never_appears_in_logs(
 ) -> None:
     """RNF-02 · RNF-23: un secreto de la configuración se enmascara en los logs."""
     clean_env.setenv("GROQ_API_KEY", FAKE_GROQ_KEY)
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     assert config.settings.groq_api_key is not None
 
     build_container(config, **_all_fakes())

@@ -155,3 +155,15 @@ class LoginLimiter:
             for key in keys:
                 self._by_key.pop(key, None)
                 self._strikes.pop(key, None)
+
+    def signed_in(self, user_key: str, *ip_keys: str) -> None:
+        """Entrada correcta (PA-455 · PA-470): el usuario queda limpio y la IP solo pierde los
+        fallos de ese usuario; conserva los fallos contra otras cuentas y sus bloqueos ya sumados
+        (strikes). Así, entrar con una cuenta propia entre fallos contra otras no anula el límite
+        ni la espera progresiva, y quien se equivoca y luego acierta no deja la IP cargada."""
+        with self._lock:
+            own = self._by_key.pop(user_key, _Attempts()).failures
+            self._strikes.pop(user_key, None)
+            for key in ip_keys:
+                if attempts := self._by_key.get(key):
+                    attempts.failures = max(0, attempts.failures - own)

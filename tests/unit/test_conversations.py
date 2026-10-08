@@ -56,6 +56,7 @@ from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.memory_generator import FakeMemoryGenerator
 from tests.fakes.test_management import FakeTestManagement
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 from tests.pg_temp import alembic_config, temporary_database
 
 AF_USER = "af-demo"
@@ -379,7 +380,7 @@ def test_container_conversations_is_injectable_via_build_container() -> None:
 
 def _app_config(clean_env: pytest.MonkeyPatch) -> AppConfig:
     clean_env.setenv("POSTGRES_PASSWORD", FAKE_PASSWORD)
-    return AppConfig(Settings(_env_file=None), load_models_config())
+    return AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
 
 
 def test_build_conversations_returns_sql_store_without_connecting(

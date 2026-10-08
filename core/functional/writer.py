@@ -2,7 +2,9 @@
 
 `StoryWriter` depende solo del protocolo `LLMProvider`. Los prompts se cargan de
 `prompts/<tarea>.md`. Si la propuesta cita fuentes que no estaban en el contexto, se reintenta
-una vez indicando el error; si persiste, se lanza `CitationError` (RNF-14).
+una vez indicando el error; si persiste, se lanza `CitationError` (RNF-14). Si lleva textos que
+parecen datos personales reales o secretos, se reintenta una vez y, si persisten, se lanza
+`SensitiveDataError` antes de la revisión humana (PA-452, principio 3).
 """
 
 import json
@@ -10,7 +12,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from adapters.base import LLMProvider, Message, TaskType
+from adapters.base import LLMProvider, Message, StructuredResult, TaskType
+from adapters.errors import AgentError
 from core.context.budget import PromptLimits, default_prompt_limits, fit_messages
 from core.functional.citations import (
     CitationError,
@@ -20,13 +23,63 @@ from core.functional.citations import (
     with_real_excerpts,
     without_forced_citations,
 )
-from core.functional.context import StoryContext, render_context
+from core.functional.context import CitableSource, StoryContext, render_context
 from core.functional.determinism import deterministic
 from core.functional.literal_criteria import literal_criteria
+from core.personal_data import looks_like_secret, personal_data_kind
 from core.rag.prompts import Prompt, load_prompt
 from schemas.user_story import UserStory
 
 PromptLoader = Callable[[str], Prompt]
+
+# Campos de la HU que no son texto libre: identificadores, prioridad y citas (las fuentes y sus
+# extractos los pone el agente desde el contexto, no el modelo).
+_NOT_FREE_TEXT = frozenset({"internal_id", "jira_key", "priority", "sources", "id"})
+SENSITIVE_MESSAGE = (
+    "La propuesta contiene textos que parecen datos personales reales o secretos y no se pueden "
+    "publicar en Jira: {fields}. Vuelve a generarla o revisa la HU de origen."
+)
+
+
+class SensitiveDataError(AgentError):
+    """La HU sigue con datos que parecen personales o secretos tras el reintento (PA-452)."""
+
+
+def story_texts(story: UserStory) -> list[tuple[str, str]]:
+    """Cada texto libre de la HU con su campo («description», «acceptance_criteria[0].then[1]»)."""
+    texts: list[tuple[str, str]] = []
+
+    def walk(value: object, where: str) -> None:
+        if isinstance(value, str):
+            texts.append((where, value))
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                walk(item, f"{where}[{index}]")
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if key not in _NOT_FREE_TEXT:
+                    walk(item, f"{where}.{key}" if where else key)
+
+    walk(story.model_dump(mode="json"), "")
+    return texts
+
+
+def sensitive_errors(story: UserStory) -> list[str]:
+    """Campos de la HU que parecen llevar un dato personal real o un secreto (PA-452), sin el
+    valor: el mensaje va al modelo en el reintento y a la persona en el error."""
+    errors: list[str] = []
+    for where, text in story_texts(story):
+        if kind := personal_data_kind(text):
+            errors.append(f"{where} parece un {kind} real; usa una descripción o un valor ficticio")
+        elif looks_like_secret(text):
+            errors.append(f"{where} parece contener un secreto; describe lo que es sin copiarlo")
+    return errors
+
+
+def _fields(errors: list[str]) -> str:
+    """Los campos afectados, sin repetir y como mucho ocho, para el mensaje de error."""
+    names = list(dict.fromkeys(error.split(" ", 1)[0] for error in errors))
+    return ", ".join(names[:8]) + ("…" if len(names) > 8 else "")
 
 
 @dataclass(frozen=True)
@@ -195,6 +248,13 @@ class StoryWriter:
                 raise CitationError(
                     f"La propuesta {problem}. Vuelve a generarla o revisa las fuentes disponibles."
                 )
+        story, sources, ctx, tokens = self._without_sensitive_data(
+            story, sources, ctx, prompt, prompt_name, task
+        )
+        if tokens is not None:
+            result = tokens
+            input_tokens += tokens.input_tokens
+            output_tokens += tokens.output_tokens
         return StoryDraft(
             story=with_real_excerpts(story, sources),
             provider=result.provider,
@@ -203,6 +263,58 @@ class StoryWriter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
+
+    def _without_sensitive_data(
+        self,
+        story: UserStory,
+        sources: list[CitableSource],
+        ctx: StoryContext,
+        prompt: Prompt,
+        prompt_name: str,
+        task: TaskType,
+    ) -> tuple[UserStory, list[CitableSource], StoryContext, StructuredResult[UserStory] | None]:
+        """PA-452: sin datos que parezcan personales ni secretos en la HU, que acabaría en Jira.
+
+        Un reintento indicando los campos (nunca los valores); si persisten, `SensitiveDataError`
+        antes de la revisión humana. Devuelve la HU, sus fuentes, el contexto y la llamada del
+        reintento (`None` si no hizo falta).
+        """
+        errors = sensitive_errors(story)
+        if not errors:
+            return story, sources, ctx, None
+        retry = self._load("story_retry").text
+        story_json = json.dumps(story.model_dump(mode="json"), ensure_ascii=False)
+
+        def retry_messages(c: StoryContext) -> list[Message]:
+            feedback = fill_placeholders(
+                retry,
+                {
+                    "errors": "\n".join(f"- {e}" for e in errors),
+                    "allowed": allowed_refs_text(c.sources()),
+                },
+            )
+            return [
+                Message(role="system", content=prompt.text),
+                Message(role="user", content=render_context(c)),
+                Message(role="assistant", content=story_json),
+                Message(role="user", content=feedback),
+            ]
+
+        # PA-114: el reintento también pasa por la guarda de la ventana.
+        ctx, messages = fit_context(
+            ctx, retry_messages, self.limits, task, action=f"{prompt_name}_sensitive_retry"
+        )
+        sources = ctx.sources()
+        result = self._llm.generate_structured(messages, UserStory, task)
+        story = repair_citations(without_forced_citations(result.content, sources), sources)[0]
+        if citation_errors(story, sources):
+            raise CitationError(
+                "La propuesta cita fuentes que no están en el contexto recibido. Vuelve a "
+                "generarla o revisa las fuentes disponibles."
+            )
+        if still := sensitive_errors(story):
+            raise SensitiveDataError(SENSITIVE_MESSAGE.format(fields=_fields(still)))
+        return story, sources, ctx, result
 
 
 def fill_placeholders(template: str, values: dict[str, str]) -> str:

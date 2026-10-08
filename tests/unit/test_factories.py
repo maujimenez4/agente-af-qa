@@ -30,6 +30,7 @@ from core.factories import (
     structured_prompts,
 )
 from tests.fakes.llm import FakeLLMProvider
+from tests.fixtures import MODELS_FIXTURE
 
 # --- Jira (T-11) -----------------------------------------------------------------------------
 
@@ -378,7 +379,8 @@ def test_build_embeddings_uses_models_yaml_when_no_env(no_keys_config: AppConfig
 def test_build_embeddings_uses_ollama_base_url_when_env_set(clean_env: pytest.MonkeyPatch) -> None:
     """T-16: OLLAMA_BASE_URL tiene prioridad sobre la base_url de models.yaml."""
     config = AppConfig(
-        Settings(_env_file=None, ollama_base_url=OLLAMA_FAKE_URL), load_models_config()
+        Settings(_env_file=None, ollama_base_url=OLLAMA_FAKE_URL),
+        load_models_config(MODELS_FIXTURE),
     )
     embeddings = build_embeddings(config)
     assert str(embeddings._client.base_url).rstrip("/") == OLLAMA_FAKE_URL
@@ -403,5 +405,5 @@ def test_build_auth_returns_local_auth_provider_without_connecting(
     from adapters.auth.local import LocalAuthProvider
     from core.factories import build_auth
 
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     assert isinstance(build_auth(config), LocalAuthProvider)

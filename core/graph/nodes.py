@@ -27,15 +27,16 @@ from core.container import Container
 from core.context.budget import PromptLimits, default_prompt_limits, providers_of
 from core.context.service import ContextService, build_context_service
 from core.conversations import NOT_YOURS, THREAD_ID, ConversationStatus, new_summary
+from core.functional.citations import citation_errors
 from core.functional.context import StoryContext, render_context
-from core.functional.writer import StoryDraft, StoryWriter
+from core.functional.writer import StoryDraft, StoryWriter, sensitive_errors
 from core.graph.state import AgentState, Decision
 from core.handoff import HandoffStore, load_taken_handoff
 from core.impact.analysis import ImpactAnalyzer
 from core.impact.diff import diff_stories
 from core.logging import get_logger
 from core.projects import ISSUE_KEY, PROJECT_KEY, project_of
-from core.qa.validation import missing_criteria
+from core.qa.validation import blocking_errors, missing_criteria
 from core.qa.writer import SuiteDraft, TestWriter
 from core.rag.prompts import load_prompt
 from core.state_machine import transition
@@ -741,6 +742,37 @@ class GraphNodes:
                 raise ReviewRejectedError(f"El campo {name} no se puede cambiar al editar.")
         if content == artifact.content:
             raise ReviewRejectedError("La edición no cambia nada respecto a la versión revisada.")
+        # PA-451: las mismas validaciones que la salida del modelo (principios 3 y 4): datos
+        # personales y secretos, CA/RN que existen y fuentes del contexto de la conversación.
+        origin = state["origin"]
+        suite = isinstance(content, TestSuite)
+        sources = StoryContext(
+            origin_kind="story" if suite else origin["kind"],
+            origin_key=origin.get("key"),
+            need=origin.get("text") or "",
+            jira=list(state["jira_context"]),
+            rag=list(state["rag_context"]),
+        ).sources()
+        if isinstance(content, TestSuite):
+            # La HU de la suite: su versión de partida o, en QA encadenada, la de la entrega.
+            story: UserStory | None = None
+            if saved_story := (self.c.state_store.load(str(artifact.id)) or {}).get("baseline"):
+                story = UserStory.model_validate(saved_story)
+            elif (handoff_id := state.get("handoff_id")) and self.handoffs is not None:
+                handoff = self.handoffs.get(handoff_id)
+                story = handoff.story if handoff is not None else None
+            if story is None:
+                raise ReviewRejectedError(
+                    "No se puede comprobar la suite editada: falta la HU de origen. "
+                    "Vuelve a generarla."
+                )
+            # Como al generar (PA-426): un CA sin caso no tira la edición; bloquea la aprobación.
+            problems = blocking_errors(content, story, sources)
+        else:
+            problems = [*citation_errors(content, sources), *sensitive_errors(content)]
+        if problems:
+            shown = "; ".join(problems[:5]) + ("; …" if len(problems) > 5 else "")
+            raise ReviewRejectedError(f"La edición no se puede guardar: {shown}.")
         impact = artifact.impact
         if isinstance(content, UserStory) and target.origin_kind == "story":
             # El diff frente a Jira se recalcula sin LLM; las HU afectadas se conservan.

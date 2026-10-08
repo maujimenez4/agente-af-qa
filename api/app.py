@@ -89,8 +89,8 @@ from api.security import (
     Session,
     SessionGuardMiddleware,
     check_origin,
-    client_ip,
     current_session,
+    login_ip,
     runtime,
     session_for,
 )
@@ -259,15 +259,19 @@ def _set_cookie(response: Response, session_id: str, settings: Settings) -> None
 def login(body: LoginIn, request: Request, response: Response) -> SessionOut:
     rt = runtime(request)
     check_origin(request, rt.settings.api_origins)
-    user_key, ip_key = f"user:{body.username.strip().lower()}", f"ip:{client_ip(request)}"
-    if (wait := rt.limiter.retry_after(user_key, ip_key)) is not None:
+    # PA-455: detrás de un proxy de confianza todos comparten su IP: ahí cuenta solo el usuario.
+    ip = login_ip(request, rt.settings.api_proxies)
+    user_key, ip_keys = f"user:{body.username.strip().lower()}", ((f"ip:{ip}",) if ip else ())
+    keys = (user_key, *ip_keys)
+    if (wait := rt.limiter.retry_after(*keys)) is not None:
         raise ApiError(429, "too_many_attempts", "Demasiados intentos; espera unos minutos.", wait)
     user = rt.auth.authenticate(body.username, body.password)
     if user is None:
-        rt.limiter.failure(user_key, ip_key)
+        rt.limiter.failure(*keys)
         log.info("login fallido", action="login_failed")
         raise ApiError(401, "invalid_credentials", "Usuario o contraseña incorrectos.")
-    rt.limiter.success(user_key)
+    # PA-455 · PA-470: la IP solo pierde los fallos de este usuario y conserva la espera progresiva.
+    rt.limiter.signed_in(user_key, *ip_keys)
     if previous := request.cookies.get(COOKIE):
         rt.sessions.drop(previous)  # rotación: nunca se reutiliza un identificador anterior
     session = rt.sessions.create(user, rt.workspace_factory())

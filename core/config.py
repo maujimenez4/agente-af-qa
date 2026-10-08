@@ -5,6 +5,7 @@ guardan como `SecretStr` y los valores de ejemplo (`TU_*`) se tratan como ausent
 que la aplicación arranca aunque no haya ninguna clave configurada.
 """
 
+import ipaddress
 import os
 import re
 from collections.abc import Sequence
@@ -284,6 +285,11 @@ class Settings(BaseSettings):
     api_session_max_hours: PositiveInt = 12
     api_login_max_attempts: PositiveInt = 5
     api_login_lock_seconds: PositiveInt = 300
+    # PA-455: proxies de confianza (IP o red, separadas por comas). Una petición que llega de uno de
+    # ellos no cuenta su IP en el límite de login (todos comparten la del proxy): cuenta solo el
+    # usuario. Por defecto, el proxy de Vite en esta máquina; con Docker, añade la red del proxy
+    # (p. ej. 172.18.0.0/16).
+    api_trusted_proxies: str = "127.0.0.1,::1"
     api_max_body_bytes: PositiveInt = 262_144
     api_max_streams_per_user: PositiveInt = 3
     # Hilos de las operaciones largas (no son workers de uvicorn: la API va en un solo proceso).
@@ -306,6 +312,27 @@ class Settings(BaseSettings):
                     "API_ALLOWED_ORIGINS solo admite orígenes http(s)://host[:puerto]."
                 )
         return value
+
+    @field_validator("api_trusted_proxies")
+    @classmethod
+    def _valid_proxies(cls, value: str) -> str:
+        """Solo IP o redes válidas: un valor mal escrito no debe confiar en cualquiera."""
+        for item in (p.strip() for p in value.split(",")):
+            if not item:
+                continue
+            try:
+                ipaddress.ip_network(item, strict=False)
+            except ValueError:
+                raise ValueError(
+                    "API_TRUSTED_PROXIES solo admite IP o redes (p. ej. 127.0.0.1 o 172.18.0.0/16)."
+                ) from None
+        return value
+
+    @property
+    def api_proxies(self) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+        """Redes de los proxies de confianza (PA-455)."""
+        items = (p.strip() for p in self.api_trusted_proxies.split(","))
+        return tuple(ipaddress.ip_network(p, strict=False) for p in items if p)
 
     @property
     def is_development(self) -> bool:

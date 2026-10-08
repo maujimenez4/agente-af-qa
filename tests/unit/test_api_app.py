@@ -517,8 +517,13 @@ def test_lockout_returns_retry_after_body_and_header(rt: Runtime) -> None:
 
 
 def test_lockout_by_ip_even_when_username_changes(rt: Runtime) -> None:
-    """Req. 4: límite por IP aunque se cambie de usuario en cada intento."""
+    """Req. 4 y PA-455: un cliente directo (no un proxy de confianza) sigue limitado por IP
+    aunque cambie de usuario en cada intento. Detrás del proxy de Vite la IP no cuenta: lo
+    prueban `tests/unit/test_api_login_proxy.py`."""
     a = Api(rt)
+    a.client = TestClient(
+        create_app(runtime_instance=rt), base_url="https://testserver", client=("203.0.113.7", 1)
+    )
     for n in range(rt.settings.api_login_max_attempts):
         assert a.login((f"persona-ficticia-{n}", "contrasena-ficticia")).status_code == 401
     response = a.login(QA)  # credenciales buenas, otro usuario, misma IP

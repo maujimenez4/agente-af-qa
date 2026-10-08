@@ -37,6 +37,7 @@ from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.memory_generator import FakeMemoryGenerator
 from tests.fakes.test_management import FakeTestManagement
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 from tests.pg_temp import alembic_config, temporary_database
 
 AF_USER = "af-demo"
@@ -315,7 +316,7 @@ def test_container_projects_uses_jira_project_key_from_config_as_default(
 ) -> None:
     """RF-02 · T-50: `projects` preselecciona `JIRA_PROJECT_KEY` si es visible."""
     clean_env.setenv("JIRA_PROJECT_KEY", "DEMO")
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     container = build_container(config=config, memory_dir=tmp_path, **_all_fakes())
 
     assert container.projects.available(AF_USER).preselected == "DEMO"
@@ -333,7 +334,7 @@ def test_container_projects_prefers_last_used_over_config_default(
 ) -> None:
     """RF-02 · T-50: el último usado prevalece sobre `JIRA_PROJECT_KEY`."""
     clean_env.setenv("JIRA_PROJECT_KEY", "DEMO")
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     fakes = {**_all_fakes(), "issue_tracker": MultiProjectTracker()}
     store = InMemoryLastProjectStore()
     store.set(AF_USER, "OTRO")

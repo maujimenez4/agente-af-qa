@@ -279,3 +279,51 @@ def test_limiter_does_not_purge_below_threshold(clock: Clock) -> None:
     for n in range(5):
         limiter.failure(f"user:ficticio-{n}")
     assert len(limiter._by_key) == 5
+
+
+# --- PA-470: entrar bien no anula el límite de la IP ------------------------------------------
+
+
+def test_signed_in_clears_user_and_only_its_own_failures_on_the_ip(clock: Clock) -> None:
+    """PA-470: el usuario queda limpio y la IP solo pierde los fallos de ese usuario."""
+    limiter = _limiter(clock, attempts=5)
+    for _ in range(2):
+        limiter.failure("user:af-demo", "ip:203.0.113.7")
+    limiter.failure("user:otra-persona-ficticia", "ip:203.0.113.7")
+
+    limiter.signed_in("user:af-demo", "ip:203.0.113.7")
+
+    for _ in range(3):  # 1 de la otra cuenta + 3 = 4: aún por debajo del máximo
+        limiter.failure("user:x-ficticia", "ip:203.0.113.7")
+    assert limiter.retry_after("ip:203.0.113.7") is None
+    limiter.failure("user:x-ficticia", "ip:203.0.113.7")
+    assert limiter.retry_after("ip:203.0.113.7") == 10.0
+
+
+def test_signed_in_keeps_the_ip_progressive_wait(clock: Clock) -> None:
+    """PA-470: tras un bloqueo, entrar bien no borra los bloqueos sumados de la IP: el siguiente
+    sigue doblando la espera."""
+    limiter = _limiter(clock)
+    for _ in range(3):
+        limiter.failure("user:x-ficticia", "ip:203.0.113.7")
+    assert limiter.retry_after("ip:203.0.113.7") == 10.0
+    clock.advance(10)
+
+    limiter.signed_in("user:af-demo", "ip:203.0.113.7")
+    for _ in range(3):
+        limiter.failure("user:y-ficticia", "ip:203.0.113.7")
+
+    assert limiter.retry_after("ip:203.0.113.7") == 20.0
+
+
+def test_signed_in_without_ip_only_clears_the_user(clock: Clock) -> None:
+    """PA-455: detrás del proxy no hay clave de IP; el usuario queda limpio igual."""
+    limiter = _limiter(clock)
+    for _ in range(3):
+        limiter.failure("user:af-demo")
+    clock.advance(10)
+
+    limiter.signed_in("user:af-demo")
+
+    limiter.failure("user:af-demo")
+    assert limiter.retry_after("user:af-demo") is None

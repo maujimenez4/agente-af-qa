@@ -748,6 +748,33 @@ def test_edit_adding_ca02_case_unblocks_approval(tmp_path: Path) -> None:
     assert len(_testmgmt(container).list_cases("DEMO-3")) == 3
 
 
+def test_edit_that_still_misses_ca02_is_saved_and_approval_stays_blocked(tmp_path: Path) -> None:
+    """PA-451 · PA-426: la edición pasa las validaciones de la salida del modelo, y un CA sin caso
+    no la tira (como al generar): se guarda la versión 2 y la aprobación sigue bloqueada."""
+    llm = _graph_llm()
+    container, graph, config = _review(tmp_path, llm)
+    payload = _pending(graph, config)
+    content = dict(payload["artifact"]["content"])
+    content["cases"] = [
+        {**content["cases"][0], "title": "Caso editado que no toca CA-02 (ficticio)"},
+        *content["cases"][1:],
+    ]
+
+    graph.invoke(
+        Command(
+            resume={"decision": "edit", "content": content, "fingerprint": payload["fingerprint"]}
+        ),
+        config,
+    )
+    edited = _pending(graph, config)
+    assert edited["error"] is None
+    assert edited["version"] == 2
+
+    _approve(graph, config)
+
+    _assert_blocked_without_effects(graph, config, container, MISSING_CA02)
+
+
 # === 6 · grafo: los bloqueos de cobertura no cuentan para el tope ============================
 
 

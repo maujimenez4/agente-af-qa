@@ -27,10 +27,10 @@ from core.handoff import Handoff, InMemoryHandoffStore, SqlHandoffStore
 from tests.fakes import dataset
 from tests.fakes.api import api_settings, fake_runtime
 from tests.fakes.container import fake_container
+from tests.fixtures import MODELS_FIXTURE
 from tests.unit.test_api_app import QA, Api
 
 FAKE_PASSWORD = "contrasena-ficticia-1234"
-MODELS_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "models.yaml"
 
 
 def test_build_handoffs_returns_sql_store_without_connecting() -> None:

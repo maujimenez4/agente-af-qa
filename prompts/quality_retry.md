@@ -1,5 +1,5 @@
 ---
-version: 3
+version: 4
 task: quality_retry
 ---
 
@@ -9,7 +9,7 @@ Tu informe de calidad anterior no es válido. Los errores, los criterios y regla
 {errors}
 </errores>
 
-Los únicos criterios y reglas de la HU que puedes señalar en `target_id` son:
+Los criterios y reglas que existen en la HU son:
 <ids_hu>
 {ids}
 </ids_hu>
@@ -19,4 +19,4 @@ Las únicas fuentes que puedes citar son (tipo y ref):
 {allowed}
 </fuentes_permitidas>
 
-Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra), `target_id`, `summary` y `explanation` solo con IDs de la lista, y citas solo de la lista de fuentes (al menos una si la lista no está vacía). En `proposal` y en las preguntas abiertas puedes proponer criterios o reglas nuevos numerados a continuación del último de la lista (como mucho cinco de cada tipo); no cites ningún otro ID que no esté en ella.
+Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra) y citas solo de la lista de fuentes (al menos una si la lista no está vacía). En cualquier campo (`target_id`, `summary`, `explanation`, `proposal` y las preguntas abiertas) usa solo IDs de la lista o, para proponer un criterio o una regla nuevos, los siguientes a continuación del último de la lista (como mucho cinco de cada tipo). No uses ningún otro número.

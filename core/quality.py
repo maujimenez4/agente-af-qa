@@ -3,10 +3,12 @@
 Es un flujo propio, de solo lectura (decisión del día 6): no pasa por el grafo, no hay
 aprobación ni publicación y nada se escribe en Jira. Pasos:
 1. la incidencia de Jira y su contexto (el mismo `gather` que el grafo, con fuentes excluidas);
-2. la HU pasada a la plantilla (`StoryWriter.structure`) para tener IDs de CA y RN;
+2. la HU pasada a la plantilla (`StoryWriter.structure`) para tener IDs de CA y RN, o la
+   estructura compartida con el grafo si ya está guardada (PA-456);
 3. el informe (`QualityReport`) con el prompt `review_quality`, validado sin confiar en el LLM:
-   seis letras INVEST, hallazgos solo sobre IDs de la HU y citas solo del contexto. Si falla,
-   un reintento con los errores y después un error en español.
+   seis letras INVEST, IDs de la HU o los siguientes libres para proponer CA o RN nuevos (un
+   `target_id` nuevo se normaliza a «Nueva RN-06: …», PA-467) y citas solo del contexto. Si
+   falla, un reintento con los errores y después un error en español.
 
 Las revisiones se guardan (PA-272, PA-103) en `quality_reviews` (migración `0006`) con
 `QualityReviewStore`: estado, informe validado y error en la forma común; nunca la HU ni los
@@ -53,7 +55,7 @@ from core.permissions import Permission, require
 from core.projects import normalize_issue_key, project_of
 from core.rag.prompts import load_prompt
 from core.text import escape_data
-from schemas.quality import QualityReport
+from schemas.quality import MAX_TEXT, QualityReport
 from schemas.user_story import UserStory
 
 log = get_logger("core.quality")
@@ -189,6 +191,7 @@ class QualityReviewer:
         result = self.c.llm.generate_structured(messages, QualityReport, TaskType.REVIEW_STORY)
         # PA-282: como en la HU y la suite, las citas se reparan sin LLM antes de validarlas.
         report = repair_citations(without_forced_citations(result.content, sources), sources)[0]
+        report = with_proposed_targets(report, story)  # PA-467
         tokens_in, tokens_out = result.input_tokens, result.output_tokens
 
         errors = report_errors(report, story, sources)
@@ -226,6 +229,7 @@ class QualityReviewer:
             sources = review_ctx.sources()
             result = self.c.llm.generate_structured(retry, QualityReport, TaskType.REVIEW_STORY)
             report = repair_citations(without_forced_citations(result.content, sources), sources)[0]
+            report = with_proposed_targets(report, story)  # PA-467
             tokens_in += result.input_tokens
             tokens_out += result.output_tokens
             if citation_errors(report, sources):
@@ -258,19 +262,52 @@ def report_errors(report: QualityReport, story: UserStory, sources: list) -> lis
     """Problemas del informe; lista vacía si es válido (citas e IDs de la HU)."""
     ids = {c.id for c in story.acceptance_criteria} | {r.id for r in story.business_rules}
     errors = list(citation_errors(report, sources))
-    for finding in report.findings:
-        if finding.target_id and finding.target_id not in ids:
-            errors.append(f"«{finding.target_id}» no es un criterio ni una regla de la HU")
-    # PA-222: los CA y RN citados en el texto libre también deben existir en la HU.
-    strict = [report.summary, *(f.explanation for f in report.findings)]
-    # PA-445: en las propuestas y las preguntas, además, los siguientes números libres (un CA o
-    # una RN que se propone añadir); un ID lejano (CA-99) sigue siendo un error.
-    proposals = [*report.open_questions, *(f.proposal for f in report.findings)]
     new_ids = _next_free_ids(story)
-    unknown = _cited(strict, ids) + [i for i in _cited(proposals, ids) if i not in new_ids]
-    unknown = list(dict.fromkeys(unknown))
+    for finding in report.findings:
+        if finding.target_id and finding.target_id not in ids | new_ids:
+            errors.append(f"«{finding.target_id}» no es un criterio ni una regla de la HU")
+    # PA-222 y PA-467: los CA y RN citados en cualquier texto libre deben existir en la HU o ser
+    # uno de los siguientes libres (un CA o una RN que se propone añadir, PA-445); un ID lejano
+    # (CA-99) sigue siendo un error.
+    texts = [
+        report.summary,
+        *report.open_questions,
+        *(text for f in report.findings for text in (f.explanation, f.proposal)),
+    ]
+    unknown = [i for i in _cited(texts, ids) if i not in new_ids]
     errors += [f"«{i}» se cita en el informe pero no existe en la HU" for i in unknown]
     return errors
+
+
+def with_proposed_targets(report: QualityReport, story: UserStory) -> QualityReport:
+    """PA-467: un hallazgo cuyo `target_id` es un CA o una RN **nuevos** (uno de los siguientes
+    libres, PA-445) se normaliza sin LLM: `target_id` queda vacío (la UI no lo enlaza a un CA o
+    RN que no existe) y la propuesta empieza por «Nueva RN-06: …» («Nuevo CA-07: …»), para que
+    «Evolucionar con esto» lo añada en lugar de cambiar uno existente."""
+    ids = {c.id for c in story.acceptance_criteria} | {r.id for r in story.business_rules}
+    new_ids = _next_free_ids(story)
+    findings = []
+    changed = False
+    for finding in report.findings:
+        target = finding.target_id
+        if target and target not in ids and target in new_ids:
+            label = f"Nuevo {target}" if target.startswith("CA") else f"Nueva {target}"
+            proposal = finding.proposal
+            if not _already_new(proposal, target):
+                proposal = f"{label}: {proposal}"[:MAX_TEXT]
+            finding = finding.model_copy(update={"target_id": None, "proposal": proposal})
+            changed = True
+        findings.append(finding)
+    return report.model_copy(update={"findings": findings}) if changed else report
+
+
+def _already_new(proposal: str, target: str) -> bool:
+    """Si la propuesta ya empieza diciendo que ese CA o RN es nuevo («Nueva RN-06», «nueva
+    regla RN-6»…): así no se duplica la etiqueta."""
+    prefix, number = target.split("-")
+    boundary = r"\b"
+    pattern = rf"^\s*nuev[oa]{boundary}[^:]{{0,30}}?{boundary}{prefix}-0*{int(number)}{boundary}"
+    return re.match(pattern, proposal, flags=re.IGNORECASE) is not None
 
 
 def _cited(texts: list[str], ids: set[str]) -> list[str]:

@@ -35,9 +35,10 @@ def _write_yaml(tmp_path: Path, data: dict) -> Path:
     return path
 
 
-# Variante con proveedores en la nube: la lógica de claves se prueba sobre ella (desde el
-# 2026-10-01 el models.yaml por defecto es solo local).
+# Variante con proveedores en la nube: la lógica de claves se prueba sobre ella (PA-443: todo
+# Groq con respaldo local; el models.yaml por defecto es la configuración mixta).
 GROQ_MODELS = DEFAULT_MODELS_PATH.parent / "models.groq.yaml"
+LOCAL_MODELS = DEFAULT_MODELS_PATH.parent / "models.todo-local.yaml"  # PA-443: plan B sin red
 
 
 @pytest.fixture
@@ -115,7 +116,8 @@ def test_env_example_behaves_as_no_keys(clean_env: pytest.MonkeyPatch) -> None:
     settings = Settings(_env_file=ROOT_DIR / ".env.example")
     config = AppConfig(settings, load_models_config(GROQ_MODELS))
     assert not config.provider_status("groq").available
-    assert not config.provider_status("openrouter").available
+    # PA-441/PA-443: OpenRouter ya no está en la variante de Groq (su respaldo es el local).
+    assert set(config.providers_status()) == {"groq", "local"}
 
 
 @pytest.mark.parametrize("value", ["", "   ", "TU_API_KEY", "TU_CONTRASEÑA_LOCAL", None])
@@ -149,7 +151,7 @@ def test_without_keys_only_local_provider_is_available(no_keys_settings: Setting
     assert status["local"].available
     assert not status["groq"].available
     assert "GROQ_API_KEY" in (status["groq"].reason or "")
-    assert not status["openrouter"].available
+    assert "openrouter" not in status  # PA-441: sin versión gratuita, fuera de la cadena
 
 
 def test_without_keys_chains_keep_only_local(no_keys_settings: Settings) -> None:
@@ -224,22 +226,36 @@ def test_yaml_syntax_error_does_not_echo_content(tmp_path: Path) -> None:
     assert info.value.__cause__ is None
 
 
-@pytest.mark.parametrize("path", [DEFAULT_MODELS_PATH, GROQ_MODELS], ids=["local", "groq"])
+@pytest.mark.parametrize(
+    "path", [DEFAULT_MODELS_PATH, GROQ_MODELS, LOCAL_MODELS], ids=["mixta", "groq", "todo-local"]
+)
 def test_real_models_yaml_has_no_placeholders(path: Path) -> None:
-    """R-07: sin modelos por definir en ninguna de las dos variantes versionadas."""
+    """R-07 · PA-443: sin modelos por definir en ninguna de las tres variantes versionadas."""
     models = load_models_config(path)
     assert set(models.tasks) == set(TaskType)
     for task, chain in models.tasks.items():
         assert chain and all("POR_DEFINIR" not in ref.model for ref in chain), task.value
 
 
-def test_default_models_yaml_is_local_only() -> None:
-    """Decisión del 2026-10-01: por defecto solo modelos locales de Ollama, sin claves ni cuota."""
+def test_default_models_yaml_is_mixed_with_local_qa_and_local_fallbacks() -> None:
+    """PA-443 (decisión del 2026-10-08): por defecto, Groq con respaldo local y QA en local."""
     models = load_models_config()
+    providers = {ref.provider for chain in models.tasks.values() for ref in chain}
+    assert providers == {"groq", "local"}
+    assert models.providers["local"].api_key_env is None
+    assert models.task_providers(TaskType.GENERATE_TESTS) == ["local", "local"]
+    for task, chain in models.tasks.items():
+        assert chain[-1].provider == "local", task.value  # siempre hay respaldo sin cuota
+    assert models.embeddings.model == "bge-m3"  # cambiarlo invalidaría el índice del RAG
+
+
+def test_todo_local_models_yaml_is_local_only() -> None:
+    """PA-443 (plan B, antes por defecto desde el 2026-10-01): solo Ollama, sin claves ni cuota."""
+    models = load_models_config(LOCAL_MODELS)
     providers = {ref.provider for chain in models.tasks.values() for ref in chain}
     assert providers == {"local"}
     assert all(models.providers[p].api_key_env is None for p in providers)
-    assert models.embeddings.model == "bge-m3"  # cambiarlo invalidaría el índice del RAG
+    assert models.embeddings.model == "bge-m3"
 
 
 def test_groq_variant_has_a_keyed_provider_in_every_chain() -> None:
@@ -249,10 +265,14 @@ def test_groq_variant_has_a_keyed_provider_in_every_chain() -> None:
         assert any(models.providers[ref.provider].api_key_env for ref in chain), task.value
 
 
-def test_request_timeout_defaults_to_60_and_local_config_raises_it() -> None:
-    """El modelo local en CPU necesita más tiempo por llamada que uno en la nube."""
-    assert load_models_config(GROQ_MODELS).limits.request_timeout_s == 60.0
-    assert load_models_config().limits.request_timeout_s == 900
+@pytest.mark.parametrize("path", [DEFAULT_MODELS_PATH, GROQ_MODELS], ids=["mixta", "groq"])
+def test_request_timeout_is_short_for_cloud_and_long_for_local_provider(path: Path) -> None:
+    """PA-443: el modelo local en CPU necesita más tiempo por llamada que uno en la nube; cada
+    proveedor lleva el suyo, también en la misma configuración."""
+    models = load_models_config(path)
+    assert models.limits_for("groq").request_timeout_s == 120
+    assert models.limits_for("local").request_timeout_s == 900
+    assert load_models_config(LOCAL_MODELS).limits.request_timeout_s == 900
 
 
 def test_request_timeout_reaches_the_sdk_client() -> None:
@@ -271,11 +291,17 @@ def test_max_output_tokens_per_task_reach_the_provider() -> None:
     from core.factories import _openai_factory
 
     models = load_models_config()
-    assert models.limits.max_output_tokens[TaskType.GENERATE_STORY] == 2500
-    assert load_models_config(GROQ_MODELS).limits.max_output_tokens == {}  # sin tope
+    assert models.limits_for("local").max_output_tokens[TaskType.GENERATE_STORY] == 2500
+    # PA-443: gpt-oss razona y su razonamiento cuenta como salida: Groq, sin topes (`{}`).
+    assert models.limits_for("groq").max_output_tokens == {}
+    # En la variante de Groq solo la suite lleva tope (cabe en los 8000 TPM con contexto 2000).
+    groq_variant = load_models_config(GROQ_MODELS).limits_for("groq")
+    assert groq_variant.max_output_tokens == {TaskType.GENERATE_TESTS: 2500}
     config = AppConfig(Settings(_env_file=None), models)  # type: ignore[call-arg]
-    provider = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
-    assert provider._max_output_tokens[TaskType.GENERATE_STORY] == 2500
+    local = _openai_factory(config)(ModelChoice("local", "qwen3:4b-instruct"))
+    assert local._max_output_tokens[TaskType.GENERATE_STORY] == 2500
+    groq = _openai_factory(config)(ModelChoice("groq", "openai/gpt-oss-120b"))
+    assert groq._max_output_tokens == {}
 
 
 def test_provider_sends_max_tokens_only_for_tasks_with_a_cap() -> None:

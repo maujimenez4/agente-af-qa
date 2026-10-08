@@ -472,16 +472,20 @@ def test_gather_drops_huge_chunk_and_keeps_smaller_one() -> None:
     assert context.budget.used <= context.budget.budget
 
 
-def test_gather_huge_origin_is_truncated_within_budget() -> None:
-    """PA-07: un origen con 200 000 caracteres entra recortado, con marca, sin pasarse."""
+def test_gather_huge_origin_is_kept_whole_and_leaves_no_room() -> None:
+    """PA-07 · PA-442: un origen con 200 000 caracteres entra entero (sin marca); como se come
+    el presupuesto, no entra ninguna fuente opcional (la guarda de la ventana decide después
+    si cabe en el modelo)."""
     tracker = SpyTracker()
     origin = story("DEMO-70", "HU ficticia enorme", description_text="d" * 200_000)
 
     context = make_service(tracker).gather({"kind": "story", "key": "DEMO-70"}, origin)
 
-    assert context.jira[0].key == "DEMO-70"
-    assert context.jira[0].description_text.endswith(TRUNCATION_MARK)
-    assert context.budget.used <= 6000
+    assert context.jira == [origin]
+    assert not context.jira[0].description_text.endswith(TRUNCATION_MARK)
+    assert context.rag == []
+    assert context.budget.truncated_issues == 0
+    assert context.budget.used == issue_tokens(origin) > 6000
 
 
 def test_gather_excluded_issue_space_is_reused_by_next_issue() -> None:

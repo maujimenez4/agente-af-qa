@@ -48,6 +48,11 @@ class StructuredOutputError(ExternalServiceError):
     """El modelo no devolvió una salida válida para el esquema ni tras el reintento (RNF-28)."""
 
 
+class PromptTooLargeError(ExternalServiceError):
+    """PA-443: el proveedor rechaza la petición por tamaño (HTTP 413, p. ej. el límite de tokens
+    por minuto del nivel gratuito de Groq). No se reintenta: se pasa al siguiente de la cadena."""
+
+
 class ProviderTimeoutError(ExternalServiceError):
     """El proveedor no respondió dentro de `limits.request_timeout_s` (RNF-12)."""
 
@@ -295,10 +300,13 @@ class OpenAICompatibleProvider:
                 else:
                     wait = min(float(2**attempt), self._max_wait_s)
                 if attempt >= self._max_retries_on_429 or wait > self._max_wait_s:
-                    raise RateLimitError(
-                        f"El proveedor {self.provider} ha alcanzado su límite de uso.",
-                        service=self.provider,
-                        retry_after=retry_after,
+                    raise with_http_status(
+                        RateLimitError(
+                            f"El proveedor {self.provider} ha alcanzado su límite de uso.",
+                            service=self.provider,
+                            retry_after=retry_after,
+                        ),
+                        429,
                     ) from None
                 log.info(
                     "llm_rate_limited",
@@ -314,15 +322,21 @@ class OpenAICompatibleProvider:
                     raise
                 raise self._status_error(400) from None
             except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
-                raise AuthenticationError(
-                    f"El proveedor {self.provider} ha rechazado las credenciales "
-                    f"(HTTP {exc.status_code}). Revisa la clave configurada.",
-                    service=self.provider,
+                raise with_http_status(
+                    AuthenticationError(
+                        f"El proveedor {self.provider} ha rechazado las credenciales "
+                        f"(HTTP {exc.status_code}). Revisa la clave configurada.",
+                        service=self.provider,
+                    ),
+                    exc.status_code,
                 ) from None
             except openai.NotFoundError:
-                raise ExternalServiceError(
-                    f"El proveedor {self.provider} no encuentra el modelo '{self.model}'.",
-                    service=self.provider,
+                raise with_http_status(
+                    ExternalServiceError(
+                        f"El proveedor {self.provider} no encuentra el modelo '{self.model}'.",
+                        service=self.provider,
+                    ),
+                    404,
                 ) from None
             except openai.APIStatusError as exc:
                 raise self._status_error(exc.status_code) from None
@@ -354,10 +368,32 @@ class OpenAICompatibleProvider:
         )
 
     def _status_error(self, status: int) -> ExternalServiceError:
-        return ExternalServiceError(
-            f"El proveedor {self.provider} ha respondido con un error (HTTP {status}).",
-            service=self.provider,
+        if status == 413:  # PA-443: «no cabe» (p. ej. en el minuto de Groq): sin reintentar
+            return with_http_status(
+                PromptTooLargeError(
+                    f"El proveedor {self.provider} rechaza una petición tan grande (HTTP 413).",
+                    service=self.provider,
+                ),
+                413,
+            )
+        return with_http_status(
+            ExternalServiceError(
+                f"El proveedor {self.provider} ha respondido con un error (HTTP {status}).",
+                service=self.provider,
+            ),
+            status,
         )
+
+
+def with_http_status[E: BaseException](exc: E, status: int) -> E:
+    """PA-441: anota en el error el código HTTP del proveedor (nunca el cuerpo) para el log."""
+    exc.http_status = status  # type: ignore[attr-defined]
+    return exc
+
+
+def http_status(exc: BaseException) -> int | None:
+    status = getattr(exc, "http_status", None)
+    return status if isinstance(status, int) else None
 
 
 def with_spent_tokens[E: BaseException](exc: E, input_tokens: int, output_tokens: int) -> E:

@@ -156,11 +156,16 @@ def test_truncate_issue_fits_within_max_tokens_when_header_is_multiple_of_four(
 
 @pytest.mark.parametrize("budget", [120, 300, 800, 2000, 6000])
 def test_apply_budget_never_exceeds_budget_when_origin_fits(budget: int) -> None:
-    """PA-07: el total de Jira + RAG no supera el presupuesto."""
+    """PA-07 · PA-442: el total de Jira + RAG no supera el presupuesto salvo por el origen, que
+    entra entero aunque no quepa; entonces no entra ninguna fuente opcional."""
     issues = [make_issue(f"DEMO-{n}", 900) for n in range(1, 8)]
     chunks = [make_chunk(f"c{n}", 700) for n in range(10)]
+    origin_cost = issue_tokens(issues[0])  # ≈ 309 tokens
     sel_issues, sel_chunks, report = apply_budget(issues, chunks, budget)
-    assert report.used <= budget
+    assert sel_issues[0] == issues[0]  # entero
+    assert report.used <= max(budget, origin_cost)
+    if origin_cost > budget:
+        assert (sel_issues, sel_chunks, report.used) == ([issues[0]], [], origin_cost)
     assert total_tokens(sel_issues, sel_chunks) == report.used
     assert report.budget == budget
 
@@ -172,15 +177,18 @@ def test_apply_budget_origin_always_enters_first() -> None:
     assert sel_issues[0].key == "DEMO-3"
 
 
-def test_apply_budget_truncates_origin_when_it_exceeds_budget() -> None:
-    """PA-07: si el origen no cabe, se recorta (con marca) y el total respeta el presupuesto."""
+def test_apply_budget_keeps_origin_whole_when_it_exceeds_budget() -> None:
+    """PA-442 (antes PA-07 lo recortaba): si el origen no cabe, entra entero (sin marca y con
+    sus comentarios), su coste cuenta y ya no entra ninguna fuente opcional."""
     origin = make_issue("DEMO-3", 8000, comments=["comentario ficticio"])
-    sel_issues, _, report = apply_budget([origin], [make_chunk("c1", 40)], 400)
-    assert [i.key for i in sel_issues] == ["DEMO-3"]
-    assert sel_issues[0].description_text.endswith(TRUNCATION_MARK)
-    assert sel_issues[0].comments == []
-    assert report.truncated_issues == 1
-    assert report.used <= 400
+    sel_issues, sel_chunks, report = apply_budget([origin], [make_chunk("c1", 40)], 400)
+    assert sel_issues == [origin]
+    assert not sel_issues[0].description_text.endswith(TRUNCATION_MARK)
+    assert sel_issues[0].comments == ["comentario ficticio"]
+    assert sel_chunks == []
+    assert report.truncated_issues == 0
+    assert report.dropped_chunks == 1
+    assert report.used == issue_tokens(origin) > 400
 
 
 def test_apply_budget_origin_fits_whole_even_if_larger_than_jira_share() -> None:
@@ -279,9 +287,14 @@ def test_apply_budget_jira_share_zero_leaves_everything_to_rag_except_origin() -
 
 
 def test_apply_budget_full_jira_share_never_exceeds_budget() -> None:
-    """PA-07 (límite): con `jira_share=1.0`, el total tampoco supera el presupuesto."""
-    origin = make_issue("DEMO-3", 8000, summary="R")  # "DEMO-3 R" = 8 caracteres
-    _, _, report = apply_budget([origin], [], 100, jira_share=1.0)
+    """PA-07 (límite) · PA-442: con `jira_share=1.0`, una incidencia opcional enorme se recorta
+    y el total tampoco supera el presupuesto (el origen pequeño cabe)."""
+    origin = make_issue("DEMO-3", 20, summary="R")
+    other = make_issue("DEMO-4", 8000, summary="R")  # "DEMO-4 R" = 8 caracteres
+    sel_issues, _, report = apply_budget([origin, other], [], 100, jira_share=1.0)
+    assert [i.key for i in sel_issues] == ["DEMO-3", "DEMO-4"]
+    assert sel_issues[1].description_text.endswith(TRUNCATION_MARK)
+    assert report.truncated_issues == 1
     assert report.used <= 100
 
 
@@ -296,23 +309,52 @@ def test_apply_budget_empty_inputs_return_empty_report() -> None:
     assert report == BudgetReport(budget=6000, used=0)
 
 
-def test_apply_budget_extremely_small_budget_keeps_only_truncated_origin() -> None:
-    """PA-07 (límite): con presupuesto mínimo, solo queda el origen recortado; nada más."""
+def test_apply_budget_extremely_small_budget_keeps_only_whole_origin() -> None:
+    """PA-07 (límite) · PA-442: con presupuesto mínimo, solo queda el origen, entero; nada más."""
     issues = [make_issue("DEMO-3", 4000, comments=["ficticio"]), make_issue("DEMO-1", 40)]
     chunks = [make_chunk("c1", 40)]
     sel_issues, sel_chunks, report = apply_budget(issues, chunks, 10)
-    assert [i.key for i in sel_issues] == ["DEMO-3"]
-    assert sel_issues[0].comments == []
-    assert sel_issues[0].description_text.endswith(TRUNCATION_MARK)
+    assert sel_issues == [issues[0]]
+    assert sel_issues[0].comments == ["ficticio"]
+    assert not sel_issues[0].description_text.endswith(TRUNCATION_MARK)
     assert sel_chunks == []
     assert report.dropped_issues == 1
     assert report.dropped_chunks == 1
-    assert report.truncated_issues == 1
+    assert report.truncated_issues == 0
 
 
 def test_apply_budget_budget_below_origin_header_still_includes_origin() -> None:
-    """PA-07 (límite): aunque ni la clave y el resumen quepan, el origen entra (recortado)."""
-    sel_issues, sel_chunks, report = apply_budget([make_issue("DEMO-3", 4000)], [], 1)
-    assert [i.key for i in sel_issues] == ["DEMO-3"]
+    """PA-07 (límite) · PA-442: aunque ni la clave y el resumen quepan, el origen entra entero."""
+    origin = make_issue("DEMO-3", 4000)
+    sel_issues, sel_chunks, report = apply_budget([origin], [], 1)
+    assert sel_issues == [origin]
     assert sel_chunks == []
+    assert report.truncated_issues == 0
+    assert report.used == issue_tokens(origin)
+
+
+def test_apply_budget_origin_cost_leaves_less_room_for_optional_sources() -> None:
+    """PA-442: el coste del origen cuenta: una incidencia que cabría sola en la cuota de Jira
+    se recorta tras un origen grande, y los fragmentos solo entran si caben en lo que queda."""
+    origin = make_issue("DEMO-3", 900)  # ≈ 309 tokens
+    other = make_issue("DEMO-4", 900)
+    chunks = [make_chunk("c1", 300), make_chunk("c2", 3000)]  # ≈ 100 y ≈ 1000 tokens
+    sel_issues, sel_chunks, report = apply_budget([origin, other], chunks, 1000)  # cuota 500
+    assert sel_issues[0] == origin
+    assert issue_tokens(other) <= 500  # sola habría cabido entera
+    assert sel_issues[1].description_text.endswith(TRUNCATION_MARK)
+    assert issue_tokens(origin) + issue_tokens(sel_issues[1]) <= 500
+    assert [c.chunk.id for c in sel_chunks] == ["c1"]
+    assert report.dropped_chunks == 1
+    assert report.used <= 1000
+
+
+def test_apply_budget_without_origin_truncates_the_first_issue_too() -> None:
+    """PA-442 (límite): con una necesidad (`has_origin=False`) no hay origen: la primera
+    incidencia es opcional y se recorta como las demás."""
+    first = make_issue("DEMO-3", 8000)
+    sel_issues, _, report = apply_budget([first], [], 400, has_origin=False)
+    assert [i.key for i in sel_issues] == ["DEMO-3"]
+    assert sel_issues[0].description_text.endswith(TRUNCATION_MARK)
     assert report.truncated_issues == 1
+    assert report.used <= 200

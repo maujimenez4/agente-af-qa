@@ -250,15 +250,17 @@ def _openai_factory(config: AppConfig) -> ProviderFactory:
     options = _model_options(config)
 
     def create(choice: ModelChoice) -> LLMProvider:
+        limits = config.models.limits_for(choice.provider)  # PA-443: los de su proveedor
         return OpenAICompatibleProvider.create(
             choice.provider,
             choice.model,
             config.base_url_for(choice.provider),
             config.api_key_for(choice.provider),
             prompts=prompts,
-            max_retries_on_429=config.models.limits.max_retries_on_429,
-            timeout_s=config.models.limits.request_timeout_s,
-            max_output_tokens=config.models.limits.max_output_tokens,
+            max_retries_on_429=limits.max_retries_on_429,
+            max_wait_s=limits.max_wait_s,
+            timeout_s=limits.request_timeout_s,
+            max_output_tokens=limits.max_output_tokens,
             extra_body=options.get((choice.provider, choice.model)),
         )
 

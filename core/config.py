@@ -7,6 +7,7 @@ que la aplicación arranca aunque no haya ninguna clave configurada.
 
 import os
 import re
+from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -54,11 +55,29 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class ProviderLimits(_StrictModel):
+    """PA-443: límites propios de un proveedor; lo que no se pone hereda los `limits` globales.
+
+    Con proveedores muy distintos en la misma configuración (Groq en la nube y Ollama en CPU) la
+    ventana, el presupuesto de contexto, los topes de salida y las esperas no pueden ser los
+    mismos. `max_output_tokens: {}` quita todos los topes (p. ej. `gpt-oss`, que razona y su
+    razonamiento cuenta como salida).
+    """
+
+    context_window: PositiveInt | None = None
+    context_token_budget: PositiveInt | None = None
+    max_output_tokens: dict[TaskType, PositiveInt] | None = None
+    request_timeout_s: PositiveFloat | None = None
+    max_retries_on_429: NonNegativeInt | None = None
+    max_wait_s: PositiveFloat | None = None
+
+
 class ProviderConfig(_StrictModel):
     type: Literal["openai_compatible"]
     base_url: str = Field(min_length=1)
     # Nombre de la variable de entorno, nunca la clave (evita mostrar una clave pegada por error).
     api_key_env: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]*$")
+    limits: ProviderLimits | None = None  # PA-443
 
 
 class ModelOptions(_StrictModel):
@@ -109,6 +128,8 @@ class LimitsConfig(_StrictModel):
     # Tope de tokens de salida por tarea; sin entrada, sin tope. Acorta la generación y deja sitio
     # al reintento dentro de la ventana de contexto.
     max_output_tokens: dict[TaskType, PositiveInt] = {}
+    # PA-443: espera máxima ante un 429 (`Retry-After`) antes de pasar al siguiente de la cadena.
+    max_wait_s: PositiveFloat = 20.0
 
 
 class RagConfig(_StrictModel):
@@ -154,6 +175,25 @@ class ModelsConfig(_StrictModel):
         if unknown:
             raise ValueError(f"proveedores no declarados en 'providers': {', '.join(unknown)}")
         return self
+
+    def limits_for(self, provider: str) -> LimitsConfig:
+        """PA-443: los límites de un proveedor (los globales con lo que el proveedor cambie)."""
+        config = self.providers.get(provider)
+        own = config.limits if config is not None else None
+        if own is None:
+            return self.limits
+        return self.limits.model_copy(update=own.model_dump(exclude_none=True))
+
+    def context_budget_for(self, providers: Sequence[str]) -> int:
+        """PA-443: presupuesto de contexto de una tarea: el de su primer proveedor (el que se
+        usa de verdad, también si se eligió otro modelo en la UI); sin cadena, el global."""
+        if not providers:
+            return self.limits.context_token_budget
+        return self.limits_for(providers[0]).context_token_budget
+
+    def task_providers(self, task: TaskType) -> list[str]:
+        """Proveedores de la cadena configurada de una tarea, en orden."""
+        return [ref.provider for ref in self.tasks.get(task, [])]
 
 
 def load_models_config(path: Path = DEFAULT_MODELS_PATH) -> ModelsConfig:

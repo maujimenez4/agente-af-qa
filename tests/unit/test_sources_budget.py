@@ -68,11 +68,21 @@ def _add_chunk(container: Container, document_id: str, ordinal: int, content: st
     )
 
 
-def _lengthen_origin(container: Container) -> None:
-    """La HU de origen con una descripción que no cabe: se recorta (PA-102)."""
+def _lengthen(container: Container, key: str) -> None:
+    """La incidencia `key` con una descripción que no cabe en el presupuesto (PA-102)."""
     tracker = _tracker(container)
-    origin = tracker.issues["DEMO-3"]
-    tracker.issues["DEMO-3"] = origin.model_copy(update={"description_text": FILLER * 400})
+    issue = tracker.issues[key]
+    tracker.issues[key] = issue.model_copy(update={"description_text": FILLER * 400})
+
+
+def _lengthen_origin(container: Container) -> None:
+    """La HU de origen (DEMO-3) con una descripción que no cabe: entra entera (PA-442)."""
+    _lengthen(container, "DEMO-3")
+
+
+def _lengthen_related(container: Container) -> None:
+    """La HU vinculada a DEMO-3 (DEMO-2, opcional) con una descripción que no cabe: se recorta."""
+    _lengthen(container, "DEMO-2")
 
 
 class Api:
@@ -143,16 +153,32 @@ def test_row_tokens_add_up_to_budget_used(container: Container) -> None:
 
 
 def test_truncated_issue_reports_truncated_tokens(container: Container) -> None:
-    """PA-330 (límite): la incidencia recortada lleva los tokens tras el recorte."""
+    """PA-330 (límite) · PA-442: una incidencia opcional recortada lleva los tokens tras el
+    recorte."""
+    _lengthen_related(container)
+    original = issue_tokens(_tracker(container).issues["DEMO-2"])
+
+    rows, report = GuidedStart(container).preview_sources_with_budget(STORY)
+
+    related = next(r for r in rows if r.ref == "DEMO-2")
+    assert report.truncated_issues >= 1
+    assert related.tokens is not None and 0 < related.tokens < original
+    assert related.tokens <= report.budget
+    assert sum(r.tokens or 0 for r in rows) == report.used
+
+
+def test_long_origin_row_reports_its_whole_tokens(container: Container) -> None:
+    """PA-442 (límite): la HU de origen larga no se recorta en el panel de fuentes: su fila lleva
+    todos sus tokens, aunque superen el presupuesto, y no cuenta como recortada."""
     _lengthen_origin(container)
     original = issue_tokens(_tracker(container).issues["DEMO-3"])
 
     rows, report = GuidedStart(container).preview_sources_with_budget(STORY)
 
     origin = next(r for r in rows if r.ref == "DEMO-3")
-    assert report.truncated_issues >= 1
-    assert origin.tokens is not None and 0 < origin.tokens < original
-    assert origin.tokens <= report.budget
+    assert origin.required
+    assert origin.tokens == original > report.budget
+    assert report.truncated_issues == 0
     assert sum(r.tokens or 0 for r in rows) == report.used
 
 
@@ -219,16 +245,34 @@ def test_api_excluding_a_source_lowers_estimate_by_its_tokens(api: Api) -> None:
 
 
 def test_api_truncated_origin_reports_truncated_tokens(api: Api, rt: Runtime) -> None:
-    """PA-330 (límite): por la API, la incidencia recortada lleva los tokens recortados."""
+    """PA-330 (límite) · PA-442: por la API, una incidencia opcional recortada lleva los tokens
+    recortados y la HU de origen larga, todos los suyos (no se recorta)."""
     container = _base(rt)
+    _lengthen_related(container)
     _lengthen_origin(container)
-    original = issue_tokens(_tracker(container).issues["DEMO-3"])
+    tracker = _tracker(container)
+    related_original = issue_tokens(tracker.issues["DEMO-2"])
+    origin_original = issue_tokens(tracker.issues["DEMO-3"])
 
     body = api.sources(STORY).json()  # type: ignore[arg-type]
 
-    origin = next(r for r in body["sources"] if r["ref"] == "DEMO-3")
+    rows = {r["ref"]: r for r in body["sources"]}
+    assert rows["DEMO-3"]["tokens"] == origin_original
+    assert "DEMO-2" not in rows or 0 < rows["DEMO-2"]["tokens"] < related_original
+    assert sum(r["tokens"] for r in body["sources"]) == body["budget"]["used"]
+
+
+def test_api_truncated_related_issue_reports_truncated_tokens(api: Api, rt: Runtime) -> None:
+    """PA-330 (límite): por la API, la incidencia opcional recortada lleva los tokens recortados."""
+    container = _base(rt)
+    _lengthen_related(container)
+    original = issue_tokens(_tracker(container).issues["DEMO-2"])
+
+    body = api.sources(STORY).json()  # type: ignore[arg-type]
+
+    related = next(r for r in body["sources"] if r["ref"] == "DEMO-2")
     assert body["budget"]["truncated_sources"] >= 1
-    assert 0 < origin["tokens"] < original
+    assert 0 < related["tokens"] < original
     assert sum(r["tokens"] for r in body["sources"]) == body["budget"]["used"]
 
 

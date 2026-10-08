@@ -545,40 +545,49 @@ def restore_logging() -> Iterator[None]:
         logging.getLogger(name).setLevel(level)
 
 
-def _app_config(budget: int | None = None) -> AppConfig:
+def _app_config(budget: int | None = None, groq_budget: int | None = None) -> AppConfig:
+    """`config/models.yaml` con el presupuesto global (`budget`) o el del proveedor `groq`
+    (`groq_budget`, PA-443: el de las tareas de HU) sustituidos."""
     models = load_models_config()
     if budget is not None:
         limits = models.limits.model_copy(update={"context_token_budget": budget})
         models = models.model_copy(update={"limits": limits})
+    if groq_budget is not None:
+        groq = models.providers["groq"]
+        assert groq.limits is not None
+        own = groq.limits.model_copy(update={"context_token_budget": groq_budget})
+        providers = {**models.providers, "groq": groq.model_copy(update={"limits": own})}
+        models = models.model_copy(update={"providers": providers})
     return AppConfig(Settings(_env_file=None), models)
 
 
 def test_retrieve_context_node_respects_config_budget(
     tmp_path: Path, clean_env: pytest.MonkeyPatch, restore_logging: None
 ) -> None:
-    """PA-07: con AppConfig, el nodo usa `limits.context_token_budget` de la configuración."""
-    container = fake_container(tmp_path, config=_app_config(budget=60))
+    """PA-07 · PA-443: con AppConfig, el nodo usa el `context_token_budget` del proveedor de
+    la tarea (evolucionar una HU → groq); el origen entra entero (PA-442) y, si se come el
+    presupuesto, no entra ninguna fuente opcional."""
+    container = fake_container(tmp_path, config=_app_config(budget=100_000, groq_budget=60))
     nodes = GraphNodes(container)
     state = initial_state("af-demo", "functional", STORY_ORIGIN)  # type: ignore[arg-type]
     state.update(nodes.load_origin(state))  # type: ignore[typeddict-item]
+    origin = state["jira_context"][0]
+    assert issue_tokens(origin) > 60
 
     update = nodes.retrieve_context(state)
 
-    jira = update["jira_context"]
-    assert jira[0].key == "DEMO-3"
-    used = sum(issue_tokens(i) for i in jira) + sum(
-        -(-len(c.chunk.content) // 4) for c in update["rag_context"]
-    )
-    assert used <= 60
-    assert len(jira) < 4  # con el presupuesto por defecto (3300) entrarían las 4
+    assert update["jira_context"] == [origin]  # entero, sin recortar
+    assert update["rag_context"] == []
+    # con el presupuesto global (100 000) habrían entrado las 4 HU del fake
 
 
 def test_retrieve_context_node_default_config_keeps_full_context(
     tmp_path: Path, clean_env: pytest.MonkeyPatch, restore_logging: None
 ) -> None:
-    """PA-07 · PA-114: con el presupuesto de config/models.yaml (3300) entran las HU del fake."""
+    """PA-07 · PA-114 · PA-443: con el presupuesto de config/models.yaml para evolucionar una HU
+    (el de groq, 2000) entran las HU del fake."""
     config = _app_config()
-    assert config.models.limits.context_token_budget == 3300
+    assert config.models.context_budget_for(["groq", "local"]) == 2000
     nodes = GraphNodes(fake_container(tmp_path, config=config))
     state = initial_state("af-demo", "functional", STORY_ORIGIN)  # type: ignore[arg-type]
     state.update(nodes.load_origin(state))  # type: ignore[typeddict-item]

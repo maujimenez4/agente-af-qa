@@ -173,7 +173,11 @@ def story_citing(*refs: tuple[str, str]) -> UserStory:
 
 
 def app_config(limits: PromptLimits) -> AppConfig:
-    """AppConfig de prueba: `config/models.yaml` con los límites de PA-114 sustituidos."""
+    """AppConfig de prueba: `config/models.yaml` con los límites de PA-114 sustituidos.
+
+    PA-443: sin los límites propios de cada proveedor, para que valgan los globales (los
+    límites por proveedor se prueban en `test_mixed_models.py`).
+    """
     models = load_models_config()
     new_limits = models.limits.model_copy(
         update={
@@ -181,7 +185,12 @@ def app_config(limits: PromptLimits) -> AppConfig:
             "max_output_tokens": dict(limits.max_output_tokens),
         }
     )
-    return AppConfig(Settings(_env_file=None), models.model_copy(update={"limits": new_limits}))  # type: ignore[call-arg]
+    providers = {
+        name: provider.model_copy(update={"limits": None})
+        for name, provider in models.providers.items()
+    }
+    models = models.model_copy(update={"limits": new_limits, "providers": providers})
+    return AppConfig(Settings(_env_file=None), models)  # type: ignore[call-arg]
 
 
 # --- 1. estimate_messages y PromptLimits.available -----------------------------------------
@@ -664,7 +673,13 @@ def test_quality_reviewer_limits_come_from_container_config(tmp_path: Path) -> N
     limits = PromptLimits(5000, {TaskType.REVIEW_STORY: 700})
     container = quality_container(tmp_path, limits, FakeLLMProvider())
 
-    assert QualityReviewer(container).limits == limits
+    reviewer_limits = QualityReviewer(container).limits
+    assert reviewer_limits.context_window == limits.context_window
+    assert dict(reviewer_limits.max_output_tokens) == dict(limits.max_output_tokens)
+    # PA-443: lleva la configuración de modelos para los límites por proveedor de la cadena.
+    assert reviewer_limits.models is container.config.models  # type: ignore[union-attr]
+    for task in (TaskType.REVIEW_STORY, TaskType.EVOLVE_STORY):
+        assert reviewer_limits.available(task) == limits.available(task)
 
 
 def test_quality_reviewer_trims_rag_then_related_and_fits_window(tmp_path: Path) -> None:

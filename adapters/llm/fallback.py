@@ -27,8 +27,10 @@ from pydantic import BaseModel
 from adapters.base import LLMProvider, LLMResult, Message, StructuredResult, TaskType
 from adapters.errors import ExternalServiceError, RateLimitError
 from adapters.llm.openai_compatible import (
+    PromptTooLargeError,
     ProviderTimeoutError,
     StructuredOutputError,
+    http_status,
     spent_tokens,
 )
 from adapters.llm.usage import UsageRecord, UsageRecorder, current_artifact_id
@@ -36,7 +38,7 @@ from adapters.llm.usage import UsageRecord, UsageRecorder, current_artifact_id
 log = structlog.get_logger(__name__)
 
 ChainResolver = Callable[[TaskType], Sequence[LLMProvider]]
-FallbackReason = Literal["limite", "tiempo_espera", "error"]
+FallbackReason = Literal["limite", "tiempo_espera", "no_cabe", "error"]
 
 INVALID_OUTPUT = "salida_no_valida"
 
@@ -61,6 +63,7 @@ class AttemptObserver(Protocol):
 _REASON_TEXT: dict[FallbackReason, str] = {
     "limite": "ha alcanzado su límite de uso",
     "tiempo_espera": "no ha respondido a tiempo",
+    "no_cabe": "no admite una petición tan grande",
     "error": "ha fallado",
 }
 
@@ -104,6 +107,8 @@ def fallback_reason(exc: ExternalServiceError) -> FallbackReason:
         return "limite"
     if isinstance(exc, ProviderTimeoutError):
         return "tiempo_espera"
+    if isinstance(exc, PromptTooLargeError):
+        return "no_cabe"
     return "error"
 
 
@@ -136,6 +141,14 @@ class FallbackLLMProvider:
         return self._run(
             task, lambda provider: provider.generate_structured(messages, schema, task), messages
         )
+
+    def chain_providers(self, task: TaskType) -> list[str]:
+        """PA-443: proveedores de la cadena efectiva de la tarea (con el modelo elegido en la UI,
+        RF-42), para que los límites del prompt y el presupuesto salgan de ellos."""
+        return [
+            getattr(provider, "provider", type(provider).__name__)
+            for provider in self._chain_for(task)
+        ]
 
     def tokens_today(self) -> int:
         """Tokens consumidos desde el inicio del día (UTC), para el aviso de la UI (RNF-27)."""
@@ -180,6 +193,7 @@ class FallbackLLMProvider:
                     model=model,
                     error=type(exc).__name__,
                     reason=reason,
+                    http_status=http_status(exc),  # PA-441: solo el código, nunca el cuerpo
                     artifact_id=current_artifact_id(),
                     duration_ms=int((time.monotonic() - start) * 1000),
                 )

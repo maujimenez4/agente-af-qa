@@ -1,49 +1,67 @@
-# Variante GROQ / OPENROUTER (la configuración por defecto hasta el 2026-10-01; desde entonces
-# solo se usan modelos locales de Ollama, ver config/models.yaml).
-# Activar: MODELS_CONFIG_PATH=config/models.groq.yaml en el .env, con GROQ_API_KEY/OPENROUTER_API_KEY.
-
-# Asignación de modelos por tarea (RF-41) · D-14: solo modelos open-weight gratuitos.
-# Cada tarea es una CADENA ordenada: el primero es el principal y el resto, respaldos (RF-44).
+# PLAN B · TODO GROQ (PA-443). Asignación de modelos por tarea (RF-41) · D-14: solo modelos
+# open-weight gratuitos (`openai/gpt-oss-*` en el nivel gratuito de Groq).
+# Activar: MODELS_CONFIG_PATH=config/models.groq.yaml en el .env, con GROQ_API_KEY (ver
+# config/README.md). Todas las tareas con Groq y respaldo LOCAL (qwen3:1.7b, Ollama).
+# PA-441 (2026-10-07): la cadena anterior ya no sirve: `qwen/qwen3.8-27b` en Groq admite solo
+# 1000 tokens de salida por minuto y OpenRouter ya no tiene versión gratuita (404).
+# Límite del nivel gratuito de gpt-oss-120b: 8000 tokens por minuto (entrada + salida prevista).
+# La suite de QA solo cabe con poco contexto y tope de salida, y su iteración no cabe (413 → pasa
+# al respaldo local). Por eso la configuración por defecto es la mixta (config/models.yaml).
 # Sin secretos: solo el nombre de la variable de entorno.
-# R-07 (2026-09-30): cadenas fijadas con los modelos disponibles ese día. En Groq las cuotas son
-# por modelo (PA-08): se reparten las tareas entre gpt-oss-120b, gpt-oss-20b y qwen3.8-27b para
-# sumar bolsas; OpenRouter (:free, límites diarios bajos) queda como último respaldo.
-# El modelo local de Ollama queda solo para embeddings hasta elegir uno que quepa en RAM (R-08).
-# Cambiar de proveedor (p. ej. uno corporativo compatible con la API de OpenAI) = añadirlo en
-# `providers` con su `api_key_env` y usarlo en las cadenas; el código no cambia (RF-42).
 providers:
-  groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
-  openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
-  local:      { type: openai_compatible, base_url: "http://127.0.0.1:11434/v1",      api_key_env: null }
+  groq:
+    type: openai_compatible
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+    # Contexto de 2000 (PA-441: con 1500 se recortaba la HU de origen antes de PA-442).
+    # Tope de salida solo en la suite: con 2500 y contexto 2000, ~7800 de los 8000 TPM.
+    limits:
+      context_window: 131072
+      context_token_budget: 2000
+      max_output_tokens:
+        generate_tests: 2500
+      max_wait_s: 60
+      max_retries_on_429: 2
+      request_timeout_s: 120
+  local:
+    type: openai_compatible
+    base_url: "http://127.0.0.1:11434/v1"
+    api_key_env: null
+    limits:
+      context_window: 10240
+      context_token_budget: 3300
+      request_timeout_s: 900
+      max_output_tokens:
+        generate_story: 2500
+        evolve_story: 2500
+        review_story: 2000
+        generate_tests: 2500
+        analyze_impact: 800
+        synthesize_memory: 1200
+        classify_source: 200
+        nl_to_jql: 200
 
 tasks:
-  # Pesadas: máxima calidad.
-  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "qwen/qwen3.8-27b:free" } ]
-  # Medias.
-  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
-  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: groq, model: "qwen/qwen3.8-27b" }, { provider: openrouter, model: "google/gemma-4-31b-it:free" } ]
-  # Ligeras.
-  classify_source:   [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
-  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" },  { provider: openrouter, model: "google/gemma-4-26b-a4b-it:free" } ]
+  # Pesadas: gpt-oss-120b con razonamiento «low».
+  generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  evolve_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  review_story:      [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  generate_tests:    [ { provider: groq, model: "openai/gpt-oss-120b", options: { reasoning_effort: "low" } }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  # Medias y ligeras: gpt-oss-20b.
+  analyze_impact:    [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  synthesize_memory: [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  classify_source:   [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
+  nl_to_jql:         [ { provider: groq, model: "openai/gpt-oss-20b" }, { provider: local, model: "qwen3:1.7b", options: { reasoning_effort: "none" } } ]
 
 embeddings: { provider: local, model: "bge-m3", dimensions: 1024 }
 
 limits:
   max_retries_on_429: 2
-  # PA-229: 6000 con la estimación antigua (/4) eran ~24 000 caracteres; con /3 (PA-114), 8000.
-  # PA-441: 2000. El nivel gratuito de Groq admite 8000 tokens por minuto (TPM) en gpt-oss-120b y
-  # rechaza con 413 una petición mayor: la de una suite pedía 8394 con 3103 de contexto.
   context_token_budget: 2000
-  # PA-229: valor PRUDENTE, sin verificar contra los modelos de la cadena (gpt-oss tiene
-  # 131 072 en Groq; los de qwen y gemma no se han comprobado). La guarda de PA-114 es global,
-  # así que vale el menor de la cadena. Hoy solo se usan modelos locales; Groq es alternativa.
-  context_window: 32768
+  context_window: 131072
   daily_token_warning: 180000     # aviso en la UI antes de agotar el nivel gratuito de Groq
-  # PA-441: Groq reserva entrada + salida posible contra sus 8000 TPM; sin tope, la suite pedía
-  # ~8390 y daba 413; con 3000, 8293 (entrada ~5300). Con 2500 y contexto 2000, ~7800. Solo la suite. No bajar de 2000: con 1500 se recorta la propia HU de origen (PA-442).
+  request_timeout_s: 120
+  max_wait_s: 60
   max_output_tokens:
     generate_tests: 2500
 

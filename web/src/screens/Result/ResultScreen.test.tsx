@@ -62,7 +62,13 @@ describe('Resultado tras aprobar', () => {
     const operations = within(region).getByRole('list', { name: 'Operaciones que se habrían hecho' })
     expect(within(operations).getByText('Actualizar DEMO-3 con la versión 2')).toBeInTheDocument()
     expect(within(operations).getByText('Vincular DEMO-3 con DEMO-2')).toBeInTheDocument()
-    expect(within(region).getByText(/^La aprobación sigue vigente/)).toBeInTheDocument()
+    // PA-412: la simulación gasta la aprobación (PA-41); no se promete publicar sin repetir la revisión.
+    expect(
+      within(region).getByText(
+        'La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisarla y aprobarla. La memoria se genera al publicar de verdad.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(region).queryByText(/sigue vigente/)).toBeNull()
     expect(within(region).getByText(/^Versión 2 aprobada por af-demo a las \d{2}:\d{2}$/)).toBeInTheDocument()
     for (const name of ['Ver el registro de auditoría', 'Ir al historial']) {
       expect(within(region).getByRole('button', { name })).toHaveAttribute('aria-disabled', 'true')

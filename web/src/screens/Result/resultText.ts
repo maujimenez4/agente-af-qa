@@ -31,7 +31,8 @@ export const OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
     badge: 'Aprobada · simulada',
     title: 'Publicación simulada',
     lead: 'No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:',
-    note: 'La aprobación sigue vigente: cuando se active la publicación real se podrá publicar sin repetir la revisión. La memoria se genera al publicar de verdad.',
+    // PA-412: la simulación gasta la aprobación (PA-41). Texto explícito mientras siga pendiente PA-410.
+    note: 'La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisarla y aprobarla. La memoria se genera al publicar de verdad.',
   },
   published: {
     phase: 4,
@@ -55,7 +56,7 @@ export const OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
 export const QA_OUTCOME_TEXTS: Record<PublishOutcomeKind, OutcomeTexts> = {
   simulated: {
     ...OUTCOME_TEXTS.simulated,
-    note: 'La aprobación sigue vigente para publicar cuando se active el modo real.',
+    note: 'La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisar la suite y aprobarla.',
   },
   published: {
     ...OUTCOME_TEXTS.published,

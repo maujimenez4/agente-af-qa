@@ -42,12 +42,17 @@ const PARTIAL_IDS_ONLY = suiteResult('approved', { published_keys: ['DEMO-21'], 
 
 describe('QA 5 · simulación', () => {
   it('test_simulated_suite_shows_phase_3_texts_and_audit_actions', () => {
-    // UI.md §6.5 Simulación: «Publicación simulada…», «La aprobación sigue vigente…» y *Ver el registro de auditoría*.
+    // UI.md §6.5 Simulación: «Publicación simulada…», «La aprobación se ha usado…» (PA-412) y *Ver el registro de auditoría*.
     render(<ResultScreen conversation={SIMULATED} />)
     const region = screen.getByRole('region', { name: 'Publicación simulada' })
     expect(screen.getByRole('img', { name: 'Avance: fase 3 de 4, Aprobada' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Pruebas de DEMO-3' })).toBeInTheDocument()
-    expect(within(region).getByText('La aprobación sigue vigente para publicar cuando se active el modo real.')).toBeInTheDocument()
+    expect(
+      within(region).getByText(
+        'La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisar la suite y aprobarla.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(region).queryByText(/sigue vigente/)).toBeNull()
     expect(within(region).getByRole('list', { name: 'Operaciones que se habrían hecho' })).toHaveTextContent('Crear 4 subtareas en DEMO-3')
     expect(within(region).getByRole('button', { name: 'Ver el registro de auditoría' })).toHaveAttribute('aria-disabled', 'true')
     // UI.md §6.5 Simulación: la única acción es *Ver el registro de auditoría*.

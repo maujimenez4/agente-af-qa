@@ -6,9 +6,9 @@
 
 Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de qué depende**. La implementación es el frontend en **React** de `web/` (T-56), que habla con el backend **solo a través de la API HTTP** de T-55 (`docs/api/openapi.yaml`, `docs/api/README.md`). Las decisiones de detalle (medidas, textos, accesibilidad, casos límite) están en `web/DESIGN-DECISIONS.md`; cuando el lienzo y este documento no coinciden, manda este documento. Lo que aún no existe se marca con su tarea o su propuesta (PA-XX).
 
-**Estado en la web** (2026-10-07): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, *Editar a mano* de la HU (§4.5 bis; diseño pendiente de validar en PA-340), el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración, con los arreglos de la prueba contra la API (PA-330 y PA-332 a PA-336), las ventanas estrechas (PA-335) y la ronda de pulido de la sesión UI (PA-427 a PA-431). En `t56-pulido`: PA-344, PA-435, un CA sin caso que bloquea la aprobación de la suite (§6.3 y §6.4), PA-346 y el anillo «consumo total». **Pendiente:** lo que §11 deja fuera de la entrega.
+**Estado en la web** (2026-10-08, entrega de T-56): hechas y fusionadas el inicio de sesión, Inicio, Elegir en Jira, Origen, Generando, Iterar, *Editar a mano* de la HU (§4.5 bis; diseño pendiente de validar en PA-340), el recibo y el Resultado de la HU, el flujo de QA (QA 1 a QA 5), Revisar la calidad, Memoria y Administración, con los arreglos de la prueba contra la API (PA-330 y PA-332 a PA-336), las ventanas estrechas (PA-335) y la ronda de pulido de la sesión UI (PA-427 a PA-431) y el pulido final (PA-344, PA-435, un CA sin caso que bloquea la aprobación de la suite en §6.3 y §6.4, PA-346 y el anillo «consumo total»). En `t56-entrega`: PA-412 (§4.7, §5.6 y §6.5). **Pendiente:** lo que §11 deja fuera de la entrega.
 
-**Cambios de la v2.1** (frente a la v2.0 del 2026-10-06): §2 (anillo «consumo total» y conversación que sigue el final), §4.3 (consultas de fuentes abortadas), §4.5 y §4.8 (extractos con formato), §4.5 bis (sin perder cambios y nota sola), §4.8 (Q animada), §6.3 y §6.4 (un CA sin caso bloquea; *Editar a mano* con su motivo a la vista), §7 (401 común) y §10 (distintivo «Disponible pronto»).
+**Cambios de la v2.1** (frente a la v2.0 del 2026-10-06): §2 (anillo «consumo total» y conversación que sigue el final), §4.3 (consultas de fuentes abortadas), §4.5 y §4.8 (extractos con formato), §4.5 bis (sin perder cambios y nota sola), §4.8 (Q animada), §6.3 y §6.4 (un CA sin caso bloquea; *Editar a mano* con su motivo a la vista), §7 (401 común), §10 (distintivo «Disponible pronto») y §4.7, §5.6 y §6.5 (la simulación gasta la aprobación, PA-412).
 
 ---
 
@@ -180,7 +180,7 @@ Aprobar responde 202; la publicación sigue por el SSE («Aprobando y publicando
 
 | Modo | Fase | Contenido | Acción | Dependencia |
 |---|---|---|---|---|
-| Simulación | 3 de 4 · Aprobada (la Q no se llena: no se ha escrito nada en Jira) | Distintivo «Aprobada · simulada»; «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:» + operaciones numeradas; nota «La aprobación sigue vigente…» y aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* e *Ir al historial* («disponible pronto») | `result.simulated` (T-25); caducidad de la aprobación PA-41 |
+| Simulación | 3 de 4 · Aprobada (la Q no se llena: no se ha escrito nada en Jira) | Distintivo «Aprobada · simulada»; «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:» + operaciones numeradas; nota «La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisarla y aprobarla. La memoria se genera al publicar de verdad.» (PA-412) y aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* e *Ir al historial* («disponible pronto») | `result.simulated` (T-25); la simulación gasta la aprobación (PA-41) |
 | Real | 4 de 4 · Publicado | «Publicado en Jira · Estas operaciones ya están en Jira:» + operaciones con ✓ y las claves publicadas; «La memoria de la HU se ha generado e indexado; tendrá prioridad en las próximas propuestas.» | *Abrir DEMO-3 en Jira* · **Ver la memoria** (abre Memoria con esa clave, §4.9) · *Pedir sus pruebas a QA* («disponible pronto», §11) | `result.published_keys`, `jira_browse_url` (PA-318) |
 | En parte | 4 de 4 · Publicada en parte | Las operaciones aprobadas, numeradas y sin ✓, y «Lo que no se pudo publicar» con los mensajes de la API. No es un error HTTP (RNF-13) | *Abrir DEMO-3 en Jira* · *Ver la memoria* · *Pedir sus pruebas a QA* («disponible pronto») | `result.errors` (estado `published`, PA-324) |
 | Todos | — | «Versión 2 aprobada por af-demo a las 15:47» | — | — |
@@ -230,7 +230,7 @@ La web no habla con el grafo: usa las rutas de la API, que traducen a las decisi
    - **409** se distingue por `error.code`: `approval_rejected` → *Empezar de nuevo*; `not_in_review` → *Actualizar* el estado.
 4. La UI no guarda ni reconstruye la huella: envía exactamente la del último `review`. Si la persona itera o edita, la huella anterior deja de valer.
 5. *Aprobar y publicar* solo se activa con todas las casillas del recibo marcadas; es una ayuda visual: la garantía la da la huella.
-6. Tras publicar, la aprobación se consume (un solo uso). En simulación sigue vigente (T-25); su caducidad antes de activar `live` es PA-41.
+6. Tras publicar, la aprobación se consume (un solo uso). En simulación también se consume (PA-41): para publicar de verdad hay que activar el modo real y empezar de nuevo desde el mismo origen, porque volver a revisar la misma conversación aún no es posible (PA-410).
 7. **Toda escritura en Jira pasa por el nodo `publish`** con aprobación vigente. La web nunca habla con Jira ni con el LLM: solo con la API.
 
 ## 6. Flujo de QA (rol QA)
@@ -294,7 +294,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 
 | Modo | Fase | Contenido | Acción | Dependencia |
 |---|---|---|---|---|
-| Simulación | 3 de 4 · Aprobada | «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:»; «La aprobación sigue vigente para publicar cuando se active el modo real.» y el aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* («disponible pronto») | T-25 |
+| Simulación | 3 de 4 · Aprobada | «Publicación simulada · No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:»; «La aprobación se ha usado en esta simulación. Para publicar de verdad, activa el modo real y empieza de nuevo desde la misma HU para revisar la suite y aprobarla.» (PA-412) y el aviso «Modo de prueba activo…» (§2) | *Ver el registro de auditoría* («disponible pronto») | T-25 |
 | Real | 4 de 4 · Publicado | «Suite publicada en Jira» con las subtareas en «Claves en Jira» | *Abrir DEMO-3 en Jira* · *Registrar la ejecución* (§6.6) | `result.published_keys` |
 | En parte | **4 de 4 · Publicada en parte** (igual que la HU; el lienzo dice fase 3, PA-304) | Las operaciones aprobadas y «Lo que no se pudo publicar» con los mensajes de la API y los casos que fallaron | *Abrir DEMO-3 en Jira* | Estado `approved` con `result.errors` y `failed_ids` (PA-324) |
 

@@ -74,5 +74,5 @@ Mensaje:
 | 2 | Reservar un libro electrónico agotado | | |
 | 3 | Pagar las multas en línea | | |
 | 4 | Renovar un préstamo (evolución de HU-02) | | |
-| 5 | Suite de QA de la 1 | | |
+| 5 | Suite de QA de la 1 | AFQP-29 … AFQP-34 (subtareas de AFQP-27) | 2026-10-08 · qwen3:1.7b, 6 casos, un CA por caso; 5 RN sin caso (avisan sin bloquear) |
 | 6 | Iteración de la suite | | |

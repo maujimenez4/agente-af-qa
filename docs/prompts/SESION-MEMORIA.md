@@ -1,13 +1,13 @@
-# SESIÓN UI · Ronda 11: el logo completo de Qaracter en el login (PA-444)
+# SESIÓN UI · Ronda 12: lo que encontró la auditoría en la web (PA-461, PA-460, PA-459 y arreglos pequeños)
 
-> Encargo de la **sesión UI**. Tu ronda 10 ya está fusionada. El responsable de `web/` entregó T-56 (PR #18) y no está tocando `web/`: esta ronda es tuya.
+> Encargo de la **sesión UI**. Tu ronda 11 (logo, PA-444) ya está fusionada. El responsable de `web/` entregó T-56 y no está tocando `web/`: esta ronda es tuya. Sale de la auditoría completa del 2026-10-08 (`docs/auditorias/AUDITORIA-2026-10-08.md`). Hay otras tres sesiones trabajando a la vez en el backend.
 
-La carpeta `ses-ui` se borró en la limpieza. Créala de nuevo y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```powershell
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git worktree add .claude/worktrees/ses-ui -b ses-login-logo origin/PreProduccion
+git -C .claude/worktrees/ses-ui switch -C ses-auditoria-web origin/PreProduccion
 cd .claude/worktrees/ses-ui/web
 npm ci
 npm test
@@ -15,45 +15,43 @@ npm test
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-login-logo`**, creada desde `PreProduccion`. Tu ronda 10 ya está fusionada y T-56 está entregada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-auditoria-web`**, creada desde `PreProduccion`. Tu ronda 11 ya está fusionada.
 
-**Contexto:** dirección pide que la pantalla de inicio de sesión muestre el **logotipo completo de Qaracter**: la Q naranja con las letras «qaracter». Hoy solo muestra la Q (`QLogo`, en `web/src/screens/Login/LoginScreen.tsx`).
-- El logo sale del «Qaracter Design System», del que se hizo el lienzo.
-- Está copiado en `docs/diseno/marca/`:
-  - `logo-qaracter-oscuro.svg`: Q `#FF7932` y letras `#233441`, para fondo claro;
-  - `logo-qaracter-blanco.svg`: letras blancas, para fondo oscuro.
-- Los dos son SVG con trazados, sin scripts ni enlaces (comprobado).
-- Reglas del sistema de diseño: altura mínima de 24 px y margen libre de media Q alrededor.
+**Contexto:** lee el informe de la auditoría (sección «Frontend») y las filas **PA-459, PA-460 y PA-461** de `docs/KANBAN.md`. Lee también `web/HANDOFF.md`, `web/DESIGN-DECISIONS.md` y `docs/specs/UI.md`.
 
-Lee `web/README.md`, `web/DESIGN-DECISIONS.md`, `web/HANDOFF.md` y `docs/specs/UI.md`, y fíjate en el inicio de sesión.
+## Tareas, por prioridad (propón el plan antes de escribir código)
+1. **PA-461 · Tras un 403 por CSRF, la web se recupera.** Si se inicia sesión en otra pestaña, la primera se queda con el token antiguo y cada acción da «Sin permiso» sin salida (`web/src/api/client.ts:89`, `:107-111`; `web/src/session/SessionProvider.tsx:12-23`). Ante un 403 en un método que modifica, pide `/auth/me` **una vez**:
+   - si es el mismo usuario, actualiza el token y reintenta **solo** si la acción es segura de repetir;
+   - si no, avisa y vuelve al login.
 
-## Tarea: PA-444
-1. **Componente del logo completo** (por ejemplo `QaracterLogo`, junto a `components/QMark/`):
-   - pinta el SVG **dentro del propio código**, como hace `QLogo` con `Q_PATH`, y no lo carga desde un archivo externo ni desde una URL;
-   - reproduce el original tal cual: no redibujes ni aproximes los trazados;
-   - la Q usa `var(--color-primary)` si coincide con `#FF7932`; si no, el color del original;
-   - accesible: `role="img"` y `aria-label="Qaracter"`; o decorativo si al lado ya está el nombre.
-2. **En el login**, sustituye la Q sola por el logo completo encima del título:
-   - una altura que respete el mínimo y quepa a 1024 al 125 %;
-   - el resto de la pantalla se queda igual.
-3. **No toques** la Q del carril, de Inicio ni del asistente: se quedan con `QLogo`.
-4. **Documenta** en `UI.md` (pantalla de inicio de sesión) y en `DESIGN-DECISIONS.md` de dónde sale el logo.
+   No hagas bucles de reintento.
+2. **PA-460 · «Elegir en Jira» con estados de carga.** Distingue «cargando» de «vacío» en cada lista (proyectos, épicas, HU y búsqueda) y lleva **un error por cada carga** (`web/src/screens/ChooseInJira/ChooseInJira.tsx`). Hoy, mientras Jira responde, sale «Este proyecto no tiene épicas.».
+3. **PA-459 · La consulta de uso no mantiene viva la sesión.** `useUsage` (`web/src/hooks/useUsage.ts:28-29`) pide `/settings/usage` cada 60 s y renueva la sesión: la caducidad por inactividad no llega nunca. Páusala con la pestaña oculta (`visibilitychange`) y cuando no haya actividad del usuario durante, por ejemplo, 5 minutos. Solo web: el backend no se toca.
+4. **Arreglos pequeños** (todos bajos, en este orden; si no da tiempo, quedan como propuestas):
+   - `maxLength` en los buscadores según el contrato: 200 en «Elegir en Jira» y 100 en Memoria;
+   - «Volver al inicio» en la vista de error de Calidad con `not_found` o `forbidden` (`QualityScreen.tsx:139-149`);
+   - «Reintentar» de las fuentes en Origen vuelve a pedirlas (`sourcesReload`), con estado de carga mientras llegan (`OriginScreen.tsx:122-123`, `:344-346`, `:449`);
+   - `openError` se borra con «Nueva conversación», y su «Reintentar» vuelve a abrir la conversación (`AppShell.tsx:165-169`, `:187`);
+   - `openConversation` descarta respuestas que no son de la última conversación pedida (`AppShell.tsx:128-135`).
 
 ## Reglas
-- **Solo `web/` y su documentación.** No toques `web/src/api/**`, `api/`, `core/` ni `app/`, ni añadas dependencias.
-- **Pruebas (Vitest, deterministas):**
-  - el login muestra el logo con su nombre accesible «Qaracter»;
-  - la Q sola sigue en el carril;
-  - el SVG no lleva `<script>`, `<image>` ni `href` externos.
+- **Solo `web/` y su documentación.** No toques `web/src/api/types.ts` ni el esquema generado, `api/`, `core/` ni `app/`, ni añadas dependencias.
+- **Componentes compartidos que toques:** dilo en tu mensaje final con la lista exacta.
+- **Pruebas** (Vitest con MSW, deterministas, sin ampliar esperas): una por criterio, positivas y negativas. Incluye:
+  - el 403 que se recupera y el que vuelve al login;
+  - la carga frente al vacío y los errores independientes;
+  - la pausa de la consulta de uso con la pestaña oculta;
+  - y cada arreglo pequeño que hagas.
 - **Verificación:**
   - `npm run lint`, `npx tsc -b`, `npm test` (dos veces), `npm run build` y `npm run api:check`;
-  - Edge sin interfaz con un perfil nuevo, a 1280×800 y a 1024 al 125 %: haz una captura del login.
+  - Edge sin interfaz con un perfil nuevo para «Elegir en Jira» y Origen, en otro puerto.
+  - La web del usuario (5173) y la API (8000) están en uso: no las toques.
 - **No mates procesos.** Pídeselo también a los subagentes.
 - **Kanban:**
-  - cierra PA-444 con la fecha;
-  - fila en el registro;
-  - propuestas en **PA-448…PA-449**.
+  - cierra las PA hechas con la fecha;
+  - tu fila en el registro;
+  - propuestas nuevas en **PA-471…PA-473**.
 - **Antes del commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
-- **Sin fusionar.** Haz `git push -u origin ses-login-logo` y avísame, con las capturas.
+- **Sin fusionar.** Haz `git push -u origin ses-auditoria-web` y avísame.
 
 Empieza presentándome el plan antes de escribir código.

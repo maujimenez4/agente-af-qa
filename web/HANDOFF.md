@@ -1,129 +1,101 @@
-# Traspaso de T-56 (frontend React, área B) · 2026-10-07
+# Traspaso de T-56 · Frontend React (área B) · 2026-10-08
 
-**Estado:** T-56 🔄. En `PreProduccion`: el flujo de la HU, el de QA (QA 1 a QA 5), Cobertura (PA-326), Memoria, los dos nombres de los diffs (PA-341, #7), Administración y Revisar la calidad (sesión MCP), UI.md v2.0 (#8), PA-325/PA-312 (#9), `ses-web-fixes` (PA-332 a PA-336), la prueba de PA-332 (#14), PA-406 (#10), PA-335 (#11), PA-330 web (#13), Editar a mano parte B (#12), PA-127 (#15) y la ronda de `ses-web-pulido` (PA-427 a PA-431). **Bloque en curso: pulido final**, parte 1 en `t56-pulido` (#16) y parte 2 en `t56-pulido-2`.
-**PR abiertas:** [#17](https://github.com/maujimenez4/agente-af-qa/pull/17) `t56-pulido-2 → PreProduccion` (pulido final, parte 2: pasos 6 a 9). Fusionadas: de la #2 a la #16.
-**Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»). `gh` no está instalado: las PR, los issues y los comentarios se preparan, se copian al portapapeles y se pegan a mano.
-**Arrancar:** `cd web && npm ci && npm run dev:mock` (usuarios `af-demo`, `qa-demo` y `admin-demo`; contraseña ficticia `demo`, solo en MSW). Catálogo: `/?catalogo`.
-**Leer antes:** `DESIGN-DECISIONS.md`, `README.md` (incluye `?simular=`), `docs/api/README.md` («Novedades para el frontend») y las filas PA-300 en adelante del Kanban.
+**Estado:** T-56 ✅ (PR #2 a #17 en `PreProduccion`; este traspaso y PA-412, en la [#18](https://github.com/maujimenez4/agente-af-qa/pull/18), `t56-entrega`), con un pendiente de la principal: la prueba contra la API real del bloqueo por un CA sin caso (ver «Pendiente»).
+**Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»).
+**Siguiente paso del proyecto:** T-57, el punto de control en el que se decide si la demo se hace con React (`web/`) o con Streamlit (`app/`, plan B). El guion está en [DEMO.md](DEMO.md).
 
-## Novedades de la principal (2026-10-08)
-- **La #16 está fusionada** (pulido final, parte 1). La PR 2 sale de `t56-pulido-2`, al día con `PreProduccion` (`06abb2e`).
-- **El bloqueo de PA-426 llega como rechazo de revisión, no como error HTTP:** el motivo en «No se aprobó» es «Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.». Es el caso que la web ya pinta tal cual (`review.error`).
-- **La prueba del CA sin caso contra la API real la hará la principal** después del cambio de modelo y pasará el resultado. **Hasta entonces, la variante B de [DEMO.md](DEMO.md) no enseña el bloqueo** (solo la variante A, con `?simular=sin-cubrir`).
-- **PA-345** (ejemplo `task: functional` del contrato) la toma la principal.
+Este documento está pensado para alguien que no ha seguido el proyecto. El detalle de cada pantalla está en [UI.md v2.1](../docs/specs/UI.md) y el porqué de cada decisión, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md).
 
-## Novedades de la principal (2026-10-07, noche)
-- **PA-426 en `PreProduccion`** (sesión Modelos, `ses-qa-cobertura`): **el backend bloquea la aprobación de una suite con un CA sin caso** y devuelve `review.error` «Falta al menos un caso para CA-02: pídeselo al agente antes de aprobar.» (no cuenta para el tope de rechazos; tiene su propio tope de 50). **Al generar**, si lo único que falla es que faltan CA, hace un **reintento dirigido** solo con esos CA (`prompts/tests_missing.md`); si aun así falta alguno, la suite pasa a revisión con `uncovered` en lugar de `coverage_failed`. Las RN siguen sin bloquear. El contrato no cambia. Es lo que la web ya pinta (recibo e Iterar).
-- **Falta confirmarlo contra la API real:** pedido a la principal en la #16 (aviso en Iterar, sugerencia, *Aprobar y publicar* desactivado y `review.error` si se intenta). Con su resultado, actualizar la variante B de [DEMO.md](DEMO.md).
-- **También en `PreProduccion`:** PA-432 (la misma HU de Jira sale igual cada vez: estructura compartida, temperatura 0 y CA/RN literales) y PA-440 (ventana del modelo local a 10.240 tokens).
-- **La #16 está al día con `PreProduccion`** (`130410a`, conflicto del registro diario resuelto conservando las dos partes) y `t56-pulido-2` la trae.
+## 1. Qué se entrega
+Una web en React (Vite, React 19, TypeScript) con el aspecto del lienzo «Propuesta mixta», que sustituye a Streamlit como interfaz del agente (D-04 revisada). Habla **solo** con la API HTTP de T-55 (`docs/api/openapi.yaml`); nunca con Jira ni con el LLM.
 
-## Novedades de la principal (2026-10-07, tarde)
-- **Ronda de la sesión UI (`ses-web-pulido`) en `PreProduccion`:**
-  - PA-427: la Q se anima en Revisar la calidad;
-  - PA-428: extractos de las fuentes con formato (`MarkdownBlocks`, sin «»);
-  - PA-429: el chat empieza abajo y solo baja solo si la persona seguía el final (`useStickToBottom` en `Workspace`);
-  - PA-430: «Generando una nueva versión…» al iterar;
-  - PA-431: «Disponible pronto» en Documentos y en Usuarios y roles de Ajustes.
+### Pantallas y flujos
+| Zona | Quién la ve | Qué hace |
+|---|---|---|
+| **Inicio de sesión** | todos | Usuario y contraseña contra `POST /auth/login`, con los errores `invalid_credentials` y `too_many_attempts` (cuenta atrás) |
+| **Flujo de la HU** (analista funcional) | `functional` (usuario `af-demo`) | Inicio → Elegir en Jira → **Origen y fuentes** (presupuesto de tokens, excluir documentos) → **Generando** (la Q avanza por pasos; *Detener*) → **Iterar** (chat; pestañas Propuesta, Cambios, Impacto y Fuentes; selector de versiones con la versión «Jira»; *Editar a mano*) → **Recibo** (casillas por operación y la huella exacta) → **Resultado** (simulado, publicado o publicado en parte; *Abrir la clave en Jira*, *Ver la memoria*) |
+| **Flujo de QA** | `qa` | QA escribe la clave de la HU → QA 1 Origen (tipos de caso) → QA 2 Generando → QA 3 Iterar la suite (Casos, **Cobertura**, Datos y riesgos, Estrategia; *Descargar la matriz*) → QA 4 Recibo (`publish_suite`) → QA 5 Resultado. **Un CA sin caso bloquea la aprobación**; una RN sin caso solo avisa |
+| **Revisar la calidad** | `functional` (a `qa` le sale desactivada) | Revisión de solo lectura de una HU de Jira |
+| **Memoria** | todos | Lista de memorias por proyecto, con búsqueda, y su detalle por secciones con *Descargar la memoria* |
+| **Ajustes · Administración** | `admin` | *Probar conexiones*, los modelos configurados por tarea (solo lectura) y el modo de publicación; Documentos y Usuarios y roles, «disponible pronto» |
+| **Piezas comunes** | — | Carril por rol con el anillo de consumo total del día, lista de conversaciones, la Q animada, estados vacío, cargando y error (título por `error.code`) |
 
-  Tocó `components/Markdown/`, `Proposal/ProposalViews.tsx`, `Workspace/` (con `useStickToBottom.ts`), `Chat/Chat.tsx`, `States/LoadingState.tsx` y `QMark/LoadingQ.tsx`.
-- **PA-435 decidida:** la regla del backend se mantiene (no hay nota sin cambio); la web lo explica junto a *Guardar*.
-- **Un CA sin caso bloquea la aprobación de la suite** (una RN sin caso sigue avisando sin bloquear). El backend lo hace otra sesión y el contrato no cambia. **Web hecha** en `t56-pulido` (aviso «Falta un caso para CA-03» y *Aprobar y publicar* desactivado en el recibo; `?simular=sin-cubrir`). **Pendiente: comprobarlo contra la API real cuando la principal avise** (que el rechazo llega en `review.error` y se ve tal cual). **Cuando lo confirme, actualizar `web/DEMO.md`** para enseñar también el bloqueo por un CA sin caso en la variante B (API real); hoy solo se enseña con la API simulada (§3).
-- **Pulido final** en `t56-pulido`, desde `origin/PreProduccion` (`6c15438`). Al empezar: Vitest 2404/2404, lint, build y `api:check` en verde. A `origin/t56-editar` solo le quedaba sin fusionar un commit del HANDOFF ya desfasado (`498e9c5`): se borra al cerrar el pulido.
+Todo se maneja con el teclado, respeta «reducir movimiento» y se ha revisado a 1024, 1280 y 1440 px al 100, 125 y 150 % (axe, WCAG 2.1 A/AA).
 
-## Novedades de la principal (2026-10-07)
-- **Fusionadas juntas** la #14, la #10, la #11 y la #13, en ese orden. Con las cuatro: lint, `tsc` y `api:check` limpios, y Vitest 2191/2192.
-- **PR #12** (`t56-editar`) chocaba en `web/HANDOFF.md` y `docs/KANBAN.md`: hecho el `git merge` de `PreProduccion` conservando ambos lados, Vitest 2375/2375 y push.
-- **`ResultScreen.pa325.test.tsx`** (de la #9) era la única que fallaba con todo junto, y a veces en `PreProduccion` (`test_simulated_story_has_no_keys_nor_links` y `test_published_suite_subtasks_are_text_when_browse_url_null`); sola pasaba siempre. Hay que hacerla determinista: entra en **PA-127**.
-- **Causa encontrada (PA-127):** con MSW 3 algunas peticiones se saltan la interceptación y salen a la red real (`fetch failed`); si le toca a `/auth/me`, la prueba arranca en el login. No es lentitud. Arreglo y plan en `t56-pruebas` (aviso en el issue #5 antes de tocar `package.json` y el setup de las pruebas).
+## 2. Cómo arrancarlo
+Requisito: **Node.js 22.12 o superior**.
 
-## Novedades de la principal (2026-10-06)
-- **PA-331 hecha en la API:** iterar una suite aplica el cambio pedido y conserva los IDs de los casos que no cambian.
-- **PA-330:** la parte de la API está en `PreProduccion` (`SourcePreview.tokens`, `budget.fixed` y `budget.total`; tipos regenerados en `c397c8a`). **La parte web es nuestra** y depende del `signal` de `api.sources` que trae `ses-web-fixes` (PA-336). El número que pinte la web es una **estimación**: al excluir un documento, el RAG rellena su hueco con otro, así que manda la confirmación del servidor (`POST /start/sources`).
-- **Guion de la demo:** con `qwen3:1.7b` las RN saldrán **sin caso** (el modelo no rellena `rule_ids`, PA-122). UI.md §6.3 (`t56-uimd`) ya dice que una RN sin caso se avisa en Cobertura pero no bloquea la aprobación.
+### Con la API simulada (sin Python ni Docker)
+```bash
+cd web
+npm ci
+npm run dev:mock     # http://localhost:5173
+```
+- Usuarios `af-demo`, `qa-demo` y `admin-demo`, con la contraseña ficticia `demo` (solo existe en la API simulada, MSW).
+- Casos que la pantalla no provoca sola: `?simular=…` en la URL (lista en [README.md](README.md)). Por ejemplo, `?simular=sin-cubrir` enseña el bloqueo por un CA sin caso y `?simular=publicado` simula una publicación correcta (fase 4) sin escribir en ningún Jira.
+- Catálogo del sistema de diseño: `http://localhost:5173/?catalogo`.
+- Usa un perfil nuevo o InPrivate: un perfil que ya abrió la API simulada conserva su Service Worker y, contra la API real, da «Error inesperado».
 
-## Pulido final (2026-10-07)
-- **PR 1 · [#16](https://github.com/maujimenez4/agente-af-qa/pull/16)** (`t56-pulido`, pasos 1 a 5): PA-344 y PA-435 (Editar a mano), un CA sin caso bloquea la aprobación de la suite (recibo e Iterar, con `?simular=sin-cubrir` y el recorrido completo en la API simulada), PA-131, la revisión general (accesibilidad y tamaños), el anillo «consumo total», PA-346 y UI.md v2.1. spec-checker CONFORME y security-reviewer APTO.
-- **PR 2** (`t56-pulido-2`, sale de `t56-pulido`; se abrirá cuando se fusione la #16, tras traer `origin/PreProduccion`): PA-343, PA-342, PA-347, PA-304 (propuesta en `docs/diseno/CORRECCIONES-LIENZO.md`), el título provisional (se queda), la API simulada con huellas de 64 hexadecimales (editar tras iterar daba 422), el guion de la demo ([DEMO.md](DEMO.md)), este HANDOFF y el README.
-- **Componentes compartidos tocados** (avisados en la descripción de la #16): `ChatLog` (`role="log"` en un contenedor), `SidePanel` (`bodyLabel`), la clave de la lista de conversaciones, `.id` de Proposal, Markdown, el anillo del carril; en la PR 2, además, `Button` (acepta `ref`), `useLayer` (`inertBehind`), `Workspace` y la lista de conversaciones (`inert` bajo el velo).
-- **Pendiente de la principal:** confirmar el bloqueo por un CA sin caso contra la API real tras el cambio de modelo (y entonces actualizar DEMO.md, variante B) y PA-345 (ejemplo `task: functional` del contrato), que ha tomado ella.
-- **PA-310** sigue bloqueada: `eslint-plugin-jsx-a11y` 6.10.2 solo admite ESLint hasta la 9 (comprobado el 2026-10-07).
+### Con la API real
+En la raíz del repo, con el backend montado (`README.md` de la raíz y `docs/api/README.md`):
+```powershell
+uv run python -m core.seed_users   # solo si aún no existen af-demo, qa-demo y admin-demo: genera contraseñas aleatorias, las muestra una sola vez y, si se vuelve a ejecutar, las cambia (`demo` solo sirve en la API simulada)
+uv run python -m api               # http://127.0.0.1:8000/api/v1
+```
+En otra terminal:
+```powershell
+cd web
+npm ci
+npm run dev                        # http://localhost:5173, proxy de /api a 127.0.0.1:8000
+```
+Abre `http://localhost:5173` (no `127.0.0.1`: la cookie de sesión es `Secure`). Recorrido completo y lista de comprobación: [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md).
 
-## T-57: punto de control
-**Propuesta, pendiente del punto de control.** La decisión entre React y Streamlit la toma el responsable cuando el flujo de QA funcione contra la API real. Mientras, se sigue con React y Streamlit (`app/`) se mantiene como plan B. El guion de la demo está en [DEMO.md](DEMO.md).
+### Antes de cada cambio
+`npm run lint`, `npm test`, `npm run build` y `npm run api:check` sin errores. El build de producción no incluye la API simulada, el catálogo ni `?simular=`.
 
-## Hecho
-- **Flujo de la HU contra MSW:** login, Inicio, Elegir en Jira, Origen (presupuesto de tokens y conversación de la ronda 8), Generando e Iterar (versión «Jira», *Detener* y *Reintentar*), Recibo con la huella exacta y Resultado simulado, publicado o en parte; *Abrir <clave> en Jira* (PA-318).
-- **Flujo de QA por roles** (`DESIGN-DECISIONS.md` §4 bis): QA escribe la clave de la HU.
-  - QA 1 · Origen (tipos de caso, «Incluir además» plegado);
-  - QA 2 · Generando;
-  - QA 3 · Iterar la suite (Casos, Cobertura, Datos y riesgos, Estrategia);
-  - QA 4 · Recibo (una casilla: `publish_suite`);
-  - QA 5 · Resultado (simulado, publicado o en parte en `approved`).
-- **Flujo unido HU → QA** fuera de la entrega: `QA_HANDOFF_ENABLED = false` (`src/app/features.ts`). El cliente, el MSW y los componentes se conservan con sus pruebas.
-- **Suite sintética del MSW** (`src/mocks/qaSuite.ts`) mientras el contrato no traiga una revisión de QA (PA-326) ni las etiquetas de los pasos por modo (PA-327). La Q de carga y la lista de pasos funcionan con 4 o 5 pasos.
-- **Compositor:** Intro envía, Mayús+Intro hace un salto de línea.
-- **Contrato:** `src/api/client.contract.ts` hace fallar `tsc` si un método del cliente no devuelve exactamente la respuesta de su ruta.
-- **Seguridad:** `safeHref` y su regla de ESLint (PA-308).
-- **Tamaños:** 1024×768, 1280×800 y 1440×900 sin scroll de página ni títulos cortados; lista de conversaciones larga con scroll interno.
-- **Pruebas:** no dependen del reloj (SSE de prueba abierto, sondeo disparado por la prueba) y Vitest usa la mitad de los núcleos.
-- **Editar a mano** de la HU (PA-340 pendiente de validar por la principal), **Revisar la calidad**, **Memoria** y **Administración**, fusionados.
-- **Ventanas estrechas** (PA-335) y **accesibilidad** revisadas en el pulido final a 1024, 1280 y 1440 px al 100, 125 y 150 % (axe WCAG 2.1 A/AA).
-- **Disponible pronto:** *Editar a mano* de la suite de QA, auditoría, historial, documentos y usuarios en Ajustes, *Registrar la ejecución* (QA 6) y *Pedir sus pruebas a QA*.
+## 3. Decisiones clave
+El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../docs/specs/UI.md).
+- **Solo el contrato de T-55.** Los tipos se generan desde `docs/api/openapi.yaml` (`npm run api:types`) y `src/api/client.contract.ts` hace fallar `tsc` si el cliente se aparta de una ruta.
+- **Aprobación humana:** para aprobar se devuelve exactamente la `fingerprint` de la última revisión; el recibo muestra solo las operaciones del plan que trae la API. Una publicación simulada gasta la aprobación (PA-41): el Resultado lo dice y pide empezar de nuevo desde la misma HU con el modo real (PA-412, versión explícita mientras siga pendiente PA-410).
+- **Seguridad en el navegador:** el texto de la API se pinta como texto (nunca HTML); todo enlace pasa por `safeHref`; ESLint prohíbe el almacenamiento del navegador y las URL sin validar; la sesión vive en una cookie HttpOnly.
+- **Roles:** cada rol completa su flujo (D-01). El administrador entra en Ajustes y Memoria: configura, pero no genera ni publica; las tarjetas que un rol no puede usar salen desactivadas. QA empieza escribiendo la clave de la HU. Historial, solo para admin (y «disponible pronto»).
+- **Cobertura de la suite:** `uncovered: null` es «no se sabe»; un CA sin caso bloquea la aprobación y una RN sin caso solo avisa.
+- **Sin tiempos ni proveedores inventados:** se muestra el modelo de `Artifact.model_used` y ningún tiempo fijo.
+- **Diferencias con el lienzo** (foco accesible, la Q con reducir movimiento, la suite publicada en parte en fase 4…): propuesta para corregir el lienzo en `docs/diseno/CORRECCIONES-LIENZO.md` (PA-304).
 
-## API real
-**Hecha** por la sesión MCP (rama `ses-web`) el 2026-10-05 y 06: la web funciona contra la API real de punta a punta (HU, QA y Memoria). Informe y hallazgos en `docs/pruebas/WEB-API-2026-10-05.md` (PA-330 a PA-339). La guía sigue en [PRUEBA-API-REAL.md](PRUEBA-API-REAL.md). En este equipo no se monta el backend.
+## 4. Quién hizo cada parte
+- **Área B (responsable de `web/`):** el proyecto `web/` y el sistema de diseño; el flujo de la HU y el de QA (QA 1 a QA 5) con Cobertura; Memoria; *Editar a mano* de la HU; la API simulada; UI.md v2.0 y v2.1; el pulido final (accesibilidad, tamaños, PA-131, PA-342 a PA-344, PA-346, PA-347, PA-412 y PA-435), el guion de la demo y este traspaso.
+- **Sesión MCP** (`ses-web`, `ses-web-admin`): la prueba de la web contra la API real de punta a punta (`docs/pruebas/WEB-API-2026-10-05.md`, hallazgos PA-330 a PA-339), Administración (PA-241) y Revisar la calidad.
+- **Sesión UI** (`ses-web-fixes` y `ses-web-pulido`): los arreglos PA-332 a PA-336, hallados en la prueba contra la API real, y PA-427 a PA-431 (la Q en Revisar la calidad, extractos con formato, el chat pegado al final, «Generando una nueva versión…» y «Disponible pronto» en Ajustes).
+- **Sesión Modelos** (`ses-qa-cobertura`): PA-426 en el backend (el bloqueo de la aprobación por un CA sin caso y el reintento dirigido al generar).
+- **Principal:** la API y el contrato de T-55, las PA del contrato que pidió la web y las fusiones en `PreProduccion`.
 
-## Sistema de entregas (confirmado por la principal, 2026-10-05)
-- **Cada bloque nuevo sale de `origin/PreProduccion` en su propia rama** (desde el 2026-10-06; ya no se encadenan ramas). **No se añade trabajo nuevo a una rama con PR en revisión**; sí se puede traer `origin/PreProduccion` a esa rama (`git merge`) para resolver conflictos y subirlo (aclaración del responsable, 2026-10-07).
-- **Una PR pequeña por bloque terminado**, `<rama del bloque> → PreProduccion`. **Antes de abrirla**, todo en verde:
-  - test-writer, spec-checker (CONFORME) y security-reviewer (APTO);
-  - Vitest (la suite completa, sin otras sesiones cargando el equipo), lint, build y `npm run api:check`.
-- **Al cerrar cada bloque:** push y se prepara la PR (se abre la página en el navegador y la descripción va al portapapeles).
-- **Lo que no sea de una entrega va al issue #5:** fallos de la prueba con la API real, preguntas sobre PA y avisos de componentes compartidos.
-- **Al leer comentarios con la API de GitHub**, revisar el issue #5 y la última PR.
+## 5. PA abiertas
+| PA | De quién | Estado |
+|---|---|---|
+| **PA-310** | Área B | Pasar a ESLint 10. Bloqueada: `eslint-plugin-jsx-a11y` 6.10.2 (la última) solo admite hasta ESLint 9 (comprobado el 2026-10-07). Solo afecta al desarrollo; sin vulnerabilidades |
+| **PA-304** | Área B | Correcciones del lienzo «Propuesta mixta»: la propuesta está en `docs/diseno/CORRECCIONES-LIENZO.md` (9 correcciones); falta aplicarla en el artefacto del lienzo y volver a copiarlo a `docs/diseno/lienzo/` |
+| **PA-130** | Área B | Una revisión de calidad lanzada desde Inicio no se marca como abierta hasta abrirla desde la lista: si la sesión caduca entonces, al volver se va a Inicio (la revisión sigue en la lista). Arreglo: `onCreated(id)` en `QualityScreen` y `setCurrentId` en `WorkZone` |
+| **PA-129** | Área B | `src/test/watchdog.ts`: si fallara un `findBy*` de `ReceiptPublishing.pa333.test.tsx`, la prueba se colgaría hasta el límite de Vitest en lugar de fallar a los 3 s |
+| **PA-403** | Área B | Decidir si Revisar la calidad ofrece las fuentes con casillas antes de empezar (hoy envía `excluded_sources: []`) |
+| **PA-410** | Principal | Volver a revisar y aprobar la misma conversación tras una simulación (hoy da 409 `not_in_review`). Cuando exista, la web cambia la nota del Resultado simulado al literal de PA-412 (ver la nota en la fila de PA-410 del Kanban) |
+| **PA-345** | Principal | El ejemplo de `GET /admin/models` usa `task: functional`, que no es un `TaskType`; con la API simulada, Ajustes lo muestra en inglés. Con la API real no pasa |
+| **PA-340** | Principal | Validar el diseño de *Editar a mano* y decidir si la suite de QA se edita a mano (hoy, fuera de la entrega) |
 
-## Ramas
-- **Ya no hay cadena de ramas** ni bloqueos de otras sesiones en `web/`: `ses-web-fixes`, `ses-web-admin`, `ses-web-pulido` y las ramas `t56-*` anteriores están fusionadas. Cada bloque nuevo: `git switch -c <rama> origin/PreProduccion` (salvo la PR 2 del pulido, que sale de `t56-pulido`).
-- **Limpieza (2026-10-07 y 08):** borradas en local y en `origin` las ramas del responsable ya fusionadas en `PreProduccion` (la lista, en el registro diario del Kanban), también `t56-anchos` y su *worktree* de una sesión anterior. Solo quedan `t56-pulido` (fusionada, #16) y `t56-pulido-2` (#17).
+## 6. Pendiente
+1. **La principal** probará contra la API real, tras el cambio de modelo, una suite con un CA sin caso: aviso en Iterar, *Aprobar y publicar* desactivado en el recibo y, si se intenta aprobar, el rechazo en «No se aprobó» con `review.error` («Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.»). La web ya lo pinta así con la API simulada (`?simular=sin-cubrir`).
+2. **Después**, actualizar la variante B (API real) de [DEMO.md](DEMO.md) para enseñar también ese bloqueo; hoy solo lo enseña la variante A (API simulada).
 
-## Reglas de trabajo
-- **Responder siempre en español** (también los resúmenes, los informes y lo que se prepara para GitHub).
-- `git merge origin/PreProduccion` (nunca rebase ni `main`). **Push al terminar cada paso** en verde.
-- Commits `T-56: … [RNF-15]`. Parada para revisión visual en cada pantalla; revisiones al cerrar cada bloque. Kanban: solo mis filas y el registro diario. No tocar `app/`.
-- Cada PR, issue o comentario se enseña antes y se copia al portapapeles (UTF-8).
-- Verificación visual: Edge sin interfaz con CDP (scripts fuera del repo). Usa siempre un **perfil nuevo**: uno viejo conserva el Service Worker de MSW y da «Error inesperado».
+## 7. Fuera de la entrega
+Se ven como «disponible pronto» o no se muestran; el código que ya existe se conserva con sus pruebas.
+- **Flujo unido HU → QA** (*Pedir sus pruebas a QA*, «Pendientes de pruebas», *Recoger*): `QA_HANDOFF_ENABLED = false` en `src/app/features.ts`.
+- **QA 6**, registrar la ejecución de los casos, y *Reintentar solo los fallidos* (PA-05).
+- **Editar la suite de QA a mano** (pendiente de PA-340).
+- **Historial y auditoría.**
+- **Selector de modelo** por petición (UI.md §11).
+- También: Documentos y Usuarios y roles en Ajustes, las citas por CA y RN (PA-315, aplazada), la conversación libre con el LLM (PA-43) y los defectos vinculados (RF-29), estos dos para la v2.
 
-## Coordinación con otras sesiones (2026-10-05)
-- **Antes de tocar un componente compartido**, avisar a la persona responsable para que avise a la principal: `Composer`, `AppShell`, el panel y la cabecera (`Workspace`), los estados (`States`), la lista de conversaciones, los botones, y las pantallas que comparten la HU y QA (Inicio, Origen, Generando, Iterar, Recibo y Resultado).
-- **`web/src/api/`** (`client.ts`, `types.ts`, `client.contract.ts`): avisar antes de tocarlo (al responsable y en el issue #5). En el pulido final no se ha tocado.
-
-## Bloque «contrato de QA en la web» (fusionado en `PreProduccion`)
-- **PA-326 en Cobertura:** `uncovered` con `null` (o sin el campo) = «no se sabe»: sin distintivo, sin «Todos los CA cubiertos» y sin «cobertura validada». Listas vacías = «Todos los CA cubiertos». Con elementos = «1 CA y 1 RN sin caso», el aviso «Sin ningún caso: …» y filas «· Sin caso». Solo para la versión en revisión. Detalle en `DESIGN-DECISIONS.md` (QA 3).
-- **`coverage_md`:** botón *Descargar la matriz* (`matriz-<CLAVE>.md`); con `null`, no aparece. **Pieza reutilizable para Memoria:** `DownloadButton` (`src/components/Download/`) sobre `downloadText` (`src/security/download.ts`, nombres solo ASCII). ESLint prohíbe `createObjectURL` y asignar `href` fuera de ese archivo.
-- **PA-118:** `generate.mjs` copia `components.examples` a `examples.json` (`components.examples.<Nombre>`). El MSW usa `ConversationQaInReview` y los 4 pasos de QA; `qaSuite.ts` solo simula otra clave, iterar y publicar.
-- **`mockBaseline` fuera:** la versión «Jira» es la del ejemplo (CA-01, sin CA-02).
-- **PA-328:** recuentos con `countLabel` (`src/text/plural.ts`), también «1 fuente» en el modo HU de Iterar (cambio menor, en la descripción de la PR).
-- `?simular=sin-cubrir` y `?simular=cobertura-desconocida` en `web/README.md`.
-- **Issue #5:** avisado el cambio de `examples.json`.
-- Sin PR propia: entró con la fusión de `ses-web`.
-
-## Bloque Memoria (fusionado en `PreProduccion`)
-- **Zona Memoria** en el carril para los tres roles (icono nuevo; admin sigue entrando en Ajustes). Lista con proyecto, búsqueda (300 ms) y `limit=200`, sin «Mostrar más»; detalle por secciones como texto, en el orden del `.md`, con *Descargar la memoria* (`DownloadButton`) e «Indexada»/«No indexada». Trabajo sigue montado (oculto) mientras se mira Memoria.
-- **Cliente** (`web/src/api/`, solo añadiendo, commits aparte y avisado en el issue #5): `api.memories`, `api.memory` (rechaza «.» y «..»), `MemorySummary`, `MemoryOut`.
-- ***Ver la memoria*** en el Resultado de la HU publicada (o en parte) abre Memoria con la clave; un 404 sale como su tarjeta de error.
-- **MSW:** ejemplos del contrato (DEMO-9001 y DEMO-9002); publicar una HU deja su memoria indexada; `?simular=memoria-no-encontrada` (404) y `?simular=sin-memorias`.
-- **PA-329** (diseño de Memoria): validado por la principal el 2026-10-06 (UI.md §4.9). Quedaban dos notas para ella (el «se ha generado e indexado» del Resultado frente a `indexed: false`, y `docs/api/README.md` que aún cita Memoria como pendiente).
-- Detalle en `DESIGN-DECISIONS.md` (§4 bis, Memoria).
-
-## PA abiertas
-- **Del área B:** PA-304 (aplicar en el lienzo la propuesta de `docs/diseno/CORRECCIONES-LIENZO.md`) y PA-310 (ESLint 10, bloqueada).
-- **De la principal:** PA-340 (validar el diseño de Editar a mano y decidir si la suite de QA se edita a mano), PA-345 (ejemplo del contrato) y la prueba del CA sin caso contra la API real.
-- **Cerradas en el pulido final:** PA-131, PA-342, PA-343, PA-344, PA-346, PA-347 y PA-435.
-
-## Siguiente
-1. Revisión y fusión de la #17 (`t56-pulido-2`).
-2. Cuando la principal confirme el bloqueo por un CA sin caso contra la API real: comprobarlo en la web (el rechazo llega en `review.error`) y actualizar DEMO.md (variante B).
-3. T-57: la decisión entre React y Streamlit, con la demo (DEMO.md).
-
-Antes de cada PR: test-writer, spec-checker (CONFORME) y security-reviewer (APTO), y Vitest, lint, build y `api:check` en verde. No empezar ningún bloque sin la confirmación del responsable.
+## 8. Reglas para quien siga
+- Cada bloque sale de `origin/PreProduccion` en su propia rama y entra con una PR pequeña a `PreProduccion`, con test-writer, spec-checker (CONFORME), security-reviewer (APTO), Vitest completo, lint, build y `api:check` en verde.
+- Commits `T-XX: … [RNF-15]`. No se toca `app/` ni, sin avisar en el issue #5, `web/src/api/` o los componentes compartidos.
+- En mocks y pruebas, solo datos sintéticos; ningún secreto en `web/`.

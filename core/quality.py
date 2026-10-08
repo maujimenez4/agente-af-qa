@@ -215,7 +215,14 @@ class QualityReviewer:
                     "El informe cita fuentes que no están en el contexto recibido. "
                     "Vuelve a revisar la HU o revisa las fuentes disponibles."
                 )
-            if report_errors(report, story, sources):
+            if remaining := report_errors(report, story, sources):
+                # PA-445: solo los IDs rechazados (textos fijos), nunca el informe ni el prompt.
+                log.warning(
+                    "informe de calidad con IDs que no existen en la HU",
+                    action="review_quality",
+                    model=result.model,
+                    errors=remaining,
+                )
                 raise QualityReviewError(
                     "El informe de calidad señala criterios o reglas que no existen en la HU. "
                     "Vuelve a revisarla."
@@ -225,6 +232,8 @@ class QualityReviewer:
 
 
 _TRACE_ID = re.compile(r"\b(?:CA|RN)-\d+\b")  # IDs citados en el texto libre (PA-222)
+# PA-445: una propuesta puede añadir criterios o reglas nuevos, numerados tras el último de la HU.
+MAX_NEW_IDS = 5
 
 
 def report_errors(report: QualityReport, story: UserStory, sources: list) -> list[str]:
@@ -235,12 +244,34 @@ def report_errors(report: QualityReport, story: UserStory, sources: list) -> lis
         if finding.target_id and finding.target_id not in ids:
             errors.append(f"«{finding.target_id}» no es un criterio ni una regla de la HU")
     # PA-222: los CA y RN citados en el texto libre también deben existir en la HU.
-    texts = [report.summary, *report.open_questions]
-    texts += [t for f in report.findings for t in (f.explanation, f.proposal)]
-    cited = dict.fromkeys(m.group(0) for text in texts for m in _TRACE_ID.finditer(text))
-    unknown = [i for i in cited if i not in ids]
+    strict = [report.summary, *(f.explanation for f in report.findings)]
+    # PA-445: en las propuestas y las preguntas, además, los siguientes números libres (un CA o
+    # una RN que se propone añadir); un ID lejano (CA-99) sigue siendo un error.
+    proposals = [*report.open_questions, *(f.proposal for f in report.findings)]
+    new_ids = _next_free_ids(story)
+    unknown = _cited(strict, ids) + [i for i in _cited(proposals, ids) if i not in new_ids]
+    unknown = list(dict.fromkeys(unknown))
     errors += [f"«{i}» se cita en el informe pero no existe en la HU" for i in unknown]
     return errors
+
+
+def _cited(texts: list[str], ids: set[str]) -> list[str]:
+    """IDs de CA y RN citados en los textos que no están en `ids`, sin repetir y en orden."""
+    found = dict.fromkeys(m.group(0) for text in texts for m in _TRACE_ID.finditer(text))
+    return [i for i in found if i not in ids]
+
+
+def _next_free_ids(story: UserStory) -> set[str]:
+    """PA-445: los `MAX_NEW_IDS` siguientes CA y RN libres tras el último de la HU (CA-07…)."""
+    free: set[str] = set()
+    for prefix, items in (
+        ("CA", [c.id for c in story.acceptance_criteria]),
+        ("RN", [r.id for r in story.business_rules]),
+    ):
+        last = max((int(i.split("-")[1]) for i in items if _TRACE_ID.fullmatch(i)), default=0)
+        for number in range(last + 1, last + 1 + MAX_NEW_IDS):
+            free |= {f"{prefix}-{number:02d}", f"{prefix}-{number}"}
+    return free
 
 
 def _ids_text(story: UserStory) -> str:

@@ -1,5 +1,5 @@
 ---
-version: 2
+version: 3
 task: review_quality
 ---
 
@@ -24,7 +24,7 @@ Eres analista funcional sénior y revisor de calidad. **Revisas la calidad de un
 
 - `summary`: dos o tres frases con el estado general y cuántos puntos hay que mejorar.
 - `invest`: exactamente seis valoraciones, una por letra, sin repetir.
-- `findings`: un hallazgo por problema, con `kind`, `target_id` (el `CA-XX` o `RN-XX` afectado tal como aparece en la HU; vacío si afecta a la HU entera), `explanation` y `proposal`, que es una mejora concreta y verificable. **Solo puedes usar IDs que existan en la HU.**
+- `findings`: un hallazgo por problema, con `kind`, `target_id` (el `CA-XX` o `RN-XX` afectado tal como aparece en la HU; vacío si afecta a la HU entera), `explanation` y `proposal`, que es una mejora concreta y verificable. **En `target_id`, en `summary` y en `explanation` solo puedes usar IDs que existan en la HU.** Si en `proposal` (o en una pregunta abierta) propones un criterio o una regla **nuevos**, numéralos a continuación del último de la HU (p. ej., `CA-07` si el último es `CA-06`; `RN-06` si la última es `RN-05`), como mucho cinco nuevos de cada tipo.
 - `open_questions`: lo que no puedes resolver con el contexto, formulado como preguntas para negocio. No inventes respuestas.
 
 ## Citas (obligatorias)

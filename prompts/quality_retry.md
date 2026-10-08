@@ -1,5 +1,5 @@
 ---
-version: 2
+version: 3
 task: quality_retry
 ---
 
@@ -19,4 +19,4 @@ Las únicas fuentes que puedes citar son (tipo y ref):
 {allowed}
 </fuentes_permitidas>
 
-Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra), hallazgos solo con IDs de la lista y citas solo de la lista de fuentes (al menos una si la lista no está vacía).
+Devuelve de nuevo el informe completo corregido: seis valoraciones INVEST (una por letra), `target_id`, `summary` y `explanation` solo con IDs de la lista, y citas solo de la lista de fuentes (al menos una si la lista no está vacía). En `proposal` y en las preguntas abiertas puedes proponer criterios o reglas nuevos numerados a continuación del último de la lista (como mucho cinco de cada tipo); no cites ningún otro ID que no esté en ella.

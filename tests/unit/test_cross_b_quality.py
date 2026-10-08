@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel
+from structlog.testing import capture_logs
 
 from adapters.base import IssueDetail, Message, StructuredResult, TaskType
 from adapters.errors import AgentError, ExternalServiceError, RateLimitError
@@ -383,3 +384,99 @@ def test_evolve_feedback_ignores_explanation() -> None:
     )
 
     assert _review_with(report).evolve_feedback() == ["RN-01: Propuesta ficticia sin referencias."]
+
+
+# --- PA-445 · Propuestas con criterios o reglas nuevos ------------------------------------------
+# La HU de DEMO-3 tiene CA-01, CA-02, RN-01 y RN-02: los siguientes libres son CA-03… y RN-03….
+
+
+@pytest.mark.parametrize("new_id", ["CA-03", "CA-07", "RN-03", "RN-7"])
+def test_report_errors_accepts_next_free_id_in_proposal(new_id: str) -> None:
+    """PA-445 (positiva): proponer un CA o una RN nuevos, numerados tras el último, no es error."""
+    report = _origin_cited(
+        findings=[_finding(proposal=f"Añadir {new_id} con el plazo (ficticio).")]
+    )
+
+    assert report_errors(report, dataset.renewal_story(), _sources()) == []
+
+
+def test_report_errors_accepts_next_free_id_in_open_question() -> None:
+    """PA-445 (positiva): una pregunta abierta puede plantear un criterio nuevo (CA-03)."""
+    report = _origin_cited(
+        open_questions=["¿Hace falta un CA-03 para el carné caducado? (ficticio)"]
+    )
+
+    assert report_errors(report, dataset.renewal_story(), _sources()) == []
+
+
+@pytest.mark.parametrize("field_name", ["explanation", "summary"])
+def test_report_errors_rejects_next_free_id_outside_proposals(field_name: str) -> None:
+    """PA-445 (negativa): fuera de propuestas y preguntas, un CA nuevo sigue siendo un error."""
+    text = "Revisar CA-03: no se entiende el plazo (ficticio)."
+    if field_name == "summary":
+        report = _origin_cited(summary=text)
+    else:
+        report = _origin_cited(findings=[_finding(explanation=text)])
+
+    assert report_errors(report, dataset.renewal_story(), _sources()) == [
+        "«CA-03» se cita en el informe pero no existe en la HU"
+    ]
+
+
+def test_report_errors_rejects_far_id_in_proposal() -> None:
+    """PA-445 (límite): solo los MAX_NEW_IDS siguientes; CA-08 (sexto libre) y CA-99, error."""
+    report = _origin_cited(findings=[_finding(proposal="Añadir CA-08 y CA-99 (ficticio).")])
+
+    errors = report_errors(report, dataset.renewal_story(), _sources())
+
+    assert errors == [
+        "«CA-08» se cita en el informe pero no existe en la HU",
+        "«CA-99» se cita en el informe pero no existe en la HU",
+    ]
+
+
+def test_report_errors_new_target_id_is_still_an_error() -> None:
+    """PA-445 (negativa): `target_id` señala lo que ya existe; un CA nuevo ahí es un error."""
+    report = _origin_cited(findings=[_finding(target_id="CA-03")])
+
+    assert "«CA-03» no es un criterio ni una regla de la HU" in report_errors(
+        report, dataset.renewal_story(), _sources()
+    )
+
+
+def test_report_errors_story_without_criteria_accepts_ca01_in_proposal() -> None:
+    """PA-445 (límite): una HU sin CA ni RN (como AFQP-4) admite proponer CA-01 y RN-01."""
+    story = dataset.renewal_story().model_copy(
+        update={"acceptance_criteria": [], "business_rules": []}
+    )
+    report = _origin_cited(findings=[_finding(proposal="Añadir CA-01 y RN-01 (ficticio).")])
+
+    assert report_errors(report, story, _sources()) == []
+
+
+def test_review_with_new_criterion_proposal_needs_no_retry(tmp_path: Path) -> None:
+    """PA-445: un informe que propone CA-03 se acepta a la primera (estructurar + revisar) y la
+    propuesta llega al feedback de «Evolucionar con esto»."""
+    container = _container(tmp_path)
+    proposing = _origin_cited(findings=[_finding(proposal="Añadir CA-03 para el carné caducado.")])
+    _llm(container).builders[QualityReport] = _sequence(proposing)
+
+    review = _review(container)
+
+    assert len(_llm(container).calls) == 2
+    assert any("CA-03" in item for item in review.evolve_feedback())
+
+
+def test_review_failure_logs_only_the_rejected_ids(tmp_path: Path) -> None:
+    """PA-445: si el reintento sigue con IDs desconocidos, el log dice cuáles (solo IDs)."""
+    container = _container(tmp_path)
+    _llm(container).builders[QualityReport] = _sequence(_with_bad_id())
+
+    with capture_logs() as logs, pytest.raises(QualityReviewError):
+        _review(container)
+
+    warnings = [
+        e for e in logs if e.get("event") == "informe de calidad con IDs que no existen en la HU"
+    ]
+    assert len(warnings) == 1
+    assert warnings[0]["errors"] == ["«CA-99» no es un criterio ni una regla de la HU"]

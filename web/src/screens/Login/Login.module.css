@@ -23,6 +23,12 @@
   justify-items: start;
 }
 
+/* PA-444: margen libre de media Q (la Q mide el alto del logotipo: 40 px → 20 px) antes del título; por los
+   lados y por arriba lo da el relleno de la tarjeta. */
+.logo {
+  margin-bottom: 20px;
+}
+
 .title {
   font-size: var(--text-xl);
   font-weight: var(--weight-bold);

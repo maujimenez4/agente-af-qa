@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '../../components/Button/index.ts'
-import { QLogo } from '../../components/QMark/index.ts'
+import { QaracterLogo } from '../../components/QMark/index.ts'
 import { ErrorCard, retryDelay } from '../../components/States/index.ts'
 import { TextField } from '../../components/TextField/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
 import styles from './Login.module.css'
 
 const MOCK_API = import.meta.env.DEV && (import.meta.env.MODE === 'mock' || import.meta.env.VITE_API_MOCK === '1')
+
+/** Alto del logotipo en el inicio de sesión: por encima del mínimo de marca (24 px) y cabe a 1024 al 125 %. */
+const LOGO_HEIGHT = 40
 
 // Inicio de sesión mínimo (PA-311: no está en UI.md ni en el lienzo; pendiente de validar).
 export function LoginScreen() {
@@ -53,7 +56,8 @@ export function LoginScreen() {
     <main className={styles.page}>
       <section className={styles.card} aria-labelledby="login-title">
         <header className={styles.header}>
-          <QLogo size={34} />
+          {/* PA-444: el logotipo completo de Qaracter (40 px de alto, margen libre de media Q). */}
+          <QaracterLogo height={LOGO_HEIGHT} className={styles.logo} />
           <h1 id="login-title" className={styles.title}>
             Agente AF y QA
           </h1>

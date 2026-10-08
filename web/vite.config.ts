@@ -11,8 +11,9 @@ export default defineConfig(({ command, mode }) => {
     plugins: [react()],
     publicDir: mockApi ? 'mock-public' : false,
     server: {
-      // Solo web/ y el contrato de la API (las pruebas lo leen). Nunca la raíz del repo: ahí está el .env.
-      fs: { allow: ['.', '../docs/api'] },
+      // Solo web/, el contrato de la API y el logotipo de marca (las pruebas los leen; PA-444). Nunca la raíz del
+      // repo: ahí está el .env.
+      fs: { allow: ['.', '../docs/api', '../docs/diseno/marca'] },
       // API real en desarrollo (DESIGN-DECISIONS.md §4): mismo origen y SIN changeOrigin, porque la API
       // compara Origin con Host. API_PROXY_TARGET no lleva prefijo VITE_: no llega al navegador.
       proxy: mockApi ? undefined : { '/api': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:8000' } },

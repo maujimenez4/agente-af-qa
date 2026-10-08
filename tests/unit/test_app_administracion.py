@@ -4,7 +4,6 @@ Solo las funciones puras de `app/views/administracion.py` (sin Streamlit en ejec
 `run_checks` con el catálogo y la base de datos sustituidos por fakes. Datos 100 % ficticios.
 """
 
-from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -24,8 +23,8 @@ from core import factories
 from core.config import AppConfig, Settings, load_models_config
 from core.health import ServiceCheck
 from tests.fakes.issue_tracker import FakeIssueTracker
+from tests.fixtures import MODELS_FIXTURE
 
-MODELS_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "models.yaml"
 DEMO_USER = "usuario_demo"
 DEMO_PASS = "clave_demo"
 OLLAMA_URL = f"http://{DEMO_USER}:{DEMO_PASS}@ollama.example.invalid:11434/v1"

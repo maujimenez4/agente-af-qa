@@ -21,6 +21,7 @@ from core.rag.ingest import Ingestor, split_front_matter
 from tests.fakes.embeddings import FakeEmbeddingProvider
 from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 
 DIMENSIONS = 8
 
@@ -243,7 +244,7 @@ def cli(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     import core.rag.indexing as indexing
 
     state: dict[str, object] = {"store": FakeVectorStore()}
-    config = AppConfig(Settings(_env_file=None), load_models_config())
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
     monkeypatch.setattr(core.config, "build_config", lambda: config)
     monkeypatch.setattr(core.factories, "build_llm_provider", lambda _c: FakeLLMProvider())
     monkeypatch.setattr(

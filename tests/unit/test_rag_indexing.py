@@ -26,6 +26,7 @@ from core.rag.ingest import Ingestor, split_front_matter
 from tests.fakes.embeddings import FakeEmbeddingProvider
 from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "data" / "seed" / "corpus"
@@ -438,7 +439,7 @@ def test_index_dir_indexes_whole_seed_corpus_when_using_fakes() -> None:
 @pytest.fixture
 def fake_config(clean_env: pytest.MonkeyPatch) -> AppConfig:
     """AppConfig real (models.yaml) sin `.env` ni claves."""
-    return AppConfig(Settings(_env_file=None), load_models_config())
+    return AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))
 
 
 def test_indexing_main_prints_spanish_summary_and_returns_zero_when_fakes(

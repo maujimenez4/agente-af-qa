@@ -31,6 +31,7 @@ from adapters.vectorstore.pgvector import (
     to_uuid,
 )
 from core.config import ROOT_DIR, Settings
+from tests.fixtures import MODELS_FIXTURE
 
 DIMS = 3
 MODEL = "bge-m3"
@@ -597,7 +598,9 @@ def real_store(cross_engine: Engine) -> PgVectorStore:
 
     with cross_engine.begin() as conn:
         conn.execute(sa.text("TRUNCATE documents CASCADE"))
-    return PgVectorStore(cross_engine, MODEL, load_models_config().embeddings.dimensions)
+    return PgVectorStore(
+        cross_engine, MODEL, load_models_config(MODELS_FIXTURE).embeddings.dimensions
+    )
 
 
 def _real_chunk(store: PgVectorStore, chunk_id: str, ordinal: int, category: str) -> Chunk:

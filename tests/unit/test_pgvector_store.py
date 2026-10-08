@@ -20,8 +20,9 @@ from adapters.errors import ExternalServiceError
 from adapters.vectorstore.pgvector import EXCERPT_CHARS, PgVectorStore, to_uuid
 from core.config import ROOT_DIR, Settings, load_models_config
 from tests.fakes.embeddings import FakeEmbeddingProvider
+from tests.fixtures import MODELS_FIXTURE
 
-DIMS = load_models_config().embeddings.dimensions  # 1024 (bge-m3)
+DIMS = load_models_config(MODELS_FIXTURE).embeddings.dimensions  # 1024 (bge-m3)
 MODEL = "bge-m3"
 UNUSED_URL = "postgresql+psycopg://x@localhost:1/x"
 

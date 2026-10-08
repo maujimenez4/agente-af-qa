@@ -35,9 +35,9 @@ from tests.fakes.container import fake_container
 from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.test_management import FakeTestManagement
 from tests.fakes.tracer import FakeSpan, FakeTracer
+from tests.fixtures import MODELS_FIXTURE
 from tests.unit.test_api_app import AF, EVOLVE, NEED, QA, TESTS, Api
 
-MODELS_FIXTURE = ROOT_DIR / "tests" / "fixtures" / "models.yaml"
 PUBLIC = "pk-lf-ficticia-composicion"
 PRIVATE = "sk-lf-ficticia-composicion"
 AF_USER = dataset.DEMO_USERS["af-demo"][1]

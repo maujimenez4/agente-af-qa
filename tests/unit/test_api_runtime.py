@@ -259,7 +259,11 @@ def test_main_runs_single_worker_without_access_log(
     monkeypatch.setattr(sys, "argv", ["api", *argv])
     api_main.main()
     assert calls == [
-        (("api.app:app",), {"host": host, "port": port, "workers": 1, "access_log": False})
+        (
+            ("api.app:app",),
+            # PA-469: sin `proxy_headers`, uvicorn no reescribe la IP del cliente.
+            {"host": host, "port": port, "workers": 1, "access_log": False, "proxy_headers": False},
+        )
     ]
 
 

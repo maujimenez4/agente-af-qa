@@ -54,6 +54,7 @@ from schemas.user_story import UserStory
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.llm import FakeLLMProvider, renewal_quality_report, renewal_test_suite
+from tests.fixtures import MODELS_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 AF = dataset.DEMO_USERS["af-demo"][1]
@@ -173,12 +174,12 @@ def story_citing(*refs: tuple[str, str]) -> UserStory:
 
 
 def app_config(limits: PromptLimits) -> AppConfig:
-    """AppConfig de prueba: `config/models.yaml` con los límites de PA-114 sustituidos.
+    """AppConfig de prueba: el fixture (PA-458) con los límites de PA-114 sustituidos.
 
     PA-443: sin los límites propios de cada proveedor, para que valgan los globales (los
     límites por proveedor se prueban en `test_mixed_models.py`).
     """
-    models = load_models_config()
+    models = load_models_config(MODELS_FIXTURE)
     new_limits = models.limits.model_copy(
         update={
             "context_window": limits.context_window,

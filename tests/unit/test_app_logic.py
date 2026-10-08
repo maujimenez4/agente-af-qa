@@ -133,6 +133,7 @@ from tests.fakes import dataset
 from tests.fakes.container import fake_container
 from tests.fakes.issue_tracker import FakeIssueTracker
 from tests.fakes.llm import FakeLLMProvider, renewal_quality_report, renewal_test_suite
+from tests.fixtures import MODELS_FIXTURE
 
 AF_USER = dataset.DEMO_USERS["af-demo"][1]
 QA_USER = dataset.DEMO_USERS["qa-demo"][1]
@@ -141,7 +142,6 @@ NEED_TEXT = "Avisar por correo tres días antes del vencimiento del préstamo (f
 RESTRICTIONS = "Mismas reglas que en la web ficticia."
 AF_HINT = "Disponible para el rol de analista funcional."
 QA_HINT = "Disponible para el rol QA."
-MODELS_FIXTURE = ROOT_DIR / "tests" / "fixtures" / "models.yaml"
 APP_DIR = ROOT_DIR / "app"
 FAKE_GROQ_KEY = "test-key-groq-ficticia"
 FAKE_OPENROUTER_KEY = "test-key-openrouter-ficticia"

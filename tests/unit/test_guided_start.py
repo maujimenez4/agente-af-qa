@@ -32,6 +32,7 @@ from tests.fakes.embeddings import FakeEmbeddingProvider
 from tests.fakes.issue_tracker import FakeIssueTracker
 from tests.fakes.llm import FakeLLMProvider
 from tests.fakes.vector_store import FakeVectorStore
+from tests.fixtures import MODELS_FIXTURE
 
 AF_USER = "af-demo"
 QA_USER = "qa-demo"
@@ -477,7 +478,7 @@ def test_similar_jql_uses_given_project_not_env_default(
     """RF-14 (T-50, T-53): la JQL usa el proyecto de la conversación, no `JIRA_PROJECT_KEY`."""
     base = _spy_container(tmp_path)
     settings = Settings(_env_file=None, jira_project_key="ENVDEF")  # type: ignore[call-arg]
-    container = replace(base, config=AppConfig(settings, load_models_config()))
+    container = replace(base, config=AppConfig(settings, load_models_config(MODELS_FIXTURE)))
 
     GuidedStart(container).propose(NEED_TEXT, "prueba")
 
@@ -821,7 +822,7 @@ def test_build_context_service_reads_budget_from_config(
 ) -> None:
     """Regresión (T-53): con AppConfig, el presupuesto sale de `models.yaml`."""
     base = fake_container(tmp_path)
-    config = AppConfig(Settings(_env_file=None), load_models_config())  # type: ignore[call-arg]
+    config = AppConfig(Settings(_env_file=None), load_models_config(MODELS_FIXTURE))  # type: ignore[call-arg]
     container = replace(base, config=config)
 
     service = build_context_service(container, None)

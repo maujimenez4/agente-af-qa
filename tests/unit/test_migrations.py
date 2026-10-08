@@ -15,6 +15,7 @@ from alembic.config import Config
 from sqlalchemy.engine import URL
 
 from core.config import ROOT_DIR, Settings, load_models_config
+from tests.fixtures import MODELS_FIXTURE
 
 TABLES = {
     "users",
@@ -57,7 +58,7 @@ def test_creates_all_spec_tables(offline_sql: str) -> None:
 
 
 def test_embedding_dimension_comes_from_config(offline_sql: str) -> None:
-    dimensions = load_models_config().embeddings.dimensions
+    dimensions = load_models_config(MODELS_FIXTURE).embeddings.dimensions
     assert f"embedding VECTOR({dimensions})" in offline_sql
 
 
@@ -138,7 +139,7 @@ def test_upgrade_and_downgrade_against_postgres(database_url: URL) -> None:
                     "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
                 )
             ).scalar()
-            assert dims == load_models_config().embeddings.dimensions
+            assert dims == load_models_config(MODELS_FIXTURE).embeddings.dimensions
         command.downgrade(config, "base")
         assert not set(sa.inspect(engine).get_table_names()) & TABLES
         command.upgrade(config, "head")

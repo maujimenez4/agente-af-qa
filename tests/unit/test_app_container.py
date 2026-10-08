@@ -6,12 +6,11 @@ import pytest
 
 from adapters.errors import AgentError, ExternalServiceError, PublishError
 from core import factories
-from core.config import ROOT_DIR, AppConfig, Settings, load_models_config
+from core.config import AppConfig, Settings, load_models_config
 from core.container import Container
 from core.memory.generator import LLMMemoryGenerator
 from tests.fakes.llm import renewal_test_suite
-
-MODELS_FIXTURE = ROOT_DIR / "tests" / "fixtures" / "models.yaml"
+from tests.fixtures import MODELS_FIXTURE
 
 
 def test_pending_test_management_refuses_to_publish_with_a_clear_message() -> None:

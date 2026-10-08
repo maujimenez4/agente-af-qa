@@ -1,10 +1,38 @@
 # Copia FIJA para las pruebas (no se usa en la aplicación): las pruebas no dependen de los modelos reales.
 # Cada tarea es una CADENA ordenada: el primero es el principal y el resto, respaldos (RF-44).
 # Sin secretos: solo el nombre de la variable de entorno. Verifica los nombres de modelo el día 1 (T-08).
+# PA-458: también los límites por proveedor (PA-443), con valores FIJOS de prueba: las pruebas no
+# leen `config/models.yaml` (la demo puede cambiar sin romperlas); solo `test_config.py` lo comprueba.
 providers:
-  groq:       { type: openai_compatible, base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
-  openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1",   api_key_env: OPENROUTER_API_KEY }
-  local:      { type: openai_compatible, base_url: "http://localhost:11434/v1",      api_key_env: null }
+  groq:
+    type: openai_compatible
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+    limits:
+      context_window: 131072
+      context_token_budget: 2000
+      max_output_tokens: {}
+      max_wait_s: 60
+      max_retries_on_429: 2
+      request_timeout_s: 120
+  openrouter: { type: openai_compatible, base_url: "https://openrouter.ai/api/v1", api_key_env: OPENROUTER_API_KEY }
+  local:
+    type: openai_compatible
+    base_url: "http://localhost:11434/v1"
+    api_key_env: null
+    limits:
+      context_window: 10240
+      context_token_budget: 3300
+      request_timeout_s: 900
+      max_output_tokens:
+        generate_story: 2500
+        evolve_story: 2500
+        review_story: 2000
+        generate_tests: 2500
+        analyze_impact: 800
+        synthesize_memory: 1200
+        classify_source: 200
+        nl_to_jql: 200
 
 tasks:
   generate_story:    [ { provider: groq, model: "openai/gpt-oss-120b" }, { provider: openrouter, model: "POR_DEFINIR:free" } ]

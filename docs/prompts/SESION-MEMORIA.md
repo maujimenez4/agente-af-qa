@@ -1,13 +1,13 @@
-# SESIÓN UI · Ronda 10: arreglos de la web tras la prueba manual del usuario (PA-427…PA-431)
+# SESIÓN UI · Ronda 11: el logo completo de Qaracter en el login (PA-444)
 
-> Encargo de la **sesión UI**. Tu ronda 9 (`ses-web-fixes`) ya está fusionada. **Coordinado con el responsable de `web/`:** esta ronda es tuya y él no toca estos archivos mientras dure.
+> Encargo de la **sesión UI**. Tu ronda 10 ya está fusionada. El responsable de `web/` entregó T-56 (PR #18) y no está tocando `web/`: esta ronda es tuya.
 
-Pon el worktree al día y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
+La carpeta `ses-ui` se borró en la limpieza. Créala de nuevo y abre Claude Code **en esa carpeta**. Pega como mensaje todo lo que hay debajo de la línea.
 
 ```powershell
 # desde la carpeta del repositorio (agente-af-qa)
 git fetch origin
-git -C .claude/worktrees/ses-ui switch -C ses-web-pulido origin/PreProduccion
+git worktree add .claude/worktrees/ses-ui -b ses-login-logo origin/PreProduccion
 cd .claude/worktrees/ses-ui/web
 npm ci
 npm test
@@ -15,44 +15,45 @@ npm test
 
 ---
 
-Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-web-pulido`**, creada desde `PreProduccion`. Tu ronda 9 ya está fusionada.
+Sigues en el proyecto "Agente de IA de Análisis Funcional y QA", ahora en la rama **`ses-login-logo`**, creada desde `PreProduccion`. Tu ronda 10 ya está fusionada y T-56 está entregada.
 
-**Contexto:** el usuario ha probado la web en React contra la API real y ha anotado cinco cosas. Lee:
-- `web/README.md`, `web/DESIGN-DECISIONS.md` y `web/HANDOFF.md` (lo último fusionado: el escalado de Windows, PA-335; Editar a mano, parte B; el presupuesto al instante, PA-330);
-- `docs/specs/UI.md`.
+**Contexto:** dirección pide que la pantalla de inicio de sesión muestre el **logotipo completo de Qaracter**: la Q naranja con las letras «qaracter». Hoy solo muestra la Q (`QLogo`, en `web/src/screens/Login/LoginScreen.tsx`).
+- El logo sale del «Qaracter Design System», del que se hizo el lienzo.
+- Está copiado en `docs/diseno/marca/`:
+  - `logo-qaracter-oscuro.svg`: Q `#FF7932` y letras `#233441`, para fondo claro;
+  - `logo-qaracter-blanco.svg`: letras blancas, para fondo oscuro.
+- Los dos son SVG con trazados, sin scripts ni enlaces (comprobado).
+- Reglas del sistema de diseño: altura mínima de 24 px y margen libre de media Q alrededor.
 
-## Tareas
-1. **PA-427 · Revisar la calidad: la Q no se anima mientras revisa.** En Generando, la Q de carga se anima mientras se genera. En la pantalla de calidad (`web/src/screens/Quality/`), mientras la revisión está `running` («Revisando la calidad de …»), la Q se queda quieta. Que se anime igual, con el mismo componente de `components/QMark/`, respetando «reducir movimiento».
-2. **PA-428 · El texto de las fuentes sale con las marcas de Markdown.** En el panel de fuentes de la propuesta (HU y QA, `components/Proposal/ProposalViews.tsx`) y en el informe de calidad (`screens/Quality/`), los extractos del RAG son fragmentos de documentos en Markdown y se ven con `**`, `#`, `-` y tablas en bruto: por ejemplo, DOC-12 es una tabla.
-   - Píntalos con el componente de Markdown seguro de PA-334 (`components/Markdown/`), **sin HTML ni `dangerouslySetInnerHTML`**.
-   - Amplíalo para **tablas sencillas** (cabecera y filas, como `<table>` de React) y listas numeradas, si no las tiene.
-   - Un extracto cortado a mitad de una tabla o de una marca no debe romper la pantalla: lo que no se reconozca, como texto.
-3. **PA-429 · Al final de Generando e Iterar, el último mensaje queda cortado.** El botón naranja «Ver la propuesta» del último mensaje se ve cortado abajo y hay que desplazar para verlo entero. Que el chat deje margen al final y, al llegar un mensaje nuevo, lo muestre **entero** (el desplazamiento hasta abajo tiene que incluir ese margen). Compruébalo a 1280×800 y a 1024 al 125 %.
-4. **PA-430 · Texto al iterar.** Mientras se genera una versión nueva tras pedir un cambio, el indicador dice «Escribiendo la respuesta» (`components/QMark/TypingIndicator.tsx`). Al iterar debe decir **«Generando una nueva versión…»**. Pásalo como `label` desde Iterar, sin cambiar el texto por defecto si se usa en otros sitios.
-5. **PA-431 · Administración: lo que no está disponible tiene que decirlo.** En Ajustes, «Añadir documentos» (Elegir archivos) y «Usuarios y roles» salen desactivados sin explicación visible. Añade en cada tarjeta un distintivo o texto visible **«Disponible pronto»**, con el estilo de los demás «disponible pronto» de la web, y una frase breve:
-   - documentos: «La carga de documentos llegará en una versión posterior.»;
-   - usuarios: «Los usuarios se gestionan hoy desde el servidor.».
+Lee `web/README.md`, `web/DESIGN-DECISIONS.md`, `web/HANDOFF.md` y `docs/specs/UI.md`, y fíjate en el inicio de sesión.
 
-   No toques el resto de la pantalla: el responsable de `web/` la va a rehacer.
+## Tarea: PA-444
+1. **Componente del logo completo** (por ejemplo `QaracterLogo`, junto a `components/QMark/`):
+   - pinta el SVG **dentro del propio código**, como hace `QLogo` con `Q_PATH`, y no lo carga desde un archivo externo ni desde una URL;
+   - reproduce el original tal cual: no redibujes ni aproximes los trazados;
+   - la Q usa `var(--color-primary)` si coincide con `#FF7932`; si no, el color del original;
+   - accesible: `role="img"` y `aria-label="Qaracter"`; o decorativo si al lado ya está el nombre.
+2. **En el login**, sustituye la Q sola por el logo completo encima del título:
+   - una altura que respete el mínimo y quepa a 1024 al 125 %;
+   - el resto de la pantalla se queda igual.
+3. **No toques** la Q del carril, de Inicio ni del asistente: se quedan con `QLogo`.
+4. **Documenta** en `UI.md` (pantalla de inicio de sesión) y en `DESIGN-DECISIONS.md` de dónde sale el logo.
 
 ## Reglas
-- **Solo `web/`.** No toques `web/src/api/**`, `api/`, `core/` ni `app/`.
-- **Componentes compartidos que vas a tocar:** `components/Markdown/`, `components/Proposal/`, el chat (`components/Chat/` o `Workspace`) y `TypingIndicator`. Avísalo en tu mensaje final con la lista exacta.
-- **Pruebas (Vitest con MSW, deterministas, sin ampliar esperas):**
-  - la Q animada en una revisión en curso y quieta con «reducir movimiento»;
-  - extractos con negritas, títulos, listas, tablas y un `<script>` o `<img onerror>`, este último como texto;
-  - el mensaje final visible entero, comprobando la estructura y el desplazamiento;
-  - «Generando una nueva versión…» al iterar;
-  - los «Disponible pronto» de Administración.
+- **Solo `web/` y su documentación.** No toques `web/src/api/**`, `api/`, `core/` ni `app/`, ni añadas dependencias.
+- **Pruebas (Vitest, deterministas):**
+  - el login muestra el logo con su nombre accesible «Qaracter»;
+  - la Q sola sigue en el carril;
+  - el SVG no lleva `<script>`, `<image>` ni `href` externos.
 - **Verificación:**
-  - `npm run lint`, `npx tsc -b`, `npm test` (dos veces) y `npm run api:check`;
-  - Edge sin interfaz con un perfil nuevo, a 1280×800 y 1024 al 125 %, para PA-429 y PA-428.
+  - `npm run lint`, `npx tsc -b`, `npm test` (dos veces), `npm run build` y `npm run api:check`;
+  - Edge sin interfaz con un perfil nuevo, a 1280×800 y a 1024 al 125 %: haz una captura del login.
 - **No mates procesos.** Pídeselo también a los subagentes.
 - **Kanban:**
-  - añade PA-427…PA-431 como hechas con la fecha;
+  - cierra PA-444 con la fecha;
   - fila en el registro;
-  - propuestas en **PA-131…PA-139**.
+  - propuestas en **PA-448…PA-449**.
 - **Antes del commit:** `spec-checker` CONFORME y `security-reviewer` APTO.
-- **Sin fusionar.** Haz `git push -u origin ses-web-pulido` y avísame.
+- **Sin fusionar.** Haz `git push -u origin ses-login-logo` y avísame, con las capturas.
 
 Empieza presentándome el plan antes de escribir código.

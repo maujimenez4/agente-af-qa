@@ -25,7 +25,7 @@ from adapters.base import LLMProvider, LLMResult, Message, StructuredResult, Tas
 from adapters.errors import AgentError
 
 CANCELLED_MESSAGE = (
-    "Generación detenida a petición tuya. Puedes reintentarla o descartar la conversación."
+    "Generación detenida a petición tuya. Puedes reintentarla o empezar una conversación nueva."
 )
 
 _SIGNAL: ContextVar[threading.Event | None] = ContextVar("generation_cancel", default=None)

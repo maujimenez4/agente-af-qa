@@ -6,6 +6,7 @@ Esqueleto del día 1: la lógica de contexto (T-18), los prompts (T-20/T-26), la
 
 import hashlib
 import json
+import re
 import time
 from collections.abc import Iterable
 from dataclasses import replace
@@ -18,7 +19,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
 from adapters.base import Chunk, IssueDetail, TaskType
-from adapters.errors import ExternalServiceError, NotFoundError, PublishError
+from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.artifact_state import structure_cache_id
 from core.audit import AuditAction, AuditEntry
@@ -246,7 +247,16 @@ class GraphNodes:
             detail["excluded_sources"] = list(excluded)  # solo referencias (T-51)
         if previous is None and (handoff_id := state.get("handoff_id")):
             detail |= self._handoff_trace(handoff_id)  # T-54: HU de origen de la suite
-        self._record("create" if previous is None else "iterate", state, artifact, detail=detail)
+        if previous is None:
+            self._record("create", state, artifact, detail=detail)
+        else:
+            # PA-454: al iterar, primero la auditoría y después la versión N+1. Si la auditoría
+            # falla, no queda la versión guardada y `/retry` no choca con ella
+            # (`VersionConflictError`). La primera versión no lo necesita (id nuevo por intento)
+            # y su fila debe existir antes de auditar (clave foránea de `audit_log`).
+            self._record("iterate", state, artifact, detail=detail, save_version=False)
+            if self.c.versions is not None:
+                self.c.versions.save(artifact)
         log.info(
             "propuesta generada",
             user=state["user"],
@@ -378,15 +388,54 @@ class GraphNodes:
             if unpublished:
                 chained = chained.model_copy(update={"jira_key": None})
             tests_writer = TestWriter(self.c.llm, limits=self._limits())
-            return tests_writer.generate(
+            draft = tests_writer.generate(
                 chained, ctx, unpublished=unpublished, previous_suite=_previous_suite(state)
             )
+            return draft if unpublished else self._continue_numbering(draft)
         story = self._baseline(
             StoryWriter(self.c.llm, limits=self._limits()), ctx, artifact_id, pending
         )
-        return TestWriter(self.c.llm, limits=self._limits()).generate(
+        draft = TestWriter(self.c.llm, limits=self._limits()).generate(
             story, ctx, previous_suite=_previous_suite(state)
         )
+        return self._continue_numbering(draft)
+
+    def _continue_numbering(self, draft: SuiteDraft) -> SuiteDraft:
+        """PA-450: la suite no reutiliza los números de los CP que la HU ya tiene en Jira.
+
+        Antes de la revisión, los IDs que chocan con un `[CP-XX]` ya publicado en la HU (de otra
+        suite) pasan al siguiente número libre; los demás se conservan. Así la persona aprueba
+        exactamente los IDs que se publicarán. Solo lee de Jira. Si no se puede leer, la suite
+        sigue igual: `publish_suite` detecta el conflicto y no publica nada.
+        """
+        story = draft.suite.story_jira_key
+        try:
+            published = self.c.test_management.list_cases(story)
+        except AgentError as exc:
+            log.warning(
+                "casos de la HU no leídos para numerar",
+                action="number_cases",
+                jira_key=story,
+                error_type=type(exc).__name__,
+            )
+            return draft
+        taken = {
+            int(m.group(1)) for case in published if (m := _PUBLISHED_CASE.match(case.summary))
+        }
+        if any(n > MAX_CASE_NUMBER for n in taken):  # un `[CP-999999]` puesto a mano en Jira
+            log.warning("número de caso fuera de rango en Jira", action="number_cases")
+            taken = {n for n in taken if n <= MAX_CASE_NUMBER}
+        mapping = renumber_cases([c.internal_id for c in draft.suite.cases], taken)
+        if not mapping:
+            return draft
+        suite = _apply_case_ids(draft.suite, mapping)
+        log.info(
+            "casos renumerados tras los de la HU",
+            action="number_cases",
+            jira_key=story,
+            renumbered=len(mapping),
+        )
+        return replace(draft, suite=suite, coverage_md=suite.coverage_md())
 
     def _handoff_trace(self, handoff_id: str) -> dict[str, Any]:
         """Referencias de la HU de origen para la auditoría (solo ids, nunca contenido)."""
@@ -578,8 +627,8 @@ class GraphNodes:
                     rejections += 1
                 if rejections > MAX_REVIEW_REJECTIONS or blocks > MAX_COVERAGE_BLOCKS:
                     raise ValueError(
-                        "Demasiadas respuestas rechazadas en esta revisión; descarta la "
-                        "conversación y empieza de nuevo."
+                        "Demasiadas respuestas rechazadas en esta revisión: empieza una "
+                        "conversación nueva."
                     ) from None
 
     def _coverage_block(
@@ -820,11 +869,14 @@ class GraphNodes:
                 artifact = artifact.model_copy(update={"content": story})
                 published = transition(artifact, ArtifactStatus.PUBLISHED)
         except Exception as exc:
-            # RNF-13: una escritura interrumpida a mitad también queda en la auditoría.
+            # RNF-13: una escritura interrumpida a mitad también queda en la auditoría, con las
+            # claves que ya se escribieron (PA-453: p. ej. la HU actualizada sin su comentario).
+            written = getattr(exc, "written_keys", None)
             self._record(
                 "publish",
                 state,
                 artifact,
+                jira_keys=[str(k) for k in written] if isinstance(written, list) else [],
                 detail={
                     "simulated": False,
                     "plan": plan,
@@ -1200,3 +1252,49 @@ def _issue_fingerprint(issues: list[IssueDetail]) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+# --- PA-450: numeración de los casos tras los ya publicados en la HU ---------------------------
+
+MAX_CASE_NUMBER = 999  # mayor número de CP que se tiene en cuenta al continuar la numeración
+_PUBLISHED_CASE = re.compile(r"^\[CP-(\d{1,6})\]")
+_CASE_REF = re.compile(r"\bCP-(\d{1,6})\b")
+
+
+def renumber_cases(ids: list[str], taken: set[int]) -> dict[str, str]:
+    """IDs de la suite que chocan con números ya usados en Jira → siguiente número libre.
+
+    Los que no chocan se conservan; los nuevos van tras el mayor de Jira y de la suite.
+    """
+    numbers = {i: int(i.split("-", 1)[1]) for i in ids}
+    clashing = [i for i in ids if numbers[i] in taken]
+    if not clashing:
+        return {}
+    used = taken | {n for i, n in numbers.items() if i not in clashing}
+    following = max(used, default=0)
+    mapping: dict[str, str] = {}
+    for case_id in clashing:
+        following += 1
+        mapping[case_id] = f"CP-{following:02d}"
+    return mapping
+
+
+def _apply_case_ids(suite: TestSuite, mapping: dict[str, str]) -> TestSuite:
+    """Cambia los IDs de los casos y sus menciones en los textos (Gherkin, estrategia…), nunca
+    la clave de la HU ni las fuentes citadas (podrían ser de un proyecto `CP`)."""
+
+    def swap(text: str) -> str:
+        return _CASE_REF.sub(lambda m: mapping.get(m.group(0), m.group(0)), text)
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, str):
+            return swap(value)
+        if isinstance(value, list):
+            return [walk(v) for v in value]
+        if isinstance(value, dict):
+            return {k: walk(v) for k, v in value.items()}
+        return value
+
+    data = suite.model_dump(mode="json")
+    kept = {key: data.pop(key) for key in ("story_jira_key", "sources")}
+    return TestSuite.model_validate(walk(data) | kept)

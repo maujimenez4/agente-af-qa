@@ -57,6 +57,15 @@ def list_field(data: dict[str, Any], field: str) -> list[Any]:
     return value
 
 
+class PartialPublishError(PublishError):
+    """PA-453: la publicación falló a medias; `written_keys` son las claves ya escritas en Jira
+    (el núcleo las audita sin importar este módulo)."""
+
+    def __init__(self, message: str, written_keys: list[str]) -> None:
+        super().__init__(message)
+        self.written_keys = list(written_keys)
+
+
 class JiraCloudTracker:
     """Implementa `IssueTracker` contra Jira Cloud."""
 
@@ -225,9 +234,10 @@ class JiraCloudTracker:
         try:
             self._send("POST", f"/rest/api/3/issue/{key}/comment", body, PublishError, key)
         except AgentError as exc:
-            raise PublishError(
+            raise PartialPublishError(
                 f"La HU {key} se ha actualizado, pero no se pudo añadir el comentario con el "
-                f"diff: {exc}"
+                f"diff: {exc}",
+                written_keys=[key],
             ) from None
 
     def link(

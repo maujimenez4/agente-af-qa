@@ -1,6 +1,9 @@
 """Comportamiento de FakeTestManagement: Jira nativo con subtareas y adjuntos (CA-00-03)."""
 
+import pytest
+
 from adapters import base
+from adapters.errors import PublishError
 from tests.fakes import FakeTestManagement
 from tests.fakes.llm import renewal_test_suite
 
@@ -72,11 +75,21 @@ def test_list_cases_returns_copy_of_list() -> None:
     assert len(fake.list_cases("DEMO-3")) == 2
 
 
-def test_publish_suite_twice_accumulates_cases_with_new_keys() -> None:
-    """CA-00-03: publicar dos veces genera claves nuevas sin repetir."""
+def test_publish_suite_twice_reuses_the_same_cases() -> None:
+    """PA-05 · PA-450: como el real, publicar dos veces la misma suite reutiliza sus casos."""
     fake = FakeTestManagement()
     first = fake.publish_suite(renewal_test_suite())
     second = fake.publish_suite(renewal_test_suite())
-    assert not set(first.created) & set(second.created)
-    assert len(fake.list_cases("DEMO-3")) == 4
+    assert second.created == first.created
+    assert len(fake.list_cases("DEMO-3")) == 2
     assert fake.publish_calls == 2
+
+
+def test_publish_suite_of_other_suite_with_same_ids_is_a_conflict() -> None:
+    """PA-450: otra suite de la misma HU con los mismos CP no se da por publicada."""
+    fake = FakeTestManagement()
+    fake.publish_suite(renewal_test_suite())
+    other = renewal_test_suite().model_copy(update={"strategy_md": "Otra estrategia ficticia."})
+    with pytest.raises(PublishError, match="No se ha publicado nada"):
+        fake.publish_suite(other)
+    assert len(fake.list_cases("DEMO-3")) == 2

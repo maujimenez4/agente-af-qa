@@ -41,6 +41,7 @@ from adapters.testmgmt.jira_native import (
     JiraNativeTests,
     attachment_files,
     case_labels,
+    suite_label,
 )
 from core.config import Settings
 from core.factories import build_test_management
@@ -140,6 +141,8 @@ class FakeSite:
 
     subtasks: list[dict[str, Any]] = field(default_factory=list)
     attachments: list[str] = field(default_factory=list)
+    upload_times: dict[int, str] = field(default_factory=dict)  # PA-450
+    clock: int = 0
     replies: dict[Route, list[Reply]] = field(default_factory=dict)
     case_replies: dict[str, Reply] = field(default_factory=dict)
     attach_replies: dict[str, Reply] = field(default_factory=dict)
@@ -155,7 +158,11 @@ class FakeSite:
         if route == ("GET", SEARCH_PATH):
             return httpx.Response(200, json={"issues": list(self.subtasks), "isLast": True})
         if route == ("GET", STORY_PATH):
-            files = [{"id": str(i), "filename": n} for i, n in enumerate(self.attachments)]
+            # PA-450: Jira da la fecha de subida; las sembradas, después de las subtareas.
+            files = [
+                {"id": str(i), "filename": n, "created": self._uploaded_at(i)}
+                for i, n in enumerate(self.attachments)
+            ]
             return httpx.Response(200, json={"key": STORY, "fields": {"attachment": files}})
         if route == ("POST", ISSUE_PATH):
             return self._create(request)
@@ -164,6 +171,7 @@ class FakeSite:
             if name in self.attach_replies:
                 return _reply(self.attach_replies[name])
             self.attachments.append(name)
+            self.upload_times[len(self.attachments) - 1] = self._now()
             return httpx.Response(200, json=[{"id": "900", "filename": name}])
         pytest.fail(f"Petición no esperada: {request.method} {request.url.path}")
 
@@ -174,8 +182,16 @@ class FakeSite:
             return _reply(self.case_replies[case_id])
         self.next_number += 1
         key = f"{PROJECT}-{self.next_number}"
-        self.subtasks.append(subtask(key, summary))
+        labels = fields_of(request)["labels"]
+        self.subtasks.append(subtask(key, summary, labels, self._now()))
         return httpx.Response(201, json={"id": str(self.next_number), "key": key})
+
+    def _now(self) -> str:
+        self.clock += 1
+        return f"2026-10-02T10:{self.clock:02d}:00.000+0000"
+
+    def _uploaded_at(self, index: int) -> str:
+        return self.upload_times.get(index, "2026-10-01T11:00:00.000+0000")
 
     def creates(self) -> list[httpx.Request]:
         return [r for r in self.requests if (r.method, r.url.path) == ("POST", ISSUE_PATH)]
@@ -187,13 +203,20 @@ class FakeSite:
         return [r for r in self.requests if r.method != "GET"]
 
 
-def subtask(key: str, summary: str) -> dict[str, Any]:
+def subtask(
+    key: str,
+    summary: str,
+    labels: list[str] | None = None,
+    created: str = "2026-10-01T10:00:00.000+0000",
+) -> dict[str, Any]:
     return {
         "key": key,
         "fields": {
             "summary": summary,
             "issuetype": {"name": SUBTASK_TYPE},
             "status": {"name": "Por hacer"},
+            "labels": labels or [],
+            "created": created,
         },
     }
 
@@ -339,9 +362,10 @@ def test_case_labels_are_valid_jira_labels_for_every_type(case_type: TestCaseTyp
 def test_publish_suite_sends_labels_as_list_of_strings_without_duplicates() -> None:
     """D-09: la misma referencia repetida en CA no genera etiquetas duplicadas."""
     site, tests, _ = setup()
-    tests.publish_suite(make_suite([make_case("CP-01", criteria=["CA-02", "CA-02"])]))
+    suite = make_suite([make_case("CP-01", criteria=["CA-02", "CA-02"])])
+    tests.publish_suite(suite)
     [labels] = [fields_of(r)["labels"] for r in site.creates()]
-    assert labels == [CASE_LABEL, "CA-02", "tipo-positivo"]
+    assert labels == [CASE_LABEL, "CA-02", "tipo-positivo", suite_label(suite)]  # PA-450
 
 
 def test_criterion_with_trailing_newline_is_rejected_before_reaching_jira() -> None:
@@ -503,27 +527,30 @@ def test_publish_suite_stops_attachments_after_auth_error_on_first_upload() -> N
 # --- Idempotencia (PA-05) --------------------------------------------------------------------
 
 
-def test_publish_suite_reuses_existing_case_with_other_title_without_rewriting_it() -> None:
-    """PA-05: un `[CP-02]` ya publicado con otro título cuenta en `created` con su clave y no
-    se vuelve a crear ni se modifica (comportamiento actual; ver PA-204)."""
+def test_publish_suite_existing_case_of_other_suite_is_a_conflict() -> None:
+    """PA-450 (antes PA-05 lo reutilizaba): un `[CP-02]` publicado por otra suite (o sin huella)
+    no cuenta como creado: conflicto visible, sin crear ni modificar nada."""
     site = FakeSite(subtasks=[subtask("DEMO-55", "[CP-02] Título antiguo ficticio")])
     site, tests, _ = setup(site)
-    with capture_logs() as logs:
-        result = tests.publish_suite(make_suite())
-    assert result.created == ["DEMO-101", "DEMO-55", "DEMO-102"]
-    assert [fields_of(r)["summary"][:7] for r in site.creates()] == ["[CP-01]", "[CP-03]"]
-    assert not [r for r in site.requests if r.method == "PUT"]
+    with capture_logs() as logs, pytest.raises(PublishError, match=r"CP-02 \(DEMO-55\)"):
+        tests.publish_suite(make_suite())
+    assert site.writes() == []
     [entry] = [e for e in logs if e.get("action") == "publish_suite"]
-    assert entry["reused"] == 1
+    assert entry["conflicts"] == 1
 
 
 def test_publish_suite_reuses_first_key_when_case_id_appears_twice_in_jira() -> None:
     """PA-05: si Jira ya tiene dos `[CP-01]`, se usa el primero y no se crea un tercero."""
+    suite = make_suite([make_case("CP-01")])
+    ours = [CASE_LABEL, suite_label(suite)]  # PA-450: subtareas de esta misma suite
     site = FakeSite(
-        subtasks=[subtask("DEMO-40", "[CP-01] Copia A"), subtask("DEMO-41", "[CP-01] Copia B")]
+        subtasks=[
+            subtask("DEMO-40", "[CP-01] Copia A", ours),
+            subtask("DEMO-41", "[CP-01] Copia B", ours),
+        ]
     )
     site, tests, _ = setup(site)
-    result = tests.publish_suite(make_suite([make_case("CP-01")]))
+    result = tests.publish_suite(suite)
     assert result.created == ["DEMO-40"]
     assert site.creates() == []
 

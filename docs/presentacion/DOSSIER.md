@@ -77,7 +77,7 @@ Fuentes: `docs/arquitectura-c4.md` (niveles 1 y 2), `config/README.md`.
 | Métrica | Valor | Fuente |
 |---|---|---|
 | **Calidad del RAG** | Recall@6 **0,90**; MRR 0,72 (las memorias de HU publicadas pasan delante por diseño); latencia media 0,3 s | `docs/pruebas/rag-eval-2026-10-08.md` |
-| **Pruebas automáticas** | **7234** de backend (Python) y **2588** de la web, en verde | `uv run pytest -m "not integration"` y `npm test` (2026-10-08) |
+| **Pruebas automáticas** | **7492** de backend (Python) y **2627** de la web, en verde | `uv run pytest -m "not integration"` y `npm test` (2026-10-08) |
 | **Tiempo de una HU nueva** | **~4–5 min** con el modelo local en CPU → **11 s** con Groq | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` |
 | **Tiempo de una suite de QA** | **~8 min** en local → **41 s** con Groq | ídem |
 | **Revisión de calidad** | **~7 min** en local → **7,7 s** con Groq | ídem |
@@ -95,13 +95,12 @@ Fuentes: `docs/arquitectura-c4.md` (niveles 1 y 2), `config/README.md`.
 
 Fuente: `web/DEMO.md` §6.
 
-**En curso** (auditoría del 2026-10-08, PA-450 a PA-461): 1 hallazgo alto (una segunda suite de la misma HU se da por publicada sin llegar a Jira) y 11 medios, repartidos en cuatro líneas de trabajo. Fuente: `docs/KANBAN.md`.
+**Auditoría del 2026-10-08, corregida el mismo día:** el hallazgo alto (una segunda suite de la misma HU se daba por publicada sin llegar a Jira) y los 11 medios se corrigieron y verificaron en cuatro líneas de trabajo en paralelo (PA-450 a PA-461), junto con la revisión de calidad con propuestas de reglas nuevas (PA-467). Quedan propuestas menores para después de la demo. Fuente: `docs/KANBAN.md`.
 
 **Próximos pasos propuestos:**
 1. **Piloto de 4 semanas** con un equipo real, en simulación y con aprobación humana, midiendo horas por HU y por suite antes y después.
 2. **Decidir dónde corre el modelo** para producción: GPU propia, Groq de pago o un modelo comercial con acuerdo de datos (`COMPARATIVA-MODELOS.md` §7).
-3. **Cerrar los hallazgos de la auditoría** antes del piloto.
-4. **Ampliar la evaluación del RAG** a las 7 categorías y a las memorias (PA-70).
+3. **Ampliar la evaluación del RAG** a las 7 categorías y a las memorias (PA-70).
 
 ## 8. Datos que faltan para el coste-beneficio
 

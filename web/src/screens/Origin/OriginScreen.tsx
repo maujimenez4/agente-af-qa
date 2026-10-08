@@ -100,6 +100,14 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
   // Si «Generar» abortó la lista antes de que llegara y la creación falla, se vuelve a pedir con esta clave.
   const [sourcesReload, setSourcesReload] = useState(0)
   const sourcesLoaded = useRef(false)
+  // Estado de la lista de fuentes: «Cargando las fuentes…» mientras llega y, si falla, su «Reintentar» la vuelve a pedir.
+  const [sourcesLoading, setSourcesLoading] = useState(Boolean(request.origin))
+  const [sourcesFailed, setSourcesFailed] = useState(false)
+  const reloadSources = () => {
+    setSourcesFailed(false)
+    setSourcesLoading(true)
+    setSourcesReload((count) => count + 1)
+  }
 
   useEffect(() => {
     if (!operation) return
@@ -118,9 +126,13 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
         setConfirmedFor('')
         setEstimateAtConfirm(undefined)
         sourcesLoaded.current = true
+        setSourcesLoading(false)
       })
       .catch((cause: unknown) => {
-        if (!cancelled && cause instanceof ApiRequestError) setError(cause.error)
+        if (cancelled || !(cause instanceof ApiRequestError)) return
+        setError(cause.error)
+        setSourcesFailed(true)
+        setSourcesLoading(false)
       })
       .finally(() => pending.delete(controller))
     return () => {
@@ -199,13 +211,16 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
       // Origen sigue abierto: la lista abortada al pulsar «Generar» se vuelve a pedir.
       // Con un 401 la sesión ya pasa al inicio de sesión: no hay pantalla que recargar.
       const expired = cause instanceof ApiRequestError && cause.status === 401
-      if (!sourcesLoaded.current && !expired) setSourcesReload((count) => count + 1)
+      if (!sourcesLoaded.current && !expired) reloadSources()
     } finally {
       setGenerating(false)
     }
   }
 
-  const choose = (option: StartOption, optionProject: string) => setOperation(operationFromOption(option, optionProject))
+  const choose = (option: StartOption, optionProject: string) => {
+    setSourcesLoading(true)
+    setOperation(operationFromOption(option, optionProject))
+  }
 
   // Sin operación, un mensaje vuelve a pedir la propuesta; con ella, es un detalle para generar.
   const send = async () => {
@@ -343,6 +358,11 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
 
           <fieldset className={styles.sources}>
             <legend className={styles.legend}>Fuentes que se usarán</legend>
+            {sourcesLoading && (
+              <p className={styles.hint} role="status" aria-busy="true">
+                Cargando las fuentes…
+              </p>
+            )}
             {sources.map((source) => {
               const included = !excluded.includes(source.ref)
               return (
@@ -446,7 +466,15 @@ export function OriginScreen({ request, onBack, onGenerating }: OriginScreenProp
 
         {error && (
           <AssistantMessage>
-            <ErrorCard key={`${error.code}-${error.message}`} error={error} onAction={() => setError(undefined)} />
+            <ErrorCard
+              key={`${error.code}-${error.message}`}
+              error={error}
+              onAction={() => {
+                setError(undefined)
+                // Si lo que falló fue la lista de fuentes, «Reintentar» la vuelve a pedir.
+                if (sourcesFailed) reloadSources()
+              }}
+            />
           </AssistantMessage>
         )}
       </ChatLog>

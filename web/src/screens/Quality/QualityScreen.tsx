@@ -140,7 +140,14 @@ export function QualityScreen({ request, reviewId, onBack, onChanged, onEvolve }
       return (
         <Workspace title={QUALITY_TITLE} phaseName={READ_ONLY}>
           {error ? (
-            <ErrorCard key={attempt} error={error} onAction={retryLoad} />
+            <>
+              <ErrorCard key={attempt} error={error} onAction={retryLoad} />
+              {(error.code === 'not_found' || error.code === 'forbidden') && (
+                <div className={styles.errorActions}>
+                  <Button onClick={onBack}>Volver al inicio</Button>
+                </div>
+              )}
+            </>
           ) : (
             <div role="status" aria-label="Cargando la revisión">
               <Skeleton lines={4} />

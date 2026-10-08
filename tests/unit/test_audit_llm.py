@@ -296,13 +296,15 @@ def test_factory_passes_each_provider_context_window(clean_env: pytest.MonkeyPat
 def test_factory_passes_global_window_when_provider_has_no_limits(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
-    """PA-457 (límite): un proveedor sin límites propios recibe la ventana global."""
+    """PA-457 (límite): un proveedor sin límites propios recibe la ventana global.
+    En el fixture (ampliado en PA-458) solo `openrouter` no declara `limits`."""
     config = AppConfig(Settings(_env_file=None), load_models_config(TEST_MODELS))  # type: ignore[call-arg]
+    assert config.models.providers["openrouter"].limits is None
 
-    local = _openai_factory(config)(ModelChoice("local", "POR_DEFINIR"))
+    provider = _openai_factory(config)(ModelChoice("openrouter", "POR_DEFINIR"))
 
-    assert isinstance(local, OpenAICompatibleProvider)
-    assert local._context_window == config.models.limits.context_window
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider._context_window == config.models.limits.context_window
 
 
 # --- 2 · PA-456 · estructura compartida -----------------------------------------------------------

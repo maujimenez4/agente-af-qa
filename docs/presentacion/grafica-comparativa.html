@@ -1,245 +1,252 @@
-<title>Modelo local frente a Claude</title>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiempos y costes por modelo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Una lámina por bloque: cifras clave, tiempo, coste, totales y método. Colores de Qaracter (azul marino y naranja). */
+/* Tokens: colores de Qaracter (azul marino y naranja); series validadas para daltonismo. */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --ink: #1e2d3d;
-  --ink-2: #4a5866;
-  --ink-3: #6c7884;
-  --rule: #e2e6ea;
-  --grid: #edf0f2;
-  --brand: #ff7932;
-  --s-local: #eb6834;
-  --s-haiku: #1baf7a;
-  --s-sonnet: #2a78d6;
-  --s-opus: #eda100;
+  --bg: #f6f7f9; --surface: #ffffff; --ink: #1e2d3d; --ink-2: #4a5866; --ink-3: #66727e;
+  --rule: #e2e6ea; --grid: #edf0f2; --brand: #ff7932;
+  --s-local: #eb6834; --s-groq: #1baf7a; --s-cloud: #2a78d6; --s-cloud-soft: #2a78d633;
   --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #95a0ab;
+    --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #a3adb7;
     --rule: #2c3846; --grid: #243040; --brand: #ff8a4c;
-    --s-local: #d95926; --s-haiku: #199e70; --s-sonnet: #3987e5; --s-opus: #c98500;
+    --s-local: #d95926; --s-groq: #199e70; --s-cloud: #3987e5; --s-cloud-soft: #3987e540;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #95a0ab;
+  --bg: #141c25; --surface: #1b2531; --ink: #f2f4f6; --ink-2: #c3cad2; --ink-3: #a3adb7;
   --rule: #2c3846; --grid: #243040; --brand: #ff8a4c;
-  --s-local: #d95926; --s-haiku: #199e70; --s-sonnet: #3987e5; --s-opus: #c98500;
+  --s-local: #d95926; --s-groq: #199e70; --s-cloud: #3987e5; --s-cloud-soft: #3987e540;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 28px 48px; }
-.page { max-width: 1040px; margin: 0 auto; display: grid; gap: 28px; }
-header { display: grid; gap: 8px; }
-.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; display: flex; gap: 8px; align-items: center; }
-.eyebrow::before { content: ""; width: 18px; height: 3px; background: var(--brand); border-radius: 2px; }
-h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; margin: 0; text-wrap: balance; font-weight: 700; }
-.lede { margin: 0; color: var(--ink-2); max-width: 68ch; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 16px 56px; display: flex; flex-direction: column; gap: 22px; }
+.eyebrow { font-size: 13px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.12; margin: 4px 0 8px; }
+.lead { color: var(--ink-2); margin: 0; max-width: 760px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px; display: grid; gap: 4px; }
-.tile .k { font-size: 13px; color: var(--ink-3); }
-.tile .v { font-family: var(--font-data); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.tile .v .arrow { color: var(--ink-3); margin-inline: 6px; }
-.tile .note { font-size: 13px; color: var(--ink-2); }
-section.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 20px; display: grid; gap: 12px; min-width: 0; }
-h2 { font-size: 19px; margin: 0; text-wrap: balance; }
-.sub { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 75ch; }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-2); }
-.legend span { display: inline-flex; align-items: center; gap: 7px; }
-.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.tile, .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 18px 20px; }
+.tile .k { font-size: 13px; color: var(--ink-3); margin: 0 0 6px; }
+.tile .v { font-family: var(--font-data); font-size: clamp(20px, 2.2vw, 26px); font-weight: 500; margin: 0; white-space: nowrap; }
+.tile .v .arrow { color: var(--ink-3); padding: 0 6px; }
+.tile .n { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+.card h2 { font-size: 20px; margin: 0 0 4px; }
+.card .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); margin: 0 0 10px; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 8px; }
+.sw { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
 .chart { width: 100%; overflow-x: auto; }
-.chart svg { display: block; width: 100%; min-width: 560px; height: auto; }
-.chart text { font-family: var(--font-body); fill: var(--ink-2); font-size: 12px; }
-.chart .cat { fill: var(--ink); font-size: 13px; font-weight: 500; }
-.chart .val { font-family: var(--font-data); fill: var(--ink); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.chart .tick { fill: var(--ink-3); font-family: var(--font-data); font-size: 11px; }
-.chart .gridline { stroke: var(--grid); stroke-width: 1; }
-.chart .axis { stroke: var(--rule); stroke-width: 1; }
-.chart rect.bar { cursor: default; }
-.chart rect.hit { fill: transparent; }
-.chart .hit:hover + rect.bar, .chart rect.bar.on { filter: brightness(1.08); }
-.foot { font-size: 12.5px; color: var(--ink-3); margin: 0; }
-.tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
-th, td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+svg text { font-family: var(--font-body); }
+.mixta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.mixta div { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--ink-2); }
+.mixta strong { color: var(--ink); display: block; }
+.tablebox { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 860px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
-thead th { font-size: 12px; color: var(--ink-3); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-td.num { font-family: var(--font-data); font-size: 13.5px; }
-tr.ours td { font-weight: 700; }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
-.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 28px; }
-.method h3 { font-size: 14px; margin: 0 0 6px; }
-.method ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; display: grid; gap: 4px; }
-.method a { color: var(--ink); text-underline-offset: 2px; }
-.method a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 2px; }
-#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12.5px; padding: 7px 10px; border-radius: 8px; line-height: 1.35; max-width: 240px; z-index: 10; }
-#tip b { font-weight: 700; }
+th { color: var(--ink-3); font-weight: 500; }
+td { font-family: var(--font-data); }
+td:first-child { font-family: var(--font-body); }
+tr.hoy td { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.notes { color: var(--ink-2); font-size: 14px; }
+.notes ul { margin: 6px 0 0; padding-left: 20px; }
+.notes a { color: var(--ink); }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; padding: 8px 10px; border-radius: 8px; opacity: 0; transition: opacity .1s; max-width: 260px; z-index: 5; }
+@media (max-width: 560px) { .tile .v { font-size: 22px; } }
 </style>
-
-<div class="page">
+</head>
+<body>
+<div class="wrap">
   <header>
-    <div class="eyebrow">Agente de IA de AF y QA · coste y tiempos de los modelos</div>
-    <h1>De minutos a segundos, por céntimos</h1>
-    <p class="lede">Tiempos y tokens reales de 91 llamadas del agente (2–7 de octubre de 2026) con el modelo local gratuito <b>qwen3:1.7b</b> en CPU, frente a una estimación de las mismas operaciones con <b>Claude Haiku 4.5, Sonnet 5.5 y Opus 5.5</b>.</p>
+    <p class="eyebrow">Agente de IA de AF y QA · tiempos y costes por modelo · 2026-10-09</p>
+    <h1>De minutos a segundos, con 0 € de modelo hoy</h1>
+    <p class="lead">Tiempos <strong>medidos</strong> con los modelos que usa el agente (Ollama local y Groq) frente a una <strong>estimación</strong> con los principales modelos comerciales (Anthropic, OpenAI y Google), con los tokens reales de cada operación.</p>
   </header>
 
-  <div class="tiles" aria-label="Cifras clave">
-    <div class="tile"><span class="k">Generar una suite de QA</span><span class="v">8,3 min<span class="arrow">→</span>~23 s</span><span class="note">Local (medido) frente a Sonnet 5.5 (estimado)</span></div>
-    <div class="tile"><span class="k">Coste de las 91 llamadas</span><span class="v">0 $<span class="arrow">→</span>~1,36 $</span><span class="note">Con Sonnet 5.5; ~0,03 $ por suite de QA</span></div>
-    <div class="tile"><span class="k">Tiempo total de modelo</span><span class="v">4 h 52 min<span class="arrow">→</span>~14 min</span><span class="note">Unas 20 veces más rápido</span></div>
-  </div>
-
-  <section class="card" aria-labelledby="t1">
-    <h2 id="t1">Tiempo por operación</h2>
-    <p class="sub">Segundos que espera la persona hasta tener la propuesta. Escala lineal: las barras de Claude son cortas porque los tiempos lo son.</p>
-    <div class="legend" id="lg1"></div>
-    <div class="chart" id="c-time" role="img" aria-label="Barras de tiempo por operación para los cuatro modelos; los valores están en la tabla de abajo"></div>
+  <section class="tiles" aria-label="Cifras clave">
+    <div class="tile"><p class="k">Una HU nueva</p><p class="v">4 min<span class="arrow">→</span>11 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Revisión de calidad</p><p class="v">7,2 min<span class="arrow">→</span>7,7 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Coste de modelo hoy</p><p class="v">0 €</p><p class="n">Open-weight gratuitos; Groq de pago: ~1,9 $ / 1000 operaciones</p></div>
+    <div class="tile"><p class="k">Modelos comerciales (estimado)</p><p class="v">1,5–58 $</p><p class="n">por 1000 operaciones, según el modelo</p></div>
   </section>
 
-  <section class="card" aria-labelledby="t2">
-    <h2 id="t2">Coste por operación</h2>
-    <p class="sub">Dólares por operación con los tokens reales medidos. El modelo local no tiene coste por uso.</p>
-    <div class="legend" id="lg2"></div>
-    <div class="chart" id="c-cost" role="img" aria-label="Barras de coste por operación para los cuatro modelos; los valores están en la tabla de abajo"></div>
+  <section class="card" aria-labelledby="h-mixta">
+    <h2 id="h-mixta">Configuración actual del agente (mixta)</h2>
+    <p class="sub">Solo modelos open-weight y gratuitos (decisión D-14). El modelo se cambia por configuración, sin tocar código.</p>
+    <div class="mixta">
+      <div><strong>Groq · gpt-oss-120b / 20b</strong>Crear y evolucionar HU, revisar la calidad, impacto y memoria. Segundos.</div>
+      <div><strong>Ollama local · qwen3:1.7b</strong>Suites de QA (no caben en los 8000 tokens por minuto del nivel gratuito de Groq) y respaldo de todo. Minutos en CPU.</div>
+    </div>
   </section>
 
-  <section class="card" aria-labelledby="t3">
-    <h2 id="t3">Las cifras</h2>
-    <div class="tablewrap">
+  <section class="card" aria-labelledby="h-tiempo">
+    <h2 id="h-tiempo">Tiempo por operación</h2>
+    <p class="sub">Segundos hasta tener la propuesta. Escala lineal: las barras cortas lo son de verdad.</p>
+    <ul class="legend">
+      <li><span class="sw" style="background: var(--s-local)"></span>Local qwen3:1.7b (medido)</li>
+      <li><span class="sw" style="background: var(--s-groq)"></span>Groq gpt-oss (medido)</li>
+      <li><span class="sw" style="background: var(--s-cloud)"></span>Comerciales: rango de los 6 modelos (estimado)</li>
+    </ul>
+    <div class="chart" id="chart-time" role="img" aria-label="Tiempo por operación: local entre 240 y 498 segundos, Groq entre 8 y 41 segundos, comerciales estimados entre 12 y 44 segundos."></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-coste">
+    <h2 id="h-coste">Coste por 1000 operaciones</h2>
+    <p class="sub">Media de las cinco operaciones con los tokens reales del agente. Aprobar y editar a mano no llaman al modelo.</p>
+    <ul class="legend">
+      <li><span class="sw" style="background: var(--s-groq)"></span>Open-weight (cumple D-14)</li>
+      <li><span class="sw" style="background: var(--s-cloud)"></span>Comercial (estimado; no cumple D-14)</li>
+    </ul>
+    <div class="chart" id="chart-cost" role="img" aria-label="Coste por 1000 operaciones: local y Groq gratuito 0 dólares; GPT-6 Luna 1,46; Groq de pago 1,92; Gemini 3.8 Flash 10,95; Claude Haiku 4.5 14,60; Claude Sonnet 5.5 y GPT-6.1 Sol 29,20; Gemini 3.1 Pro 32,80; Claude Opus 5.5 58,41."></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-tabla">
+    <h2 id="h-tabla">Las cifras</h2>
+    <p class="sub">Tiempo y coste por operación. «Medido» sale del agente; el resto es estimación.</p>
+    <div class="tablebox">
       <table>
-        <thead><tr><th>Operación</th><th>Llamadas</th><th>Local</th><th>Haiku 4.5</th><th>Sonnet 5.5</th><th>Opus 5.5</th></tr></thead>
+        <thead><tr><th scope="col">Modelo</th><th scope="col">Tipo</th><th scope="col">$/M entrada · salida</th><th scope="col">HU nueva</th><th scope="col">Evolucionar</th><th scope="col">Suite QA</th><th scope="col">Iterar suite</th><th scope="col">Calidad</th><th scope="col">1000 ops</th></tr></thead>
         <tbody id="tbody"></tbody>
-        <tbody>
-          <tr class="ours"><td>Total de las 91 llamadas · tiempo</td><td class="num">91</td><td class="num">4 h 52 min</td><td class="num">~14 min</td><td class="num">~14 min</td><td class="num">~19 min</td></tr>
-          <tr class="ours"><td>Total de las 91 llamadas · coste</td><td class="num">91</td><td class="num">0 $</td><td class="num">~0,68 $</td><td class="num">~1,36 $</td><td class="num">~2,71 $</td></tr>
-          <tr><td>1000 operaciones al mes · coste estimado</td><td class="num">—</td><td class="num">0 $</td><td class="num">~15 $</td><td class="num">~30 $</td><td class="num">~60 $</td></tr>
-        </tbody>
       </table>
     </div>
-    <p class="foot">Aprobar y editar a mano no llaman al modelo: son instantáneos y no cuestan nada con ningún modelo.</p>
   </section>
 
-  <section class="card" aria-labelledby="t4">
-    <h2 id="t4">Cómo se ha calculado</h2>
-    <div class="method">
-      <div>
-        <h3>Datos medidos (modelo local)</h3>
-        <ul>
-          <li>Tiempos por operación: trazas de Langfuse del agente (29 operaciones, 5–7 de octubre de 2026), mediana.</li>
-          <li>Tokens por tarea: registro de uso del agente en PostgreSQL (91 llamadas, 2–7 de octubre de 2026).</li>
-          <li>qwen3:1.7b con Ollama en CPU, ventana de 8192 tokens. Las suites incluyen los reintentos de validación reales.</li>
-        </ul>
-      </div>
-      <div>
-        <h3>Estimación (Claude)</h3>
-        <ul>
-          <li>Tiempo de cada llamada = primera respuesta + tokens de salida ÷ velocidad: Haiku 4.5 ~108 tokens/s y ~0,7 s; Sonnet 5.5 ~125 tokens/s y ~1,5 s; Opus 5.5 ~96 tokens/s y ~3 s.</li>
-          <li>Precio por millón de tokens (entrada / salida): Haiku 1 / 5 $, Sonnet 2 / 10 $, Opus 4 / 20 $.</li>
-          <li>Mismas llamadas que el local; un modelo más capaz probablemente necesitaría menos reintentos. Margen de ±20 % por la forma de contar tokens de cada modelo.</li>
-        </ul>
-      </div>
-      <div>
-        <h3>Fuentes</h3>
-        <ul>
-          <li><a href="https://artificialanalysis.ai/models/releases/comparisons/claude-sonnet-5-5-vs-claude-4-5-haiku">Artificial Analysis · Claude Sonnet 5.5 vs Claude 4.5 Haiku</a></li>
-          <li><a href="https://artificialanalysis.ai/models/releases/comparisons/claude-opus-5-5-vs-claude-4-5-haiku">Artificial Analysis · Claude Opus 5.5 vs Claude 4.5 Haiku</a></li>
-          <li><a href="https://artificialanalysis.ai/providers/anthropic">Artificial Analysis · Anthropic</a></li>
-          <li><a href="https://pecollective.com/tools/anthropic-api-pricing/">PE Collective · Anthropic API pricing 2026</a></li>
-          <li><a href="https://curlscape.com/blog/anthropic-claude-api-pricing-guide-2026">Curlscape · Claude API pricing guide 2026</a></li>
-        </ul>
-      </div>
-      <div>
-        <h3>Para tener en cuenta</h3>
-        <ul>
-          <li>El proyecto usa solo modelos abiertos y gratuitos (decisión D-14): esto es una comparativa para decidir el futuro, no un cambio.</li>
-          <li>Con un proveedor en la nube los datos salen de la empresa: con datos reales hace falta un acuerdo de tratamiento de datos.</li>
-          <li>Precios y velocidades consultados en octubre de 2026 en comparadores; confirmar en la página oficial de Anthropic antes de decidir.</li>
-        </ul>
-      </div>
-    </div>
+  <section class="card notes" aria-labelledby="h-metodo">
+    <h2 id="h-metodo">Cómo se ha calculado</h2>
+    <ul>
+      <li><strong>Medido (local y Groq):</strong> trazas de Langfuse y registro de uso del agente (<code>llm_usage</code>), proyecto sintético AFQP, 2–8 de octubre de 2026. Local: mediana de 29 operaciones; Groq: una medida por operación (<code>docs/pruebas/medidas-groq-vs-local-2026-10-07.md</code>).</li>
+      <li><strong>Tokens por operación:</strong> medias reales del agente — HU nueva 5005 de entrada / 1880 de salida (2 llamadas); evolucionar 4138 / 1788 (2); suite 6915 / 2244 (2); iterar una suite 4846 / 1350 (1); calidad 7151 / 1729 (2).</li>
+      <li><strong>Tiempo estimado</strong> = latencia inicial por llamada + tokens de salida ÷ velocidad. Velocidades de Artificial Analysis: Haiku 4.5 ~108 t/s, Sonnet 5.5 ~125, Opus 5.5 ~96, GPT-6.1 Sol 55,6, GPT-6 Luna 127,5, Gemini 3.1 Pro 115,3, Gemini 3.8 Flash 120,2. Latencia inicial: Claude 0,7 / 1,5 / 3 s; OpenAI y Gemini, 2 s supuestos con razonamiento bajo — con el razonamiento al máximo, Artificial Analysis mide entre 25 y 314 s antes de la primera palabra.</li>
+      <li><strong>Precios oficiales</strong> por millón de tokens (entrada / salida): Anthropic — Haiku 4.5 1 / 5 $, Sonnet 5.5 2 / 10 $, Opus 5.5 4 / 20 $ (tabla de precios de la API, consultada el 2026-10-08); OpenAI — GPT-6.1 Sol 2 / 10 $, GPT-6 Luna 0,10 / 0,50 $; Google — Gemini 3.1 Pro 2 / 12 $ (≤ 200k), Gemini 3.8 Flash 0,75 / 3,75 $ (precio de lanzamiento hasta el 31-12-2026; se duplica el 1-1-2027). Groq de pago, gpt-oss-120b: 0,15 / 0,60 $ (fuente secundaria; confirmar en Groq).</li>
+      <li><strong>Márgenes:</strong> ±20 % por la forma de contar tokens de cada modelo. Un modelo más capaz probablemente necesitaría menos reintentos.</li>
+    </ul>
+    <h2 style="font-size: 16px; margin: 14px 0 0;">Fuentes</h2>
+    <ul>
+      <li><a href="https://developers.openai.com/api/docs/pricing">OpenAI · precios de la API</a></li>
+      <li><a href="https://ai.google.dev/gemini-api/docs/pricing">Google · precios de la API de Gemini (actualizado 2026-10-07)</a></li>
+      <li><a href="https://artificialanalysis.ai/models/gpt-6-1-sol">Artificial Analysis · GPT-6.1 Sol</a> · <a href="https://artificialanalysis.ai/models/gpt-6-luna">GPT-6 Luna</a> · <a href="https://artificialanalysis.ai/models/gemini-3-1-pro-preview">Gemini 3.1 Pro</a> · <a href="https://artificialanalysis.ai/models/gemini-3-8-flash">Gemini 3.8 Flash</a> · <a href="https://artificialanalysis.ai/providers/anthropic">Anthropic</a></li>
+      <li><a href="https://usagepricing.com/ai-token-pricing/groq/gpt-oss-120b-groq">usagepricing · gpt-oss-120b en Groq</a></li>
+    </ul>
+    <h2 style="font-size: 16px; margin: 14px 0 0;">Para tener en cuenta</h2>
+    <ul>
+      <li>El proyecto usa solo modelos open-weight y gratuitos (D-14): los comerciales son una referencia para decidir el futuro, no un cambio.</li>
+      <li>Con cualquier proveedor en la nube (Groq incluido) los datos salen de la empresa: con datos reales hace falta un acuerdo de tratamiento de datos.</li>
+      <li>Precios consultados en octubre de 2026; confirmar en la página oficial de cada proveedor antes de decidir.</li>
+    </ul>
   </section>
 </div>
-<div id="tip" hidden></div>
-
+<div id="tip" role="tooltip"></div>
 <script>
+const OPS = ["HU nueva", "Evolucionar una HU", "Suite de QA", "Iterar una suite", "Revisar la calidad"];
+const LOCAL = [240, 312, 498, 318, 432];
+const GROQ = [11, null, 41, null, 7.7];
+const GROQ_NOTE = [null, "no medido aparte", "en la configuración actual va en local", "no cabe en el nivel gratuito", null];
 const MODELS = [
-  { key: "local", name: "Local · qwen3:1.7b", short: "Local", color: "var(--s-local)" },
-  { key: "haiku", name: "Claude Haiku 4.5", short: "Haiku 4.5", color: "var(--s-haiku)" },
-  { key: "sonnet", name: "Claude Sonnet 5.5", short: "Sonnet 5.5", color: "var(--s-sonnet)" },
-  { key: "opus", name: "Claude Opus 5.5", short: "Opus 5.5", color: "var(--s-opus)" },
+  { name: "Local · qwen3:1.7b", kind: "ow", price: "—", t: LOCAL, c: [0,0,0,0,0], k: 0, measured: true, hoy: true },
+  { name: "Groq · gpt-oss (gratuito)", kind: "ow", price: "0 · 0", t: GROQ, c: [0,0,0,0,0], k: 0, measured: true, hoy: true },
+  { name: "Groq · gpt-oss-120b (de pago)", kind: "ow", price: "0,15 · 0,60", t: GROQ, c: [0.0019,0.0017,0.0024,0.0015,0.0021], k: 1.92, measured: true },
+  { name: "GPT-6 Luna", kind: "cm", price: "0,10 · 0,50", t: [19,18,22,13,18], c: [0.0014,0.0013,0.0018,0.0012,0.0016], k: 1.46 },
+  { name: "Gemini 3.8 Flash", kind: "cm", price: "0,75 · 3,75", t: [20,19,23,13,18], c: [0.0108,0.0098,0.0136,0.0087,0.0118], k: 10.95 },
+  { name: "Claude Haiku 4.5", kind: "cm", price: "1 · 5", t: [19,18,22,13,17], c: [0.0144,0.0131,0.0181,0.0116,0.0158], k: 14.60 },
+  { name: "Claude Sonnet 5.5", kind: "cm", price: "2 · 10", t: [18,17,21,12,17], c: [0.0288,0.0262,0.0363,0.0232,0.0316], k: 29.20 },
+  { name: "GPT-6.1 Sol", kind: "cm", price: "2 · 10", t: [38,36,44,26,35], c: [0.0288,0.0262,0.0363,0.0232,0.0316], k: 29.20 },
+  { name: "Gemini 3.1 Pro", kind: "cm", price: "2 · 12", t: [20,20,23,14,19], c: [0.0326,0.0297,0.0408,0.0259,0.0350], k: 32.80 },
+  { name: "Claude Opus 5.5", kind: "cm", price: "4 · 20", t: [26,25,29,17,24], c: [0.0576,0.0523,0.0725,0.0464,0.0632], k: 58.41 },
 ];
-const OPS = [
-  { op: "HU nueva", calls: 2, time: { local: 240, haiku: 19, sonnet: 18, opus: 26 }, cost: { local: 0, haiku: 0.012, sonnet: 0.025, opus: 0.049 } },
-  { op: "Evolucionar una HU", calls: 2, time: { local: 312, haiku: 17, sonnet: 17, opus: 24 }, cost: { local: 0, haiku: 0.013, sonnet: 0.027, opus: 0.054 } },
-  { op: "Suite de QA", calls: 3, time: { local: 498, haiku: 23, sonnet: 23, opus: 33 }, cost: { local: 0, haiku: 0.017, sonnet: 0.035, opus: 0.069 } },
-  { op: "Iterar una suite", calls: 1, time: { local: 318, haiku: 13, sonnet: 12, opus: 17 }, cost: { local: 0, haiku: 0.012, sonnet: 0.023, opus: 0.047 } },
-  { op: "Revisar la calidad", calls: 2, time: { local: 432, haiku: 17, sonnet: 17, opus: 24 }, cost: { local: 0, haiku: 0.015, sonnet: 0.030, opus: 0.060 } },
-];
-const nf = (n, d = 1) => n.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtTime = (s, m) => m === "local" ? `${nf(s / 60)} min` : `~${s} s`;
-const fmtCost = (c) => c === 0 ? "0 $" : `${nf(c, 3)} $`;
-
-function legend(id) {
-  document.getElementById(id).innerHTML = MODELS.map(m => `<span><i style="background:${m.color}"></i>${m.name}</span>`).join("");
-}
-
+const NS = "http://www.w3.org/2000/svg";
 const tip = document.getElementById("tip");
-function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; moveTip(e); }
-function moveTip(e) { const x = Math.min(e.clientX + 14, window.innerWidth - 250); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
-function hideTip() { tip.hidden = true; }
-
-function chart(id, field, max, ticks, fmt, tickFmt) {
-  const W = 900, labelW = 170, right = 70, barH = 12, gap = 2, groupPad = 18;
-  const groupH = MODELS.length * barH + (MODELS.length - 1) * gap;
-  const top = 8, axisH = 26;
-  const H = top + OPS.length * (groupH + groupPad) - groupPad + axisH + 6;
-  const plotW = W - labelW - right;
-  const x = v => labelW + (v / max) * plotW;
-  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-  const baseY = top + OPS.length * (groupH + groupPad) - groupPad;
-  for (const t of ticks) {
-    s += `<line class="gridline" x1="${x(t)}" x2="${x(t)}" y1="${top - 4}" y2="${baseY}"/>`;
-    s += `<text class="tick" x="${x(t)}" y="${baseY + 18}" text-anchor="middle">${tickFmt(t)}</text>`;
+const fmtS = (s) => s >= 60 ? (s / 60).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " min" : s.toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " s";
+const fmt$ = (v) => v === 0 ? "0 $" : v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
+function el(name, attrs, parent) { const e = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; }
+function txt(parent, x, y, s, attrs) { const t = el("text", Object.assign({ x, y, fill: "var(--ink-2)", "font-size": 12 }, attrs || {}), parent); t.textContent = s; return t; }
+function showTip(ev, html) { tip.textContent = html; tip.style.opacity = 1; tip.style.left = Math.min(ev.clientX + 12, innerWidth - 270) + "px"; tip.style.top = (ev.clientY + 12) + "px"; }
+function hideTip() { tip.style.opacity = 0; }
+function hover(node, label) { node.addEventListener("mousemove", (e) => showTip(e, label)); node.addEventListener("mouseleave", hideTip); }
+// Barra horizontal con el extremo de datos redondeado (4 px) y el lado del eje recto.
+function bar(g, x0, y, w, h, fill) {
+  const r = Math.min(4, w / 2, h / 2);
+  if (w <= 0.5) return el("rect", { x: x0, y, width: 2, height: h, fill }, g);
+  return el("path", { d: `M${x0},${y}H${x0 + w - r}Q${x0 + w},${y} ${x0 + w},${y + r}V${y + h - r}Q${x0 + w},${y + h} ${x0 + w - r},${y + h}H${x0}Z`, fill }, g);
+}
+function axis(svg, x0, x1, top, bottom, max, step, unit) {
+  for (let v = 0; v <= max; v += step) {
+    const x = x0 + (x1 - x0) * v / max;
+    el("line", { x1: x, x2: x, y1: top, y2: bottom, stroke: "var(--grid)", "stroke-width": 1 }, svg);
+    txt(svg, x, bottom + 16, v + unit, { "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11 });
   }
-  s += `<line class="axis" x1="${labelW}" x2="${labelW}" y1="${top - 4}" y2="${baseY}"/>`;
-  OPS.forEach((o, i) => {
-    const gy = top + i * (groupH + groupPad);
-    s += `<text class="cat" x="${labelW - 12}" y="${gy + groupH / 2 + 4}" text-anchor="end">${o.op}</text>`;
-    MODELS.forEach((m, j) => {
-      const v = o[field][m.key];
-      const y = gy + j * (barH + gap);
-      const w = Math.max(v > 0 ? 3 : 0, x(v) - labelW);
-      const r = Math.min(4, w / 2);
-      const tipHtml = `<b>${o.op}</b><br>${m.name}: ${fmt(v, m.key)}<br>${o.calls} ${o.calls === 1 ? "llamada" : "llamadas"} al modelo`;
-      // Barra con extremo redondeado anclada al eje (sin redondear el lado del eje)
-      if (w > 0) {
-        s += `<path class="barshape" d="M${labelW},${y} H${labelW + w - r} Q${labelW + w},${y} ${labelW + w},${y + r} V${y + barH - r} Q${labelW + w},${y + barH} ${labelW + w - r},${y + barH} H${labelW} Z" fill="${m.color}"/>`;
-      }
-      s += `<text class="val" x="${labelW + w + 6}" y="${y + barH - 2}">${fmt(v, m.key)}</text>`;
-      s += `<rect class="hit" x="${labelW}" y="${y - 1}" width="${plotW + right}" height="${barH + gap}" data-tip="${tipHtml.replace(/"/g, "&quot;")}"/>`;
-    });
-  });
-  s += `</svg>`;
-  const el = document.getElementById(id);
-  el.innerHTML = s;
-  el.querySelectorAll("rect.hit").forEach(r => {
-    r.addEventListener("mouseenter", e => showTip(e, r.dataset.tip));
-    r.addEventListener("mousemove", moveTip);
-    r.addEventListener("mouseleave", hideTip);
+}
+function timeChart() {
+  const box = document.getElementById("chart-time");
+  const W = Math.max(640, box.clientWidth), L = 150, R = W - 70, rowH = 74, top = 8;
+  const H = top + OPS.length * rowH + 28, max = 500;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H }, box);
+  axis(svg, L, R, top, top + OPS.length * rowH, max, 100, " s");
+  const sx = (v) => (R - L) * v / max;
+  OPS.forEach((op, i) => {
+    const y = top + i * rowH + 6;
+    txt(svg, 0, y + 30, op, { fill: "var(--ink)", "font-size": 13, "font-weight": 500 });
+    // Local (medido)
+    const bl = bar(svg, L, y, sx(LOCAL[i]), 16, "var(--s-local)");
+    hover(bl, `${op} · local qwen3:1.7b (medido): ${fmtS(LOCAL[i])}`);
+    txt(svg, L + sx(LOCAL[i]) + 6, y + 12, fmtS(LOCAL[i]), { fill: "var(--ink)" });
+    // Groq (medido)
+    const yg = y + 20;
+    if (GROQ[i] != null) {
+      const bg = bar(svg, L, yg, sx(GROQ[i]), 16, "var(--s-groq)");
+      hover(bg, `${op} · Groq gpt-oss (medido): ${fmtS(GROQ[i])}` + (GROQ_NOTE[i] ? ` — ${GROQ_NOTE[i]}` : ""));
+      txt(svg, L + sx(GROQ[i]) + 6, yg + 12, fmtS(GROQ[i]) + (GROQ_NOTE[i] ? ` · ${GROQ_NOTE[i]}` : ""), { fill: "var(--ink)" });
+    } else {
+      txt(svg, L, yg + 12, `Groq: ${GROQ_NOTE[i]}`, { fill: "var(--ink-3)", "font-style": "italic" });
+    }
+    // Comerciales: rango (estimado)
+    const yc = y + 40, ts = MODELS.filter((m) => m.kind === "cm").map((m) => m.t[i]);
+    const lo = Math.min(...ts), hi = Math.max(...ts);
+    el("rect", { x: L, y: yc, width: sx(lo), height: 16, fill: "var(--s-cloud-soft)" }, svg);
+    const br = bar(svg, L + sx(lo), yc, Math.max(2, sx(hi - lo)), 16, "var(--s-cloud)");
+    hover(br, `${op} · comerciales (estimado): de ${fmtS(lo)} a ${fmtS(hi)}`);
+    txt(svg, L + sx(hi) + 6, yc + 12, `${lo}–${hi} s`, { fill: "var(--ink)" });
   });
 }
-
-legend("lg1"); legend("lg2");
-chart("c-time", "time", 540, [0, 60, 120, 180, 240, 300, 360, 420, 480, 540], fmtTime, t => `${t} s`);
-chart("c-cost", "cost", 0.075, [0, 0.025, 0.05, 0.075], (v) => fmtCost(v), t => t === 0 ? "0 $" : `${nf(t, 3)} $`);
-
-document.getElementById("tbody").innerHTML = OPS.map(o => `
-  <tr><td>${o.op} · tiempo</td><td class="num">${o.calls}</td>${MODELS.map(m => `<td class="num">${fmtTime(o.time[m.key], m.key)}</td>`).join("")}</tr>
-  <tr><td>${o.op} · coste</td><td class="num">${o.calls}</td>${MODELS.map(m => `<td class="num">${fmtCost(o.cost[m.key])}</td>`).join("")}</tr>`).join("");
+function costChart() {
+  const box = document.getElementById("chart-cost");
+  const rows = MODELS.map((m) => ({ name: m.name, k: m.k, kind: m.kind })).sort((a, b) => a.k - b.k);
+  const W = Math.max(640, box.clientWidth), L = 230, R = W - 80, rowH = 30, top = 6, max = 60;
+  const H = top + rows.length * rowH + 28;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H }, box);
+  axis(svg, L, R, top, top + rows.length * rowH, max, 10, " $");
+  rows.forEach((r, i) => {
+    const y = top + i * rowH + 7, w = (R - L) * r.k / max;
+    txt(svg, 0, y + 12, r.name, { fill: "var(--ink)", "font-size": 13 });
+    const b = bar(svg, L, y, w, 16, r.kind === "ow" ? "var(--s-groq)" : "var(--s-cloud)");
+    hover(b, `${r.name}: ${fmt$(r.k)} por 1000 operaciones` + (r.name.includes("3.8 Flash") ? " (21,90 $ desde 2027)" : ""));
+    txt(svg, L + w + 6, y + 12, fmt$(r.k) + (r.name.includes("3.8 Flash") ? " · 21,90 $ desde 2027" : ""), { fill: "var(--ink)" });
+  });
+}
+function table() {
+  const tb = document.getElementById("tbody");
+  MODELS.forEach((m) => {
+    const tr = document.createElement("tr");
+    if (m.hoy) tr.className = "hoy";
+    const cells = [m.name + (m.hoy ? " · hoy" : ""), m.kind === "ow" ? "Open-weight" + (m.measured ? " · medido" : "") : "Comercial · estimado", m.price];
+    m.t.forEach((t, i) => cells.push(t == null ? "—" : fmtS(t) + (m.c[i] ? " · " + m.c[i].toLocaleString("es-ES", { minimumFractionDigits: 4 }) + " $" : "")));
+    cells.push(fmt$(m.k));
+    cells.forEach((c) => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+}
+timeChart(); costChart(); table();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { document.getElementById("chart-time").innerHTML = ""; document.getElementById("chart-cost").innerHTML = ""; timeChart(); costChart(); }, 150); });
 </script>
+</body>
+</html>

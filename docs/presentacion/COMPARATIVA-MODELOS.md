@@ -9,13 +9,13 @@ Anexo del dossier para dirección (`DOSSIER.md`). Reúne lo que se midió y se i
 | **Una HU nueva** | de **~4–5 min** (modelo local) a **11 s** (Groq) | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` |
 | **Una suite de QA** | de **~8 min** (local) a **41 s** (Groq, con esperas por su límite) | ídem |
 | **Coste de modelo hoy** | **0 €**: modelos open-weight gratuitos (local y nivel gratuito de Groq) | decisión D-14, `config/README.md` |
-| **Coste estimado con un modelo comercial** | **~0,03 $ por suite** con Claude Sonnet 5.5; **~30 $ al mes** por 1000 operaciones | estimación del §5 |
+| **Coste estimado con un modelo de pago** | de **~1,5 $** (GPT-6 Luna, Groq de pago) a **~58 $** (Claude Opus 5.5) por 1000 operaciones | estimación del §5 |
 
 ## 2. Qué se comparó y cómo
 
 - **Modelo local:** `qwen3:1.7b` (respaldo `phi4-mini`) con Ollama en Docker, **solo CPU**, en el portátil de desarrollo. Datos privados: nada sale del equipo.
 - **Groq (nube, nivel gratuito):** `gpt-oss-120b` y `gpt-oss-20b`, modelos open-weight servidos por un tercero.
-- **Claude (comercial, solo como referencia):** Haiku 4.5, Sonnet 5.5 y Opus 5.5. **No se ha probado**: es una estimación con los tokens reales del agente.
+- **Comerciales (solo como referencia):** Anthropic (Claude Haiku 4.5, Sonnet 5.5 y Opus 5.5), OpenAI (GPT-6.1 Sol y GPT-6 Luna) y Google (Gemini 3.1 Pro y Gemini 3.8 Flash). **No se han probado**: es una estimación con los tokens reales del agente.
 
 **Datos medidos:**
 - tiempos por operación, de las trazas de Langfuse (29 operaciones locales, 5–7 oct, mediana) y del registro de la API;
@@ -53,22 +53,31 @@ Además, en total: **4 h 52 min de modelo** en las 91 llamadas locales, frente a
 ### 5.1 Hoy
 **0 €** en modelos: todos son open-weight y gratuitos (D-14). El modelo local solo consume la CPU del equipo; Groq, su nivel gratuito.
 
-### 5.2 Estimación con un modelo comercial (referencia)
-Con los **tokens reales** de cada operación del agente y los precios oficiales de Anthropic (por millón de tokens, entrada / salida: **Haiku 4.5 1 / 5 $**, **Sonnet 5.5 2 / 10 $**, **Opus 5.5 4 / 20 $**; tabla de precios de la API, consultada el 2026-10-08):
+### 5.2 Estimación con modelos comerciales y con Groq de pago (referencia)
+Con los **tokens reales** de cada operación del agente (medias de `llm_usage`: HU nueva 5005 de entrada / 1880 de salida; evolucionar 4138 / 1788; suite 6915 / 2244; iterar una suite 4846 / 1350; calidad 7151 / 1729) y los **precios oficiales** por millón de tokens (entrada / salida), consultados en octubre de 2026:
 
-| Operación | Llamadas | Local (medido) | Haiku 4.5 | Sonnet 5.5 | Opus 5.5 |
-|---|---|---|---|---|---|
-| HU nueva | 2 | 240 s · 0 $ | ~19 s · 0,012 $ | ~18 s · 0,025 $ | ~26 s · 0,049 $ |
-| Evolucionar una HU | 2 | 312 s · 0 $ | ~17 s · 0,013 $ | ~17 s · 0,027 $ | ~24 s · 0,054 $ |
-| Suite de QA | 3 | 498 s · 0 $ | ~23 s · 0,017 $ | ~23 s · 0,035 $ | ~33 s · 0,069 $ |
-| Iterar una suite | 1 | 318 s · 0 $ | ~13 s · 0,012 $ | ~12 s · 0,023 $ | ~17 s · 0,047 $ |
-| Revisión de calidad | 2 | 432 s · 0 $ | ~17 s · 0,015 $ | ~17 s · 0,030 $ | ~24 s · 0,060 $ |
-| **Las 91 llamadas medidas** | 91 | 4 h 52 min · 0 $ | ~14 min · ~0,68 $ | ~14 min · ~1,36 $ | ~19 min · ~2,71 $ |
-| **1000 operaciones al mes** | — | 0 $ | ~15 $ | ~30 $ | ~60 $ |
+| Modelo | Proveedor | Tipo | $/M entrada · salida | HU nueva | Suite de QA | Calidad | **1000 operaciones** |
+|---|---|---|---|---|---|---|---|
+| qwen3:1.7b (local) | Ollama | Open-weight · **medido** | — | 4 min | 8,3 min | 7,2 min | **0 $** |
+| gpt-oss (nivel gratuito) | Groq | Open-weight · **medido** | 0 · 0 | 11 s | 41 s | 7,7 s | **0 $** |
+| gpt-oss-120b (de pago) | Groq | Open-weight | 0,15 · 0,60 | ~11 s | ~41 s | ~8 s | **~1,92 $** |
+| GPT-6 Luna | OpenAI | Comercial · estimado | 0,10 · 0,50 | ~19 s | ~22 s | ~18 s | **~1,46 $** |
+| Gemini 3.8 Flash | Google | Comercial · estimado | 0,75 · 3,75 ¹ | ~20 s | ~23 s | ~18 s | **~10,95 $** ¹ |
+| Claude Haiku 4.5 | Anthropic | Comercial · estimado | 1 · 5 | ~19 s | ~22 s | ~17 s | **~14,60 $** |
+| Claude Sonnet 5.5 | Anthropic | Comercial · estimado | 2 · 10 | ~18 s | ~21 s | ~17 s | **~29,20 $** |
+| GPT-6.1 Sol | OpenAI | Comercial · estimado | 2 · 10 | ~38 s | ~44 s | ~35 s | **~29,20 $** |
+| Gemini 3.1 Pro | Google | Comercial · estimado | 2 · 12 | ~20 s | ~23 s | ~19 s | **~32,80 $** |
+| Claude Opus 5.5 | Anthropic | Comercial · estimado | 4 · 20 | ~26 s | ~29 s | ~24 s | **~58,41 $** |
 
-**Cómo se estimó el tiempo:** primera respuesta + tokens de salida ÷ velocidad (Haiku ~108 tokens/s y ~0,7 s; Sonnet ~125 tokens/s y ~1,5 s; Opus ~96 tokens/s y ~3 s), según Artificial Analysis (comparativas públicas de modelos de Anthropic, octubre de 2026).
+¹ Precio de lanzamiento hasta el 31-12-2026; se duplica el 1-1-2027 (~21,90 $ por 1000 operaciones).
 
-**Márgenes:** ±20 % por la forma de contar tokens de cada modelo. Un modelo más capaz probablemente necesitaría menos reintentos, así que la cifra es conservadora. Aprobar y editar a mano no llaman al modelo: no cuestan nada con ninguno.
+**Cómo se estimó el tiempo:** latencia inicial por llamada + tokens de salida ÷ velocidad. Velocidades de Artificial Analysis (octubre de 2026): Haiku 4.5 ~108 tokens/s, Sonnet 5.5 ~125, Opus 5.5 ~96, GPT-6.1 Sol 55,6, GPT-6 Luna 127,5, Gemini 3.1 Pro 115,3 y Gemini 3.8 Flash 120,2. Latencia inicial: Claude 0,7 / 1,5 / 3 s; OpenAI y Gemini, 2 s supuestos con razonamiento bajo (con el razonamiento al máximo, Artificial Analysis mide entre 25 y 314 s antes de la primera palabra).
+
+**Fuentes de precios:** Anthropic (tabla de precios de la API), OpenAI (`developers.openai.com/api/docs/pricing`), Google (`ai.google.dev/gemini-api/docs/pricing`, actualizado el 2026-10-07). Groq de pago: fuente secundaria (`usagepricing.com`); confirmar en Groq.
+
+**Márgenes:** ±20 % por la forma de contar tokens de cada modelo. Un modelo más capaz probablemente necesitaría menos reintentos. Aprobar y editar a mano no llaman al modelo: no cuestan nada con ninguno.
+
+**Lectura:** los modelos pequeños de la nube (GPT-6 Luna, Groq de pago) cuestan menos de 2 $ por 1000 operaciones; los grandes, entre 29 y 58 $. En todos los casos, céntimos por HU o suite frente al tiempo de las personas.
 
 **Gráfica:** `grafica-comparativa.html`, en esta carpeta (se abre en el navegador).
 
@@ -88,9 +97,9 @@ Con los **tokens reales** de cada operación del agente y los precios oficiales 
 |---|---|---|---|---|---|---|
 | **Todo local (CPU)** | Minutos | Baja con modelos pequeños | **Total**: nada sale | 0 € | Sí | Viable solo para demostración o volúmenes muy bajos |
 | **Mixta (actual)** | Segundos en HU, minutos en QA | Buena en HU | La HU sale a Groq | 0 € | Sí | Solo con datos sintéticos (`config/README.md`) |
-| **Groq de pago (Dev Tier)** | Segundos en todo | Buena | Sale a un tercero | Por uso (precio a confirmar) | Sí | Quita el límite por minuto; mismo código |
+| **Groq de pago (Dev Tier)** | Segundos en todo | Buena | Sale a un tercero | ~1,9 $ / 1000 operaciones (a confirmar) | Sí | Quita el límite por minuto; mismo código |
 | **GPU propia o en la nube privada** con modelos open-weight | Segundos | Depende del modelo | **Total** | Coste de la GPU | Sí | El agente no cambia: solo la configuración |
-| **Modelo comercial** (Claude por API o por una plataforma corporativa) | Segundos | Alta (estimación) | Sale a un tercero, con acuerdo de tratamiento de datos | ~15–60 $ / 1000 operaciones | **No** (requiere revisar D-14) | Estimado, no probado |
+| **Modelo comercial** (Anthropic, OpenAI o Google, por API o por una plataforma corporativa) | Segundos | Alta (estimación) | Sale a un tercero, con acuerdo de tratamiento de datos | ~1,5–58 $ / 1000 operaciones | **No** (requiere revisar D-14) | Estimado, no probado |
 
 **Lo que no cambia en ninguna opción:** el agente cambia de modelo solo por configuración (`MODELS_CONFIG_PATH`, `config/README.md`), sin tocar código, y siempre con aprobación humana antes de publicar.
 

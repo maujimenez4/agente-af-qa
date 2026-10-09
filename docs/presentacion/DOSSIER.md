@@ -82,7 +82,7 @@ Fuentes: `docs/arquitectura-c4.md` (niveles 1 y 2), `config/README.md`.
 | **Tiempo de una suite de QA** | **~8 min** en local → **41 s** con Groq | ídem |
 | **Revisión de calidad** | **~7 min** en local → **7,7 s** con Groq | ídem |
 | **Prueba contra Jira real** | 2 HU publicadas con aprobación (AFQP-27 y AFQP-28) y una suite de 6 casos como subtareas (AFQP-29 a AFQP-34); sus memorias, indexadas y reutilizadas como fuente | `docs/demo/HU-AFQP.md` |
-| **Coste de modelo** | **0 €** hoy; con un modelo comercial, estimados **~0,03 $ por suite** y **~30 $ / 1000 operaciones** (Sonnet 5.5) | `COMPARATIVA-MODELOS.md` §5 |
+| **Coste de modelo** | **0 €** hoy; de pago, estimados de **~1,5 $** (GPT-6 Luna, Groq de pago) a **~58 $** (Claude Opus 5.5) **por 1000 operaciones**; ~30 $ con Claude Sonnet 5.5 o GPT-6.1 Sol | `COMPARATIVA-MODELOS.md` §5 |
 
 ## 7. Qué queda fuera y próximos pasos
 

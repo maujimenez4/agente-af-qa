@@ -1,3 +1,4 @@
+import { WRITING_PROPOSAL } from '../text/assistant.ts'
 // Datos del catálogo. La prueba catalogTokens.test.ts comprueba que coinciden con styles/tokens.css.
 
 export interface ColorToken {
@@ -101,7 +102,7 @@ export const LAYOUT: ReadonlyArray<{ token: string; value: string; use: string }
 export const TYPE_SCALE: ReadonlyArray<{ token: string; weight: string; sample: string }> = [
   { token: '--text-hero', weight: '--weight-bold', sample: '¿En qué trabajamos hoy?' },
   { token: '--text-xl', weight: '--weight-bold', sample: 'Versión 2 lista para revisar' },
-  { token: '--text-lg', weight: '--weight-semibold', sample: 'Generando la propuesta…' },
+  { token: '--text-lg', weight: '--weight-semibold', sample: WRITING_PROPOSAL },
   { token: '--text-md', weight: '--weight-bold', sample: 'Evolucionar DEMO-3' },
   { token: '--text-body', weight: '--weight-regular', sample: 'Elige qué hacemos y de qué partimos. Nada se publica en Jira sin tu aprobación.' },
   { token: '--text-sm', weight: '--weight-semibold', sample: 'Revisar y aprobar' },

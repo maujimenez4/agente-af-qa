@@ -11,12 +11,12 @@ import { mockServer } from '../../mocks/node.ts'
 
 async function openLogin() {
   render(<App />)
-  await screen.findByRole('heading', { name: 'Agente AF y QA' })
+  await screen.findByRole('heading', { name: 'Hola de nuevo' })
 }
 
 const usernameField = () => screen.getByLabelText('Usuario')
 const passwordField = () => screen.getByLabelText('Contraseña')
-const submitButton = () => screen.getByRole('button', { name: /Iniciar sesión|Entrando…/ })
+const submitButton = () => screen.getByRole('button', { name: /Entrar en FAQ|Entrando…/ })
 
 function tooManyAttempts(retryAfter: number | null) {
   return http.post('/api/v1/auth/login', () =>
@@ -106,7 +106,7 @@ describe('Login: validación', () => {
     await userEvent.click(submitButton())
     expect(screen.getByRole('button', { name: 'Entrando…' })).toBeDisabled()
     await screen.findByRole('alert')
-    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Entrar en FAQ' })).toBeEnabled()
   })
 })
 

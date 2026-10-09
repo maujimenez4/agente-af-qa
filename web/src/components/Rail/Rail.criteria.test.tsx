@@ -10,13 +10,13 @@ function renderRail(props: Partial<RailProps> = {}) {
   const onNavigate = vi.fn()
   const onLogout = vi.fn()
   const result = render(
-    <Rail userRole="functional" username="af-demo" active="work" onNavigate={onNavigate} onLogout={onLogout} {...props} />,
+    <Rail userRole="functional" username="af-demo" active="work" onNavigate={onNavigate} onLogout={onLogout} onHome={vi.fn()} {...props} />,
   )
   return { ...result, onNavigate, onLogout }
 }
 
 function ring(): HTMLElement {
-  return screen.getByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan el agente/ })
+  return screen.getByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan FAQ/ })
 }
 
 describe('railItemsFor (decisión 16)', () => {
@@ -70,6 +70,8 @@ describe('Rail: zonas y zona activa', () => {
 
   it('se navega con el teclado', async () => {
     const { onNavigate } = renderRail({ userRole: 'admin', username: 'admin-demo', active: 'history' })
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'FAQ · Inicio' })).toHaveFocus()
     await userEvent.tab()
     expect(screen.getByRole('button', { name: 'Memoria' })).toHaveFocus()
     await userEvent.keyboard('{Enter}')
@@ -145,10 +147,10 @@ describe('Rail: anillo con el consumo total de hoy (decisión 17, PA-305)', () =
     expect(ring()).toHaveTextContent('0 %')
   })
 
-  it('el nombre accesible dice que es el consumo de todas las personas que usan el agente, con cifras en español', () => {
+  it('el nombre accesible dice que es el consumo de todas las personas que usan FAQ, con cifras en español', () => {
     renderRail({ usage: { tokens_today: 12345, warning_threshold: 50000 } })
     expect(ring()).toHaveAccessibleName(
-      'Consumo de tokens de hoy de todas las personas que usan el agente: 12.345 de 50.000, 25 % del umbral de aviso',
+      'Consumo de tokens de hoy de todas las personas que usan FAQ: 12.345 de 50.000, 25 % del umbral de aviso',
     )
   })
 

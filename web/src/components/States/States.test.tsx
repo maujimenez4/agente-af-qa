@@ -68,9 +68,9 @@ describe('ProcessSteps', () => {
 
 describe('LoadingState', () => {
   it('muestra el título, la Q por procesos y la lista de pasos', () => {
-    const { container } = render(<LoadingState title="Generando la propuesta…" events={EVENTS} />)
+    const { container } = render(<LoadingState title="FAQ está escribiendo la propuesta…" events={EVENTS} />)
     const status = screen.getByRole('status')
-    expect(within(status).getByRole('heading', { name: 'Generando la propuesta…' })).toBeInTheDocument()
+    expect(within(status).getByRole('heading', { name: 'FAQ está escribiendo la propuesta…' })).toBeInTheDocument()
     expect(status).toHaveAttribute('aria-busy', 'true')
     // Dos nodos hechos y generate en curso: la Q se anima dentro del 3.er cuarto.
     const rect = container.querySelector<SVGRectElement>('clipPath rect')

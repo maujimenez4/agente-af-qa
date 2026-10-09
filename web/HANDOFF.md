@@ -4,6 +4,8 @@
 **Issue de seguimiento:** [#5](https://github.com/maujimenez4/agente-af-qa/issues/5) («T-56 · Frontend React: seguimiento»).
 **Siguiente paso del proyecto:** T-57, el punto de control en el que se decide si la demo se hace con React (`web/`) o con Streamlit (`app/`, plan B). El guion está en [DEMO.md](DEMO.md).
 
+**Nombre (PA-478, 2026-10-09):** el asistente se llama **FAQ**; Qaracter es la marca. El nombre está en una sola constante, `src/text/assistant.ts`.
+
 Este documento está pensado para alguien que no ha seguido el proyecto. El detalle de cada pantalla está en [UI.md v2.1](../docs/specs/UI.md) y el porqué de cada decisión, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md).
 
 ## 1. Qué se entrega
@@ -12,13 +14,13 @@ Una web en React (Vite, React 19, TypeScript) con el aspecto del lienzo «Propue
 ### Pantallas y flujos
 | Zona | Quién la ve | Qué hace |
 |---|---|---|
-| **Inicio de sesión** | todos | Usuario y contraseña contra `POST /auth/login`, con los errores `invalid_credentials` y `too_many_attempts` (cuenta atrás) |
+| **Inicio de sesión** | todos | Dividido (PA-478): a la izquierda, en azul, el logotipo «FAQ», el mensaje y «un asistente de Qaracter»; a la derecha, el logo de Qaracter y el formulario (*Entrar en FAQ*). Usuario y contraseña contra `POST /auth/login`, con los errores `invalid_credentials` y `too_many_attempts` (cuenta atrás) |
 | **Flujo de la HU** (analista funcional) | `functional` (usuario `af-demo`) | Inicio → Elegir en Jira → **Origen y fuentes** (presupuesto de tokens, excluir documentos) → **Generando** (la Q avanza por pasos; *Detener*) → **Iterar** (chat; pestañas Propuesta, Cambios, Impacto y Fuentes; selector de versiones con la versión «Jira»; *Editar a mano*) → **Recibo** (casillas por operación y la huella exacta) → **Resultado** (simulado, publicado o publicado en parte; *Abrir la clave en Jira*, *Ver la memoria*) |
 | **Flujo de QA** | `qa` | QA escribe la clave de la HU → QA 1 Origen (tipos de caso) → QA 2 Generando → QA 3 Iterar la suite (Casos, **Cobertura**, Datos y riesgos, Estrategia; *Descargar la matriz*) → QA 4 Recibo (`publish_suite`) → QA 5 Resultado. **Un CA sin caso bloquea la aprobación**; una RN sin caso solo avisa |
 | **Revisar la calidad** | `functional` (a `qa` le sale desactivada) | Revisión de solo lectura de una HU de Jira |
 | **Memoria** | todos | Lista de memorias por proyecto, con búsqueda, y su detalle por secciones con *Descargar la memoria* |
 | **Ajustes · Administración** | `admin` | *Probar conexiones*, los modelos configurados por tarea (solo lectura) y el modo de publicación; Documentos y Usuarios y roles, «disponible pronto» |
-| **Piezas comunes** | — | Carril por rol con el anillo de consumo total del día, lista de conversaciones, la Q animada, estados vacío, cargando y error (título por `error.code`) |
+| **Piezas comunes** | — | Carril por rol (la Q lleva a Inicio, «FAQ · Inicio») con el anillo de consumo total del día, lista de conversaciones, la Q animada, estados vacío, cargando y error (título por `error.code`) |
 
 Todo se maneja con el teclado, respeta «reducir movimiento» y se ha revisado a 1024, 1280 y 1440 px al 100, 125 y 150 % (axe, WCAG 2.1 A/AA).
 
@@ -60,13 +62,14 @@ El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../d
 - **Seguridad en el navegador:** el texto de la API se pinta como texto (nunca HTML); todo enlace pasa por `safeHref`; ESLint prohíbe el almacenamiento del navegador y las URL sin validar; la sesión vive en una cookie HttpOnly.
 - **Roles:** cada rol completa su flujo (D-01). El administrador entra en Ajustes y Memoria: configura, pero no genera ni publica; las tarjetas que un rol no puede usar salen desactivadas. QA empieza escribiendo la clave de la HU. Historial, solo para admin (y «disponible pronto»).
 - **Cobertura de la suite:** `uncovered: null` es «no se sabe»; un CA sin caso bloquea la aprobación y una RN sin caso solo avisa.
+- **Un solo nombre:** «FAQ» sale de `src/text/assistant.ts`. Cambiarlo es cambiar esa línea y el logotipo del inicio de sesión (`FaqLogo`). Los textos de la API (mensajes de error, títulos, pasos de Generando) salen tal cual (PA-478).
 - **Sin tiempos ni proveedores inventados:** se muestra el modelo de `Artifact.model_used` y ningún tiempo fijo.
 - **Diferencias con el lienzo** (foco accesible, la Q con reducir movimiento, la suite publicada en parte en fase 4…): propuesta para corregir el lienzo en `docs/diseno/CORRECCIONES-LIENZO.md` (PA-304).
 
 ## 4. Quién hizo cada parte
 - **Área B (responsable de `web/`):** el proyecto `web/` y el sistema de diseño; el flujo de la HU y el de QA (QA 1 a QA 5) con Cobertura; Memoria; *Editar a mano* de la HU; la API simulada; UI.md v2.0 y v2.1; el pulido final (accesibilidad, tamaños, PA-131, PA-342 a PA-344, PA-346, PA-347, PA-412 y PA-435), el guion de la demo y este traspaso.
 - **Sesión MCP** (`ses-web`, `ses-web-admin`): la prueba de la web contra la API real de punta a punta (`docs/pruebas/WEB-API-2026-10-05.md`, hallazgos PA-330 a PA-339), Administración (PA-241) y Revisar la calidad.
-- **Sesión UI** (`ses-web-fixes` y `ses-web-pulido`): los arreglos PA-332 a PA-336, hallados en la prueba contra la API real, y PA-427 a PA-431 (la Q en Revisar la calidad, extractos con formato, el chat pegado al final, «Generando una nueva versión…» y «Disponible pronto» en Ajustes).
+- **Sesión UI** (`ses-web-fixes` y `ses-web-pulido`): los arreglos PA-332 a PA-336, hallados en la prueba contra la API real, y PA-427 a PA-431 (la Q en Revisar la calidad, extractos con formato, el chat pegado al final, «Generando una nueva versión…» y «Disponible pronto» en Ajustes); en `ses-faq`, el nombre FAQ en la web (PA-478).
 - **Sesión Modelos** (`ses-qa-cobertura`): PA-426 en el backend (el bloqueo de la aprobación por un CA sin caso y el reintento dirigido al generar).
 - **Principal:** la API y el contrato de T-55, las PA del contrato que pidió la web y las fusiones en `PreProduccion`.
 
@@ -80,6 +83,9 @@ El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../d
 | **PA-403** | Área B | Decidir si Revisar la calidad ofrece las fuentes con casillas antes de empezar (hoy envía `excluded_sources: []`) |
 | **PA-410** | Principal | Volver a revisar y aprobar la misma conversación tras una simulación (hoy da 409 `not_in_review`). Cuando exista, la web cambia la nota del Resultado simulado al literal de PA-412 (ver la nota en la fila de PA-410 del Kanban) |
 | **PA-345** | Principal | El ejemplo de `GET /admin/models` usa `task: functional`, que no es un `TaskType`; con la API simulada, Ajustes lo muestra en inglés. Con la API real no pasa |
+| **PA-479** | Principal | La firma de FAQ en los comentarios que publica en Jira (backend) |
+| **PA-480** | Principal | El nombre FAQ en el servidor MCP (backend) |
+| **PA-481** | Área B | El nombre FAQ en Streamlit (`app/`, plan B), si la demo lo usara |
 | **PA-340** | Principal | Validar el diseño de *Editar a mano* y decidir si la suite de QA se edita a mano (hoy, fuera de la entrega) |
 
 ## 6. Pendiente

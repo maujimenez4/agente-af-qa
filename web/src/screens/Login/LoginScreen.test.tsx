@@ -8,13 +8,13 @@ import { mockServer } from '../../mocks/node.ts'
 
 async function openLogin() {
   render(<App />)
-  await screen.findByRole('heading', { name: 'Agente AF y QA' })
+  await screen.findByRole('heading', { name: 'Hola de nuevo' })
 }
 
 async function fill(username: string, password: string) {
   if (username) await userEvent.type(screen.getByLabelText('Usuario'), username)
   if (password) await userEvent.type(screen.getByLabelText('Contraseña'), password)
-  await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Entrar en FAQ' }))
 }
 
 describe('LoginScreen (PA-311)', () => {
@@ -66,7 +66,7 @@ describe('LoginScreen (PA-311)', () => {
     await openLogin()
     await fill('af-demo', 'otra')
     await screen.findByRole('alert')
-    const submit = screen.getByRole('button', { name: 'Iniciar sesión' })
+    const submit = screen.getByRole('button', { name: 'Entrar en FAQ' })
     expect(submit).toBeDisabled()
     await waitFor(() => expect(submit).toBeEnabled(), { timeout: 2500 })
   })

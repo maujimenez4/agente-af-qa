@@ -8,7 +8,7 @@ function renderRail(props: Partial<RailProps> = {}) {
   const onNavigate = vi.fn()
   const onLogout = vi.fn()
   render(
-    <Rail userRole="functional" username="af-demo" active="work" onNavigate={onNavigate} onLogout={onLogout} {...props} />,
+    <Rail userRole="functional" username="af-demo" active="work" onNavigate={onNavigate} onLogout={onLogout} onHome={vi.fn()} {...props} />,
   )
   return { onNavigate, onLogout }
 }
@@ -63,8 +63,9 @@ describe('Rail', () => {
   })
 
   it('tiene el logotipo con nombre accesible', () => {
+    // PA-478: la Q es el botón a Inicio, con nombre «FAQ · Inicio».
     renderRail()
-    expect(screen.getByRole('img', { name: 'Agente AF y QA' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'FAQ · Inicio' })).toBeInTheDocument()
   })
 
   it('sin dato de consumo no pinta el anillo (PA-305)', () => {
@@ -75,7 +76,7 @@ describe('Rail', () => {
   it('con dato pinta el consumo total de hoy respecto al umbral de aviso, con el mismo title que el nombre', () => {
     renderRail({ usage: { tokens_today: 42000, warning_threshold: 180000 } })
     const ring = screen.getByRole('img', {
-      name: 'Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso',
+      name: 'Consumo de tokens de hoy de todas las personas que usan FAQ: 42.000 de 180.000, 23 % del umbral de aviso',
     })
     expect(ring).toHaveTextContent('23 %consumo total')
     expect(ring.getAttribute('title')).toBe(ring.getAttribute('aria-label'))

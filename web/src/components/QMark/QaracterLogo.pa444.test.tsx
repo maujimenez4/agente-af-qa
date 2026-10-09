@@ -58,11 +58,11 @@ describe('QaracterLogo (PA-444)', () => {
 describe('Inicio de sesión y carril con el logotipo (PA-444)', () => {
   it('el inicio de sesión muestra el logotipo completo «Qaracter» encima del título', async () => {
     render(<App />)
-    const title = await screen.findByRole('heading', { level: 1, name: 'Agente AF y QA' })
+    const title = await screen.findByRole('heading', { level: 1, name: 'Hola de nuevo' })
     const logo = screen.getByRole('img', { name: 'Qaracter' })
     expect(logo.querySelectorAll('path')).toHaveLength(9)
     expect(logo.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(logo).toHaveAttribute('height', '40')
+    expect(logo).toHaveAttribute('height', '30') // PA-478: 30 px en la mitad blanca
   })
 
   it('el carril sigue con la Q sola (QLogo), no con el logotipo completo', async () => {

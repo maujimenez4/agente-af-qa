@@ -8,6 +8,7 @@ import { useJiraBrowseUrl } from '../../hooks/useJiraBrowseUrl.ts'
 import type { UserStory } from '../../components/Proposal/index.ts'
 import { ResultQ } from '../../components/QMark/index.ts'
 import { Notice } from '../../components/States/index.ts'
+import { RESULT_SIMULATION_NOTICE } from '../../text/assistant.ts'
 import { Workspace } from '../../components/Workspace/index.ts'
 import { proposalVersions } from '../Iterate/iterateText.ts'
 import { receiptOperations } from '../Receipt/receiptText.ts'
@@ -69,7 +70,7 @@ export function ResultScreen({ conversation, canHandoff = false, handoffSoon = f
           <Badge tone={outcome === 'simulated' ? 'warning' : outcome === 'partial' ? 'error' : 'new'}>{texts.badge}</Badge>
         </div>
 
-        {outcome === 'simulated' && <Notice>Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.</Notice>}
+        {outcome === 'simulated' && <Notice>{RESULT_SIMULATION_NOTICE}</Notice>}
 
         <h2 id="result-title" className={styles.title}>
           {texts.title}

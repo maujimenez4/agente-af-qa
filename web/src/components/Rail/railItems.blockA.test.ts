@@ -6,7 +6,7 @@ describe('usageView con formatNumber (bloque A)', () => {
   it('el nombre accesible del anillo agrupa los miles también con cuatro cifras', () => {
     /** §4 bis: «Los números llevan separador de miles también con cuatro cifras, como en el anillo del carril». */
     const view = usageView({ tokens_today: 2350, warning_threshold: 8000 })
-    expect(view?.label).toBe('Consumo de tokens de hoy de todas las personas que usan el agente: 2.350 de 8.000, 29 % del umbral de aviso')
+    expect(view?.label).toBe('Consumo de tokens de hoy de todas las personas que usan FAQ: 2.350 de 8.000, 29 % del umbral de aviso')
   })
 
   it('con cinco o más cifras sigue agrupando', () => {

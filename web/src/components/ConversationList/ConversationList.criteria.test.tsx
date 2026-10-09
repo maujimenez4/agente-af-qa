@@ -209,7 +209,8 @@ describe('ConversationList: estado vacío, aria-current y texto de la API', () =
   it('vacía: no muestra el aviso de «sin coincidencias» ni ningún grupo (UI.md §7)', () => {
     renderList({ conversations: [] })
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.queryAllByRole('heading')).toHaveLength(0)
+    // Solo la cabecera de la lista (PA-478), ningún grupo por día.
+    expect(screen.queryAllByRole('heading').map((heading) => heading.textContent)).toEqual(['Tus conversaciones con FAQ'])
     expect(screen.getByRole('button', { name: 'Nueva conversación' })).toBeEnabled()
   })
 

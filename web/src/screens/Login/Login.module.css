@@ -1,41 +1,72 @@
+/* PA-478 · Inicio de sesión dividido (docs/diseno/faq/README.md §1): mitad azul con FAQ y mitad blanca con el formulario.
+   En ventanas estrechas, la mitad azul arriba y el formulario debajo. */
 .page {
   min-height: 100vh;
   display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--color-surface);
+}
+
+/* Mitad azul: tres bloques repartidos de arriba abajo. Contrastes sobre #1e2d3d: --color-on-navy 9,2:1, naranja 5,4:1 y
+   blanco 14:1 (WCAG AA, texto normal 4,5:1). */
+.brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-7);
+  padding: 64px 56px 48px;
+  background: var(--color-navy);
+  color: var(--color-surface);
+}
+
+.message {
+  max-width: 460px;
+  font-size: 30px;
+  font-weight: var(--weight-medium, 500);
+  line-height: 1.3;
+}
+
+.accent {
+  color: var(--color-primary);
+}
+
+.footer {
+  font-size: 14px;
+  color: var(--color-on-navy);
+}
+
+.footer b {
+  color: var(--color-surface);
+  font-weight: 700;
+}
+
+/* Mitad blanca: el formulario centrado, como mucho 360 px. */
+.side {
+  display: grid;
   place-items: center;
-  padding: var(--space-6) var(--space-4);
-  background: var(--color-bg);
+  padding: var(--space-7) var(--space-6);
 }
 
 .card {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   display: grid;
-  gap: var(--space-5);
-  padding: var(--space-7) var(--space-6);
-  border: var(--border-width) solid var(--color-border-soft);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
+  gap: 28px;
+  justify-items: stretch;
 }
 
 .header {
   display: grid;
   gap: var(--space-2);
-  justify-items: start;
-}
-
-/* PA-444: margen libre de media Q (la Q mide el alto del logotipo: 40 px → 20 px) antes del título; por los
-   lados y por arriba lo da el relleno de la tarjeta. */
-.logo {
-  margin-bottom: 20px;
 }
 
 .title {
-  font-size: var(--text-xl);
+  font-size: 28px;
   font-weight: var(--weight-bold);
 }
 
 .lead {
-  font-size: var(--text-sm);
+  font-size: 15px;
   color: var(--color-text-muted);
 }
 
@@ -51,4 +82,14 @@
 .note {
   font-size: var(--text-2xs);
   color: var(--color-text-muted);
+}
+
+@media (max-width: 860px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .brand {
+    padding: 40px 32px 32px;
+  }
 }

@@ -57,7 +57,7 @@ describe('Resultado tras aprobar', () => {
     // Flujo unido fuera de la entrega: tras una simulación no se ofrece pasar la HU a QA, ni siquiera como «disponible pronto».
     expect(within(region).queryByRole('button', { name: 'Pedir sus pruebas a QA' })).toBeNull()
     expect(within(region).getByText('Aprobada · simulada')).toBeInTheDocument()
-    expect(within(region).getByText('Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.')).toBeInTheDocument()
+    expect(within(region).getByText('Modo de prueba activo: FAQ no escribe en Jira. Lo cambia el administrador.')).toBeInTheDocument()
     expect(within(region).getByText('No se ha escrito nada en Jira. Esto es lo que se habría hecho, y queda en la auditoría:')).toBeInTheDocument()
     const operations = within(region).getByRole('list', { name: 'Operaciones que se habrían hecho' })
     expect(within(operations).getByText('Actualizar DEMO-3 con la versión 2')).toBeInTheDocument()

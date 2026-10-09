@@ -24,7 +24,7 @@ export async function generateSuiteForDemo3(): Promise<void> {
 /** Hasta QA 3 · Iterar la suite. */
 export async function openSuiteForDemo3(): Promise<void> {
   await generateSuiteForDemo3()
-  await userEvent.click(await screen.findByRole('button', { name: 'Ver la suite' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Ver la suite de FAQ' }))
   await screen.findByRole('complementary', { name: 'Suite de pruebas' })
 }
 

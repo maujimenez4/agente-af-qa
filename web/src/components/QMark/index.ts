@@ -7,3 +7,4 @@ export { ResultQ, type PublishOutcomeKind, type ResultQProps } from './ResultQ.t
 export { TypewriterText, type TypewriterTextProps } from './TypewriterText.tsx'
 export { TypingIndicator } from './TypingIndicator.tsx'
 export { QaracterLogo, type QaracterLogoProps } from './QaracterLogo.tsx'
+export { FaqLogo } from './FaqLogo.tsx'

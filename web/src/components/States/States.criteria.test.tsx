@@ -276,21 +276,21 @@ describe('LoadingState', () => {
   ]
 
   it('sin eventos está ocupado y con la Q vacía', () => {
-    const { container } = render(<LoadingState title="Generando la suite…" events={[]} />)
+    const { container } = render(<LoadingState title="FAQ está escribiendo la suite…" events={[]} />)
     expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
     expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(container.querySelector<SVGRectElement>('clipPath rect')?.style.getPropertyValue('--q-to')).toBe('326px')
   })
 
   it('marca el paso en curso con aria-current="step"', () => {
-    render(<LoadingState title="Generando la propuesta…" events={RUNNING} />)
+    render(<LoadingState title="FAQ está escribiendo la propuesta…" events={RUNNING} />)
     const items = screen.getAllByRole('listitem')
     expect(items[1]).toHaveAttribute('aria-current', 'step')
     expect(items[1]).toHaveTextContent('Recuperar contexto')
   })
 
   it('la Q de carga es decorativa: la lista de procesos ya informa', () => {
-    const { container } = render(<LoadingState title="Generando la propuesta…" events={RUNNING} />)
+    const { container } = render(<LoadingState title="FAQ está escribiendo la propuesta…" events={RUNNING} />)
     expect(screen.queryByRole('img')).toBeNull()
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })

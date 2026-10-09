@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type MutableRefObject } from 'react'
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
@@ -45,6 +45,10 @@ import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, mode
 import { SOON_BADGE } from '../Admin/adminText.ts'
 import { missingCasesLabel } from '../Receipt/receiptText.ts'
 import { countLabel } from '../../text/plural.ts'
+import { PROPOSAL_CONTROL } from '../../text/assistant.ts'
+
+/** Salir de la pantalla (PA-478): `true` si se puede ya; si no, pregunta y llama a `go` al confirmar. */
+export type LeaveGuard = (go: () => void) => boolean
 
 export interface IterateScreenProps {
   conversation: ConversationOut
@@ -56,6 +60,8 @@ export interface IterateScreenProps {
   onReview: (conversation: ConversationOut) => void
   /** Se guardó una versión editada a mano: la lista de conversaciones se vuelve a leer («Versión N+1»). */
   onEdited?: () => void
+  /** Aquí deja la pantalla su pregunta de salida: con el editor con cambios, «¿Descartar los cambios?» (PA-478). */
+  leaveGuardRef?: MutableRefObject<LeaveGuard | null>
 }
 
 type PanelTab = 'proposal' | 'changes' | 'impact' | 'sources' | 'cases' | 'coverage' | 'data' | 'strategy'
@@ -94,7 +100,7 @@ function suiteOf(content: unknown): TestSuite | undefined {
 
 // Mixta 3 · Iterar (UI.md §4.5): conversación para pedir cambios y panel de la propuesta con sus versiones.
 // En QA es QA 3 · Iterar la suite (§6.3): la misma conversación y un panel con Casos, Cobertura, Datos y riesgos y Estrategia.
-export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview, onEdited }: IterateScreenProps) {
+export function IterateScreen({ conversation: initial, onDiscarded, onRestart, onReview, onEdited, leaveGuardRef }: IterateScreenProps) {
   const [conversation, setConversation] = useState(initial)
   // Cambios pedidos antes de abrir la pantalla (retomar, T-52): se pintan siempre, antes de lo nuevo.
   const [earlierFeedback] = useState(initial.feedback)
@@ -173,6 +179,20 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
 
   // Con el editor abierto, lo que lo cierra o lo cambia pasa antes por «¿Descartar los cambios?» (PA-344). Sin cambios
   // sin guardar sigue en el acto; `exit` sale además del editor (abrir otra versión), si no se queda abierto.
+  // Ir a Inicio desde fuera (Q del carril, «Nueva conversación»): la misma pregunta del editor, a la vista.
+  useEffect(() => {
+    if (!leaveGuardRef) return
+    leaveGuardRef.current = (go) => {
+      const guard = closeGuardRef.current
+      if (!guard || guard(go)) return true
+      setPanelOpen(true)
+      return false
+    }
+    return () => {
+      leaveGuardRef.current = null
+    }
+  }, [leaveGuardRef])
+
   const guarded = (then: () => void, { exit }: { exit: boolean }) => {
     // El editor deja `closeGuardRef` a null al cerrarse: así no depende del `editing` de un render anterior (*Reintentar*).
     const guard = closeGuardRef.current
@@ -368,6 +388,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
             >
               Revisar y aprobar
             </Button>
+            <p className={styles.control}>{PROPOSAL_CONTROL}</p>
           </div>
         )
       }

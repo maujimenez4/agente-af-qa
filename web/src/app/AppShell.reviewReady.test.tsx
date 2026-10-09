@@ -22,16 +22,16 @@ describe('Lista de conversaciones al llegar review_ready', () => {
     await within(panel).findByRole('checkbox', { name: /HU de origen/ })
     await userEvent.click(within(panel).getByRole('button', { name: 'Generar propuesta' }))
     expect(await within(list()).findByRole('button', { name: /Evolucionar DEMO-3.*En curso/ })).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Ver la propuesta' })
+    await screen.findByRole('button', { name: 'Ver la propuesta de FAQ' })
     await vi.waitFor(() => expect(within(list()).queryByRole('button', { name: /En curso/ })).toBeNull())
     // Sigue en Generando: no se ha abierto la propuesta.
-    expect(screen.getByRole('button', { name: 'Ver la propuesta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver la propuesta de FAQ' })).toBeInTheDocument()
   })
 
   it('QA: la suite lista deja de decir «En curso» sin pulsar *Ver la suite*', async () => {
     await generateSuiteForDemo3()
     expect(await within(list()).findByRole('button', { name: /Preparar pruebas de DEMO-3.*En curso/ })).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Ver la suite' })
+    await screen.findByRole('button', { name: 'Ver la suite de FAQ' })
     await vi.waitFor(() => expect(within(list()).queryByRole('button', { name: /En curso/ })).toBeNull())
     expect(within(list()).getByRole('button', { name: /Preparar pruebas de DEMO-3.*Versión 1/ })).toBeInTheDocument()
   })

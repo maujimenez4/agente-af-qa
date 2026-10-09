@@ -10,6 +10,7 @@ import { ErrorCard, Notice, SIMULATION_NOTICE } from '../../components/States/in
 import { DISABLED_HINT, defaultFlow, FLOWS, type FlowId } from './flows.ts'
 import styles from './Home.module.css'
 import { QaHandoffs } from './QaHandoffs.tsx'
+import { ASSISTANT_NAME, HOME_CONTROL, HOME_GREETING_AFTER, HOME_GREETING_BEFORE, HOME_WRITE_HINT } from '../../text/assistant.ts'
 
 /** Lo que Inicio pasa a la siguiente pantalla (Origen y fuentes). */
 export interface StartRequest {
@@ -134,14 +135,15 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
     <div className={styles.page}>
       <div className={styles.content}>
         <header className={`${styles.hero} ${styles.rise}`}>
-          <div className={styles.mark} aria-hidden="true">
-            <QLogo size={30} />
-          </div>
-          <h1 className={styles.title}>¿En qué trabajamos hoy?</h1>
-          <p className={styles.lead}>
-            Elige qué hacemos y de qué partimos. Después lo mejoramos conversando. Nada se publica en Jira sin tu
-            aprobación.
+          {/* PA-478: la Q a 56 px y el saludo de FAQ encima de la pregunta. */}
+          <QLogo size={56} />
+          <p className={styles.greeting}>
+            {HOME_GREETING_BEFORE}
+            <b>{ASSISTANT_NAME}</b>
+            {HOME_GREETING_AFTER}
           </p>
+          <h1 className={styles.title}>¿En qué trabajamos hoy?</h1>
+          <p className={styles.lead}>Elige qué hacemos y de qué partimos. Después lo mejoramos conversando.</p>
         </header>
 
         <div className={`${styles.flows} ${styles.rise} ${styles.d1}`} role="group" aria-label="Qué quieres hacer">
@@ -172,7 +174,8 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
           />
         )}
 
-        <div className={`${styles.rise} ${styles.d2}`}>
+        <div className={`${styles.write} ${styles.rise} ${styles.d2}`}>
+          <p className={styles.writeHint}>{HOME_WRITE_HINT}</p>
           <Composer
             placeholder={current?.placeholder ?? ''}
             value={text}
@@ -226,6 +229,8 @@ export function HomeScreen({ user, onStart, onOpenJira, pickedOrigin, pickedProj
         )}
 
         {settings?.publish_mode === 'simulation' && <Notice>{SIMULATION_NOTICE}</Notice>}
+
+        <p className={styles.control}>{HOME_CONTROL}</p>
       </div>
     </div>
   )

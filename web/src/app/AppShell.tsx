@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { api, toApiError } from '../api/client.ts'
 import type { ApiError, ConversationOut, PublishOutcome, UserOut } from '../api/types.ts'
 import { ErrorCard } from '../components/States/index.ts'
@@ -10,7 +10,7 @@ import { ChooseInJira, type JiraPick } from '../screens/ChooseInJira/ChooseInJir
 import { HomeScreen, type StartRequest } from '../screens/Home/HomeScreen.tsx'
 import { OriginScreen } from '../screens/Origin/OriginScreen.tsx'
 import { GeneratingScreen } from '../screens/Generating/GeneratingScreen.tsx'
-import { IterateScreen } from '../screens/Iterate/IterateScreen.tsx'
+import { IterateScreen, type LeaveGuard } from '../screens/Iterate/IterateScreen.tsx'
 import { ReceiptScreen } from '../screens/Receipt/ReceiptScreen.tsx'
 import { ResultScreen } from '../screens/Result/ResultScreen.tsx'
 import { MemoryScreen } from '../screens/Memory/MemoryScreen.tsx'
@@ -39,6 +39,12 @@ export function AppShell({ user }: AppShellProps) {
     if (next === 'memory') setMemory((current) => ({ opened: current.opened + 1 }))
     setZone(next)
   }
+  // PA-478: la Q del carril vuelve a la zona de inicio; en Trabajo, además, a Inicio (como «Nueva conversación»).
+  const homeRef = useRef<(() => void) | null>(null)
+  const goHome = () => {
+    navigate(homeZone(user.role))
+    homeRef.current?.()
+  }
   const openMemory = (key: string) => {
     setMemory((current) => ({ key, opened: current.opened + 1 }))
     setZone('memory')
@@ -53,6 +59,7 @@ export function AppShell({ user }: AppShellProps) {
         usage={usage}
         onNavigate={navigate}
         onLogout={() => void logout()}
+        onHome={goHome}
       />
       {zone === 'memory' && <MemoryScreen key={memory.opened} openKey={memory.key} />}
       {user.role === 'admin' ? (
@@ -65,7 +72,7 @@ export function AppShell({ user }: AppShellProps) {
       ) : (
         // Trabajo sigue montado mientras se mira la memoria: al volver, la conversación sigue donde estaba.
         <div className={styles.workZone} hidden={zone === 'memory'}>
-          <WorkZone user={user} onOpenMemory={openMemory} />
+          <WorkZone user={user} onOpenMemory={openMemory} homeRef={homeRef} />
         </div>
       )}
     </div>
@@ -95,7 +102,14 @@ const CLOSED_TEXT: Partial<Record<ConversationOut['state'], string>> = {
 }
 
 
-function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: string) => void }) {
+interface WorkZoneProps {
+  user: UserOut
+  onOpenMemory: (key: string) => void
+  /** Aquí deja WorkZone su ida a Inicio, para la Q del carril (PA-478). */
+  homeRef: MutableRefObject<(() => void) | null>
+}
+
+function WorkZone({ user, onOpenMemory, homeRef }: WorkZoneProps) {
   const { conversations, error: conversationsError, reload } = useConversations(user.permissions.includes('generate_story'))
   const { state: session, remember } = useSession()
   // PA-332: tras volver a entrar por una sesión caducada, lo que tenía abierto la persona. Una revisión de
@@ -165,6 +179,28 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
     }
   }, [resumeId])
 
+  // Ir a Inicio (PA-478: «Nueva conversación» y la Q del carril). Si el editor tiene cambios sin guardar, antes pregunta
+  // «¿Descartar los cambios?» y solo sale al confirmar. Una generación en curso no se cancela: sigue en la lista.
+  const leaveGuardRef = useRef<LeaveGuard | null>(null)
+  const goHome = () => {
+    const reset = () => {
+      lastRequested.current = undefined
+      setOpenError(undefined)
+      setFailedId(undefined)
+      setCurrentId(undefined)
+      setPicked(undefined)
+      setView({ name: 'home' })
+    }
+    if (leaveGuardRef.current && !leaveGuardRef.current(reset)) return
+    reset()
+  }
+  useEffect(() => {
+    homeRef.current = goHome
+    return () => {
+      homeRef.current = null
+    }
+  })
+
   return (
     <>
       <ConversationList
@@ -172,14 +208,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
         error={conversationsError}
         onRetry={reload}
         currentId={currentId}
-        onNew={() => {
-          lastRequested.current = undefined
-          setOpenError(undefined)
-          setFailedId(undefined)
-          setCurrentId(undefined)
-          setPicked(undefined)
-          setView({ name: 'home' })
-        }}
+        onNew={goHome}
         onSelect={(threadId) => {
           setCurrentId(threadId)
           const isReview = conversations.some((item) => item.thread_id === threadId && item.review_state)
@@ -285,6 +314,7 @@ function WorkZone({ user, onOpenMemory }: { user: UserOut; onOpenMemory: (key: s
               setView({ name: 'home' })
             }}
             onReview={(conversation) => setView({ name: 'receipt', conversation })}
+            leaveGuardRef={leaveGuardRef}
           />
         )}
         {view.name === 'receipt' && (

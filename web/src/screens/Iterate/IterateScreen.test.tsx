@@ -78,7 +78,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     mockServer.events.removeAllListeners()
   })
 
-  it('mientras se itera, el compositor espera y aparece «Generando una nueva versión…» (PA-430)', async () => {
+  it('mientras se itera, el compositor espera y aparece «FAQ está preparando una nueva versión…» (PA-430)', async () => {
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => new HttpResponse(': latido\n\n', { headers: { 'Content-Type': 'text/event-stream' } })))
     mockServer.use(
       http.get(`/api/v1/conversations/${EXAMPLE_ID}`, () =>
@@ -88,7 +88,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     await openFromList()
     await userEvent.type(screen.getByRole('textbox', { name: 'Pide un cambio a la propuesta (Intro para enviar, Mayús+Intro para nueva línea)' }), 'Aclara el alcance')
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
-    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Generando una nueva versión…')
+    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('FAQ está preparando una nueva versión…')
     expect(screen.getByRole('textbox', { name: 'Espera a la propuesta para pedir cambios' })).toBeDisabled()
     expect(within(panel()).getByRole('button', { name: 'Descartar' })).toBeDisabled()
   })
@@ -173,7 +173,7 @@ describe('Iterar (Mixta 3, UI.md §4.5)', () => {
     const before = screen.getByRole('complementary', { name: 'Antes de generar' })
     await within(before).findByRole('checkbox', { name: /HU de origen/ })
     await userEvent.click(within(before).getByRole('button', { name: 'Generar propuesta' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Ver la propuesta' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver la propuesta de FAQ' }))
     expect(await screen.findByRole('complementary', { name: 'Propuesta de HU' })).toBeInTheDocument()
     expect(within(log()).getByText(/Versión 2 lista/)).toBeInTheDocument()
   })

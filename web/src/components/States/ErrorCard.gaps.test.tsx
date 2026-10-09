@@ -10,14 +10,14 @@ import { ErrorCard } from './ErrorCard.tsx'
 const GENERATION_CASES = [
   {
     code: 'citation_failed',
-    title: 'La propuesta no es válida',
+    title: 'FAQ no ha podido citar sus fuentes',
     message: 'La propuesta cita fuentes que no están en el contexto recibido. Vuelve a generarla.',
     action: 'Volver a generar',
     tone: 'error',
   },
   {
     code: 'coverage_failed',
-    title: 'La suite no es válida',
+    title: 'FAQ no ha podido cubrir todos los criterios',
     message:
       'La suite de pruebas no cubre la HU: algún criterio no tiene casos, faltan casos positivos o negativos, se referencian CA/RN inexistentes o hay datos que parecen personales. Vuelve a generarla.',
     action: 'Volver a generar',
@@ -25,7 +25,7 @@ const GENERATION_CASES = [
   },
   {
     code: 'invalid_model_output',
-    title: 'La respuesta del modelo no es válida',
+    title: 'FAQ no ha podido terminar la propuesta',
     message: 'El modelo devolvió una salida que no cumple el esquema (ficticio).',
     action: 'Volver a generar',
     tone: 'error',
@@ -39,7 +39,7 @@ const GENERATION_CASES = [
   },
   {
     code: 'quality_failed',
-    title: 'No se pudo revisar la calidad',
+    title: 'FAQ no ha podido revisar la calidad',
     message: 'No se pudo completar la revisión de calidad (ficticio).',
     action: 'Reintentar',
     tone: 'error',

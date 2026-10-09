@@ -47,7 +47,7 @@ describe('LoadingState · lista de pasos', () => {
       ['load_origin', 'done', 'Leído (ficticio)'],
       ['retrieve_context', 'running', 'Paso retrieve_context (ficticio)'],
     ])
-    render(<LoadingState title="Generando la suite…" events={events} />)
+    render(<LoadingState title="FAQ está escribiendo la suite…" events={events} />)
     const items = within(screen.getByRole('status')).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('Leído (ficticio)')
@@ -55,7 +55,7 @@ describe('LoadingState · lista de pasos', () => {
 
   it('test_status_is_busy_until_review_ready', () => {
     // UI.md §8: la zona de estado se anuncia ocupada mientras se genera.
-    const { rerender } = render(<LoadingState title="Generando la suite…" events={[step('generate', 'running')]} />)
+    const { rerender } = render(<LoadingState title="FAQ está escribiendo la suite…" events={[step('generate', 'running')]} />)
     expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
     expect(qState()).toBe('loading-0')
     rerender(<LoadingState title="Suite lista" events={[step('generate', 'done')]} reviewReady />)

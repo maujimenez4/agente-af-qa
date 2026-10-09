@@ -7,6 +7,7 @@ import type { IconName } from '../components/Icon/index.ts'
 import type { Role } from '../components/Rail/index.ts'
 import styles from './Catalog.module.css'
 import { DemoButton } from './DemoButton.tsx'
+import { ASSISTANT_NAME } from '../text/assistant.ts'
 
 type FlowId = 'need' | 'evolve' | 'review' | 'tests'
 
@@ -137,7 +138,7 @@ export function ComponentsDemo() {
         <Badge tone="cite">DOC-01</Badge>
         <Badge tone="new">Cambiado en v2</Badge>
         <Badge tone="new">Nueva</Badge>
-        <Badge tone="success">Publicada por el agente</Badge>
+        <Badge tone="success">Publicada por {ASSISTANT_NAME}</Badge>
         <CaseKindBadge kind="Positivo" />
         <CaseKindBadge kind="Negativo" />
         <CaseKindBadge kind="Alterno" />

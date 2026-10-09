@@ -28,13 +28,15 @@ Este documento describe **qué** muestra cada pantalla, **quién** la ve y **de 
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Carril lateral (88 px) | Logotipo Q; zonas **Trabajo** (analista y QA), **Memoria** (los tres roles), **Historial** (admin, «disponible pronto», PA-302) y **Ajustes** (admin); anillo de consumo de tokens de hoy de **todas las personas que usan el agente** («24 %» · «consumo total»; el nombre accesible y el tooltip lo dicen entero); usuario y *Cerrar sesión* | Cambiar de zona | Permisos (§3) · `GET /settings/usage` (PA-305) |
-| Lista de conversaciones (248 px) | «Nueva conversación», buscador local (sin mayúsculas ni tildes), conversaciones agrupadas por día («Hoy», «Ayer», fecha) con clave de proyecto, título y «flujo · estado» («Versión 2», «Simulado», «Publicado», «En curso», «Aprobada», «Descartada»); se desplaza dentro de su columna | Retomar una conversación | `GET /conversations` (T-52) |
+| Carril lateral (88 px) | La Q sola, sin texto debajo: es el botón a Inicio, con nombre accesible y `title` «FAQ · Inicio» (PA-478). Con cambios sin guardar en el editor, antes pregunta «¿Descartar los cambios?», como «Nueva conversación»; una generación en curso no se cancela y sigue en la lista. Zonas **Trabajo** (analista y QA), **Memoria** (los tres roles), **Historial** (admin, «disponible pronto», PA-302) y **Ajustes** (admin); anillo de consumo de tokens de hoy de **todas las personas que usan FAQ** («24 %» · «consumo total»; el nombre accesible y el tooltip lo dicen entero); usuario y *Cerrar sesión* | Cambiar de zona | Permisos (§3) · `GET /settings/usage` (PA-305) |
+| Lista de conversaciones (248 px) | Cabecera «Tus conversaciones con FAQ» (PA-478), «Nueva conversación», buscador local (sin mayúsculas ni tildes), conversaciones agrupadas por día («Hoy», «Ayer», fecha) con clave de proyecto, título y «flujo · estado» («Versión 2», «Simulado», «Publicado», «En curso», «Aprobada», «Descartada»); se desplaza dentro de su columna | Retomar una conversación | `GET /conversations` (T-52) |
 | Cabecera (64 px) | Título de la conversación, **Q de fase** («Fase N de 4 · Contexto / Generar / Revisión / Publicado») y *Ocultar el panel* / *Mostrar el panel* | Plegar el panel derecho | Estado de la conversación (`ConversationOut.state`) |
 | Compositor | Cuadro de texto con ayuda según el flujo, «Elegir en Jira», selector de modelo **en solo lectura** («Modelo automático») y enviar. **Intro envía**, Mayús+Intro hace un salto de línea; mientras genera, el botón de enviar pasa a *Detener* | Enviar | Elegir modelo por petición (RF-42) queda fuera de la entrega |
-| Aviso de modo de prueba | En Inicio: «Modo de prueba: al aprobar verás lo que se haría en Jira, pero no se escribirá nada.» En el Resultado (HU y QA), solo tras una simulación: «Modo de prueba activo: el agente no escribe en Jira. Lo cambia el administrador.» | — | `publish_mode = simulation` |
+| Aviso de modo de prueba | En Inicio: «Modo de prueba: al aprobar verás lo que se haría en Jira, pero no se escribirá nada.» En el Resultado (HU y QA), solo tras una simulación: «Modo de prueba activo: FAQ no escribe en Jira. Lo cambia el administrador.» | — | `publish_mode = simulation` |
 | Panel derecho | «Antes de generar» (420 px), propuesta o informe (480 px), suite de QA (540 px). Plegado, se oculta sin perder su estado | — | — |
 | Conversación | Al abrirla empieza por el final; con contenido nuevo baja sola si la persona seguía el final, y un mensaje propio baja siempre. Si ha subido a leer, no se la mueve (PA-429) | — | — |
+
+**El asistente se llama FAQ (PA-478, `docs/diseno/faq/README.md`).** Qaracter es la marca. El nombre sale de una sola constante (`web/src/text/assistant.ts`): cambiarlo es cambiar esa línea y el logotipo del inicio de sesión. La pestaña del navegador dice «FAQ · Qaracter». En la conversación, el avatar del asistente (la Q) lleva «FAQ» debajo, y el lector de pantalla oye «FAQ:» delante de cada mensaje. Los textos que llegan de la API (mensajes de error, títulos de conversación, pasos de Generando) salen tal cual.
 
 Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar** (generar e iterar) · **3 Revisión** (recibo, aprobada) · **4 Publicado**.
 
@@ -45,13 +47,14 @@ Las cuatro fases de la Q son: **1 Contexto** (origen y fuentes) · **2 Generar**
 - Un título recortado con «…» se ve completo al pasar el ratón.
 - Por encima de 1024 px, nada cambia.
 
-### 2.1 Inicio de sesión (PA-311)
-Pantalla mínima con las piezas del sistema (no está en el lienzo; se mantiene por decisión de la principal).
+### 2.1 Inicio de sesión (PA-311, PA-478)
+Pantalla dividida en dos mitades (`docs/diseno/faq/README.md` §1). En ventanas estrechas (menos de 860 px), la mitad azul va arriba y el formulario debajo.
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Cabecera | **Logotipo completo de Qaracter** (la Q naranja y las letras «qaracter»), 40 px de alto, encima del título «Agente AF y QA» (PA-444). Sale del Qaracter Design System (`docs/diseno/marca/logo-qaracter-oscuro.svg`, para fondo claro) y se anuncia como «Qaracter». El resto de la web (carril, Inicio, asistente) sigue con la Q sola | — | — |
-| Formulario | Usuario y contraseña | *Iniciar sesión* | `POST /auth/login` (cookie HttpOnly y `csrf_token` solo en memoria) |
+| Mitad azul (`--color-navy`) | Arriba, el logotipo **«FAQ»**: «FA» en DM Sans 800 a 120 px, blanco, y la Q de Qaracter en naranja a 84 px, alineadas a la línea base. Es una sola imagen con nombre «FAQ», y sus partes son decorativas. En medio, el mensaje «Historias de usuario y pruebas en segundos. Siempre con tu aprobación.» (30 px, la segunda frase en naranja). Abajo, «un asistente de **Qaracter**» (14 px). Contrastes sobre el azul: el gris claro 9,2:1, el naranja 5,4:1 y el blanco 14:1 | — | — |
+| Mitad blanca | **Logotipo completo de Qaracter** a 30 px (PA-444; `docs/diseno/marca/logo-qaracter-oscuro.svg`, anunciado como «Qaracter»); el título «Hola de nuevo» y «Inicia sesión para continuar en FAQ.» | — | — |
+| Formulario | Usuario y contraseña | *Entrar en FAQ* (naranja; el texto `#233441` sobre el naranja da 4,9:1) | `POST /auth/login` (cookie HttpOnly y `csrf_token` solo en memoria) |
 | Errores | `invalid_credentials` («No se pudo iniciar sesión»); `too_many_attempts` con la cuenta atrás de `retry_after` | Reintentar | — |
 | Al recargar | La sesión se recupera sin volver a entrar | — | `GET /auth/me` |
 
@@ -77,7 +80,7 @@ Según `core/permissions.py` (`ROLE_PERMISSIONS`), que la API aplica en cada rut
 ## 4. Flujo de HU (analista funcional)
 
 ### 4.1 Mixta 1 · Inicio
-Pantalla central «¿En qué trabajamos hoy?» con la Q, el subtítulo «Elige qué hacemos y de qué partimos. Después lo mejoramos conversando. Nada se publica en Jira sin tu aprobación.»
+Pantalla central con la Q a 56 px, el saludo «Hola, soy **FAQ**, tu asistente de análisis funcional y QA.» y, debajo, «¿En qué trabajamos hoy?» con el subtítulo «Elige qué hacemos y de qué partimos. Después lo mejoramos conversando.» Encima del compositor, el rótulo «O escríbele a FAQ directamente»; al final, el pie «FAQ propone; tú decides. Nada se publica en Jira sin tu aprobación.» (PA-478). La tarjeta **Nueva necesidad** dice «Cuéntale a FAQ lo que hace falta; si ya existe una HU parecida, te la propone.»
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
@@ -125,7 +128,7 @@ Fase 2 de 4. La **Q de carga** avanza con los pasos (§8).
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
 | Lista de procesos | Los pasos que manda la API, **con su etiqueta tal cual** (PA-307, PA-327); la web no da por hecho cuántos son | — | Eventos `progress` del SSE (`GET /conversations/{id}/events`) |
-| Titular | «Generando la propuesta…» → «Propuesta lista · Versión 1 · N cambios frente a Jira» | *Ver la propuesta* | `review_ready` |
+| Titular | «FAQ está escribiendo la propuesta…» (PA-478) → «Propuesta lista · Versión 1 · N cambios frente a Jira». Los pasos de la lista siguen siendo los de la API | *Ver la propuesta de FAQ* | `review_ready` |
 | *Detener* | En el compositor; «Deteniendo la generación…» mientras termina el paso en curso. Acaba en «Generación detenida» (*Reintentar*) o en la propuesta | `POST /cancel` (PA-314) | — |
 | Error | Tarjeta según `code`; *Reintentar* repite el paso que falló | `POST /retry` (PA-276) | — |
 | Compositor | Desactivado: «Espera a la propuesta para pedir cambios» | — | — |
@@ -139,14 +142,14 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 |---|---|---|---|
 | Resumen del asistente | Compuesto en la web, sin LLM: «Versión 2 lista. CA-02: … Afecta también a DEMO-2 (…)» y, si las hay, «Quedan N preguntas abiertas» | — | `changes_from_previous`, `impact`, `open_questions` |
 | Mensaje de cambio | El usuario pide un cambio (RF-20) | Enviar | `POST /iterate` (202) |
-| Indicador | **«Generando una nueva versión…»** con la Q animada mientras se genera (PA-430; «Deteniendo la generación…» tras *Detener*); después, el resumen se escribe letra a letra | — | SSE |
+| Indicador | **«FAQ está preparando una nueva versión…»** (PA-478) con la Q animada mientras se genera (PA-430; «Deteniendo la generación…» tras *Detener*); después, el resumen se escribe letra a letra | — | SSE |
 | Aviso de modelo usado | «Generado con local · qwen3:4b-instruct · 2 fuentes» | — | `Artifact.model_used`. El motivo de un cambio de proveedor no lo expone el backend (PA-67) |
 | Sugerencias | Chips: «Añade un criterio de error», «Aclara el alcance», «Revisa INVEST» | Rellenar el compositor | — |
 | Panel · Versiones | *Jira* (solo al evolucionar) · *v1* · *v2* … | Ver una versión | `ConversationOut.versions`, `jira_baseline` (PA-316) |
 | Panel · Pestañas | **Propuesta** · **Cambios (N)** · **Impacto (N)** · **Fuentes (N)**; en una HU nueva, *Cambios* va sin recuento | Cambiar de pestaña | `UserStory`, `impact.diffs` (acumulados frente a Jira; los CA y RN se nombran `acceptance_criteria[CA-02]`, como en la API real y en el ejemplo del contrato, y la web acepta también `acceptance_criteria.CA-02`, PA-341), `impact.affected` |
 | Propuesta | «Como / quiero / para», CA y RN; marcas «Cambiado en vN» / «Nueva» frente a la versión anterior (en la v1, frente a Jira) | — | — |
 | Fuentes | Cada fuente con su extracto **con formato** (títulos en negrita, párrafos, listas y tablas sencillas) pintado como elementos de la página, nunca como HTML; lo que no se reconoce sale como texto. Una tabla más ancha que el panel se desplaza dentro de su caja (PA-428, PA-131) | — | `sources[].excerpt` |
-| Pie del panel | *Editar a mano* (§4.5 bis) · *Descartar* (con confirmación) · *Revisar y aprobar* | Editar / descartar / abrir el recibo | `POST /discard` · §4.6 |
+| Pie del panel | *Editar a mano* (§4.5 bis) · *Descartar* (con confirmación) · *Revisar y aprobar*; debajo, «La decisión es tuya: FAQ no publica nada sin tu aprobación.» (PA-478) | Editar / descartar / abrir el recibo | `POST /discard` · §4.6 |
 
 El aviso «CA sin fuente» (*Confirmar* · *Pedir fuente*) del lienzo queda aplazado: los CA no traen una cita propia (PA-315).
 
@@ -243,7 +246,7 @@ Fase 1 de 4. Cabecera «Pruebas de DEMO-3».
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Clave reconocida | «Clave reconocida en Jira · sin IA»; tarjeta con la HU (épica, «1 criterio y 1 regla», casos de prueba que ya tiene en Jira, «publicada por el agente») | *Preparar pruebas de DEMO-3* | `POST /start/propose`, `GET /issues/{key}` (`test_cases`, `published_by_agent`, PA-104) |
+| Clave reconocida | «Clave reconocida en Jira · sin IA»; tarjeta con la HU (épica, «1 criterio y 1 regla», casos de prueba que ya tiene en Jira, «publicada por FAQ») | *Preparar pruebas de DEMO-3* | `POST /start/propose`, `GET /issues/{key}` (`test_cases`, `published_by_agent`, PA-104) |
 | Operación fijada | «Operación fijada: suite de pruebas de DEMO-3. Los casos serán subtareas de DEMO-3 con la etiqueta «caso-prueba»; la estrategia y la matriz, adjuntos.» | — | `PublishTarget` (D-09) |
 | Panel · Tipos de caso (RF-22) | Casillas Positivos y Negativos («· obligatorio», no se pueden quitar), Alternos y De excepción | Marcar | Primer `feedback` «Incluye casos: …» |
 | Panel · Incluir además | Plegado con su resumen («3 de 3 incluidos»): datos sintéticos (RF-25), riesgos, dependencias e impacto (RF-27) y estrategia de pruebas (RF-26) | Marcar | «Incluye además: …» en el `feedback` |
@@ -256,16 +259,16 @@ Fase 2 de 4. Mismo patrón que Mixta 2b, con **cuatro pasos** y sus etiquetas de
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
 | Lista de procesos | «Recuperar la HU de origen», «Recuperar el contexto (Jira, documentos y memoria)», «Generar casos y escenarios, validar la cobertura y preparar datos, riesgos y estrategia» y «Publicar (o simular la publicación de) los casos de prueba en Jira», tal como los manda la API | — | `progress` del SSE |
-| Titular | «Generando la suite…» → «Suite lista · Versión 1 · 4 casos» | *Ver la suite* | — |
+| Titular | «FAQ está escribiendo la suite…» → «Suite lista · Versión 1 · 4 casos» | *Ver la suite de FAQ* | — |
 | Compositor | Desactivado: «Espera a la suite para pedir cambios» | — | — |
-| Error | `coverage_failed` → «La suite no es válida» · *Volver a generar* | `POST /retry` | — |
+| Error | `coverage_failed` → «FAQ no ha podido cubrir todos los criterios» · *Volver a generar* | `POST /retry` | — |
 
 ### 6.3 QA 3 · Iterar la suite
 Panel «Suite de pruebas» (540 px).
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
-| Conversación | Resumen sin LLM («Suite lista: 4 casos y todos los CA cubiertos. Riesgo: …»), peticiones de cambio, «Generando una nueva versión…», sugerencias | `POST /iterate` | RF-20 (que la v2 aplique el cambio pedido es PA-331) |
+| Conversación | Resumen sin LLM («Suite lista: 4 casos y todos los CA cubiertos. Riesgo: …»), peticiones de cambio, «FAQ está preparando una nueva versión…», sugerencias | `POST /iterate` | RF-20 (que la v2 aplique el cambio pedido es PA-331) |
 | Panel · Estado | Versiones *v1*, *v2*; distintivo de cobertura (abajo) | — | `ReviewPayload.uncovered` (PA-326) |
 | Pestaña **Casos** | Por caso: id, título, tipo, prioridad, «Verifica CA-01, RN-01», precondiciones, pasos, marca «Nuevo en v2» y su **Gherkin** desplegable | — | `TestSuite` (RF-23) |
 | Pestaña **Cobertura** | Matriz CA/RN × CP (RF-24) «se adjunta como matriz-DEMO-3.md» y *Descargar la matriz* (si la API trae `coverage_md`) | Descargar | `coverage_md`, `uncovered` (PA-326) |
@@ -319,7 +322,7 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 | Vacío | Sin conversaciones | Lista vacía con «Nueva conversación» | — |
 | Vacío | Memoria | §4.9 | — |
 | Cargando | Generando, QA 2 | Q de carga por pasos (§8) | — |
-| Cargando | Iterar | «Generando una nueva versión…» (§8) | — |
+| Cargando | Iterar | «FAQ está preparando una nueva versión…» (§8) | — |
 
 **Errores:** tarjeta con un título según `ErrorBody.code` y el **mensaje de la API tal cual**. La lista completa (28 códigos, con su tono y su acción) está en `web/DESIGN-DECISIONS.md` §6; un código desconocido usa «No se pudo completar la acción». Los más frecuentes:
 
@@ -329,8 +332,10 @@ Fase 3 de 4. Mismo patrón que §4.6. Cabecera «Pruebas de DEMO-3 · Suite, ver
 | `rate_limited` | Límite de uso alcanzado | Reintentar tras la cuenta atrás de `retry_after` |
 | `service_unavailable` | Servicio no disponible | Reintentar |
 | `provider_timeout` | El modelo no respondió a tiempo | Volver a generar |
-| `citation_failed` | La propuesta no es válida | Volver a generar |
-| `coverage_failed` | La suite no es válida | Volver a generar |
+| `invalid_model_output` | FAQ no ha podido terminar la propuesta | Volver a generar |
+| `citation_failed` | FAQ no ha podido citar sus fuentes | Volver a generar |
+| `coverage_failed` | FAQ no ha podido cubrir todos los criterios | Volver a generar |
+| `quality_failed` | FAQ no ha podido revisar la calidad | Reintentar |
 | `publish_failed` | No se puede publicar | Volver al recibo (nunca se aprueba dos veces: se reintenta con `POST /retry`) |
 | `approval_rejected` | Aprobación rechazada | Empezar de nuevo |
 | `not_in_review` | La revisión ya no está abierta | Actualizar |
@@ -348,7 +353,7 @@ Todas responden a una acción o a un proceso real, duran ≤ 0,42 s salvo la car
 |---|---|---|---|---|
 | 1 | **Q de fase** | La Q de la cabecera sube un cuarto al pasar de fase (0,42 s); al bajar de fase, anima desde la anterior | SVG con `clipPath` y transición CSS | Q rellena hasta la fase, sin transición |
 | 2 | **Q de carga por pasos** | Durante la generación: llena un cuarto con `load_origin`, otro con `retrieve_context` y el tercero con `generate`; mientras `generate` está en curso, se anima **dentro** del tercer cuarto; `review_ready` la llena | SVG que sigue los eventos `progress` del SSE | Los cuartos hechos, sin movimiento; la lista marca el paso en curso |
-| 3 | **Q de «generando»** | Mientras se genera la versión nueva tras pedir un cambio | SVG + CSS con «Generando una nueva versión…» (`role="status"`, PA-430) | Texto sin animación |
+| 3 | **Q de «generando»** | Mientras se genera la versión nueva tras pedir un cambio | SVG + CSS con «FAQ está preparando una nueva versión…» (`role="status"`, PA-430) | Texto sin animación |
 | 4 | **Escritura de la respuesta** | La respuesta (completa, sin streaming) se escribe letra a letra, como mucho 1,5 s | Solo visual (`aria-hidden`); el texto completo se anuncia una vez | Texto completo de inmediato |
 | 5 | **Entrada escalonada de la versión nueva** | Los CA entran con un pequeño retardo y el cambiado se resalta | CSS con `animation-delay` | Marcas «Cambiado en vN» / «Nueva» sin animación |
 | 6 | **Recibo con casillas** | Cada casilla confirma su operación; el botón se activa al completar | Casillas nativas y transición de color | Igual, sin transición |

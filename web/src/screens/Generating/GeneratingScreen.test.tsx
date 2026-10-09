@@ -53,7 +53,7 @@ describe('Generando (Mixta 2b, UI.md §4.4)', () => {
       'Generar la propuesta, validar las citas y analizar el impacto(hecho)',
     ])
     expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'false')
-    await userEvent.click(screen.getByRole('button', { name: 'Ver la propuesta' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ver la propuesta de FAQ' }))
     expect(await screen.findByRole('complementary', { name: 'Propuesta de HU' })).toHaveTextContent('Renovar un préstamo')
   })
 
@@ -68,7 +68,7 @@ describe('Generando (Mixta 2b, UI.md §4.4)', () => {
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(`event: error\ndata: ${JSON.stringify(failure)}\n\n`)))
     await generateFromHome()
     const alert = await screen.findByRole('alert')
-    expect(within(alert).getByRole('heading', { name: 'La propuesta no es válida' })).toBeInTheDocument()
+    expect(within(alert).getByRole('heading', { name: 'FAQ no ha podido citar sus fuentes' })).toBeInTheDocument()
     expect(alert).toHaveTextContent('La propuesta cita fuentes que no están en el contexto recibido.')
     await userEvent.click(within(alert).getByRole('button', { name: 'Volver a generar' }))
     expect(await screen.findByRole('complementary', { name: 'Antes de generar' })).toBeInTheDocument()

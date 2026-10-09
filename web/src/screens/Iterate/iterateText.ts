@@ -1,3 +1,4 @@
+import { PREPARING_VERSION } from '../../text/assistant.ts'
 import type { ArtifactOut, ConversationOut } from '../../api/types.ts'
 import type { ImpactAnalysis, UserStory } from '../../components/Proposal/index.ts'
 
@@ -54,4 +55,4 @@ export const MISSING_CASES_ITERATE_REASON = 'Cada CA de la HU necesita al menos 
 export const QA_EDIT_SOON = 'Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.'
 
 /** Indicador mientras se genera la versión nueva tras pedir un cambio (PA-430). */
-export const ITERATING_LABEL = 'Generando una nueva versión…'
+export const ITERATING_LABEL = PREPARING_VERSION

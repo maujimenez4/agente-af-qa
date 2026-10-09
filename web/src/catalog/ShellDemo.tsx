@@ -60,6 +60,7 @@ export function ShellDemo() {
           usage={withUsage ? { tokens_today: user.usage, warning_threshold: WARNING_THRESHOLD } : undefined}
           onNavigate={setZone}
           onLogout={() => setRole('functional')}
+          onHome={() => setZone(USERS[role].zone)}
         />
         {showList && (
           <ConversationList

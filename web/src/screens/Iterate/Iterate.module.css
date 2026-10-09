@@ -99,3 +99,10 @@
 .missing {
   margin: 0 0 var(--space-3);
 }
+
+/* PA-478: la decisión es de la persona; la nota va en su propia línea bajo los botones del pie. */
+.control {
+  flex-basis: 100%;
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+}

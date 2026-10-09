@@ -4,6 +4,7 @@ import { useLayer } from '../../hooks/useLayer.ts'
 import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { Icon } from '../Icon/index.ts'
 import { ErrorCard } from '../States/index.ts'
+import { CONVERSATIONS_HEADING } from '../../text/assistant.ts'
 import styles from './ConversationList.module.css'
 import { conversationTitle, groupByDay, matchesSearch, subtitle, type ConversationSummaryView } from './conversationLabels.ts'
 
@@ -100,6 +101,7 @@ export function ConversationList({ id, conversations, currentId, onNew, onSelect
         aria-label="Conversaciones"
         onKeyDown={onLayerKeyDown}
       >
+        <h2 className={styles.heading}>{CONVERSATIONS_HEADING}</h2>
         <button type="button" className={styles.newButton} onClick={closeAfter(onNew)}>
           <Icon name="new" />
           Nueva conversación

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FAQ · Pequeños sitios</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#b23e00}a:hover{color:#8a3000}
+</style>
+</helmet>
+<main style="min-height: 800px; padding: 48px; box-sizing: border-box; background: #f4f6f8; color: #233441; font-family: 'DM Sans', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px;">
+  <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Dónde más aparece FAQ</h1>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Pestaña del navegador</h2>
+      <div style="display: flex; align-items: center; gap: 8px; background: #e6eaee; border-radius: 10px 10px 0 0; padding: 10px 14px; max-width: 260px;">
+        <svg viewBox="0 0 326 326" width="16" height="16" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+        <span style="font-size: 14px;">FAQ · Qaracter</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">Título de la página e icono: la Q de Qaracter con el nombre del asistente.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Carril</h2>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 64px; height: 92px; background: #1e2d3d; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 326 326" width="30" height="30" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+        </div>
+        <span role="tooltip" style="background: #1e2d3d; color: #ffffff; font-size: 13px; border-radius: 8px; padding: 8px 10px;">FAQ · Inicio</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">Solo la Q; el nombre al pasar el ratón y en su texto alternativo (opciones en «Carril»).</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Mientras trabaja</h2>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><svg viewBox="0 0 326 326" width="16" height="16" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>FAQ está leyendo la HU en Jira…</div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><svg viewBox="0 0 326 326" width="16" height="16" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>FAQ está buscando en la documentación…</div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><svg viewBox="0 0 326 326" width="16" height="16" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>FAQ está escribiendo la propuesta…</div>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">Los pasos reales del proceso, en primera persona del asistente.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Errores</h2>
+      <div role="alert" style="border: 1px solid #f0d48a; background: #fff8e6; color: #6b4a00; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+        <strong style="font-size: 15px;">FAQ no ha podido terminar la propuesta</strong>
+        <span style="font-size: 13px;">El modelo no ha respondido a tiempo. No se ha escrito nada en Jira.</span>
+        <button style="align-self: flex-start; height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #b35c00; background: #ffffff; color: #6b4a00; font: inherit; font-size: 14px; font-weight: 700;">Reintentar</button>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">El nombre en el título; el motivo técnico, tal cual lo da el sistema.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Comentario en Jira</h2>
+      <div style="border-left: 0; background: #fafbfc; border: 1px solid #e6eaee; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+        <strong style="font-size: 14px;">Cambios en AFQP-3 · versión 2</strong>
+        <span>Nuevo CA-04 · regla RN-04 modificada.</span>
+        <span style="color: #5c6e7c;">Propuesta preparada con FAQ y aprobada por la persona responsable.</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">Una firma discreta: deja claro qué hizo la IA y quién aprobó.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #5c6e7c;">Desde otros asistentes (MCP)</h2>
+      <div style="background: #1e2d3d; color: #c9d2db; border-radius: 12px; padding: 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #ffffff; font-weight: 700;">FAQ · solo lectura</span>
+        <span>buscar_historias · ver_incidencia · revisar_calidad</span>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5c6e7c;">El mismo nombre al consultarlo desde Claude o VS Code.</p>
+    </section>
+
+  </div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { qPath: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+  }
+}
+</script>
+</body>
+</html>

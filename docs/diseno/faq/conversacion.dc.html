@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FAQ · Conversación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#b23e00}a:hover{color:#8a3000}
+</style>
+</helmet>
+<div style="min-height: 800px; display: flex; flex-wrap: wrap; background: #f4f6f8; color: #233441; font-family: 'DM Sans', system-ui, sans-serif;">
+  <nav aria-label="Carril" style="width: 64px; background: #1e2d3d; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 16px 0; box-sizing: border-box;">
+    <a href="Main.dc.html" aria-label="FAQ · Inicio" title="FAQ · Inicio" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px;">
+      <svg viewBox="0 0 326 326" width="34" height="34" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+    </a>
+  </nav>
+  <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; background: #ffffff;">
+    <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 28px; border-bottom: 1px solid #e6eaee; flex-wrap: wrap;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 700;">Reservar libro electrónico agotado</h1>
+        <span style="font-size: 13px; color: #5c6e7c;">Nueva necesidad · AFQP · con FAQ</span>
+      </div>
+      <span style="font-size: 13px; font-weight: 500; color: #b23e00; background: #fff3ec; border-radius: 999px; padding: 6px 12px;">Fase 2 de 4 · Propuesta</span>
+    </header>
+    <div role="log" aria-label="Conversación con FAQ" style="flex-grow: 1; padding: 28px; display: flex; flex-direction: column; gap: 22px; max-width: 860px; width: 100%; box-sizing: border-box; margin: 0 auto;">
+      <div style="align-self: flex-end; max-width: 560px; background: #1e2d3d; color: #ffffff; border-radius: 16px 16px 4px 16px; padding: 14px 16px; font-size: 15px; line-height: 1.5;">Cuando un libro electrónico está agotado, la persona socia debe poder reservarlo. Las reservas se atienden por orden de llegada y hay 48 horas para confirmar.</div>
+      <div style="display: flex; gap: 12px; align-items: flex-start;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0;">
+          <svg viewBox="0 0 326 326" width="32" height="32" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+          <span style="font-size: 11px; font-weight: 700; color: #5c6e7c;">FAQ</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; max-width: 620px;">
+          <div style="background: #fafbfc; border: 1px solid #e6eaee; border-radius: 4px 16px 16px 16px; padding: 14px 16px; font-size: 15px; line-height: 1.5;">He preparado la HU con <strong>5 criterios</strong> y <strong>5 reglas de negocio</strong>. Me he apoyado en AFQP-27 (el préstamo de libros electrónicos) y en el proceso de reservas de la biblioteca.</div>
+          <a href="#propuesta" style="align-self: flex-start; text-decoration: none; background: #ff7932; color: #1e2d3d; font-weight: 700; font-size: 15px; border-radius: 10px; padding: 12px 18px;">Ver la propuesta de FAQ</a>
+        </div>
+      </div>
+      <div style="align-self: flex-end; max-width: 560px; background: #1e2d3d; color: #ffffff; border-radius: 16px 16px 4px 16px; padding: 14px 16px; font-size: 15px; line-height: 1.5;">Añade un criterio para cuando la persona confirma el préstamo dentro del plazo.</div>
+      <div style="display: flex; gap: 12px; align-items: center;" aria-live="polite">
+        <svg viewBox="0 0 326 326" width="18" height="18" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+        <span style="font-size: 14px; color: #5c6e7c;">FAQ está preparando una nueva versión…</span>
+      </div>
+    </div>
+    <div style="padding: 16px 28px 24px; border-top: 1px solid #e6eaee; display: flex; flex-direction: column; gap: 6px; max-width: 860px; width: 100%; box-sizing: border-box; margin: 0 auto;">
+      <label for="cambio" style="font-size: 13px; font-weight: 500;">Pídele un cambio a FAQ</label>
+      <div style="display: flex; gap: 10px; align-items: flex-end; border: 1px solid #c7cfd6; border-radius: 14px; padding: 10px 10px 10px 14px;">
+        <textarea id="cambio" rows="1" placeholder="Por ejemplo: añade un caso de error…" style="flex-grow: 1; border: 0; resize: none; font: inherit; font-size: 15px; background: transparent; color: #233441;"></textarea>
+        <button aria-label="Enviar a FAQ" style="width: 44px; height: 44px; border-radius: 10px; border: 0; background: #ff7932; color: #1e2d3d;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+  <aside id="propuesta" aria-label="Propuesta" style="flex: 1 1 360px; max-width: 420px; background: #fafbfc; border-left: 1px solid #e6eaee; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700;">Propuesta · versión 1</h2>
+      <span style="font-size: 12px; color: #5c6e7c;">Propuesta por FAQ</span>
+    </div>
+    <div style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-size: 12px; font-weight: 700; color: #b23e00;">CA-01</span>
+      <span style="font-size: 14px; font-weight: 500;">Crear la reserva de un libro agotado</span>
+      <span style="font-size: 13px; color: #5c6e7c; line-height: 1.45;">Dado que el libro está «Agotado» y la persona tiene menos de 2 reservas, cuando pulsa «Reservar», entonces se crea la reserva al final de la cola.</span>
+    </div>
+    <div style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px;">
+      <span style="font-size: 12px; font-weight: 700; color: #b23e00;">CA-02</span>
+      <span style="font-size: 14px; font-weight: 500;">Límite de 2 reservas</span>
+      <span style="font-size: 13px; color: #5c6e7c; line-height: 1.45;">Dado que ya tiene 2 reservas activas, cuando intenta otra, entonces se rechaza con un mensaje claro.</span>
+    </div>
+    <a href="Main.dc.html" style="margin-top: auto; text-align: center; text-decoration: none; background: #1e2d3d; color: #ffffff; font-weight: 700; font-size: 15px; border-radius: 10px; padding: 12px 18px;">Revisar y aprobar</a>
+    <span style="font-size: 12px; color: #5c6e7c; text-align: center;">La decisión es tuya: FAQ no publica nada sin tu aprobación.</span>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { qPath: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+  }
+}
+</script>
+</body>
+</html>

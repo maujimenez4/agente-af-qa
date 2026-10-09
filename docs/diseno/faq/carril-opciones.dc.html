@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FAQ · Opciones del carril</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#b23e00}a:hover{color:#8a3000}
+</style>
+</helmet>
+<main style="min-height: 800px; padding: 48px; box-sizing: border-box; background: #f4f6f8; color: #233441; font-family: 'DM Sans', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px;">
+  <h1 style="margin: 0; font-size: 28px; font-weight: 700;">El nombre en el carril: tres opciones</h1>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+
+    <section style="background: #ffffff; border: 2px solid #ff7932; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 700;">A · Solo la Q</h2>
+        <span style="font-size: 12px; font-weight: 700; color: #b23e00; background: #fff3ec; border-radius: 999px; padding: 4px 10px;">Recomendada</span>
+      </div>
+      <div style="display: flex; align-items: flex-start; gap: 12px; min-height: 300px;">
+        <div style="width: 64px; height: 300px; background: #1e2d3d; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 16px; box-sizing: border-box;">
+          <svg viewBox="0 0 326 326" width="34" height="34" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+          <div style="width: 44px; height: 44px; border-radius: 10px; background: #2c3e4d;"></div>
+          <div style="width: 44px; height: 44px; border-radius: 10px; background: transparent; border: 1px solid #2c3e4d;"></div>
+        </div>
+        <span role="tooltip" style="margin-top: 20px; background: #1e2d3d; color: #ffffff; font-size: 13px; border-radius: 8px; padding: 8px 10px;">FAQ · Inicio</span>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5c6e7c; line-height: 1.5;">La Q es FAQ, como un icono de aplicación. El nombre sale al pasar el ratón y lo leen los lectores de pantalla. El carril queda limpio y el nombre vive donde el asistente habla.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 700;">B · Carril que se despliega</h2>
+      <div style="min-height: 300px; display: flex;">
+        <div style="width: 220px; height: 300px; background: #1e2d3d; border-radius: 12px; display: flex; flex-direction: column; gap: 14px; padding: 16px; box-sizing: border-box; color: #ffffff;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <svg viewBox="0 0 326 326" width="30" height="30" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+            <span style="font-size: 18px; font-weight: 700; letter-spacing: 0.06em;">FAQ</span>
+          </div>
+          <span style="font-size: 14px; color: #c9d2db;">Nueva conversación</span>
+          <span style="font-size: 14px; color: #c9d2db;">Memoria</span>
+          <span style="font-size: 14px; color: #c9d2db;">Ajustes</span>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5c6e7c; line-height: 1.5;">Al pasar el ratón o con un botón, el carril se abre con el nombre y las etiquetas. Más visible, pero quita espacio y es un componente nuevo que mantener.</p>
+    </section>
+
+    <section style="background: #ffffff; border: 1px solid #e6eaee; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 700;">C · En la lista de conversaciones</h2>
+      <div style="min-height: 300px; display: flex; gap: 0;">
+        <div style="width: 64px; height: 300px; background: #1e2d3d; border-radius: 12px 0 0 12px; display: flex; justify-content: center; padding-top: 16px; box-sizing: border-box;">
+          <svg viewBox="0 0 326 326" width="34" height="34" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+        </div>
+        <div style="flex-grow: 1; height: 300px; background: #fafbfc; border: 1px solid #e6eaee; border-left: 0; border-radius: 0 12px 12px 0; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 20px; font-weight: 700; letter-spacing: 0.04em;">FAQ</span>
+          <span style="font-size: 12px; font-weight: 700; color: #5c6e7c; text-transform: uppercase; letter-spacing: 0.06em;">Tus conversaciones</span>
+          <div style="height: 36px; border-radius: 8px; background: #fff3ec;"></div>
+          <div style="height: 36px; border-radius: 8px; background: #f4f6f8;"></div>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5c6e7c; line-height: 1.5;">El nombre encabeza la lista, a la altura de la Q. Se ve siempre sin tocar el carril, pero en ventanas estrechas la lista se pliega y el nombre desaparece.</p>
+    </section>
+
+  </div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { qPath: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+  }
+}
+</script>
+</body>
+</html>

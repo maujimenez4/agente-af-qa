@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FAQ · Iniciar sesión</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#b23e00}a:hover{color:#8a3000}
+</style>
+</helmet>
+<main style="min-height: 800px; display: flex; flex-wrap: wrap; background: #ffffff; color: #233441; font-family: 'DM Sans', system-ui, sans-serif;">
+  <section style="flex: 1 1 520px; background: #1e2d3d; color: #ffffff; padding: 64px 56px 48px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; gap: 48px;">
+    <p role="img" aria-label="FAQ" style="margin: 0; display: flex; align-items: baseline; gap: 10px; font-weight: 800; font-size: 120px; line-height: 1; letter-spacing: -0.03em;">
+      <span aria-hidden="true">FA</span>
+      <svg viewBox="0 0 326 326" width="84" height="84" aria-hidden="true"><path fill="#ff7932" d="{{qPath}}"></path></svg>
+    </p>
+    <p style="margin: 0; font-size: 30px; font-weight: 500; line-height: 1.3; max-width: 460px;">Historias de usuario y pruebas en segundos. <span style="color: #ff7932;">Siempre con tu aprobación.</span></p>
+    <p style="margin: 0; font-size: 14px; color: #c9d2db;">un asistente de <strong style="color: #ffffff; font-weight: 700;">Qaracter</strong></p>
+  </section>
+  <section aria-labelledby="titulo" style="flex: 1 1 420px; display: flex; align-items: center; justify-content: center; padding: 48px 32px; box-sizing: border-box;">
+    <div style="width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 28px;">
+      <img src="/_blob/622aff8ef4adb4723d8e4f0c7a1ace1b" alt="Qaracter" style="height: 30px; width: auto; align-self: flex-start;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <h1 id="titulo" style="margin: 0; font-size: 28px; font-weight: 700;">Hola de nuevo</h1>
+        <p style="margin: 0; font-size: 15px; color: #5c6e7c;">Inicia sesión para continuar en FAQ.</p>
+      </div>
+      <form style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="usuario" style="font-size: 14px; font-weight: 700;">Usuario</label>
+          <input id="usuario" type="text" autocomplete="username" style="height: 48px; border: 1px solid #c7cfd6; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 15px;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="clave" style="font-size: 14px; font-weight: 700;">Contraseña</label>
+          <input id="clave" type="password" autocomplete="current-password" style="height: 48px; border: 1px solid #c7cfd6; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 15px;">
+        </div>
+        <button type="submit" style="height: 50px; border: 0; border-radius: 10px; background: #ff7932; color: #1e2d3d; font: inherit; font-size: 16px; font-weight: 700;">Entrar en FAQ</button>
+      </form>
+    </div>
+  </section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { qPath: 'M110.806 87.9929H215.094C227.693 87.9929 237.907 98.2067 237.907 110.806V168.557C230.545 167.016 222.914 166.206 215.095 166.206H166.21V237.904H215.095C236.693 237.904 254.203 255.413 254.203 277.012V325.898H325.901V277.012C325.901 225.051 290.135 181.444 241.879 169.465H325.9V110.806C325.9 49.6095 276.29 0 215.094 0H110.806C49.6095 0 0 49.6095 0 110.806V215.094C0 276.29 49.6095 325.9 110.806 325.9L166.21 325.897V237.907H110.806C98.2067 237.907 87.9929 227.693 87.9929 215.094V110.806C87.9929 98.2067 98.2067 87.9929 110.806 87.9929Z' };
+  }
+}
+</script>
+</body>
+</html>

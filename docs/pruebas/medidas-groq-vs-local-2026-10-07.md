@@ -34,3 +34,17 @@ Medianas locales: todas las llamadas con salida registradas en `llm_usage` (2026
 ## Conclusión provisional
 
 Con Groq, las operaciones bajan de minutos a segundos (entre 12 y 30 veces más rápido) y la calidad de las HU mejora mucho. El nivel gratuito, en cambio, no da para QA: la suite apenas cabe y la iteración no cabe. Opciones para la demo: Groq de pago (Dev Tier, por uso), un modo mixto (Groq para HU, memoria y calidad; local para QA) o todo local.
+
+
+## Medición del 2026-10-09 con la configuración mixta actual (PA-443)
+
+Tiempos de extremo a extremo (contexto, modelo y validación), en simulación, con el código de `PreProduccion` tras la auditoría (estructura compartida, espera ante el 429 de Groq y la HU de origen sin recortar). Un minuto entre operaciones para no chocar con el límite por minuto de Groq.
+
+| Operación | Modelo | Total | Llamadas al modelo (entrada / salida, latencia) | Resultado |
+|---|---|---|---|---|
+| Crear HU nueva (AFQP) | Groq `gpt-oss-120b` + `gpt-oss-20b` | **13,1 s** | generar 3195 / 1876 (4,8 s) + impacto 1195 / 282 (0,6 s) | En revisión |
+| Evolucionar AFQP-3 | Groq `gpt-oss-120b` + `gpt-oss-20b` | **14,5 s** | estructurar 1898 / 1360 (3,4 s) + generar 4377 / 1003 (2,7 s) + impacto 1231 / 763 (1,4 s) | En revisión |
+| Revisar la calidad de AFQP-27 | Groq `gpt-oss-120b` | **10,8 s** | revisión 4482 / 1088 (3,0 s); estructura reutilizada | Informe listo |
+| Suite de QA de AFQP-28 | Local `qwen3:1.7b` | **8 min 28 s** | suite 6256 / 1925 (8 min 16 s) | 5 casos; todos los CA cubiertos, 5 RN sin caso |
+
+El resto del tiempo total (unos 5–8 s en las operaciones de Groq) es la recuperación de contexto (Jira y RAG) y la validación.

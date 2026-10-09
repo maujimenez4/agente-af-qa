@@ -35,7 +35,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .eyebrow { font-size: 13px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; margin: 0; }
 h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.12; margin: 4px 0 8px; }
 .lead { color: var(--ink-2); margin: 0; max-width: 760px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .tile, .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 18px 20px; }
 .tile .k { font-size: 13px; color: var(--ink-3); margin: 0 0 6px; }
 .tile .v { font-family: var(--font-data); font-size: clamp(20px, 2.2vw, 26px); font-weight: 500; margin: 0; white-space: nowrap; }
@@ -69,17 +69,18 @@ tr.hoy td { background: color-mix(in srgb, var(--brand) 10%, transparent); }
 <body>
 <div class="wrap">
   <header>
-    <p class="eyebrow">Agente de IA de AF y QA · tiempos y costes por modelo · 2026-10-09</p>
+    <p class="eyebrow">Agente de IA de AF y QA · tiempos y costes por modelo · medido el 2026-10-09</p>
     <h1>De minutos a segundos, con 0 € de modelo hoy</h1>
     <p class="lead">Tiempos <strong>medidos</strong> con los modelos que usa el agente (Ollama local y Groq) frente a una <strong>estimación</strong> con los principales modelos comerciales (Anthropic, OpenAI y Google), con los tokens reales de cada operación.</p>
   </header>
 
   <section class="tiles" aria-label="Cifras clave">
-    <div class="tile"><p class="k">Una HU nueva</p><p class="v">4 min<span class="arrow">→</span>11 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
-    <div class="tile"><p class="k">Revisión de calidad</p><p class="v">7,2 min<span class="arrow">→</span>7,7 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Crear una HU nueva</p><p class="v">4 min<span class="arrow">→</span>13 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Evolucionar una HU</p><p class="v">5,2 min<span class="arrow">→</span>15 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Revisar la calidad</p><p class="v">7,2 min<span class="arrow">→</span>11 s</p><p class="n">Local en CPU → Groq (medidos)</p></div>
+    <div class="tile"><p class="k">Suite de pruebas</p><p class="v">8,5 min</p><p class="n">Local en CPU (hoy); con Groq, 41 s, pero no cabe en su nivel gratuito</p></div>
     <div class="tile"><p class="k">Coste de modelo hoy</p><p class="v">0 €</p><p class="n">Open-weight gratuitos; Groq de pago: ~1,9 $ / 1000 operaciones</p></div>
-    <div class="tile"><p class="k">Modelos comerciales (estimado)</p><p class="v">1,5–58 $</p><p class="n">por 1000 operaciones, según el modelo</p></div>
-  </section>
+      </section>
 
   <section class="card" aria-labelledby="h-mixta">
     <h2 id="h-mixta">Configuración actual del agente (mixta)</h2>
@@ -98,7 +99,7 @@ tr.hoy td { background: color-mix(in srgb, var(--brand) 10%, transparent); }
       <li><span class="sw" style="background: var(--s-groq)"></span>Groq gpt-oss (medido)</li>
       <li><span class="sw" style="background: var(--s-cloud)"></span>Comerciales: rango de los 6 modelos (estimado)</li>
     </ul>
-    <div class="chart" id="chart-time" role="img" aria-label="Tiempo por operación: local entre 240 y 498 segundos, Groq entre 8 y 41 segundos, comerciales estimados entre 12 y 44 segundos."></div>
+    <div class="chart" id="chart-time" role="img" aria-label="Tiempo por operación: local entre 4 y 8,3 minutos; Groq, medido el 9 de octubre, 13,1 s la HU nueva, 14,5 s evolucionar y 10,8 s la calidad; comerciales estimados entre 12 y 44 segundos."></div>
   </section>
 
   <section class="card" aria-labelledby="h-coste">
@@ -125,7 +126,7 @@ tr.hoy td { background: color-mix(in srgb, var(--brand) 10%, transparent); }
   <section class="card notes" aria-labelledby="h-metodo">
     <h2 id="h-metodo">Cómo se ha calculado</h2>
     <ul>
-      <li><strong>Medido (local y Groq):</strong> trazas de Langfuse y registro de uso del agente (<code>llm_usage</code>), proyecto sintético AFQP, 2–8 de octubre de 2026. Local: mediana de 29 operaciones; Groq: una medida por operación (<code>docs/pruebas/medidas-groq-vs-local-2026-10-07.md</code>).</li>
+      <li><strong>Medido (local y Groq):</strong> registro de uso del agente (<code>llm_usage</code>) y cronómetro de extremo a extremo (contexto, modelo y validación), proyecto sintético AFQP. Groq: medición del 9 de octubre con la configuración mixta actual (HU nueva, evolucionar AFQP-3, calidad de AFQP-27); la suite con Groq es del 7 de octubre. Local: mediana de 29 operaciones del 2 al 7 de octubre; la suite de AFQP-28 del 9 de octubre tardó 8 min 28 s, en línea con la mediana (<code>docs/pruebas/medidas-groq-vs-local-2026-10-07.md</code>).</li>
       <li><strong>Tokens por operación:</strong> medias reales del agente — HU nueva 5005 de entrada / 1880 de salida (2 llamadas); evolucionar 4138 / 1788 (2); suite 6915 / 2244 (2); iterar una suite 4846 / 1350 (1); calidad 7151 / 1729 (2).</li>
       <li><strong>Tiempo estimado</strong> = latencia inicial por llamada + tokens de salida ÷ velocidad. Velocidades de Artificial Analysis: Haiku 4.5 ~108 t/s, Sonnet 5.5 ~125, Opus 5.5 ~96, GPT-6.1 Sol 55,6, GPT-6 Luna 127,5, Gemini 3.1 Pro 115,3, Gemini 3.8 Flash 120,2. Latencia inicial: Claude 0,7 / 1,5 / 3 s; OpenAI y Gemini, 2 s supuestos con razonamiento bajo — con el razonamiento al máximo, Artificial Analysis mide entre 25 y 314 s antes de la primera palabra.</li>
       <li><strong>Precios oficiales</strong> por millón de tokens (entrada / salida): Anthropic — Haiku 4.5 1 / 5 $, Sonnet 5.5 2 / 10 $, Opus 5.5 4 / 20 $ (tabla de precios de la API, consultada el 2026-10-08); OpenAI — GPT-6.1 Sol 2 / 10 $, GPT-6 Luna 0,10 / 0,50 $; Google — Gemini 3.1 Pro 2 / 12 $ (≤ 200k), Gemini 3.8 Flash 0,75 / 3,75 $ (precio de lanzamiento hasta el 31-12-2026; se duplica el 1-1-2027). Groq de pago, gpt-oss-120b: 0,15 / 0,60 $ (fuente secundaria; confirmar en Groq).</li>
@@ -150,8 +151,8 @@ tr.hoy td { background: color-mix(in srgb, var(--brand) 10%, transparent); }
 <script>
 const OPS = ["HU nueva", "Evolucionar una HU", "Suite de QA", "Iterar una suite", "Revisar la calidad"];
 const LOCAL = [240, 312, 498, 318, 432];
-const GROQ = [11, null, 41, null, 7.7];
-const GROQ_NOTE = [null, "no medido aparte", "en la configuración actual va en local", "no cabe en el nivel gratuito", null];
+const GROQ = [13.1, 14.5, 41, null, 10.8];
+const GROQ_NOTE = [null, null, "medido el 7-10; hoy la suite va en local", "no cabe en el nivel gratuito", null];
 const MODELS = [
   { name: "Local · qwen3:1.7b", kind: "ow", price: "—", t: LOCAL, c: [0,0,0,0,0], k: 0, measured: true, hoy: true },
   { name: "Groq · gpt-oss (gratuito)", kind: "ow", price: "0 · 0", t: GROQ, c: [0,0,0,0,0], k: 0, measured: true, hoy: true },

@@ -6,8 +6,9 @@ Anexo del dossier para dirección (`DOSSIER.md`). Reúne lo que se midió y se i
 
 | | Dato | Fuente |
 |---|---|---|
-| **Una HU nueva** | de **~4–5 min** (modelo local) a **11 s** (Groq) | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` |
-| **Una suite de QA** | de **~8 min** (local) a **41 s** (Groq, con esperas por su límite) | ídem |
+| **Una HU nueva** | de **~4–5 min** (modelo local) a **13 s** (Groq, medido el 2026-10-09) | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` |
+| **Evolucionar una HU** | de **~5 min** (local) a **15 s** (Groq, medido el 2026-10-09) | ídem |
+| **Una suite de QA** | **~8,5 min** en local, la configuración actual (con Groq, 41 s, pero no cabe en su nivel gratuito) | ídem |
 | **Coste de modelo hoy** | **0 €**: modelos open-weight gratuitos (local y nivel gratuito de Groq) | decisión D-14, `config/README.md` |
 | **Coste estimado con un modelo de pago** | de **~1,5 $** (GPT-6 Luna, Groq de pago) a **~58 $** (Claude Opus 5.5) por 1000 operaciones | estimación del §5 |
 
@@ -28,12 +29,14 @@ Mismo agente, mismas instrucciones (`prompts/`), misma base de conocimiento.
 
 | Operación | Local `qwen3:1.7b` (mediana) | Groq `gpt-oss` (medido) | Mejora |
 |---|---|---|---|
-| HU nueva | 4,0 min (llamada de generación: 5,1 min) | **11 s** | ~25× |
-| Evolucionar una HU | 5,2 min | segundos (no medido aparte) | — |
-| Revisión de calidad (INVEST) | 7,2 min | **7,7 s** | ~55× |
-| Suite de QA | 8,3 min | **41 s** | ~12× |
+| HU nueva | 4,0 min (llamada de generación: 5,1 min) | **13,1 s** | ~18× |
+| Evolucionar una HU | 5,2 min | **14,5 s** | ~21× |
+| Revisión de calidad (INVEST) | 7,2 min | **10,8 s** | ~40× |
+| Suite de QA | 8,3 min (el 2026-10-09: 8 min 28 s) | **41 s** (7-10; hoy va en local) | ~12× |
 | Iterar una suite | 5,3 min | **no cabe** en el nivel gratuito (§6) | — |
 | Memoria al publicar | 1,4 min | **3 s** | ~28× |
+
+Tiempos de Groq medidos de extremo a extremo (contexto, modelo y validación) el 2026-10-09 con la configuración mixta actual: HU nueva en AFQP, evolución de AFQP-3 y calidad de AFQP-27. La memoria y la suite con Groq son del 2026-10-07.
 
 Además, en total: **4 h 52 min de modelo** en las 91 llamadas locales, frente a unos **14 min** estimados con un modelo en la nube.
 
@@ -59,8 +62,8 @@ Con los **tokens reales** de cada operación del agente (medias de `llm_usage`: 
 | Modelo | Proveedor | Tipo | $/M entrada · salida | HU nueva | Suite de QA | Calidad | **1000 operaciones** |
 |---|---|---|---|---|---|---|---|
 | qwen3:1.7b (local) | Ollama | Open-weight · **medido** | — | 4 min | 8,3 min | 7,2 min | **0 $** |
-| gpt-oss (nivel gratuito) | Groq | Open-weight · **medido** | 0 · 0 | 11 s | 41 s | 7,7 s | **0 $** |
-| gpt-oss-120b (de pago) | Groq | Open-weight | 0,15 · 0,60 | ~11 s | ~41 s | ~8 s | **~1,92 $** |
+| gpt-oss (nivel gratuito) | Groq | Open-weight · **medido** | 0 · 0 | 13 s | 41 s | 11 s | **0 $** |
+| gpt-oss-120b (de pago) | Groq | Open-weight | 0,15 · 0,60 | ~13 s | ~41 s | ~11 s | **~1,92 $** |
 | GPT-6 Luna | OpenAI | Comercial · estimado | 0,10 · 0,50 | ~19 s | ~22 s | ~18 s | **~1,46 $** |
 | Gemini 3.8 Flash | Google | Comercial · estimado | 0,75 · 3,75 ¹ | ~20 s | ~23 s | ~18 s | **~10,95 $** ¹ |
 | Claude Haiku 4.5 | Anthropic | Comercial · estimado | 1 · 5 | ~19 s | ~22 s | ~17 s | **~14,60 $** |

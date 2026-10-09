@@ -98,7 +98,7 @@ describe('QA 3 · pestañas de la suite con el teclado', () => {
 
 describe('QA 3 · mientras se itera y versiones', () => {
   it('test_while_iterating_composer_and_review_are_disabled_and_panel_says_generating', async () => {
-    // UI.md §6.3 (indicador «Generando una nueva versión…», PA-430) y §6.2: compositor desactivado con su texto de la suite.
+    // UI.md §6.3 (indicador «FAQ está preparando una nueva versión…», PA-430) y §6.2: compositor desactivado con su texto de la suite.
     await openSuiteInReview()
     mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     await userEvent.click(screen.getByRole('button', { name: 'Añade un caso de excepción' }))
@@ -161,13 +161,13 @@ describe('QA 3 · mientras se itera y versiones', () => {
 
 describe('QA 3 · coverage_failed al iterar (UI.md §7)', () => {
   it('test_coverage_failed_while_iterating_shows_card_with_message_verbatim', async () => {
-    // UI.md §7: `CoverageError` → «La suite no es válida» con el mensaje de la excepción tal cual y *Volver a generar*.
+    // UI.md §7: `CoverageError` → «FAQ no ha podido cubrir todos los criterios» con el mensaje de la excepción tal cual y *Volver a generar*.
     await openSuiteInReview()
     failNextStreamWithCoverage()
     await userEvent.click(screen.getByRole('button', { name: 'Añade un caso de excepción' }))
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     const card = await screen.findByRole('alert')
-    expect(card).toHaveTextContent('La suite no es válida')
+    expect(card).toHaveTextContent('FAQ no ha podido cubrir todos los criterios')
     expect(card).toHaveTextContent(COVERAGE_MESSAGE)
     expect(within(card).getByRole('button', { name: 'Volver a generar' })).toBeInTheDocument()
     // La v1 sigue en el panel y la conversación sigue abierta.

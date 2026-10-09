@@ -11,6 +11,7 @@ import {
   type ProgressEvent,
 } from '../components/States/index.ts'
 import styles from './Catalog.module.css'
+import { WRITING_PROPOSAL } from '../text/assistant.ts'
 
 // Eventos SSE sintéticos con los textos de UI.md §4.4.
 const SCRIPT: ReadonlyArray<{ at: number; event?: ProgressEvent; reviewReady?: boolean }> = [
@@ -58,7 +59,7 @@ function LoadingDemo() {
   return (
     <div className={styles.section}>
       <LoadingState
-        title={reviewReady ? 'Propuesta lista · Versión 1 · 3 cambios frente a Jira' : 'Generando la propuesta…'}
+        title={reviewReady ? 'Propuesta lista · Versión 1 · 3 cambios frente a Jira' : WRITING_PROPOSAL}
         events={events}
         reviewReady={reviewReady}
       />

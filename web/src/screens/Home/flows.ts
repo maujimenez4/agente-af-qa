@@ -1,4 +1,5 @@
 import type { IconName } from '../../components/Icon/index.ts'
+import { NEED_HINT } from '../../text/assistant.ts'
 
 export type FlowId = 'need' | 'evolve' | 'review' | 'tests'
 
@@ -17,7 +18,7 @@ export const FLOWS: readonly FlowDefinition[] = [
   {
     id: 'need',
     label: 'Nueva necesidad',
-    hint: 'Describe lo que hace falta; si ya existe una HU parecida te la propongo.',
+    hint: NEED_HINT,
     placeholder: 'Describe la necesidad. Si escribes una clave de Jira, por ejemplo DEMO-3, la reconozco.',
     icon: 'new',
     permission: 'generate_story',

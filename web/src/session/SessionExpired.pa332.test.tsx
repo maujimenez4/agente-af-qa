@@ -31,7 +31,7 @@ async function expectExpiredLogin() {
 async function logIn(username: string) {
   await userEvent.type(screen.getByLabelText('Usuario'), username)
   await userEvent.type(screen.getByLabelText('Contraseña'), DEMO_PASSWORD)
-  await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Entrar en FAQ' }))
 }
 
 async function openDemo3InReview() {
@@ -199,7 +199,7 @@ describe('Volver a entrar tras la sesión caducada (PA-332)', () => {
     expect(screen.queryByRole('heading', { name: 'Sesión caducada' })).toBeNull() // el 401 de /auth/me al arrancar
     await userEvent.type(screen.getByLabelText('Usuario'), 'af-demo')
     await userEvent.type(screen.getByLabelText('Contraseña'), 'no-es-la-buena')
-    await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Entrar en FAQ' }))
     expect(await screen.findByText('Usuario o contraseña incorrectos.')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Sesión caducada' })).toBeNull()
   })

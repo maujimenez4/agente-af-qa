@@ -50,7 +50,7 @@ npm run dev:mock  # igual, pero contra la API simulada (MSW): no hace falta Pyth
   - `?simular=cobertura-desconocida`: la suite llega con `uncovered: null` («no se sabe»): sin distintivo de cobertura ni «Todos los CA cubiertos»;
   - `?simular=memoria-no-encontrada`: publicación real de la HU (como `?simular=publicado`) pero sin que se genere su memoria: *Ver la memoria* abre Memoria con la tarjeta «No se encuentra» (404 `not_found`);
   - `?simular=sin-memorias`: la lista de Memoria vacía («Aún no hay memorias…»);
-  - `?simular=calidad-error`: al revisar la calidad, la revisión acaba en `error` con `quality_failed` (tarjeta «No se pudo revisar la calidad» y *Reintentar*). Una clave que no existe (p. ej. DEMO-999) acaba en `not_found`;
+  - `?simular=calidad-error`: al revisar la calidad, la revisión acaba en `error` con `quality_failed` (tarjeta «FAQ no ha podido revisar la calidad» y *Reintentar*). Una clave que no existe (p. ej. DEMO-999) acaba en `not_found`;
   - `?simular=conexion-caida`: en Ajustes (admin), *Probar conexiones* devuelve el ejemplo del contrato con un servicio caído («Modelos · ollama», «Faltan modelos…»); sin él, todos salen bien. Repetir la prueba antes de 10 s da 429 con cuenta atrás;
   - `?simular=muchas-conversaciones`: 120 conversaciones ficticias en 30 días, para revisar la lista larga (este se aplica al cargar la página).
 

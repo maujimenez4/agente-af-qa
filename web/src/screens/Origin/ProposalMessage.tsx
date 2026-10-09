@@ -6,6 +6,7 @@ import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, FoundIssue } from '../../components/Chat/index.ts'
 import { capabilitiesLine } from './conversation.ts'
 import { countLabel } from '../../text/plural.ts'
+import { PUBLISHED_BY_ASSISTANT } from '../../text/assistant.ts'
 
 export interface ProposalMessageProps {
   proposal: StartProposal
@@ -31,7 +32,7 @@ function issueDetail(issue: IssueSummary, card: IssueCard | undefined, qa = fals
     card.epic_key ? `Épica ${card.epic_key}` : undefined,
     `${countLabel(card.criteria_count, 'criterio', 'criterios')} y ${countLabel(card.rules_count, 'regla', 'reglas')}`,
     qa ? testCasesText(card.test_cases) : undefined,
-    qa && card.published_by_agent ? 'publicada por el agente' : undefined,
+    qa && card.published_by_agent ? PUBLISHED_BY_ASSISTANT : undefined,
   ]
   return parts.filter(Boolean).join(' · ')
 }

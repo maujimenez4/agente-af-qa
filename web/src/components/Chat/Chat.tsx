@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Icon, type IconName } from '../Icon/index.ts'
 import { QLogo } from '../QMark/index.ts'
+import { ASSISTANT_NAME } from '../../text/assistant.ts'
 import styles from './Chat.module.css'
 
 // Conversación: role="log" (aria-live="polite") anuncia cada mensaje nuevo una sola vez
@@ -28,11 +29,15 @@ export function UserMessage({ children }: { children: ReactNode }) {
 export function AssistantMessage({ children, animate = false }: { children: ReactNode; animate?: boolean }) {
   return (
     <li className={`${styles.assistant} ${animate ? styles.rise : ''}`}>
-      <span className={styles.avatar} aria-hidden="true">
-        <QLogo size={16} />
+      {/* PA-478: la Q con el nombre debajo; para el lector de pantalla, el nombre va delante del mensaje. */}
+      <span className={styles.who} aria-hidden="true">
+        <span className={styles.avatar}>
+          <QLogo size={16} />
+        </span>
+        <span className={styles.name}>{ASSISTANT_NAME}</span>
       </span>
       <div className={styles.body}>
-        <span className="visually-hidden">Asistente: </span>
+        <span className="visually-hidden">{ASSISTANT_NAME}: </span>
         {children}
       </div>
     </li>

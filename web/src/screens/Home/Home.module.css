@@ -9,7 +9,7 @@
 /* Ventanas bajas (1024×768): menos aire arriba y abajo para que Inicio quepa sin desplazarse. */
 @media (max-height: 800px) {
   .page {
-    padding-block: var(--space-5);
+    padding-block: var(--space-3);
   }
 }
 
@@ -29,14 +29,31 @@
   text-align: center;
 }
 
-.mark {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px 16px 5px 16px;
-  background: var(--color-navy);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* PA-478: «Hola, soy FAQ…» sobre la pregunta. */
+.greeting {
+  font-size: var(--text-body);
+  color: var(--color-text-muted);
+}
+
+.greeting b {
+  color: var(--color-text);
+}
+
+.write {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.writeHint {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+/* Pie: quién decide. */
+.control {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 .title {
@@ -168,8 +185,13 @@
 }
 
 /* Ventanas bajas: menos separación entre bloques (va al final para pisar la regla base de .content). */
+/* PA-478: con el saludo, el rótulo del cuadro de texto y el pie de FAQ, aún menos aire para caber a 1024×768. */
 @media (max-height: 800px) {
   .content {
-    gap: var(--space-4);
+    gap: var(--space-3);
+  }
+
+  .hero {
+    gap: var(--space-2);
   }
 }

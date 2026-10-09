@@ -10,8 +10,15 @@
   flex-shrink: 0;
 }
 
-.logo {
+/* La Q lleva a Inicio (PA-478): un botón sin fondo, con el foco visible de la app. */
+.home {
   margin-bottom: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-q-sm);
+  background: none;
+  display: flex;
+  cursor: pointer;
 }
 
 .items {

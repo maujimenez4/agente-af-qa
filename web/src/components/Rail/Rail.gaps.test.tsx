@@ -9,7 +9,7 @@ import { mockDb } from '../../mocks/node.ts'
 import { Rail } from './Rail.tsx'
 import { usageView } from './railItems.ts'
 
-const RING = /Consumo de tokens de hoy de todas las personas que usan el agente/
+const RING = /Consumo de tokens de hoy de todas las personas que usan FAQ/
 
 function signIn(role: 'functional' | 'qa' | 'admin') {
   const username = { functional: 'af-demo', qa: 'qa-demo', admin: 'admin-demo' }[role]
@@ -26,10 +26,10 @@ describe('Rail en la app: anillo de consumo (decisión 17, PA-305)', () => {
     signIn('qa')
     render(<App />)
     const ring = await screen.findByRole('img', { name: RING })
-    expect(ring).toHaveAccessibleName('Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso')
+    expect(ring).toHaveAccessibleName('Consumo de tokens de hoy de todas las personas que usan FAQ: 42.000 de 180.000, 23 % del umbral de aviso')
     expect(ring).toHaveTextContent('consumo total')
     // El tooltip (`title`) dice lo mismo que el nombre accesible.
-    expect(ring).toHaveAttribute('title', 'Consumo de tokens de hoy de todas las personas que usan el agente: 42.000 de 180.000, 23 % del umbral de aviso')
+    expect(ring).toHaveAttribute('title', 'Consumo de tokens de hoy de todas las personas que usan FAQ: 42.000 de 180.000, 23 % del umbral de aviso')
     // «todas las personas» sí; nada que suene al consumo propio («tu», «tus», «tuyo», «persona», «usuario»).
     expect(ring.getAttribute('aria-label')).not.toMatch(/\btus?\b|\btuyo\b|\bpersona\b|\busuario\b/i)
   })
@@ -52,6 +52,7 @@ describe('Rail en la app: anillo de consumo (decisión 17, PA-305)', () => {
         active="work"
         onNavigate={vi.fn()}
         onLogout={vi.fn()}
+        onHome={vi.fn()}
         usage={{ tokens_today: percent * 10, warning_threshold: 1000 }}
       />,
     )
@@ -114,7 +115,8 @@ describe('Rail en la app: zonas por rol', () => {
   it('test_history_soon_keyboard_does_nothing_and_stays_focusable', async () => {
     /** Criterio 5: Historial sigue en el orden de tabulación (aria-disabled) pero Intro y Espacio no navegan. */
     const onNavigate = vi.fn()
-    render(<Rail userRole="admin" username="admin-demo" active="settings" onNavigate={onNavigate} onLogout={vi.fn()} />)
+    render(<Rail userRole="admin" username="admin-demo" active="settings" onNavigate={onNavigate} onLogout={vi.fn()} onHome={vi.fn()} />)
+    await userEvent.tab() // la Q del carril, a Inicio (PA-478)
     await userEvent.tab()
     expect(screen.getByRole('button', { name: 'Memoria' })).toHaveFocus()
     await userEvent.tab()
@@ -127,7 +129,7 @@ describe('Rail en la app: zonas por rol', () => {
 
   it('test_history_visual_soon_badge_is_hidden_from_screen_readers', () => {
     /** Criterio 5: la etiqueta visual «Pronto» no se lee pegada al nombre. */
-    render(<Rail userRole="admin" username="admin-demo" active="settings" onNavigate={vi.fn()} onLogout={vi.fn()} />)
+    render(<Rail userRole="admin" username="admin-demo" active="settings" onNavigate={vi.fn()} onLogout={vi.fn()} onHome={vi.fn()} />)
     const badge = within(screen.getByRole('button', { name: 'Historial' })).getByText('Pronto')
     expect(badge).toHaveAttribute('aria-hidden', 'true')
   })

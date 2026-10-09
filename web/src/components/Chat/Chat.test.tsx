@@ -14,7 +14,7 @@ describe('Chat', () => {
     const items = within(log).getAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('Tú: La persona socia')
-    expect(items[1]).toHaveTextContent('Asistente: He preparado el contexto.')
+    expect(items[1]).toHaveTextContent('FAQ: He preparado el contexto.')
   })
 
   it('los mensajes muestran el texto tal cual, nunca como HTML', () => {

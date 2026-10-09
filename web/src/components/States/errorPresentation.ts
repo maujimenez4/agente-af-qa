@@ -2,6 +2,7 @@
 // El título, el tono y la acción salen de aquí; el MENSAJE se muestra siempre tal cual (UI.md §7).
 
 import type { ApiError, ErrorCode } from '../../api/types.ts'
+import { ERROR_CITATIONS, ERROR_COVERAGE, ERROR_PROPOSAL_UNFINISHED, ERROR_QUALITY } from '../../text/assistant.ts'
 
 export type { ApiError }
 
@@ -44,10 +45,10 @@ const PRESENTATIONS: Record<ErrorCode, ErrorPresentation> = {
   service_unavailable: { title: 'Servicio no disponible', tone: 'error', action: 'retry' },
   provider_timeout: { title: 'El modelo no respondió a tiempo', tone: 'warning', action: 'regenerate' },
   // Generación (llegan en ConversationOut.error o QualityReviewOut.error)
-  invalid_model_output: { title: 'La respuesta del modelo no es válida', tone: 'error', action: 'regenerate' },
-  citation_failed: { title: 'La propuesta no es válida', tone: 'error', action: 'regenerate' },
-  coverage_failed: { title: 'La suite no es válida', tone: 'error', action: 'regenerate' },
-  quality_failed: { title: 'No se pudo revisar la calidad', tone: 'error', action: 'retry' },
+  invalid_model_output: { title: ERROR_PROPOSAL_UNFINISHED, tone: 'error', action: 'regenerate' },
+  citation_failed: { title: ERROR_CITATIONS, tone: 'error', action: 'regenerate' },
+  coverage_failed: { title: ERROR_COVERAGE, tone: 'error', action: 'regenerate' },
+  quality_failed: { title: ERROR_QUALITY, tone: 'error', action: 'retry' },
   publish_failed: { title: 'No se puede publicar', tone: 'error', action: 'backToReceipt' },
   // Otros
   unexpected: { title: 'Error inesperado', tone: 'error', action: 'retry' },

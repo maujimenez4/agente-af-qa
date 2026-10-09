@@ -102,7 +102,7 @@ describe('Generando: huecos (UI.md §4.4, DESIGN-DECISIONS.md §4 bis)', () => {
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse(`event: error\ndata: ${JSON.stringify(failure)}\n\n`)))
     await generateFromHome()
     const alert = await screen.findByRole('alert')
-    expect(within(alert).getByRole('heading', { name: 'La respuesta del modelo no es válida' })).toBeInTheDocument()
+    expect(within(alert).getByRole('heading', { name: 'FAQ no ha podido terminar la propuesta' })).toBeInTheDocument()
     await userEvent.click(within(alert).getByRole('button', { name: 'Volver a generar' }))
     await screen.findByRole('complementary', { name: 'Antes de generar' })
     expect(screen.getByRole('heading', { level: 1, name: 'Renovar un préstamo desde la app' })).toBeInTheDocument()
@@ -134,7 +134,7 @@ describe('Generando: huecos (UI.md §4.4, DESIGN-DECISIONS.md §4 bis)', () => {
 
   it('mientras genera, el panel dice que la propuesta aparece cuando las citas están comprobadas y, al terminar, que está lista', async () => {
     await generateFromHome()
-    await screen.findByRole('button', { name: 'Ver la propuesta' })
+    await screen.findByRole('button', { name: 'Ver la propuesta de FAQ' })
     const panel = screen.getByRole('complementary', { name: 'Propuesta de HU' })
     await waitFor(() => expect(within(panel).getByText('La propuesta está lista. Ábrela para revisarla.')).toBeInTheDocument())
     expect(within(panel).queryByText('La propuesta aparece aquí cuando las citas están comprobadas.')).toBeNull()

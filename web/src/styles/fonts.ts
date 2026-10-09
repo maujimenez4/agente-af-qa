@@ -4,3 +4,5 @@ import '@fontsource/dm-sans/latin-400.css'
 import '@fontsource/dm-sans/latin-500.css'
 import '@fontsource/dm-sans/latin-600.css'
 import '@fontsource/dm-sans/latin-700.css'
+// PA-478: el logotipo «FAQ» del inicio de sesión (DM Sans 800, docs/diseno/faq/README.md).
+import '@fontsource/dm-sans/latin-800.css'

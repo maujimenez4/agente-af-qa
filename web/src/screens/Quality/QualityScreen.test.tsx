@@ -278,7 +278,7 @@ describe('Revisar la calidad · lista y errores', () => {
     await waitFor(() => expect(polls).toHaveLength(1))
     act(() => polls[0]?.())
     const alert = await screen.findByRole('alert')
-    expect(within(alert).getByRole('heading', { name: 'No se pudo revisar la calidad' })).toBeInTheDocument()
+    expect(within(alert).getByRole('heading', { name: 'FAQ no ha podido revisar la calidad' })).toBeInTheDocument()
     expect(within(alert).getByText(/el modelo no devolvió un informe válido/)).toBeInTheDocument()
     expect(screen.getByText('Nada se ha escrito en Jira.')).toBeInTheDocument()
 

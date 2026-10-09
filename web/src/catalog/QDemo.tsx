@@ -12,6 +12,7 @@ import {
 } from '../components/QMark/index.ts'
 import { DemoButton } from './DemoButton.tsx'
 import styles from './Catalog.module.css'
+import { ASSISTANT_NAME } from '../text/assistant.ts'
 
 const PHASES: Phase[] = [1, 2, 3, 4]
 
@@ -111,7 +112,7 @@ export function QDemo() {
 
       <h3 className={styles.groupTitle}>Logotipo</h3>
       <div className={styles.row}>
-        <QLogo size={34} label="Agente AF y QA" />
+        <QLogo size={34} label={ASSISTANT_NAME} />
         <QLogo size={30} />
         <QLogo size={16} />
       </div>

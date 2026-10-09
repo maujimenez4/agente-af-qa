@@ -150,7 +150,7 @@ describe('QA 1 · Origen', () => {
       ),
     )
     await prepareTestsDemo3()
-    expect(await screen.findByText('Épica DEMO-1 · 4 criterios y 2 reglas · sin casos de prueba en Jira · publicada por el agente')).toBeInTheDocument()
+    expect(await screen.findByText('Épica DEMO-1 · 4 criterios y 2 reglas · sin casos de prueba en Jira · publicada por FAQ')).toBeInTheDocument()
   })
 
   it('al evolucionar una HU no salen ni los tipos de caso ni los casos de prueba de Jira', async () => {

@@ -54,16 +54,16 @@ describe('readyHeadline / qaHeaderTitle · límites', () => {
 
 describe('QA 2 · coverage_failed (UI.md §7)', () => {
   it('test_coverage_failed_shows_card_title_and_message_verbatim', async () => {
-    // UI.md §6.2 («CoverageError si no se cumple») y §7: título «La suite no es válida» y el mensaje tal cual.
+    // UI.md §6.2 («CoverageError si no se cumple») y §7: título «FAQ no ha podido cubrir todos los criterios» y el mensaje tal cual.
     mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse('error', coverageFailed(TAKEN))))
     render(<GeneratingScreen conversation={TAKEN} onReady={vi.fn()} onRetry={vi.fn()} />)
     const card = await screen.findByRole('alert')
-    expect(card).toHaveTextContent('La suite no es válida')
+    expect(card).toHaveTextContent('FAQ no ha podido cubrir todos los criterios')
     expect(card).toHaveTextContent(COVERAGE_MESSAGE)
     expect(within(card).getByRole('button', { name: 'Volver a generar' })).toBeInTheDocument()
     // La suite no llega al panel ni se ofrece *Ver la suite*.
-    expect(screen.queryByRole('button', { name: 'Ver la suite' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ver la suite de FAQ' })).toBeNull()
     expect(within(screen.getByRole('complementary', { name: 'Suite de pruebas' })).getByText('La suite aparece aquí cuando la cobertura está comprobada.')).toBeInTheDocument()
   })
 
@@ -80,7 +80,7 @@ describe('QA 2 · coverage_failed (UI.md §7)', () => {
     render(<GeneratingScreen conversation={TAKEN} onReady={vi.fn()} onRetry={onRetry} />)
     await userEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Volver a generar' }))
     expect(await screen.findByRole('heading', { name: 'Suite lista · Versión 1 · 4 casos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ver la suite' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver la suite de FAQ' })).toBeInTheDocument()
     expect(onRetry).not.toHaveBeenCalled()
   })
 
@@ -94,7 +94,7 @@ describe('QA 2 · coverage_failed (UI.md §7)', () => {
     )
     await generateSuiteForDemo3()
     const card = await screen.findByRole('alert')
-    expect(card).toHaveTextContent('La suite no es válida')
+    expect(card).toHaveTextContent('FAQ no ha podido cubrir todos los criterios')
     expect(screen.getByRole('heading', { level: 1, name: 'Pruebas de DEMO-3' })).toBeInTheDocument()
   })
 })
@@ -107,11 +107,11 @@ describe('QA 2 · review_ready', () => {
     const onReviewReady = vi.fn()
     const onReady = vi.fn()
     render(<GeneratingScreen conversation={TAKEN} onReady={onReady} onRetry={vi.fn()} onReviewReady={onReviewReady} />)
-    await screen.findByRole('button', { name: 'Ver la suite' })
+    await screen.findByRole('button', { name: 'Ver la suite de FAQ' })
     // El aviso llega en un efecto, después de pintar: se espera a él.
     await waitFor(() => expect(onReviewReady).toHaveBeenCalledTimes(1))
     // *Ver la suite* entrega la conversación con la suite.
-    await userEvent.click(screen.getByRole('button', { name: 'Ver la suite' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ver la suite de FAQ' }))
     expect(onReady).toHaveBeenCalledTimes(1)
     expect((onReady.mock.calls[0]?.[0] as ConversationOut).review?.artifact.type).toBe('test_suite')
     expect(onReviewReady).toHaveBeenCalledTimes(1)
@@ -122,7 +122,7 @@ describe('QA 2 · review_ready', () => {
     mockDb.session = { username: 'qa-demo', role: 'qa', csrf: 'csrf-ficticio' }
     mockServer.use(http.get('/api/v1/conversations/:id/events', () => sse('review_ready', { ...SUITE, id: TAKEN.id, title: TAKEN.title })))
     render(<GeneratingScreen conversation={TAKEN} onReady={vi.fn()} onRetry={vi.fn()} />)
-    await screen.findByRole('button', { name: 'Ver la suite' })
+    await screen.findByRole('button', { name: 'Ver la suite de FAQ' })
     expect(screen.queryByRole('button', { name: 'Detener la generación' })).toBeNull()
     expect(screen.getByRole('status').querySelector('[data-q-state]')?.getAttribute('data-q-state')).toBe('loading-4')
   })

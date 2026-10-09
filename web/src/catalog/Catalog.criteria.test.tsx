@@ -75,7 +75,7 @@ describe('Catalog: demo del carril y la lista', () => {
     render(<Catalog />)
     const shell = section('Carril y lista de conversaciones')
     await userEvent.click(within(shell).getByRole('button', { name: 'qa-demo' }))
-    const ring = within(shell).getByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan el agente: 185.000 de 180.000/ })
+    const ring = within(shell).getByRole('img', { name: /Consumo de tokens de hoy de todas las personas que usan FAQ: 185.000 de 180.000/ })
     expect(ring.querySelector('[data-warning]')).not.toBeNull()
   })
 

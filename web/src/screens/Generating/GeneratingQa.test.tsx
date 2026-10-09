@@ -47,7 +47,7 @@ describe('QA 2 · Generando', () => {
     mockServer.use(http.get('/api/v1/conversations/:id/events', openEventStream))
     render(<GeneratingScreen conversation={TAKEN} onReady={vi.fn()} onRetry={vi.fn()} />)
     expect(screen.getByText(/^Generar la suite ·/)).toHaveTextContent('Generar la suite · Preparar pruebas de DEMO-3')
-    expect(await screen.findByText('Generando la suite…')).toBeInTheDocument()
+    expect(await screen.findByText('FAQ está escribiendo la suite…')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Espera a la suite para pedir cambios' })).toBeDisabled()
     const panel = screen.getByRole('complementary', { name: 'Suite de pruebas' })
     expect(screen.getByRole('heading', { level: 1, name: 'Pruebas de DEMO-3' })).toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('QA 2 · Generando', () => {
     expect(await screen.findByRole('heading', { name: /^Suite lista · Versión \d+ · 4 casos$/ })).toBeInTheDocument()
     const panel = screen.getByRole('complementary', { name: 'Suite de pruebas' })
     expect(within(panel).getByText('La suite está lista. Ábrela para revisarla.')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Ver la suite' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ver la suite de FAQ' }))
     // QA 3 · Iterar la suite.
     const suitePanel = await screen.findByRole('complementary', { name: 'Suite de pruebas' })
     expect(within(suitePanel).getByRole('tab', { name: 'Casos (4)' })).toHaveAttribute('aria-selected', 'true')
@@ -72,7 +72,7 @@ describe('QA 2 · Generando', () => {
 
   it('el MSW deja la conversación de QA en revisión con la suite y `publish_suite` en el plan', async () => {
     await generateSuiteForDemo3()
-    await screen.findByRole('button', { name: 'Ver la suite' })
+    await screen.findByRole('button', { name: 'Ver la suite de FAQ' })
     const run = [...mockDb.runs.values()].find((item) => item.conversation.mode === 'qa')
     expect(run?.conversation.state).toBe('in_review')
     expect(run?.conversation.review?.artifact.type).toBe('test_suite')

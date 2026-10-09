@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './app/AppShell.tsx'
 import styles from './app/AppShell.module.css'
 import { LoadingQ } from './components/QMark/index.ts'
 import { LoginScreen } from './screens/Login/LoginScreen.tsx'
 import { useSession } from './session/sessionContext.ts'
 import { SessionProvider } from './session/SessionProvider.tsx'
+import { DOCUMENT_TITLE } from './text/assistant.ts'
 
 // Catálogo del sistema de diseño: solo en desarrollo y con ?catalogo (PA-309). En el build,
 // import.meta.env.DEV es false y el import dinámico desaparece del bundle.
@@ -17,6 +18,10 @@ function wantsCatalog(): boolean {
 }
 
 export function App() {
+  // PA-478: el título de la pestaña sale de la constante del nombre (index.html lleva el mismo texto para la carga).
+  useEffect(() => {
+    document.title = DOCUMENT_TITLE
+  }, [])
   if (CatalogPage && wantsCatalog()) {
     return (
       <Suspense fallback={null}>

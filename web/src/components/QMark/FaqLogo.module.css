@@ -1,0 +1,20 @@
+/* PA-478 · Logotipo «FAQ» (docs/diseno/faq/README.md §1): «FA» y la Q alineadas a la línea base, 10 px entre ellas. */
+.logo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.letters {
+  font-family: var(--font-sans);
+  font-size: 120px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--color-surface);
+}
+
+/* La Q es un SVG: su borde inferior se apoya en la línea base del texto (como una letra sin descendente). */
+.q {
+  align-self: baseline;
+}

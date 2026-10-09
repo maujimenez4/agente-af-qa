@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { Icon } from '../Icon/index.ts'
 import { QLogo } from '../QMark/index.ts'
+import { RAIL_HOME_LABEL } from '../../text/assistant.ts'
 import styles from './Rail.module.css'
 import {
   railItemsFor,
@@ -20,18 +21,23 @@ export interface RailProps {
   active: Zone
   onNavigate: (zone: Zone) => void
   onLogout: () => void
+  /** La Q del carril: vuelve a Inicio con las mismas confirmaciones que «Nueva conversación» (PA-478). */
+  onHome: () => void
   /** Consumo de hoy de toda la instalación (`GET /settings/usage`). Sin dato válido, no hay anillo. */
   usage?: UsageToday
 }
 
-// Carril lateral de 88 px (UI.md §2): logotipo, zonas según el rol, consumo, usuario y salir.
-export function Rail({ userRole, username, active, onNavigate, onLogout, usage }: RailProps) {
+// Carril lateral de 88 px (UI.md §2): la Q (a Inicio), zonas según el rol, consumo, usuario y salir.
+export function Rail({ userRole, username, active, onNavigate, onLogout, onHome, usage }: RailProps) {
   const initial = username.charAt(0).toUpperCase()
   const view = usageView(usage)
 
   return (
     <nav className={styles.rail} aria-label="Zonas">
-      <QLogo size={34} label="Agente AF y QA" className={styles.logo} />
+      {/* PA-478: solo la Q, sin texto debajo; su nombre accesible y su `title` dicen adónde lleva. */}
+      <button type="button" className={styles.home} aria-label={RAIL_HOME_LABEL} title={RAIL_HOME_LABEL} onClick={onHome}>
+        <QLogo size={34} />
+      </button>
 
       <ul className={styles.items}>
         {railItemsFor(userRole).map((item) => (

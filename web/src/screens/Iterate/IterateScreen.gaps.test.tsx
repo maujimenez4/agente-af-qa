@@ -81,7 +81,7 @@ describe('Iterar: huecos (UI.md §4.5, DESIGN-DECISIONS.md §4 bis)', () => {
     await openFromList()
     await askChange('Cambio ficticio')
     const alert = await screen.findByRole('alert')
-    expect(within(alert).getByRole('heading', { name: 'La propuesta no es válida' })).toBeInTheDocument()
+    expect(within(alert).getByRole('heading', { name: 'FAQ no ha podido citar sus fuentes' })).toBeInTheDocument()
     expect(composer()).toBeEnabled()
     expect(within(panel()).getByRole('button', { name: 'Descartar' })).toBeEnabled()
     expect(within(panel()).getByRole('button', { name: 'Versión 2' })).toHaveAttribute('aria-pressed', 'true')

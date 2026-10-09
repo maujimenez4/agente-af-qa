@@ -46,7 +46,7 @@ describe('Retomar en error · Reintentar (bloque A)', () => {
     const button = await screen.findByRole('button', { name: 'Reintentar' })
     await userEvent.dblClick(button)
     expect(button).toBeDisabled()
-    expect(await screen.findByText('Generando la propuesta…')).toBeInTheDocument()
+    expect(await screen.findByText('FAQ está escribiendo la propuesta…')).toBeInTheDocument()
     expect(retries).toBe(1)
   })
 
@@ -62,7 +62,7 @@ describe('Retomar en error · Reintentar (bloque A)', () => {
     await resume(FAILED)
     ;(await screen.findByRole('button', { name: 'Reintentar' })).focus()
     await userEvent.keyboard('{Enter}')
-    expect(await screen.findByText('Generando la propuesta…')).toBeInTheDocument()
+    expect(await screen.findByText('FAQ está escribiendo la propuesta…')).toBeInTheDocument()
     expect(retries).toBe(1)
   })
 

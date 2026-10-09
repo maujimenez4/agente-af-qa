@@ -8,6 +8,7 @@ import { ErrorCard, LoadingState, presentError, Skeleton } from '../../component
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import styles from './Generating.module.css'
+import { VIEW_PROPOSAL, VIEW_SUITE, WRITING_PROPOSAL, WRITING_SUITE } from '../../text/assistant.ts'
 import { qaHeaderTitle, readyHeadline } from './headline.ts'
 import { useGeneration } from './useGeneration.ts'
 
@@ -99,8 +100,8 @@ export function GeneratingScreen({ conversation, onReady, onRetry, onReviewReady
     : stopping
       ? 'Deteniendo la generación…'
       : qa
-        ? 'Generando la suite…'
-        : 'Generando la propuesta…'
+        ? WRITING_SUITE
+        : WRITING_PROPOSAL
 
   return (
     <Workspace
@@ -140,7 +141,7 @@ export function GeneratingScreen({ conversation, onReady, onRetry, onReviewReady
           {ready && (
             <div className={styles.rise}>
               <Button variant="primary" onClick={() => onReady(ready)}>
-                {qa ? 'Ver la suite' : 'Ver la propuesta'}
+                {qa ? VIEW_SUITE : VIEW_PROPOSAL}
               </Button>
             </div>
           )}

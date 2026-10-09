@@ -57,7 +57,7 @@ describe('Recibo · publicación con el SSE encolado (PA-333)', () => {
     expect(gets).toBe(0) // antes de vencer, espera al flujo (lo que pasaba siempre: sin salida)
 
     clock.fire(OPEN_TIMEOUT_MS)
-    expect(await screen.findByText(/Modo de prueba activo: el agente no escribe en Jira/)).toBeInTheDocument()
+    expect(await screen.findByText(/Modo de prueba activo: FAQ no escribe en Jira/)).toBeInTheDocument()
     expect(screen.queryByText('Aprobando y publicando…')).toBeNull()
     expect(gets).toBe(1)
     await until(() => expect(clock.armed()).toEqual([]))

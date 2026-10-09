@@ -7,6 +7,7 @@ import { QDemo } from './QDemo.tsx'
 import { ShellDemo } from './ShellDemo.tsx'
 import { StatesDemo } from './StatesDemo.tsx'
 import { safeHref } from '../security/safeHref.ts'
+import { ASSISTANT_NAME } from '../text/assistant.ts'
 
 function ColorsSection() {
   return (
@@ -138,7 +139,7 @@ export function Catalog() {
       <header className={styles.header}>
         <h1 className={styles.title}>Sistema de diseño · Propuesta mixta</h1>
         <p className={styles.lead}>
-          Piezas del frontend del Agente AF y QA. Las decisiones están en web/DESIGN-DECISIONS.md y todos los
+          Piezas del frontend de {ASSISTANT_NAME}. Las decisiones están en web/DESIGN-DECISIONS.md y todos los
           datos son ficticios.
         </p>
         <nav aria-label="Secciones del catálogo">

@@ -4,7 +4,7 @@ import { latestSteps, type ProgressEvent } from './progressSteps.ts'
 import styles from './States.module.css'
 
 export interface LoadingStateProps {
-  /** «Generando la propuesta…», «Generando la suite…». */
+  /** «FAQ está escribiendo la propuesta…», «FAQ está escribiendo la suite…» (PA-478). */
   title: string
   /** Eventos `progress` recibidos por SSE, en orden. */
   events: readonly ProgressEvent[]

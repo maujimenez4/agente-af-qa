@@ -39,11 +39,10 @@ afterEach(() => {
 
 describe('Inicio: textos y flujos por permisos (UI.md §3, §4.1)', () => {
   it('test_hero_texts_match_ui_spec', async () => {
-    /** Criterio 8: título y subtítulo de UI.md §4.1. */
+    /** Criterio 8: título y subtítulo de UI.md §4.1; con PA-478, «Nada se publica en Jira…» pasa al pie de FAQ. */
     await openHome()
-    expect(
-      screen.getByText('Elige qué hacemos y de qué partimos. Después lo mejoramos conversando. Nada se publica en Jira sin tu aprobación.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Elige qué hacemos y de qué partimos. Después lo mejoramos conversando.')).toBeInTheDocument()
+    expect(screen.getByText('FAQ propone; tú decides. Nada se publica en Jira sin tu aprobación.')).toBeInTheDocument()
   })
 
   it('test_only_one_flow_pressed_at_a_time', async () => {

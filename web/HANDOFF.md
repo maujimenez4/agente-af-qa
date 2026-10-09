@@ -89,7 +89,7 @@ El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../d
 | **PA-340** | Principal | Validar el diseño de *Editar a mano* y decidir si la suite de QA se edita a mano (hoy, fuera de la entrega) |
 
 ## 6. Pendiente
-1. **La principal** probará contra la API real, tras el cambio de modelo, una suite con un CA sin caso: aviso en Iterar, *Aprobar y publicar* desactivado en el recibo y, si se intenta aprobar, el rechazo en «No se aprobó» con `review.error` («Falta al menos un caso para CA-0N: pídeselo al agente antes de aprobar.»). La web ya lo pinta así con la API simulada (`?simular=sin-cubrir`).
+1. **La principal** probará contra la API real, tras el cambio de modelo, una suite con un CA sin caso: aviso en Iterar, *Aprobar y publicar* desactivado en el recibo y, si se intenta aprobar, el rechazo en «No se aprobó» con `review.error` («Falta al menos un caso para CA-0N: pídeselo a FAQ antes de aprobar.»). La web ya lo pinta así con la API simulada (`?simular=sin-cubrir`).
 2. **Después**, actualizar la variante B (API real) de [DEMO.md](DEMO.md) para enseñar también ese bloqueo; hoy solo lo enseña la variante A (API simulada).
 
 ## 7. Fuera de la entrega

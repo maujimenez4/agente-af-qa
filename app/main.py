@@ -29,6 +29,7 @@ from app.views import (  # noqa: E402
     origen,
     recibo,
 )
+from core import assistant  # noqa: E402
 
 SCREENS = {
     "inicio": inicio.render,
@@ -43,11 +44,13 @@ SCREENS = {
 
 
 def main() -> None:
-    st.set_page_config(page_title="Agente AF y QA", page_icon=":material/task_alt:", layout="wide")
+    st.set_page_config(  # PA-481
+        page_title=assistant.display_name(), page_icon=":material/task_alt:", layout="wide"
+    )
     session = state()
     compose(session)  # build_container configura los logs con los secretos enmascarados
     if session.compose_error:
-        st.title("Agente de Análisis Funcional y QA")
+        st.title(assistant.ASSISTANT_NAME)
         st.error(md_escape(session.compose_error))
         st.caption("Revisa la configuración (`.env` y `config/models.yaml`) y la base de datos.")
         if st.button("Reintentar", type="primary", key="retry_compose"):

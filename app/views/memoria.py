@@ -11,6 +11,7 @@ from adapters.errors import AgentError
 from app.conversation import message_for
 from app.session import SessionState, go
 from app.text import md_escape, md_lines
+from core import assistant
 from core.memory.reader import MAX_QUERY_CHARS, MemoryDocument, MemoryReader, MemorySummary
 from core.permissions import Permission, can
 
@@ -34,7 +35,10 @@ def render(session: SessionState) -> None:
         go(session, "inicio")
         return
     st.subheader("Memoria")
-    st.caption("Resúmenes de las HU publicadas que el agente reutiliza como contexto · lectura")
+    st.caption(
+        f"Resúmenes de las HU publicadas que {assistant.ASSISTANT_NAME} reutiliza como contexto"
+        " · lectura"
+    )
     container = ws.container
     reader = MemoryReader(container.memory_dir, container.vector_store)
     try:

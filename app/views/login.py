@@ -11,13 +11,14 @@ from app.session import (
     record_login_success,
 )
 from app.text import md_escape
+from core import assistant
 from core.logging import get_logger
 
 log = get_logger(__name__)
 
 
 def render(session: SessionState) -> None:
-    st.title("Agente de Análisis Funcional y QA")
+    st.title(assistant.ASSISTANT_NAME)  # PA-481
     st.caption("Inicia sesión para empezar. Nada se publica en Jira sin tu aprobación.")
     if session.workspace is None:
         return

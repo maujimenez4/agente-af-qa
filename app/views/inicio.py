@@ -10,6 +10,7 @@ from app.session import SessionState, composer_text, open_origin, show_notices
 from app.text import md_escape
 from app.views import elegir_jira
 from app.views.frame import simulation_notice
+from core import assistant
 from core.guided_start import GuidedStart, StartOption
 from core.permissions import can
 from core.projects import normalize_project_key
@@ -28,7 +29,8 @@ def render(session: SessionState) -> None:
     )
     if not shows_flows(user):
         st.info(
-            "El rol de administración configura el agente y no genera artefactos. "
+            f"El rol de administración configura {assistant.ASSISTANT_NAME} y no genera "
+            "artefactos. "
             "Ajustes estará disponible en T-29 e Historial en T-45."
         )
         return

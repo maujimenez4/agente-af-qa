@@ -40,13 +40,13 @@ from mcp_server.server import (
     MAX_PROPOSE_CHARS,
     MAX_RESULTS,
     READ_METHODS,
-    READ_ONLY_MESSAGE,
     TEXT_TOO_LONG,
     VECTOR_READ_METHODS,
     WRITE_METHODS,
     ReadOnlyProxy,
     build_server,
     read_only_container,
+    read_only_message,
 )
 from tests.fakes import dataset
 from tests.fakes.container import fake_container
@@ -715,7 +715,7 @@ def test_read_only_proxy_blocks_write_methods(method: str) -> None:
         proxy = ReadOnlyProxy(inner)
         with pytest.raises(PublishError) as raised:
             getattr(proxy, method)
-        assert str(raised.value) == READ_ONLY_MESSAGE
+        assert str(raised.value) == read_only_message()
     assert tracker.writes == []
     assert tests.publish_calls == 0
 

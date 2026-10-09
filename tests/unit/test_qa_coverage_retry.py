@@ -41,10 +41,10 @@ from core.functional.context import StoryContext
 from core.graph import Origin, build_graph, initial_state
 from core.graph.nodes import (
     COVERAGE_UNKNOWN,
-    MISSING_CASES,
     CoverageBlockedError,
     GraphNodes,
     ReviewRejectedError,
+    missing_cases,
 )
 from core.handoff import Handoff, InMemoryHandoffStore, take_handoff
 from core.qa.validation import (
@@ -71,7 +71,7 @@ QA_USER = "qa-demo"
 STORY_ORIGIN: Origin = {"kind": "story", "key": "DEMO-3"}
 ADD_CA02 = "Añade un caso para CA-02 (petición ficticia)."
 FAKE_DNI = "12345678Z"  # DNI inventado, solo para ejercitar el detector de datos personales
-MISSING_CA02 = MISSING_CASES.format(criteria="CA-02")
+MISSING_CA02 = missing_cases("CA-02")
 EXTRA_CRITERION = AcceptanceCriterion(
     id="CA-03",
     title="Aviso de vencimiento",
@@ -681,9 +681,7 @@ def test_graph_cancellation_during_targeted_retry_propagates(tmp_path: Path) -> 
 
 def test_missing_cases_message_is_spanish_and_names_the_criteria() -> None:
     """PA-426: textos de la UI del bloqueo."""
-    assert MISSING_CA02 == (
-        "Falta al menos un caso para CA-02: pídeselo al agente antes de aprobar."
-    )
+    assert MISSING_CA02 == ("Falta al menos un caso para CA-02: pídeselo a FAQ antes de aprobar.")
     assert COVERAGE_UNKNOWN == (
         "No se puede comprobar la cobertura de esta suite; vuelve a generarla."
     )
@@ -934,7 +932,7 @@ def test_chained_qa_blocks_with_criterion_missing_in_handoff_story(tmp_path: Pat
 
     _approve(graph, config)
 
-    message = MISSING_CASES.format(criteria="CA-03")
+    message = missing_cases("CA-03")
     _assert_blocked_without_effects(graph, config, container, message)
 
 

@@ -75,7 +75,7 @@ def test_create_update_and_link_synthetic_stories(live_settings: Settings) -> No
 
         updated = synthetic_story("HU ficticia A (actualizada)")
         diff = (
-            "**Cambios propuestos por el agente y aprobados**\n\n"
+            "**Cambios propuestos por FAQ y aprobados**\n\n"
             "| Campo | Antes | Después |\n|---|---|---|\n"
             f"| title | {TEST_PREFIX} HU ficticia A | {updated.title} |"
         )

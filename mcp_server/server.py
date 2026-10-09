@@ -38,7 +38,7 @@ from core.tracing import operation as traced_operation
 
 log = structlog.get_logger(__name__)
 
-SERVER_NAME = "agente-af-qa"
+SERVER_NAME = "faq"
 MAX_RESULTS = 50
 MAX_CONVERSATIONS = 100
 # Igual que el límite de `ProposeIn.text` de la API.
@@ -464,7 +464,7 @@ def build_server(container: Container, user: User) -> MCPServer:
     """
     safe = read_only_container(container)
     name = assistant.ASSISTANT_NAME
-    # PA-480: la clave sigue siendo `agente-af-qa` (`.mcp.json`); el nombre visible, el de FAQ.
+    # PA-480: el servidor se llama `faq` (la clave de `.mcp.json` la elige quien lo registra); nombre visible, el de FAQ.
     server = MCPServer(SERVER_NAME, title=assistant.display_name(), instructions=instructions(user))
 
     @server.tool(

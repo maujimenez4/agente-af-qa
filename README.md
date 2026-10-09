@@ -111,7 +111,7 @@ Las revisiones de calidad se guardan en `quality_reviews` con el informe que gen
 - **Tras una baja, reinicia la API:** las sesiones abiertas viven en su memoria y no vuelven a comprobar si la cuenta está activa, así que una sesión ya iniciada seguiría valiendo hasta caducar (30 min sin actividad o 12 h).
 
 ### Servidor MCP de solo lectura (T-59, opcional)
-FAQ se puede usar como **servidor MCP** (*Model Context Protocol*) desde un asistente compatible, como Claude Desktop, Claude Code o VS Code. Es una capa fina sobre sus servicios, igual que la API. El servidor se muestra como «FAQ · Qaracter», pero su clave de configuración sigue siendo `agente-af-qa` (la de los ejemplos de abajo):
+FAQ se puede usar como **servidor MCP** (*Model Context Protocol*) desde un asistente compatible, como Claude Desktop, Claude Code o VS Code. Es una capa fina sobre sus servicios, igual que la API. Se registra con la clave `faq` (las herramientas salen como `mcp__faq__…`) y se muestra como «FAQ · Qaracter». Si ya lo tenías registrado como `agente-af-qa`, cambia la clave en tu `.mcp.json` (o `claude mcp remove agente-af-qa` y vuelve a añadirlo) y reinicia el cliente:
 
 | Herramienta | Qué hace | Rol necesario |
 |---|---|---|
@@ -137,7 +137,7 @@ uv run python -m mcp_server
 ```json
 {
   "mcpServers": {
-    "agente-af-qa": {
+    "faq": {
       "command": "uv",
       "args": ["run", "--directory", "C:/ruta/a/agente-af-qa", "python", "-m", "mcp_server"]
     }
@@ -148,13 +148,13 @@ Reinicia Claude Desktop después de guardar. No hace falta poner variables en `e
 
 **Claude Code**, desde la carpeta del repositorio. Con `--scope project` se guarda en `.mcp.json`, sin rutas ni secretos, y sirve a todo el equipo, porque Claude Code arranca el servidor en la carpeta del proyecto:
 ```bash
-claude mcp add --scope project agente-af-qa -- uv run python -m mcp_server
+claude mcp add --scope project faq -- uv run python -m mcp_server
 claude mcp list                                      # comprueba que conecta
 ```
-En **PowerShell** el `--` hay que ponerlo entre comillas (`'--'`); si no, PowerShell se lo come y `claude` responde `unknown option '-m'`. También vale crear a mano el `.mcp.json` de la raíz con `{"mcpServers": {"agente-af-qa": {"command": "uv", "args": ["run", "python", "-m", "mcp_server"]}}}`.
+En **PowerShell** el `--` hay que ponerlo entre comillas (`'--'`); si no, PowerShell se lo come y `claude` responde `unknown option '-m'`. También vale crear a mano el `.mcp.json` de la raíz con `{"mcpServers": {"faq": {"command": "uv", "args": ["run", "python", "-m", "mcp_server"]}}}`.
 Solo para ti y desde cualquier carpeta (ámbito personal, con la ruta absoluta de tu copia):
 ```bash
-claude mcp add agente-af-qa -- uv run --directory "C:/ruta/a/agente-af-qa" python -m mcp_server
+claude mcp add faq -- uv run --directory "C:/ruta/a/agente-af-qa" python -m mcp_server
 ```
 Dentro de Claude Code, `/mcp` muestra el estado y las herramientas.
 

@@ -80,9 +80,9 @@ def test_missing_cases_message_names_faq() -> None:
 # --- PA-480 · Servidor MCP --------------------------------------------------------------------
 
 
-def test_mcp_keeps_its_key_and_shows_faq(tmp_path: Path) -> None:
+def test_mcp_is_named_faq_and_shows_faq(tmp_path: Path) -> None:
     server = build_server(fake_container(tmp_path), FUNCTIONAL)
-    assert server.name == SERVER_NAME == "agente-af-qa"  # la clave de `.mcp.json` no cambia
+    assert server.name == SERVER_NAME == "faq"  # el nombre con el que se registra en `.mcp.json`
     assert server.title == "FAQ · Qaracter"
 
 

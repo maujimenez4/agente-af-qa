@@ -464,7 +464,8 @@ def build_server(container: Container, user: User) -> MCPServer:
     """
     safe = read_only_container(container)
     name = assistant.ASSISTANT_NAME
-    # PA-480: el servidor se llama `faq` (la clave de `.mcp.json` la elige quien lo registra); nombre visible, el de FAQ.
+    # PA-480: el servidor se llama `faq` (la clave de `.mcp.json` la elige quien lo registra)
+    # y su nombre visible es el de FAQ.
     server = MCPServer(SERVER_NAME, title=assistant.display_name(), instructions=instructions(user))
 
     @server.tool(

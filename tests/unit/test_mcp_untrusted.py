@@ -22,12 +22,12 @@ from adapters.errors import AuthenticationError
 from core.container import Container
 from core.conversations import new_summary
 from mcp_server.server import (
-    READ_ONLY_MESSAGE,
     UNTRUSTED_FIELDS,
     UNTRUSTED_NOTICE,
     build_server,
     instructions,
     mark_untrusted,
+    read_only_message,
     review_quality,
 )
 from schemas.quality import QualityFinding, QualityReport
@@ -297,5 +297,5 @@ def test_instructions_mention_the_mark() -> None:
 
 def test_read_only_message_is_accurate() -> None:
     """PA-249 (baja): el mensaje no promete «ni en el agente»: la revisión deja consumo y traza."""
-    assert "ni en el agente" not in READ_ONLY_MESSAGE
-    assert "no escribe en Jira" in READ_ONLY_MESSAGE
+    assert "ni en el agente" not in read_only_message()
+    assert "no escribe en Jira" in read_only_message()

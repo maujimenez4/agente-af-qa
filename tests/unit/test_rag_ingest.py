@@ -208,7 +208,7 @@ def test_categories_are_the_seven_corpus_slugs() -> None:
 
 
 def test_memory_category_is_reserved_and_not_ingestible() -> None:
-    """RF-12 · "memoria" está reservada al agente y no forma parte de CATEGORIES."""
+    """RF-12 · "memoria" está reservada a FAQ y no forma parte de CATEGORIES."""
     assert MEMORY_CATEGORY == "memoria"
     assert MEMORY_CATEGORY not in CATEGORIES
 
@@ -631,8 +631,9 @@ def test_ingest_md_raises_when_header_category_is_memoria(
     )
     fake = _classifying_llm()
 
-    with pytest.raises(IngestionError):
+    with pytest.raises(IngestionError, match="reservada a FAQ") as exc:  # PA-479
         Ingestor(fake, extractor=docling_extractor, prompt=TEST_PROMPT).ingest(path)
+    assert "agente" not in str(exc.value)
     assert fake.calls == []
 
 

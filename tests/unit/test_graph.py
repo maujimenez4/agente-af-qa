@@ -285,7 +285,7 @@ def test_full_story_flow_iterate_approve_publish_memorize(
     # Hasta T-21 el impacto solo trae el diff determinista: no hay HU afectadas que vincular.
     assert tracker.writes == [("update_story", {"key": "DEMO-3"})]
     comments = tracker.issues["DEMO-3"].comments
-    assert any("Cambios propuestos por el agente y aprobados" in c for c in comments)
+    assert any("Cambios propuestos por FAQ y aprobados" in c for c in comments)
     # El diff ya no lo inventa el LLM: sale de diff_stories frente a la versión de Jira.
     assert not any("| title | Renovar | Renovar un préstamo |" in c for c in comments)
 

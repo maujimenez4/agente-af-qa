@@ -20,6 +20,7 @@ import yaml
 
 from adapters.base import LLMProvider, Message, TaskType
 from adapters.errors import ExternalServiceError
+from core import assistant
 from core.rag.documents import (
     CATEGORIES,
     MEMORY_CATEGORY,
@@ -179,7 +180,8 @@ class Ingestor:
         declared = _str(header.get("category"))
         if declared == MEMORY_CATEGORY:
             raise IngestionError(
-                f"«{path.name}» declara la categoría «memoria», reservada al agente."
+                f"«{path.name}» declara la categoría «memoria», reservada a "
+                f"{assistant.ASSISTANT_NAME}."
             )
         if declared in CATEGORIES:
             return declared, "metadata"

@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from adapters.base import Chunk, IssueDetail, TaskType
 from adapters.errors import AgentError, ExternalServiceError, NotFoundError, PublishError
+from core import assistant
 from core.approvals import Approval, PublishTarget, review_fingerprint
 from core.audit import AuditAction, AuditEntry
 from core.container import Container
@@ -74,7 +75,15 @@ log = get_logger("core.graph")
 
 
 # PA-426: una suite de QA con algún CA sin caso llega a revisión, pero no se puede aprobar.
-MISSING_CASES = "Falta al menos un caso para {criteria}: pídeselo al agente antes de aprobar."
+MISSING_CASES = "Falta al menos un caso para {criteria}: pídeselo a {assistant} antes de aprobar."
+
+
+def missing_cases(criteria: str) -> str:
+    """PA-426 · PA-479: motivo de no poder aprobar una suite con CA sin caso, con el nombre del
+    asistente (`core/assistant.py`) leído al construir el mensaje."""
+    return MISSING_CASES.format(criteria=criteria, assistant=assistant.ASSISTANT_NAME)
+
+
 COVERAGE_UNKNOWN = "No se puede comprobar la cobertura de esta suite; vuelve a generarla."
 
 
@@ -630,7 +639,7 @@ class GraphNodes:
         if story is None:
             return COVERAGE_UNKNOWN
         if missing := missing_criteria(suite, story):
-            return MISSING_CASES.format(criteria=", ".join(missing))
+            return missing_cases(", ".join(missing))
         return None
 
     def _apply_review(
@@ -1150,7 +1159,7 @@ def _target(
 
 def _diff_comment_md(impact: ImpactAnalysis | None) -> str:
     lines = [
-        "**Cambios propuestos por el agente y aprobados**",
+        f"**Cambios propuestos por {assistant.ASSISTANT_NAME} y aprobados**",  # PA-479
         "",
         "| Campo | Antes | Después |",
         "|---|---|---|",

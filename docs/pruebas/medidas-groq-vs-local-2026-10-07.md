@@ -48,3 +48,11 @@ Tiempos de extremo a extremo (contexto, modelo y validación), en simulación, c
 | Suite de QA de AFQP-28 | Local `qwen3:1.7b` | **8 min 28 s** | suite 6256 / 1925 (8 min 16 s) | 5 casos; todos los CA cubiertos, 5 RN sin caso |
 
 El resto del tiempo total (unos 5–8 s en las operaciones de Groq) es la recuperación de contexto (Jira y RAG) y la validación.
+
+### Rondas adicionales del 2026-10-09 (medianas)
+
+| Operación | Medidas (s) | Mediana | Nota |
+|---|---|---|---|
+| Crear HU nueva | 13,1 · 8,9 · 8,6 | **8,9 s** | |
+| Evolucionar una HU | 14,5 · 9,9 · 10,3 · 16,4 | **12,4 s** | 16,4 s: evolución de AFQP-28 lanzada desde la web y publicada (CA-06 y RN-06) |
+| Revisar la calidad (AFQP-27) | 10,8 · 44,8 · 9,6 | **10,8 s** | 44,8 s: el primer informe no validó y el reintento superó los 8000 tokens por minuto de Groq; el agente esperó 15 + 17 s (PA-443) en vez de pasar al local |

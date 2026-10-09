@@ -78,10 +78,10 @@ Fuentes: `docs/arquitectura-c4.md` (niveles 1 y 2), `config/README.md`.
 |---|---|---|
 | **Calidad del RAG** | Recall@6 **0,90**; MRR 0,72 (las memorias de HU publicadas pasan delante por diseño); latencia media 0,3 s | `docs/pruebas/rag-eval-2026-10-08.md` |
 | **Pruebas automáticas** | **7492** de backend (Python) y **2627** de la web, en verde | `uv run pytest -m "not integration"` y `npm test` (2026-10-08) |
-| **Tiempo de una HU nueva** | **~4–5 min** con el modelo local en CPU → **13 s** con Groq | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` (medido el 2026-10-09) |
-| **Evolucionar una HU** | **~5 min** en local → **15 s** con Groq | ídem |
+| **Tiempo de una HU nueva** | **~4–5 min** con el modelo local en CPU → **9 s** con Groq (mediana) | `docs/pruebas/medidas-groq-vs-local-2026-10-07.md` (2026-10-09) |
+| **Evolucionar una HU** | **~5 min** en local → **12 s** con Groq (mediana) | ídem |
 | **Tiempo de una suite de QA** | **~8,5 min** en local (configuración actual); con Groq, 41 s, pero no cabe en su nivel gratuito | ídem |
-| **Revisión de calidad** | **~7 min** en local → **11 s** con Groq | ídem |
+| **Revisión de calidad** | **~7 min** en local → **11 s** con Groq (mediana) | ídem |
 | **Prueba contra Jira real** | 2 HU publicadas con aprobación (AFQP-27 y AFQP-28) y una suite de 6 casos como subtareas (AFQP-29 a AFQP-34); sus memorias, indexadas y reutilizadas como fuente | `docs/demo/HU-AFQP.md` |
 | **Coste de modelo** | **0 €** hoy; de pago, estimados de **~1,5 $** (GPT-6 Luna, Groq de pago) a **~58 $** (Claude Opus 5.5) **por 1000 operaciones**; ~30 $ con Claude Sonnet 5.5 o GPT-6.1 Sol | `COMPARATIVA-MODELOS.md` §5 |
 

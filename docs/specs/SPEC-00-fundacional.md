@@ -270,6 +270,7 @@ Checkpointer: `langgraph-checkpoint-postgres` (`postgres_checkpointer`, T-52) co
 ## 10. Pendiente
 - R-05: formato de los IDs internos (provisional: prefijo `[HU-XX]` / `[CP-XX]` en el título).
 - R-01: alcance de la ejecución → ampliación de `TestManagement` en la v1.1.
+- v1.1 · Administración: gestión de usuarios en [SPEC-ADMIN-USUARIOS](SPEC-ADMIN-USUARIOS.md) (PA-486) y subida de documentos en [SPEC-ADMIN-DOCUMENTOS](SPEC-ADMIN-DOCUMENTOS.md) (PA-487). Proponen cambios en las secciones 4 y 6 (`UserAdmin`, `VectorStore.list_documents`, migración 0007) que, si se aprueban, hace la sesión principal.
 
 ## 11. Anexo de congelación (día 1)
 

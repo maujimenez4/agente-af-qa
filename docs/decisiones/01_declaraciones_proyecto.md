@@ -136,7 +136,7 @@ Construir un **Producto Mínimo Funcional** de un agente de IA que apoye el Aná
 | ID | Tema | Contexto | Afecta a |
 |---|---|---|---|
 | R-01 | Alcance del soporte a la ejecución de pruebas | **Cerrada el 2026-10-01: opción A** (registrar resultado y evidencia; RF-28 al MVP). Consulta enviada a dirección. Opciones: A) registrar resultados, B) asistencia guiada + defectos, C) ejecución automatizada. Con subtareas, la ejecución se modelaría con estados y comentarios. | RF-28, RF-29 |
-| R-05 | Mapeo entre convenciones internas (HU-XX, CP-XX) y claves de Jira | Provisionalmente: prefijo en el título `[HU-XX]` / `[CP-XX]` | RF-04, RF-06, RF-30 |
+| R-05 | Mapeo entre convenciones internas (HU-XX, CP-XX) y claves de Jira | Provisionalmente: prefijo en el título `[HU-XX]` / `[CP-XX]`. El núcleo asigna los números antes de la revisión, mirando los que ya hay en Jira: CP (PA-450) y HU nuevas (PA-202, 2026-10-14) | RF-04, RF-06, RF-30 |
 | R-08 | RAM del equipo (gráficos Intel integrados) | Determina el tamaño del modelo local para tareas ligeras; los embeddings funcionan en CPU en cualquier caso | RF-10, RNF-07 |
 
 ---

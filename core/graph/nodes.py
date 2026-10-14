@@ -342,6 +342,8 @@ class GraphNodes:
                 if current is None
                 else writer.evolve(replace(ctx, previous=current))
             )
+            # PA-202 (R-05): número `HU-NN` antes de la revisión (entra en la huella).
+            draft = self._number_story(draft, origin.get("project"), current)
             # §6.1: una HU nueva también puede afectar a las HU relacionadas (sin diff).
             epic = origin.get("key") if origin["kind"] == "epic" else None
             return draft, analyzer.analyze(draft.story, jira, parent_key=epic)
@@ -414,6 +416,41 @@ class GraphNodes:
             story, ctx, previous_suite=_previous_suite(state)
         )
         return self._continue_numbering(draft)
+
+    def _number_story(
+        self, draft: StoryDraft, project: str | None, current: UserStory | None
+    ) -> StoryDraft:
+        """PA-202 (R-05): `internal_id` `HU-NN` de una HU nueva, antes de la revisión.
+
+        Una iteración conserva el número de la versión anterior (ya se comprobó al asignarlo).
+        Si no, el del modelo se respeta si es válido y está libre en el proyecto; si choca o no
+        es válido, el siguiente libre tras los `[HU-NN]` de Jira. Solo lee de Jira. Si no se
+        puede leer, la HU queda sin número (no se puede comprobar si el del modelo choca).
+        """
+        if current is not None and current.internal_id and _STORY_ID.fullmatch(current.internal_id):
+            return _with_story_id(draft, current.internal_id)
+        if not project or not PROJECT_KEY.fullmatch(project):
+            log.warning("HU nueva sin proyecto válido: sin número", action="number_story")
+            return _with_story_id(draft, None)
+        try:
+            issues = self.c.issue_tracker.search(
+                f'project = "{project}" ORDER BY key DESC', limit=MAX_STORY_SEARCH
+            )
+        except AgentError as exc:
+            log.warning(
+                "números de HU no leídos de Jira",
+                action="number_story",
+                project=project,
+                error_type=type(exc).__name__,
+            )
+            return _with_story_id(draft, None)
+        found = {
+            int(m.group(1)) for issue in issues if (m := _PUBLISHED_STORY.match(issue.summary))
+        }
+        if any(n > MAX_STORY_NUMBER for n in found):  # un `[HU-999999]` puesto a mano en Jira
+            log.warning("número de HU fuera de rango en Jira", action="number_story")
+        taken = {n for n in found if n <= MAX_STORY_NUMBER}
+        return _with_story_id(draft, next_story_id(draft.story.internal_id, taken))
 
     def _continue_numbering(self, draft: SuiteDraft) -> SuiteDraft:
         """PA-450: la suite no reutiliza los números de los CP que la HU ya tiene en Jira.
@@ -1309,3 +1346,32 @@ def _apply_case_ids(suite: TestSuite, mapping: dict[str, str]) -> TestSuite:
     data = suite.model_dump(mode="json")
     kept = {key: data.pop(key) for key in ("story_jira_key", "sources")}
     return TestSuite.model_validate(walk(data) | kept)
+
+
+# --- PA-202 (R-05): número `HU-NN` de las HU nuevas -------------------------------------------
+
+MAX_STORY_NUMBER = 9999  # mayor número de HU que se tiene en cuenta
+MAX_STORY_SEARCH = 1000  # incidencias del proyecto que se leen (tope de la búsqueda)
+# `[0-9]`, no `\d`: un dígito de otra escritura («٣») no es un número de HU.
+_PUBLISHED_STORY = re.compile(r"^\[HU-([0-9]{1,6})\]")
+_STORY_ID = re.compile(r"^HU-([0-9]{1,6})$")
+
+
+def next_story_id(model_id: str | None, taken: set[int]) -> str | None:
+    """El `HU-NN` del modelo si es válido y está libre (normalizado a dos cifras como mínimo); si
+    no, el siguiente tras los usados. `None` si ya no queda número dentro del rango."""
+    if model_id and (m := _STORY_ID.fullmatch(model_id)):
+        number = int(m.group(1))
+        if 0 < number <= MAX_STORY_NUMBER and number not in taken:
+            return f"HU-{number:02d}"
+    following = max(taken, default=0) + 1
+    if following > MAX_STORY_NUMBER:  # p. ej. un `[HU-9999]` en Jira: no se repite un número
+        log.warning("sin números de HU libres en el rango", action="number_story")
+        return None
+    return f"HU-{following:02d}"
+
+
+def _with_story_id(draft: StoryDraft, internal_id: str | None) -> StoryDraft:
+    if draft.story.internal_id == internal_id:
+        return draft
+    return replace(draft, story=draft.story.model_copy(update={"internal_id": internal_id}))

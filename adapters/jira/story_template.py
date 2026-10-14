@@ -20,7 +20,7 @@ from adapters.jira.adf import (
 from schemas.user_story import AcceptanceCriterion, UserStory
 
 MAX_SUMMARY_CHARS = 255  # límite de Jira para `summary`
-_INTERNAL_ID = re.compile(r"^HU-\d+$")
+_INTERNAL_ID = re.compile(r"^HU-[0-9]+$")  # `[0-9]`: sin dígitos de otras escrituras
 _WHITESPACE = re.compile(r"\s+")
 
 # (campo de UserStory, título de la sección) para las listas simples, en orden de publicación.

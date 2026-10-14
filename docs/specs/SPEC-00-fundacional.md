@@ -268,7 +268,7 @@ Checkpointer: `langgraph-checkpoint-postgres` (`postgres_checkpointer`, T-52) co
 | CA-00-07 | La máquina de estados rechaza las transiciones no válidas |
 
 ## 10. Pendiente
-- R-05: formato de los IDs internos (provisional: prefijo `[HU-XX]` / `[CP-XX]` en el título).
+- R-05: formato de los IDs internos (provisional: prefijo `[HU-XX]` / `[CP-XX]` en el título). Los números los asigna el núcleo antes de la revisión, leyendo (solo lectura) los que ya hay en Jira: los CP continúan tras los de la HU (PA-450) y una HU nueva recibe el siguiente `HU-NN` libre del proyecto (PA-202; se respeta el del modelo si está libre, una iteración conserva el suyo y, si Jira no responde, la HU queda sin número).
 - R-01: alcance de la ejecución → ampliación de `TestManagement` en la v1.1.
 
 ## 11. Anexo de congelación (día 1)

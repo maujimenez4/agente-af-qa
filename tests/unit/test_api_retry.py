@@ -31,6 +31,14 @@ from tests.unit.test_api_handoffs import _handed_off, _store
 RETRY_PATH = "/api/v1/conversations/{conversation_id}/retry"
 
 
+NUMBERING = "numeración"
+NUMBERING_JQL = 'project = "DEMO" ORDER BY key'
+
+
+def _context_reads(reads: list[str]) -> list[str]:
+    return [r for r in reads if r != NUMBERING]
+
+
 class CountingTracker(FakeIssueTracker):
     """FakeIssueTracker que cuenta las lecturas (para comprobar que el reintento no recarga)."""
 
@@ -43,7 +51,8 @@ class CountingTracker(FakeIssueTracker):
         return super().get_issue(key)
 
     def search(self, jql: str, limit: int = 50) -> list[Any]:
-        self.reads.append("search")
+        # PA-202: la búsqueda de números `[HU-NN]` es de `generate`, no del contexto.
+        self.reads.append(NUMBERING if jql.startswith(NUMBERING_JQL) else "search")
         return super().search(jql, limit)
 
 
@@ -98,7 +107,8 @@ def test_retry_failed_conversation_reaches_review_without_reloading(
     assert conv["state"] == "in_review", conv
     assert conv["review"]["version"] == 1
     assert conv["error"] is None
-    assert tracker.reads == reads_before
+    # Sin recargar el origen ni el contexto; `generate` sí vuelve a numerar una HU nueva (PA-202).
+    assert _context_reads(tracker.reads) == _context_reads(reads_before)
     run = rt.runs.get(cid)
     assert run is not None and run.operation == "retry"
     assert "load_origin" not in run.nodes and "retrieve_context" not in run.nodes

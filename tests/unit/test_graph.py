@@ -453,10 +453,11 @@ def test_forced_approve_decision_on_paused_graph_fails_to_publish(
 # --- 5 · modo QA ------------------------------------------------------------------------------
 
 
-def test_qa_flow_publishes_suite_with_attachments_and_no_memory(
+def test_qa_flow_publishes_suite_with_attachments_and_qa_memory(
     container: Container, tmp_path: Path
 ) -> None:
-    """CA-00-04 · D-09 · D-07: aprobar publica la suite y sus adjuntos; no genera memoria."""
+    """CA-00-04 · D-09 · D-07 revisada (PA-485): aprobar publica la suite y sus adjuntos y genera
+    la memoria de QA (aparte de la de la HU)."""
     graph = build_graph(container)
     config = _config()
     payload = _payload(_start(graph, config, mode="qa", user=QA_USER))
@@ -475,10 +476,12 @@ def test_qa_flow_publishes_suite_with_attachments_and_no_memory(
     assert isinstance(final["artifact"].content, tc.TestSuite)
     assert set(testmgmt.attachments["DEMO-3"]) == {"estrategia-DEMO-3.md", "matriz-DEMO-3.md"}
     assert _tracker(container).writes == []
-    # D-07: la suite no genera memoria aunque todo vaya bien.
+    # PA-485 (RF-39): memoria de QA en `qa/<CLAVE>.md` y `memoria-qa-<CLAVE>`; ninguna de HU.
     assert list(tmp_path.glob("*.md")) == []
-    assert _memory_chunks(container) == []
-    assert container.memory_generator.generated == []  # type: ignore[attr-defined]
+    assert [p.name for p in (tmp_path / "qa").glob("*.md")] == ["DEMO-3.md"]
+    assert _memory_chunks(container) == ["memoria-qa-DEMO-3-0"]
+    (memory,) = container.memory_generator.generated  # type: ignore[attr-defined]
+    assert memory.artifact_type is ArtifactType.TEST_SUITE
 
 
 def test_qa_partial_failure_reports_errors_and_keeps_approved(tmp_path: Path) -> None:

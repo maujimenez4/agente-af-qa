@@ -615,8 +615,17 @@ def test_llm_error_propagates_without_retry() -> None:
 
 
 def _suite_memory(**update: Any) -> Memory:
+    """Memoria válida para `renewal_test_suite()`: cada CP junto a lo que cubre (PA-485)."""
     values: dict[str, Any] = {
         "objective": "Artefactos de QA de la renovación (ficticio).",
+        "acceptance_criteria": [
+            "CA-01: Renovación permitida amplía 21 días → CP-01.",
+            "CA-02: Renovación rechazada si hay reservas → CP-02.",
+        ],
+        "business_rules": [
+            "RN-01: Máximo 2 renovaciones por préstamo → CP-01.",
+            "RN-02: No se renueva si hay reservas pendientes → CP-02.",
+        ],
         "references": [],
     }
     return _memory(**(values | update))

@@ -618,8 +618,8 @@ def test_iterate_qa_keeps_excluded_sources_out_of_generate_tests(tmp_path: Path)
 # --- 8 · flujo completo en live con el fake ---------------------------------------------------
 
 
-def test_qa_live_flow_publishes_generated_suite_without_memory(tmp_path: Path) -> None:
-    """PA-61 · D-09 · D-07: generate → approve con huella → `publish_suite` de la suite generada."""
+def test_qa_live_flow_publishes_generated_suite_with_qa_memory(tmp_path: Path) -> None:
+    """PA-61 · D-09 · PA-485: generate → approve con huella → `publish_suite` y memoria de QA."""
     testmgmt = RecordingTestManagement()
     container = fake_container(tmp_path, test_management=testmgmt)
     assert container.publish_mode == "live"
@@ -645,12 +645,15 @@ def test_qa_live_flow_publishes_generated_suite_without_memory(tmp_path: Path) -
     attachments = testmgmt.attachments["DEMO-3"]
     assert attachments["estrategia-DEMO-3.md"] == generated.strategy_md
     assert attachments["matriz-DEMO-3.md"] == generated.coverage_md()
-    # D-07: sin memoria para las suites.
+    # D-07 revisada (PA-485): la suite publicada de verdad genera su memoria de QA, aparte.
     assert list(tmp_path.glob("*.md")) == []
-    assert container.memory_generator.generated == []  # type: ignore[attr-defined]
+    assert (tmp_path / "qa" / "DEMO-3.md").is_file()
+    assert len(container.memory_generator.generated) == 1  # type: ignore[attr-defined]
     store = container.vector_store
     assert isinstance(store, FakeVectorStore)
-    assert all(c.metadata.get("category") != "memoria" for c in store.chunks.values())
+    memories = [c for c in store.chunks.values() if c.metadata.get("category") == "memoria"]
+    assert [c.document_id for c in memories] == ["memoria-qa-DEMO-3"]
+    assert memories[0].metadata["artifact_type"] == "test_suite"
     assert container.issue_tracker.writes == []  # type: ignore[attr-defined]
     entries = _audit(container).entries(final["artifact"].id)
     assert [e.action for e in entries] == ["create", "approve", "publish"]

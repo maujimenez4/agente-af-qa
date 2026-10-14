@@ -117,6 +117,13 @@ SIMULATED_BEFORE_PA41 = (
 )
 
 
+# PA-485 (RF-39): tipos con memoria y dónde se guarda e indexa cada una.
+MEMORY_TYPES = frozenset({ArtifactType.USER_STORY, ArtifactType.TEST_SUITE})
+MEMORY_PREFIX = "memoria-"  # documento de la memoria de una HU (el de siempre)
+QA_MEMORY_PREFIX = "memoria-qa-"  # documento de la memoria de QA de esa HU
+QA_MEMORY_FOLDER = "qa"  # `data/memory/qa/<CLAVE>.md`
+
+
 class GraphNodes:
     def __init__(self, container: Container, handoffs: HandoffStore | None = None) -> None:
         self.c = container
@@ -1021,10 +1028,11 @@ class GraphNodes:
 
     def memorize(self, state: AgentState) -> dict[str, Any]:
         artifact = state["artifact"]
-        # D-07: en el MVP solo las HU publicadas generan memoria.
+        # D-07 (revisada el 2026-10-14, PA-485): las HU y las suites de QA publicadas de verdad
+        # generan memoria; en simulación o con una suite publicada en parte, no (no es PUBLISHED).
         if (
             artifact is None
-            or artifact.type is not ArtifactType.USER_STORY
+            or artifact.type not in MEMORY_TYPES
             or artifact.status is not ArtifactStatus.PUBLISHED
         ):
             return {}
@@ -1032,16 +1040,25 @@ class GraphNodes:
             raise PublishError("No consta la publicación de esta versión; no se genera memoria.")
         memory = self.c.memory_generator.generate(artifact)
         markdown = memory.to_markdown()
-        self.c.memory_dir.mkdir(parents=True, exist_ok=True)
-        target = (self.c.memory_dir / f"{memory.jira_key}.md").resolve()
-        if not JIRA_KEY.fullmatch(memory.jira_key) or not target.is_relative_to(
-            self.c.memory_dir.resolve()
-        ):
+        qa = artifact.type is ArtifactType.TEST_SUITE
+        # PA-485 (RF-38): la memoria de QA vive aparte (`qa/<CLAVE>.md`, `memoria-qa-<CLAVE>`):
+        # la funcional y la de QA de la misma HU no se pisan.
+        folder = self.c.memory_dir / QA_MEMORY_FOLDER if qa else self.c.memory_dir
+        folder.mkdir(parents=True, exist_ok=True)
+        target = (folder / f"{memory.jira_key}.md").resolve()
+        inside = target.is_relative_to(folder.resolve()) and target.is_relative_to(
+            self.c.memory_dir.resolve()  # también si `qa/` fuera un enlace a otro sitio
+        )
+        if not JIRA_KEY.fullmatch(memory.jira_key) or not inside:
             raise ValueError(f"Clave de Jira no válida para la memoria: {memory.jira_key!r}.")
         target.write_text(markdown, encoding="utf-8")
 
-        # Reindexado sin duplicados (RF-38): se sustituye la memoria anterior de la misma HU.
-        document_id = f"memoria-{memory.jira_key}"
+        # Reindexado sin duplicados (RF-38): se sustituye la memoria anterior de la misma HU (y
+        # del mismo tipo).
+        document_id = f"{QA_MEMORY_PREFIX if qa else MEMORY_PREFIX}{memory.jira_key}"
+        metadata = {"category": "memoria", "related_key": memory.jira_key}
+        if qa:
+            metadata["artifact_type"] = ArtifactType.TEST_SUITE.value
         (embedding,) = self.c.embeddings.embed([markdown])
         self.c.vector_store.delete_by_document(document_id)
         self.c.vector_store.upsert(
@@ -1052,7 +1069,7 @@ class GraphNodes:
                     ordinal=0,
                     content=markdown,
                     embedding=embedding,
-                    metadata={"category": "memoria", "related_key": memory.jira_key},
+                    metadata=metadata,
                 )
             ]
         )

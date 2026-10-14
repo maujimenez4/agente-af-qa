@@ -17,6 +17,7 @@ __pycache__/
 
 # Datos locales generados
 data/memory/*.md
+data/memory/qa/*.md
 !data/memory/.gitkeep
 data/uploads/
 

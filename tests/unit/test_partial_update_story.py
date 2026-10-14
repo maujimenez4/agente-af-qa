@@ -182,13 +182,13 @@ def test_partially_published_suite_stays_approved_with_failed_ids(
 def test_messages_do_not_offer_to_discard_a_conversation_in_error() -> None:
     """Auditoría 2026-10-08: una conversación en error no se puede descartar; los textos de la
     cancelación y del tope de rechazos ofrecen empezar una conversación nueva."""
-    import inspect
-
     from api.cancel import CANCELLED_MESSAGE
     from core.graph import nodes
 
     assert "descartar" not in CANCELLED_MESSAGE
     assert "conversación nueva" in CANCELLED_MESSAGE
-    source = inspect.getsource(nodes.GraphNodes.human_review)
+    # El archivo entero, no `inspect.getsource`: este depende de los números de línea del módulo
+    # ya cargado y falla si el archivo cambia mientras corre la suite.
+    source = Path(nodes.__file__).read_text(encoding="utf-8")
     assert "descarta la" not in source
-    assert "empieza una " in source
+    assert "Demasiadas respuestas rechazadas en esta revisión: empieza una " in source

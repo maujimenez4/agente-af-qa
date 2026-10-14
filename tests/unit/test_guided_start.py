@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import pytest
 
-from adapters.base import Chunk, IssueDetail, IssueSummary
+from adapters.base import Chunk, IssueDetail, IssueSummary, TaskType
 from core.config import AppConfig, Settings, load_models_config
 from core.container import Container
 from core.context.service import ContextService, build_context_service
@@ -808,7 +808,8 @@ def test_build_context_service_matches_graph_context_service(container: Containe
     proyecto del origen y la misma configuración del contenedor."""
     state = initial_state(AF_USER, "functional", {"kind": "need", "text": "x", "project": "DEMO"})
     from_graph = GraphNodes(container)._context_service(state)
-    built = build_context_service(container, "DEMO")
+    # El grafo pasa la tarea (PA-443: presupuesto; PA-485: orden de las memorias).
+    built = build_context_service(container, "DEMO", TaskType.GENERATE_STORY)
 
     assert vars(from_graph) == vars(built)
     assert built._project_key == "DEMO"

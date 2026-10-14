@@ -238,6 +238,15 @@ def _suite_memory(**update: Any) -> Memory:
             {
                 "objective": "Artefactos de QA de la renovación (ficticio).",
                 "artifact_type": ArtifactType.TEST_SUITE,
+                # PA-485: en una suite, cada CP aparece junto a lo que cubre.
+                "acceptance_criteria": [
+                    "CA-01: Renovación permitida amplía 21 días → CP-01.",
+                    "CA-02: Renovación rechazada si hay reservas → CP-02.",
+                ],
+                "business_rules": [
+                    "RN-01: Máximo 2 renovaciones por préstamo → CP-01.",
+                    "RN-02: No se renueva si hay reservas pendientes → CP-02.",
+                ],
                 "references": [],
             }
             | update

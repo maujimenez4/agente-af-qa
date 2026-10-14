@@ -30,6 +30,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 MEMORY_CATEGORY = "memoria"
+# PA-485 (RF-39): las memorias de QA llevan `artifact_type` en sus metadatos; las de HU, no.
+QA_MEMORY_TYPE = "test_suite"
+QA_TASKS = frozenset({TaskType.GENERATE_TESTS})  # generar o iterar una suite
 DEFAULT_TOKEN_BUDGET = 3300  # igual que `limits.context_token_budget` de models.yaml (PA-114)
 # Tipos de incidencia que no son HU: no se proponen como «HU parecida» (T-53).
 NOT_STORIES = frozenset({"epic", "épica", "subtarea", "sub-task", "subtask", "task", "tarea"})
@@ -101,6 +104,7 @@ class ContextService:
         memory_boost: float,
         token_budget: int,
         project_key: str | None = None,
+        task: TaskType | None = None,
     ) -> None:
         self._tracker = tracker
         self._embeddings = embeddings
@@ -109,6 +113,7 @@ class ContextService:
         self._memory_boost = memory_boost
         self._token_budget = token_budget
         self._project_key = project_key
+        self._task = task
 
     def gather(
         self,
@@ -229,11 +234,17 @@ class ContextService:
             k = min(k * 2, MAX_RAG_SEARCH)
         _check(should_stop)
         results += self._related_documents(vector, query, results, excluded)
-        # Memorias primero (RF-51); después, el resto por puntuación.
-        return sorted(
-            results,
-            key=lambda r: (r.chunk.metadata.get("category") != MEMORY_CATEGORY, -r.score),
-        )
+        # Memorias primero (RF-51); después, el resto por puntuación. PA-485: entre las
+        # memorias, las de QA van primero en las tareas de QA y detrás de las de HU en las demás.
+        return sorted(results, key=self._order)
+
+    def _order(self, result: RetrievedChunk) -> tuple[bool, int, float]:
+        meta = result.chunk.metadata
+        memory = meta.get("category") == MEMORY_CATEGORY
+        if not memory or self._task is None:  # sin tarea, el orden de siempre
+            return (not memory, 0, -result.score)
+        qa = meta.get("artifact_type") == QA_MEMORY_TYPE
+        return (False, int(qa) if self._task not in QA_TASKS else int(not qa), -result.score)
 
     def _related_documents(
         self,
@@ -269,6 +280,8 @@ def build_context_service(
 
     PA-443: con `task`, el presupuesto de contexto es el del proveedor que hará la tarea (el
     primero de su cadena efectiva, también el modelo elegido en la UI); sin ella, el global.
+    PA-485: la tarea decide también el orden de las memorias (QA primero en `generate_tests`; las
+    de HU primero en las demás; sin tarea, por puntuación, como siempre).
     """
     return ContextService(
         container.issue_tracker,
@@ -278,6 +291,7 @@ def build_context_service(
         memory_boost=container.memory_boost,
         token_budget=_token_budget(container, task),
         project_key=project,
+        task=task,
     )
 
 

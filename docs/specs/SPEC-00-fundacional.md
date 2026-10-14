@@ -215,11 +215,11 @@ class AgentState(TypedDict):
 | Nodo | Responsabilidad | Paso |
 |---|---|---|
 | `load_origin` | Validar el origen y cargar la incidencia si hay clave | 1 |
-| `retrieve_context` | Servicio de contexto: Jira (épica padre, hermanas, vínculos) + RAG (documentos y memorias con prioridad) | 2–3 |
+| `retrieve_context` | Servicio de contexto: Jira (épica padre, hermanas, vínculos) + RAG (documentos y memorias con prioridad). Entre las memorias, según la tarea (PA-485): en `generate_tests` primero las de QA; en las demás, primero las de HU; sin tarea, por puntuación | 2–3 |
 | `generate` | HU nueva, evolución (con `ImpactAnalysis` y diff) o TestSuite, según el modo y el origen | 4 |
 | `human_review` | `interrupt()` → la UI muestra la vista previa y los cambios; reanuda con decisión y feedback | 5–6 |
 | `publish` | **Único nodo que escribe** en Jira; exige `APPROVED`; registra la auditoría | 7 |
-| `memorize` | Memoria .md + reindexado (solo `USER_STORY` en el MVP, D-07) | 8 |
+| `memorize` | Memoria .md + reindexado de una HU o, desde v1.1, de una suite de QA (RF-39, D-07 revisada, PA-485); solo tras una publicación real completa (`PUBLISHED` y `was_published`) | 8 |
 
 Aristas: `human_review` → `generate` (iterate) · `human_review` (edit) · `publish` (approve) · `END` (discard).
 Checkpointer: `langgraph-checkpoint-postgres` (`postgres_checkpointer`, T-52) con el serializador de tipos explícitos; `memory_checkpointer` solo en pruebas.
@@ -239,7 +239,7 @@ Checkpointer: `langgraph-checkpoint-postgres` (`postgres_checkpointer`, T-52) co
 | `chunks` | id, document_id, ordinal, section, content, embedding `vector(N)`, tsv `tsvector`, metadata (jsonb) |
 | `llm_usage` | id, task, provider, model, input_tokens, output_tokens, est_cost, latency_ms, artifact_id, at (RF-43) |
 
-- Memorias: archivo `data/memory/<JIRA_KEY>.md` + `documents.category='memoria'`, sin fragmentar, con `related_key` para el reindexado (RF-38).
+- Memorias: archivo `data/memory/<JIRA_KEY>.md` + `documents.category='memoria'`, sin fragmentar, con `related_key` para el reindexado (RF-38). La memoria de QA de esa HU (PA-485) va aparte, en `data/memory/qa/<JIRA_KEY>.md` y el documento `memoria-qa-<JIRA_KEY>` (metadato `artifact_type: test_suite`): se sustituye al volver a publicar sin tocar la de la HU. Prompt propio, `prompts/synthesize_qa_memory.md`; la validación exige además todos los CP y ninguno inventado. `GET /memories` solo lista las de HU (la carpeta raíz).
 - Migraciones con Alembic.
 
 ## 7. Configuración

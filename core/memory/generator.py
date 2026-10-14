@@ -1,8 +1,9 @@
 """Memoria sintética de un artefacto publicado con salida estructurada (RF-36, RNF-25).
 
-`LLMMemoryGenerator` depende solo del protocolo `LLMProvider` y no distingue el tipo de artefacto:
-los IDs y las fuentes válidas salen del contenido (HU o suite de QA). En el MVP el nodo
-`memorize` solo lo llama para HU publicadas (D-07).
+`LLMMemoryGenerator` depende solo del protocolo `LLMProvider`: los IDs y las fuentes válidas salen
+del contenido (HU o suite de QA) y el prompt, del tipo (`synthesize_memory` o
+`synthesize_qa_memory`). El nodo `memorize` lo llama para las HU y, desde v1.1, para las suites de
+QA publicadas (RF-39, D-07 revisada, PA-485); en una suite se exigen además todos los CP.
 
 La salida del LLM no se da por buena: la identidad (`artifact_type`, `jira_key`, `version`) sale
 del artefacto, las referencias se filtran contra sus fuentes, cada entrada se reduce a una línea
@@ -91,6 +92,15 @@ def artifact_facts(artifact: Artifact) -> ArtifactFacts:
     )
 
 
+QA_MEMORY_PROMPT = "synthesize_qa_memory"
+STORY_MEMORY_PROMPT = "synthesize_memory"
+
+
+def prompt_name(artifact: Artifact) -> str:
+    """PA-485: prompt de la memoria según el tipo de artefacto (HU o suite de QA)."""
+    return QA_MEMORY_PROMPT if isinstance(artifact.content, TestSuite) else STORY_MEMORY_PROMPT
+
+
 def render_artifact(artifact: Artifact) -> str:
     """El artefacto como dato no confiable, escapado y delimitado."""
     data = json.dumps(artifact.content.model_dump(mode="json"), ensure_ascii=False)
@@ -143,6 +153,10 @@ def memory_errors(memory: Memory, facts: ArtifactFacts) -> list[str]:
     missing = _missing(facts.rules, memory.business_rules)
     if missing:
         errors.append(f"faltan reglas de negocio: {', '.join(missing)}")
+    # PA-485 (RF-39): en una suite, cada CP aparece junto al CA o la RN que cubre.
+    missing = _missing(facts.cases, [*memory.acceptance_criteria, *memory.business_rules])
+    if missing:
+        errors.append(f"faltan casos de prueba: {', '.join(missing)}")
     for name, text in _named_texts(memory):
         if kind := _personal_data_kind(text):
             errors.append(f"«{name}» parece contener un dato personal ({kind})")
@@ -178,7 +192,8 @@ class LLMMemoryGenerator:
     def generate(self, artifact: Artifact) -> Memory:
         started = time.perf_counter()
         facts = artifact_facts(artifact)
-        prompt = self._load("synthesize_memory")
+        # PA-485 (RF-39): una suite tiene su propio prompt; la HU, el de siempre.
+        prompt = self._load(prompt_name(artifact))
         messages = [
             Message(role="system", content=prompt.text),
             Message(role="user", content=render_artifact(artifact)),
@@ -210,9 +225,10 @@ class LLMMemoryGenerator:
             )
             memory = sanitize(result.content, artifact, facts)
             if memory_errors(memory, facts):
+                what = "sus criterios, reglas y casos" if facts.cases else "sus criterios y reglas"
                 raise MemorySynthesisError(
                     "No se pudo generar una memoria válida de "
-                    f"{facts.jira_key}: no recoge fielmente sus criterios y reglas o incluye "
+                    f"{facts.jira_key}: no recoge fielmente {what} o incluye "
                     "datos no permitidos. Vuelve a intentarlo."
                 )
         log.info(

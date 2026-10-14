@@ -9,7 +9,7 @@ Frontend del agente, con el aspecto del lienzo «Propuesta mixta» (D-04 revisad
 - **Flujo de QA** por roles: QA escribe la clave de la HU (QA 1 a QA 5: origen, generando, iterar la suite con su cobertura, recibo y resultado). Un CA sin caso bloquea la aprobación de la suite; una RN sin caso solo avisa.
 - **Revisar la calidad** (solo lectura), **Memoria** (los tres roles) y **Administración** (Ajustes, solo admin).
 - **Piezas comunes:** carril (con el anillo de consumo total), lista de conversaciones, la Q animada de fase, carga y escritura, y los estados vacío, cargando y error. Todo respeta `prefers-reduced-motion`, se maneja con el teclado y funciona a 1024, 1280 y 1440 px al 100, 125 y 150 % (lista y panel en capa por debajo de 1024 px útiles).
-- **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución), Historial y auditoría, editar la suite a mano y elegir el modelo por petición (UI.md §11).
+- **Fuera de la entrega:** el flujo unido HU → QA, QA 6 (registrar la ejecución), Historial y auditoría y elegir el modelo por petición (UI.md §11). Editar la suite a mano llega en la v1.1 (PA-158).
 - Referencias:
   - diseño: `docs/diseno/lienzo/` y el lienzo en claude.ai;
   - comportamiento: `docs/specs/UI.md`;

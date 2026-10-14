@@ -171,8 +171,8 @@ describe('MSW · POST /edit · rechazos como _edit (200 con review.error)', () =
     await expectRejected({ fingerprint: 'ab'.repeat(32), content: editedStory() }, FINGERPRINT_MISMATCH)
   })
 
-  it('una suite → «aún no está disponible»', async () => {
-    /** Rechazo de la suite. */
+  it('una HU enviada a una revisión de suite → contenido no válido', async () => {
+    /** PA-158: la suite ya se edita; una HU enviada a una revisión de suite no casa con `TestSuite` y se rechaza. */
     const { csrf, id } = await ready()
     const run = mockDb.runs.get(id)!
     const review = run.conversation.review!
@@ -180,7 +180,7 @@ describe('MSW · POST /edit · rechazos como _edit (200 con review.error)', () =
     const response = await edit(id, csrf, { fingerprint: FINGERPRINT, content: editedStory() })
     expect(response.status).toBe(200)
     const conversation = (await response.json()) as ConversationOut
-    expect(conversation.review?.error).toMatch(/aún no está disponible/)
+    expect(conversation.review?.error).toMatch(/^El contenido editado no es válido; revisa: /)
     expect(conversation.review?.version).toBe(2)
   })
 

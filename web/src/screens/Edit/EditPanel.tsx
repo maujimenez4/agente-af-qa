@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import type { TestSuite } from '../../api/types.ts'
 import { SidePanel } from '../../components/Workspace/index.ts'
+import type { EditorCore } from './editorCore.ts'
+import { EditorActions } from './EditorActions.tsx'
 import type { UserStory } from './storyDraft.ts'
-import { StoryEditorActions, StoryEditorFields } from './StoryEditor.tsx'
+import { StoryEditorFields } from './StoryEditor.tsx'
+import { SuiteEditorFields } from './SuiteEditor.tsx'
+import type { StoryRefs } from './suiteValidation.ts'
 import { useStoryEditor } from './useStoryEditor.ts'
+import { useSuiteEditor } from './useSuiteEditor.ts'
 
 /**
  * Antes de salir del editor (PA-344): con cambios sin guardar abre «¿Descartar los cambios?» y devuelve `false`; al
@@ -11,17 +17,14 @@ import { useStoryEditor } from './useStoryEditor.ts'
  */
 export type EditCloseGuard = (after?: () => void) => boolean
 
-export interface EditPanelProps {
+interface EditPanelCommon {
   /** Título de la conversación (subtítulo del panel). */
   title: string
-  /** La HU de la versión en revisión, que se edita entera. */
-  story: UserStory
   version: number
   /** Motivo con el que la API rechazó la última edición (`review.error`), tal cual. */
   reviewError?: string | null
   /** Guardando (la API aún no ha respondido). */
   busy: boolean
-  onSave: (content: UserStory, note: string | null) => void
   /** Salir del editor sin guardar (la versión se queda como está). */
   onCancel: () => void
   /**
@@ -38,9 +41,40 @@ export interface EditPanelProps {
   onClosePanel: () => void
 }
 
+export interface EditPanelProps extends EditPanelCommon {
+  /** La HU de la versión en revisión, que se edita entera. */
+  story: UserStory
+  onSave: (content: UserStory, note: string | null) => void
+}
+
+export interface SuiteEditPanelProps extends EditPanelCommon {
+  /** La suite de la versión en revisión, que se edita entera (PA-158). */
+  suite: TestSuite
+  /** Los CA y RN de la HU, deducidos de la revisión (`null`: no se sabe). */
+  refs: StoryRefs
+  onSave: (content: TestSuite, note: string | null) => void
+}
+
 // Editar a mano (RF-32, parte B) en el panel de Iterar: el editor de la parte A con su pie, en el ancho de la suite (540 px).
-export function EditPanel({ title, story, version, reviewError, busy, onSave, onCancel, closeGuardRef, saveRef, onClosePanel }: EditPanelProps) {
+export function EditPanel({ story, reviewError, ...rest }: EditPanelProps) {
   const editor = useStoryEditor(story)
+  return <EditPanelFrame {...rest} editor={editor} fields={<StoryEditorFields editor={editor} reviewError={reviewError} />} />
+}
+
+// Editar a mano la suite de QA (PA-158, UI.md §6.3): el mismo marco y el mismo pie que la HU.
+export function SuiteEditPanel({ suite, refs, reviewError, ...rest }: SuiteEditPanelProps) {
+  const editor = useSuiteEditor(suite, refs)
+  return <EditPanelFrame {...rest} editor={editor} fields={<SuiteEditorFields editor={editor} reviewError={reviewError} />} />
+}
+
+interface EditPanelFrameProps<T> extends Omit<EditPanelCommon, 'reviewError'> {
+  editor: EditorCore<T>
+  fields: ReactNode
+  onSave: (content: T, note: string | null) => void
+}
+
+/** Lo común a los dos editores: el panel, la pregunta antes de salir, *Reintentar* y el foco en el primer campo. */
+function EditPanelFrame<T>({ title, version, busy, onSave, onCancel, closeGuardRef, saveRef, onClosePanel, editor, fields }: EditPanelFrameProps<T>) {
   const [confirming, setConfirming] = useState(false)
   // Lo que se hace tras «Sí, descartar» si la pregunta vino de fuera del pie (cerrar el panel, Actualizar, otra versión).
   const afterDiscard = useRef<(() => void) | null>(null)
@@ -85,7 +119,7 @@ export function EditPanel({ title, story, version, reviewError, busy, onSave, on
       subtitle={`${title} · versión ${version}`}
       size="lg"
       footer={
-        <StoryEditorActions
+        <EditorActions
           editor={editor}
           version={version}
           busy={busy}
@@ -104,9 +138,7 @@ export function EditPanel({ title, story, version, reviewError, busy, onSave, on
         />
       }
     >
-      <div ref={bodyRef}>
-        <StoryEditorFields editor={editor} reviewError={reviewError} />
-      </div>
+      <div ref={bodyRef}>{fields}</div>
     </SidePanel>
   )
 }

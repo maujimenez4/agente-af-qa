@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { fromDraft, move, newCriterion, newRule, toDraft, type CriterionDraft, type ListField, type RuleDraft, type StoryDraft, type UserStory } from './storyDraft.ts'
+import type { EditorCore } from './editorCore.ts'
 import { checkStory, type EditCheck } from './storyValidation.ts'
 
-export interface StoryEditor {
+export interface StoryEditor extends EditorCore<UserStory> {
   original: UserStory
   draft: StoryDraft
   note: string

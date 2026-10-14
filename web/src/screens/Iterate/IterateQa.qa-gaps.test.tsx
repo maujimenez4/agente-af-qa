@@ -152,10 +152,12 @@ describe('QA 3 · mientras se itera y versiones', () => {
     expect(qaRun().conversation.state).toBe('discarded')
   })
 
-  it('test_edit_by_hand_is_available_soon_in_qa', async () => {
-    // UI.md §6.3 pie: *Editar a mano* (T-51) aún no está: «disponible pronto».
+  it('test_edit_by_hand_is_available_in_qa', async () => {
+    // UI.md §6.3 pie: *Editar a mano* (T-51) era «disponible pronto»; desde PA-158 está disponible en QA.
     await openSuiteInReview()
-    expect(within(panel()).getByRole('button', { name: 'Editar a mano' })).toHaveAttribute('aria-disabled', 'true')
+    const button = within(panel()).getByRole('button', { name: 'Editar a mano' })
+    expect(button).not.toHaveAttribute('aria-disabled')
+    expect(button).toBeEnabled()
   })
 })
 

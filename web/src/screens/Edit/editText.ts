@@ -1,5 +1,7 @@
 // Textos de Editar a mano en Iterar y en el recibo (RF-32, parte B).
 import type { ImpactAnalysis } from '../../components/Proposal/proposalText.ts'
+import type { TestSuite } from '../../api/types.ts'
+import { casesLabel, type SuiteCoverage } from '../../components/Suite/suiteText.ts'
 import type { UserStory } from './storyDraft.ts'
 
 /**
@@ -12,6 +14,19 @@ export function editedSummary(story: UserStory, version: number, impact: ImpactA
   if (affected.length > 0) parts.push(`Afecta también a ${affected.map((item) => item.jira_key).join(', ')}.`)
   const questions = story.open_questions.length
   if (questions > 0) parts.push(questions === 1 ? 'Queda 1 pregunta abierta.' : `Quedan ${questions} preguntas abiertas.`)
+  return parts.join(' ')
+}
+
+/**
+ * Resumen del asistente para una suite editada a mano (PA-158): sin llamar al modelo, cuántos casos y la cobertura, que
+ * solo se afirma completa con `uncovered` vacío (PA-326); con huecos, los nombra; si no se sabe, no dice nada.
+ */
+export function editedSuiteSummary(suite: TestSuite, version: number, coverage: SuiteCoverage): string {
+  const cases = casesLabel(suite.cases.length)
+  const parts = [`Versión ${version} guardada: editada a mano, sin llamar al modelo.`]
+  if (coverage.kind === 'complete') parts.push(`${cases}; todos los CA cubiertos.`)
+  else if (coverage.kind === 'gaps') parts.push(`${cases}. Sin ningún caso: ${[...coverage.criteria, ...coverage.rules].join(', ')}.`)
+  else parts.push(`${cases}.`)
   return parts.join(' ')
 }
 

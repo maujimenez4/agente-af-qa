@@ -199,3 +199,95 @@ textarea.input {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* PA-158 · Editar a mano la suite: cobertura en vivo, tipo y prioridad en una fila, pasos y la tabla de datos. */
+/* Bloque contenedor de lo oculto con posición absoluta (el aviso de estado): así no estira la columna de la pantalla. */
+.suiteEditor {
+  position: relative;
+}
+
+.coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-size: var(--text-xs);
+}
+
+.coverage[data-tone='success'] {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.coverage[data-tone='warning'] {
+  border-color: var(--color-warn-border);
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.steps > button {
+  align-self: flex-start;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-border-soft);
+}
+
+/* La tabla de datos se desplaza en horizontal dentro de su caja si tiene muchas columnas: la rejilla no crece con
+   ella (minmax(0, 1fr)), así que el panel no se ensancha. */
+.dataField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.tableScroll {
+  /* Sin esto, su ancho intrínseco (el de la tabla) dimensiona las rejillas de fuera y el panel entero se desplaza. */
+  contain: inline-size;
+  /* Y contiene lo oculto con posición absoluta de la tabla («Acciones de la fila»), que si no saldría del panel. */
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.table th,
+.table td {
+  min-width: 128px;
+  padding: 2px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.table th {
+  font-weight: var(--weight-semibold);
+}
+
+.table th > button {
+  margin-top: 2px;
+}

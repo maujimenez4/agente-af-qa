@@ -154,7 +154,7 @@ Fase 2 de 4. Conversación + panel de la propuesta.
 El aviso «CA sin fuente» (*Confirmar* · *Pedir fuente*) del lienzo queda aplazado: los CA no traen una cita propia (PA-315).
 
 ### 4.5 bis Editar a mano (RF-32) · diseño pendiente de validar (PA-340)
-El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por la principal (PA-340); en la web ya está conectado para la HU (parte B, rama `t56-editar`). En QA, *Editar a mano* sigue «disponible pronto».
+El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por la principal (PA-340); en la web ya está conectado para la HU (parte B, rama `t56-editar`). En QA, la suite tiene su propio editor con el mismo patrón (§6.3, PA-158).
 
 | Zona | Contenido | Acción | Dependencia |
 |---|---|---|---|
@@ -165,7 +165,7 @@ El lienzo solo tiene el botón. **Diseño propuesto**, pendiente de validar por 
 | Solo una nota | Si no se ha cambiado ningún campo pero hay nota: «Cambia algún campo para guardar una versión nueva; la nota acompaña al cambio.» (la API no guarda una versión sin cambios, ni con nota; PA-435) | — | `_edit` |
 | Tras guardar | El panel vuelve a la propuesta con la versión nueva; en la conversación, «Versión N guardada: editada a mano, sin llamar al modelo», «Editada a mano · N fuentes» y, si la hay, «Nota de la edición: …»; la lista pasa a «Versión N»; en el historial del recibo, «Versión N editada a mano» | — | `VersionOut.edited` |
 
-**El backend decide:** *Guardar* solo se bloquea con lo que la API rechaza seguro (título vacío, ningún CA, identificadores mal formados o repetidos, CA sin título o sin pasos, RN sin descripción, sin cambios, nota de más de 1.000 caracteres); lo demás es un aviso. **Editar la suite de QA** a mano queda fuera por ahora (pregunta abierta en PA-340).
+**El backend decide:** *Guardar* solo se bloquea con lo que la API rechaza seguro (título vacío, ningún CA, identificadores mal formados o repetidos, CA sin título o sin pasos, RN sin descripción, sin cambios, nota de más de 1.000 caracteres); lo demás es un aviso. La suite de QA se edita a mano desde PA-158 (§6.3).
 
 ### 4.6 Recibo de aprobación
 Fase 3 de 4. Es la **revisión humana** (contrato §5).
@@ -274,7 +274,18 @@ Panel «Suite de pruebas» (540 px).
 | Pestaña **Cobertura** | Matriz CA/RN × CP (RF-24) «se adjunta como matriz-DEMO-3.md» y *Descargar la matriz* (si la API trae `coverage_md`) | Descargar | `coverage_md`, `uncovered` (PA-326) |
 | Pestaña **Datos y riesgos** | Tabla de datos sintéticos (identificadores ficticios, RF-25) y riesgos, dependencias y áreas de impacto (RF-27) | — | `TestSuite` |
 | Pestaña **Estrategia** | = plan de pruebas (decisión del día 6): alcance, niveles, entornos, criterios de entrada y salida, prioridad; «se adjunta como estrategia-DEMO-3.md». Se muestra como texto (títulos y puntos), con negrita, cursiva y código pintados como elementos de la página, nunca como HTML (PA-334); una línea de más de 4.000 caracteres, o un texto de más de 20.000, sale sin formato (PA-131, PA-347) | — | `strategy_md` (RF-26) |
-| Pie | *Editar a mano* («disponible pronto»: encima de los botones, el distintivo «Disponible pronto» y «Editar la suite a mano llegará más adelante; por ahora, pide los cambios en la conversación.», PA-346; editar la suite queda fuera por ahora, PA-340) · *Descartar* · *Revisar y aprobar* (siempre activo; con un CA sin caso, el recibo no deja aprobar) | — | §6.4 |
+| Pie | *Editar a mano* (abre el editor de la suite, abajo; PA-158) · *Descartar* · *Revisar y aprobar* (siempre activo; con un CA sin caso, el recibo no deja aprobar) | Editar / descartar / abrir el recibo | §6.4 |
+
+**Editar a mano la suite** (PA-158, RF-32): el mismo patrón que la HU (§4.5 bis), con el mismo pie, la misma nota y las mismas preguntas antes de perder cambios.
+
+| Zona | Contenido | Acción | Dependencia |
+|---|---|---|---|
+| Panel derecho | El editor **en lugar de la suite** (540 px), por grupos. **Casos:** identificador, título, tipo, prioridad, «Verifica (CA y RN)» (separados por comas, con la pista de los CA y RN de la HU), precondiciones (una por línea), pasos (acción, datos opcionales, resultado esperado) y Gherkin opcional. Casos y pasos se suben, se bajan y se quitan; *Añadir un caso* (el siguiente CP-NN, positivo) y *Añadir un paso*. **Datos y riesgos:** la tabla de datos ficticios (nombre de cada columna editable; añadir y quitar filas y columnas), riesgos, dependencias y áreas de impacto. **Estrategia:** el Markdown de `strategy_md`. La clave de la HU y las fuentes no se editan | Editar | `TestSuite` (schemas/test_case.py) |
+| Cobertura en vivo | Arriba del editor, recalculada al editar con las reglas de *Cobertura*: «Falta un caso para CA-02. Podrás guardar, pero no aprobar la suite hasta que cada CA tenga un caso.»; «Sin ningún caso: RN-02. Una RN sin caso no impide aprobar.»; «Cada CA y cada RN de la HU tiene al menos un caso.» | — | Los CA y RN de la HU se deducen de la revisión: los que referencia la versión en revisión más los de `uncovered` (el backend solo deja en revisión referencias que existen). Con `uncovered` a `null`: «No se sabe qué CA y RN tiene la HU: FAQ comprobará las referencias y la cobertura al guardar.» y solo se comprueba el formato |
+| Errores junto al campo | Bloquean *Guardar*, como el backend: identificador `CP-` y un número, sin repetir; título; al menos un CA en «Verifica», con formato `CA-NN`/`RN-NN` y que exista en la HU; al menos un paso con acción y resultado; al menos un caso positivo y uno negativo; columna de datos con valores y sin nombre o repetida; sin cambios; nota de más de 1.000 caracteres. Un CA sin caso **no** impide guardar (como al generar, PA-426): bloquea la aprobación | — | `_edit`, `blocking_errors` (core/qa/validation.py) |
+| Rechazo | Arriba, «No se guardó la edición.» y el motivo de la API tal cual (p. ej., un dato que parece personal) | — | `review.error` |
+| Guardar | *Guardar la versión N+1*: `POST /edit` con la suite completa, la huella mostrada y la nota. En la conversación, la nota y «Versión N guardada: editada a mano, sin llamar al modelo. 4 casos; todos los CA cubiertos.»; el recibo aprueba la versión editada con su huella | `POST /conversations/{id}/edit` | Contrato §5 |
+| Teclado | Todo con el teclado. Tras subir o bajar, el foco sigue en el botón (o en el otro, si el primero queda desactivado); tras quitar, va a *Añadir…*; tras añadir un caso, a su identificador. Un aviso de estado dice lo que ha pasado («CP-01 pasa a la posición 2.») | — | — |
 
 **Cobertura** (`uncovered`, PA-326); `null` y listas vacías **no se tratan igual**:
 - **Listas vacías** («todo cubierto»): distintivo «Todos los CA cubiertos» y «Cada CA y cada RN de la HU tiene al menos un caso.».
@@ -392,6 +403,6 @@ El diseño es el de Ajustes de la página «Propuesta v2» del lienzo, con las p
 - **Flujo unido HU → QA** (2026-10-05): *Pedir sus pruebas a QA* sale tras publicar como «disponible pronto» («No entra en esta entrega…») y no aparece tras una simulación; QA empieza escribiendo la clave de la HU. El cliente y las piezas se conservan desactivados en la web (`QA_HANDOFF_ENABLED = false`).
 - **QA 6 · Registrar la ejecución** (§6.6) y *Reintentar solo los fallidos* (PA-05).
 - **Elegir el modelo por petición** (RF-42): el selector del compositor queda en solo lectura.
-- **El aviso «CA sin fuente»** (PA-315) y **editar la suite de QA a mano** (pregunta en PA-340).
+- **El aviso «CA sin fuente»** (PA-315). Editar la suite de QA a mano llegó en la v1.1 (PA-158, §6.3).
 - **Historial** y el **registro de auditoría** («disponible pronto»).
 - La conversación libre que recaba datos con el LLM (PA-43, v2) y los defectos vinculados (RF-29, v2.0).

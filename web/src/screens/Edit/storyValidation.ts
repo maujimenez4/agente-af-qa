@@ -40,6 +40,11 @@ function repeated(ids: readonly string[]): Set<string> {
 
 /** Igualdad estructural de dos HU (como compara `_edit` el contenido editado con el revisado). */
 export function sameStory(a: UserStory, b: UserStory): boolean {
+  return sameContent(a, b)
+}
+
+/** Igualdad estructural de dos contenidos, sin contar el orden de las claves (HU o suite, PA-158). */
+export function sameContent(a: unknown, b: unknown): boolean {
   return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b))
 }
 

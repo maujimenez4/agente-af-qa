@@ -4,9 +4,10 @@
 // Solo datos ficticios.
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import type { components } from '../api/schema'
-import type { ApiError, ConversationOut, ErrorCode } from '../api/types.ts'
+import type { ApiError, ConversationOut, ErrorCode, TestSuite } from '../api/types.ts'
 import type { MockDb, MockRun } from './db.ts'
 import { randomFingerprint } from './fingerprint.ts'
+import { editedSuiteConversation, suiteEditProblem } from './editSuite.ts'
 import { FINGERPRINT_MISMATCH } from './handlers.ts'
 
 type UserStory = components['schemas']['UserStory']
@@ -132,7 +133,17 @@ export function editHandlers(db: MockDb, findRun: (id: string) => MockRun | unde
         return HttpResponse.json(run.conversation as JsonBodyType)
       }
       if (body.fingerprint !== review.fingerprint) return reject(FINGERPRINT_MISMATCH)
-      if (review.artifact.type !== 'user_story') return reject('Editar la suite a mano aún no está disponible en la API simulada.')
+      // PA-158: la suite de QA, con sus reglas (`editSuite.ts`).
+      if (review.artifact.type !== 'user_story') {
+        const problem = suiteEditProblem(review, body.content)
+        if (problem) return reject(problem)
+        const conversation = editedSuiteConversation(reviewing, body.content as TestSuite)
+        rejections.delete(params.id)
+        run.conversation = conversation
+        const summary = db.conversations.find((item) => item.thread_id === params.id)
+        if (summary) Object.assign(summary, { status: 'in_review', version: conversation.review?.version, updated_at: conversation.updated_at })
+        return HttpResponse.json(conversation as JsonBodyType)
+      }
       const bad = invalidStoryFields(body.content)
       if (bad.length > 0) return reject(`El contenido editado no es válido; revisa: ${bad.slice(0, 8).join(', ')}.`)
       const original = review.artifact.content as UserStory

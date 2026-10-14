@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type MutableRefObject } from 'react
 import { api, toApiError } from '../../api/client.ts'
 import type { ApiError, ConversationOut, TestSuite } from '../../api/types.ts'
 import { Badge } from '../../components/Badge/index.ts'
-import { Button, SoonButton } from '../../components/Button/index.ts'
+import { Button } from '../../components/Button/index.ts'
 import { AssistantMessage, ChatLog, UserMessage } from '../../components/Chat/index.ts'
 import { Chip } from '../../components/Chip/index.ts'
 import { Composer, ModelTag } from '../../components/Composer/index.ts'
@@ -35,14 +35,14 @@ import { ErrorCard, Notice, presentError } from '../../components/States/index.t
 import { conversationTitle } from '../../components/ConversationList/index.ts'
 import { SidePanel, Workspace } from '../../components/Workspace/index.ts'
 import { useSession } from '../../session/sessionContext.ts'
-import { EditPanel, type EditCloseGuard } from '../Edit/EditPanel.tsx'
-import { editedSummary, editedVersions, editNoteMessage } from '../Edit/editText.ts'
+import { EditPanel, SuiteEditPanel, type EditCloseGuard } from '../Edit/EditPanel.tsx'
+import { storyRefs } from '../Edit/suiteValidation.ts'
+import { editedSuiteSummary, editedSummary, editedVersions, editNoteMessage } from '../Edit/editText.ts'
 import type { UserStory } from '../Edit/storyDraft.ts'
 import { qaHeaderTitle } from '../Generating/headline.ts'
 import { requestStop, useGeneration } from '../Generating/useGeneration.ts'
 import styles from './Iterate.module.css'
-import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_EDIT_SOON, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
-import { SOON_BADGE } from '../Admin/adminText.ts'
+import { addCasesSuggestion, ITERATING_LABEL, MISSING_CASES_ITERATE_REASON, modelLabel, proposalVersions, QA_SUGGESTIONS, SUGGESTIONS } from './iterateText.ts'
 import { missingCasesLabel } from '../Receipt/receiptText.ts'
 import { countLabel } from '../../text/plural.ts'
 import { PROPOSAL_CONTROL } from '../../text/assistant.ts'
@@ -135,8 +135,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
   const closeGuardRef = useRef<EditCloseGuard | null>(null)
   const saveRef = useRef<(() => boolean) | null>(null)
   const edited = editedVersions(conversation.versions)
-  // Solo la HU: editar la suite de QA queda para un bloque aparte (PA-340).
-  const canEdit = !qa && !iterating && Boolean(conversation.review)
+  // La HU y, desde PA-158, también la suite de QA (solo si el contenido es una suite que se reconoce).
+  const reviewedSuite = qa && conversation.review ? suiteOf(conversation.review.artifact.content) : undefined
+  const canEdit = !iterating && Boolean(conversation.review) && (!qa || Boolean(reviewedSuite))
 
   // Versión «Jira» (PA-316): la HU tal como está en Jira, solo al evolucionar; la v1 se compara con ella.
   const baseline = conversation.jira_baseline ?? undefined
@@ -251,7 +252,7 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
 
   // Guardar la versión N+1 con la huella de la que se muestra. Un rechazo de la API llega en `review.error` (misma
   // versión): se queda en el editor con el motivo tal cual. Un error HTTP (409, 503…) sale en la conversación.
-  const saveEdit = async (content: UserStory, note: string | null) => {
+  const saveEdit = async (content: UserStory | TestSuite, note: string | null) => {
     const review = conversation.review
     if (!review) return
     setSaving(true)
@@ -323,23 +324,32 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
         { id: 'sources', label: `Fuentes (${shown?.story.sources.length ?? 0})` },
       ]
 
-  const panel = editing && conversation.review ? (
-    <EditPanel
-      key={conversation.review.version}
-      title={conversationTitle(conversation.title)}
-      story={conversation.review.artifact.content as UserStory}
-      version={conversation.review.version}
-      reviewError={editError}
-      busy={saving}
-      onSave={(content, note) => void saveEdit(content, note)}
-      onCancel={() => {
-        setEditing(false)
-        setEditError(null)
-      }}
-      closeGuardRef={closeGuardRef}
-      saveRef={saveRef}
-      onClosePanel={() => setPanelOpen(false)}
-    />
+  const editProps = conversation.review && {
+    title: conversationTitle(conversation.title),
+    version: conversation.review.version,
+    reviewError: editError,
+    busy: saving,
+    onCancel: () => {
+      setEditing(false)
+      setEditError(null)
+    },
+    closeGuardRef,
+    saveRef,
+    onClosePanel: () => setPanelOpen(false),
+  }
+  // Editar a mano: la HU o, en QA, la suite (PA-158) con los CA y RN de la HU que se deducen de la revisión.
+  const panel = editing && conversation.review && editProps ? (
+    reviewedSuite ? (
+      <SuiteEditPanel
+        key={conversation.review.version}
+        {...editProps}
+        suite={reviewedSuite}
+        refs={storyRefs(reviewedSuite, conversation.review.uncovered)}
+        onSave={(content, note) => void saveEdit(content, note)}
+      />
+    ) : (
+      !qa && <EditPanel key={conversation.review.version} {...editProps} story={conversation.review.artifact.content as UserStory} onSave={(content, note) => void saveEdit(content, note)} />
+    )
   ) : shown && (
     <SidePanel
       title={qa ? 'Suite de pruebas' : 'Propuesta de HU'}
@@ -363,19 +373,10 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           </div>
         ) : (
           <div className={styles.footer}>
-            {qa && (
-              // PA-346: el motivo se ve (no solo lo oyen los lectores de pantalla), con el distintivo de Ajustes (PA-431).
-              <p className={styles.soonNote}>
-                <Badge tone="neutral">{SOON_BADGE}</Badge> {QA_EDIT_SOON}
-              </p>
-            )}
-            {qa ? (
-              <SoonButton label="Editar a mano" note={`${SOON_BADGE}: ${QA_EDIT_SOON}`} />
-            ) : (
-              <Button variant="secondary" disabled={!canEdit} onClick={startEditing}>
-                Editar a mano
-              </Button>
-            )}
+            {/* PA-158: en QA también se edita a mano (antes, «Disponible pronto», PA-346). */}
+            <Button variant="secondary" disabled={!canEdit} onClick={startEditing}>
+              Editar a mano
+            </Button>
             <Button variant="ghost" disabled={Boolean(iterating)} onClick={() => setConfirmDiscard(true)}>
               Descartar
             </Button>
@@ -475,7 +476,9 @@ export function IterateScreen({ conversation: initial, onDiscarded, onRestart, o
           const itemSuite = qa ? suiteOf(item.artifact.content) : undefined
           const before = versions[versions.indexOf(item) - 1]
           const summary = itemSuite
-            ? suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content), coverageOf(item.version))
+            ? edited.has(item.version)
+              ? editedSuiteSummary(itemSuite, item.version, coverageOf(item.version))
+              : suiteSummary(itemSuite, item.version, before && suiteOf(before.artifact.content), coverageOf(item.version))
             : edited.has(item.version)
               ? editedSummary(item.story, item.version, item.impact)
               : versionSummary(item.story, item.version, item.impact)

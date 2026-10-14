@@ -16,7 +16,7 @@ Una web en React (Vite, React 19, TypeScript) con el aspecto del lienzo «Propue
 |---|---|---|
 | **Inicio de sesión** | todos | Dividido (PA-478): a la izquierda, en azul, el logotipo «FAQ», el mensaje y «un asistente de Qaracter»; a la derecha, el logo de Qaracter y el formulario (*Entrar en FAQ*). Usuario y contraseña contra `POST /auth/login`, con los errores `invalid_credentials` y `too_many_attempts` (cuenta atrás) |
 | **Flujo de la HU** (analista funcional) | `functional` (usuario `af-demo`) | Inicio → Elegir en Jira → **Origen y fuentes** (presupuesto de tokens, excluir documentos) → **Generando** (la Q avanza por pasos; *Detener*) → **Iterar** (chat; pestañas Propuesta, Cambios, Impacto y Fuentes; selector de versiones con la versión «Jira»; *Editar a mano*) → **Recibo** (casillas por operación y la huella exacta) → **Resultado** (simulado, publicado o publicado en parte; *Abrir la clave en Jira*, *Ver la memoria*) |
-| **Flujo de QA** | `qa` | QA escribe la clave de la HU → QA 1 Origen (tipos de caso) → QA 2 Generando → QA 3 Iterar la suite (Casos, **Cobertura**, Datos y riesgos, Estrategia; *Descargar la matriz*) → QA 4 Recibo (`publish_suite`) → QA 5 Resultado. **Un CA sin caso bloquea la aprobación**; una RN sin caso solo avisa |
+| **Flujo de QA** | `qa` | QA escribe la clave de la HU → QA 1 Origen (tipos de caso) → QA 2 Generando → QA 3 Iterar la suite (Casos, **Cobertura**, Datos y riesgos, Estrategia; *Descargar la matriz*; *Editar a mano* la suite, PA-158, v1.1) → QA 4 Recibo (`publish_suite`) → QA 5 Resultado. **Un CA sin caso bloquea la aprobación**; una RN sin caso solo avisa |
 | **Revisar la calidad** | `functional` (a `qa` le sale desactivada) | Revisión de solo lectura de una HU de Jira |
 | **Memoria** | todos | Lista de memorias por proyecto, con búsqueda, y su detalle por secciones con *Descargar la memoria* |
 | **Ajustes · Administración** | `admin` | *Probar conexiones*, los modelos configurados por tarea (solo lectura) y el modo de publicación; Documentos y Usuarios y roles, «disponible pronto» |
@@ -69,7 +69,7 @@ El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../d
 ## 4. Quién hizo cada parte
 - **Área B (responsable de `web/`):** el proyecto `web/` y el sistema de diseño; el flujo de la HU y el de QA (QA 1 a QA 5) con Cobertura; Memoria; *Editar a mano* de la HU; la API simulada; UI.md v2.0 y v2.1; el pulido final (accesibilidad, tamaños, PA-131, PA-342 a PA-344, PA-346, PA-347, PA-412 y PA-435), el guion de la demo y este traspaso.
 - **Sesión MCP** (`ses-web`, `ses-web-admin`): la prueba de la web contra la API real de punta a punta (`docs/pruebas/WEB-API-2026-10-05.md`, hallazgos PA-330 a PA-339), Administración (PA-241) y Revisar la calidad.
-- **Sesión UI** (`ses-web-fixes` y `ses-web-pulido`): los arreglos PA-332 a PA-336, hallados en la prueba contra la API real, y PA-427 a PA-431 (la Q en Revisar la calidad, extractos con formato, el chat pegado al final, «Generando una nueva versión…» y «Disponible pronto» en Ajustes); en `ses-faq`, el nombre FAQ en la web (PA-478).
+- **Sesión UI** (`ses-web-fixes` y `ses-web-pulido`): los arreglos PA-332 a PA-336, hallados en la prueba contra la API real, y PA-427 a PA-431 (la Q en Revisar la calidad, extractos con formato, el chat pegado al final, «Generando una nueva versión…» y «Disponible pronto» en Ajustes); en `ses-faq`, el nombre FAQ en la web (PA-478). En `ses-editar-suite` (v1.1, tras la presentación): *Editar a mano* la suite de QA (PA-158).
 - **Sesión Modelos** (`ses-qa-cobertura`): PA-426 en el backend (el bloqueo de la aprobación por un CA sin caso y el reintento dirigido al generar).
 - **Principal:** la API y el contrato de T-55, las PA del contrato que pidió la web y las fusiones en `PreProduccion`.
 
@@ -96,7 +96,6 @@ El detalle, en [DESIGN-DECISIONS.md](DESIGN-DECISIONS.md) y en [UI.md v2.1](../d
 Se ven como «disponible pronto» o no se muestran; el código que ya existe se conserva con sus pruebas.
 - **Flujo unido HU → QA** (*Pedir sus pruebas a QA*, «Pendientes de pruebas», *Recoger*): `QA_HANDOFF_ENABLED = false` en `src/app/features.ts`.
 - **QA 6**, registrar la ejecución de los casos, y *Reintentar solo los fallidos* (PA-05).
-- **Editar la suite de QA a mano** (pendiente de PA-340).
 - **Historial y auditoría.**
 - **Selector de modelo** por petición (UI.md §11).
 - También: Documentos y Usuarios y roles en Ajustes, las citas por CA y RN (PA-315, aplazada), la conversación libre con el LLM (PA-43) y los defectos vinculados (RF-29), estos dos para la v2.

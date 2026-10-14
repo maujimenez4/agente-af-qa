@@ -122,7 +122,7 @@ Construir un **Producto Mínimo Funcional** de un agente de IA que apoye el Aná
 | D-04 | La interfaz es un chat sencillo con vista previa para las aprobaciones, hecho en Streamlit (sin frontend separado) | 🔁 Revisada el 2026-10-02: frontend propio en React (`web/`, T-56) sobre una API FastAPI (`api/`, T-55) para que se vea como el lienzo «Propuesta mixta»; Streamlit queda como plan B hasta el punto de control T-57 |
 | D-05 | La autenticación es simple (usuarios locales) en el MVP; SSO en versiones posteriores | ✅ Aprobada |
 | D-06 | El RAG base del MVP es un corpus sintético de un dominio ficticio | ✅ Aprobada |
-| D-07 | No se genera memoria .md para artefactos de QA en el MVP, pero la arquitectura lo permite | ✅ Aprobada |
+| D-07 | No se genera memoria .md para artefactos de QA en el MVP, pero la arquitectura lo permite | 🔁 Revisada el 2026-10-14: la memoria de QA se activa en v1.1 (PA-485), después de la demo del comité; la versión de la demo (etiqueta `demo-comite`) no la incluye |
 | D-08 | ~~Publicación de QA mediante Xray (opción B)~~ **Sustituida por D-09** | ❌ Revocada |
 | D-09 | Los artefactos de QA se publican en **Jira nativo**: subtareas, adjuntos y vínculos (opción A, ver §6.2) | ✅ Aprobada |
 | D-10 | El desarrollo lo realiza una sola persona orquestando sesiones de Claude Code (principal + 2 worktrees) | ✅ Aprobada |
@@ -200,7 +200,7 @@ Leyenda: ✅ aprobado · 🔍 en revisión · ⏸ aplazado · **(PA)** Propuesta
 | RF-36 | Generar la memoria .md de cada HU publicada (objetivo, alcance, RN, decisiones, dependencias, cambios, CA y referencias) | EP-06 | v1.0 | Must | ✅ |
 | RF-37 | Reincorporar la memoria al RAG con metadatos vinculados a la clave de Jira | EP-06 | v1.0 | Must | ✅ |
 | RF-38 | Actualizar la memoria en lugar de duplicarla cuando la HU cambia (reindexado) | EP-06 | v1.0 | Should | ✅ |
-| RF-39 | Generar memoria .md de los artefactos de QA | EP-06 | v2.0 | Could | ⏸ D-07 |
+| RF-39 | Generar memoria .md de los artefactos de QA | EP-06 | v1.1 | Could | 🔄 PA-485 (D-07 revisada) |
 | RF-40 | Configurar proveedores de LLM compatibles con la API de OpenAI (Groq, OpenRouter, Ollama y otros) | EP-07 | v1.0 | Must | ✅ |
 | RF-41 | Asignar un modelo a cada tipo de tarea | EP-07 | v1.0 | Should | ✅ |
 | RF-42 | Cambiar de modelo sin modificar el código, incluido desde un selector en la UI | EP-07 | v1.0 | Must | ✅ |

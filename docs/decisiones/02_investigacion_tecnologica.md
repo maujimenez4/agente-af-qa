@@ -181,6 +181,8 @@ La interfaz necesita un chat, una vista previa con botones Aprobar, Editar y Des
 
 **Recomendación: Streamlit**, con la lógica del agente en un paquete independiente de la interfaz. Así se puede cambiar de interfaz o exponer una API FastAPI en v1.1 o v2.0 sin tocar el núcleo.
 
+> **Actualización (2026-10-02, D-04 revisada):** la interfaz pasa a una web propia en React sobre una API FastAPI; Streamlit queda como plan B. Motivos y alternativas en el §8 bis.
+
 ### 3.9 Autenticación simple (D-05)
 
 Tabla de usuarios en PostgreSQL con contraseñas con hash (bcrypt o argon2) y un rol por usuario. Tres usuarios sintéticos de demo, uno por rol. La interfaz `AuthProvider` permitirá enchufar OIDC/SSO en v2.0.
@@ -352,6 +354,31 @@ agente-af-qa/
 - **Descartados:** GPT-4o mini (de pago, no open source) y Claude (suscripción de API).
 - **Verificar el día 1:** soporte de JSON Schema en Groq con gpt-oss y modelos `:free` disponibles en OpenRouter. En cualquier caso se valida con Pydantic y se reintenta (RNF-28).
 - **Fuentes:** https://kdnuggets.com/5-free-llm-api-providers-you-can-use-in-2026 · https://blogs.novita.ai/free-llm-api-comparison-2026/ · https://www.phoronix.com/news/ollama-0.12.11-Vulkan
+
+## 8 bis. Actualización v0.4 · Interfaz web en React (D-04 revisada)
+
+> Registrado el 2026-10-15, a posteriori: la decisión se tomó el 2026-10-02 (D-04 revisada, T-55 y T-56) y aquí se dejan por escrito sus motivos y las alternativas.
+
+**Por qué se dejó Streamlit como interfaz principal:**
+- **El diseño aprobado no cabía.** El lienzo «Propuesta mixta» es una conversación con paneles, estados y respuestas en directo. Streamlit vuelve a ejecutar el script en cada interacción, y eso lo hace difícil de construir y de mantener fluido.
+- **Accesibilidad.** Cumplir WCAG 2.1 AA (foco, teclado, lectores de pantalla y escalado de Windows) exige un control de la interfaz que Streamlit no ofrece.
+- **Imagen de producto.** El MVP se presenta como producto, no como prototipo interno.
+
+Como el núcleo estaba separado de la interfaz (§3.8), el cambio no tocó la lógica. Streamlit se mantiene como plan B.
+
+**Por qué React frente a otras opciones:**
+
+| Opción | Valoración |
+|---|---|
+| **React + TypeScript + Vite** | **Elegida.** Es el estándar del mercado: más ecosistema y más personas para mantenerlo. Tiene las herramientas justas: Vitest; MSW para una API simulada; tipos generados desde el contrato OpenAPI, con `npm run api:check` para detectar si la web y la API dejan de coincidir; y patrones de accesibilidad maduros. **Es el framework en que los asistentes de código son más fiables**, lo que se complementa con desarrollar con un harness de agentes (Claude Code: sesiones en paralelo y subagentes revisores): más velocidad y menos errores |
+| Vue | Válida y más sencilla de aprender, pero con menos ecosistema y menos personas disponibles |
+| Svelte | Ligera y rápida, pero con un ecosistema y una base de conocimiento menores, también en los asistentes de código |
+| Angular | Más pesada y estructurada de lo que pedía un MVP de pocos días |
+| Next.js | No hacía falta renderizar en el servidor: el backend ya es FastAPI |
+
+**Cómo se complementa con el resto del stack:**
+- La web solo habla con la API, y **el contrato OpenAPI se genera desde `api/`**: la web y el backend no se desincronizan sin que lo detecten las pruebas.
+- Los asistentes de código trabajan mejor con TypeScript tipado y con un contrato explícito. Por eso la web pudo desarrollarse en sesiones paralelas con riesgo bajo de romper el backend.
 
 ## 9. Fuentes consultadas
 
